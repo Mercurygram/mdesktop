@@ -128,6 +128,9 @@ namespace Media::Stories {
 			}
 			if (options.scheduled) {
 				sendFlags |= SendFlag::f_schedule_date;
+				if (options.scheduleRepeatPeriod) {
+					sendFlags |= SendFlag::f_schedule_repeat_period;
+				}
 			}
 			if (options.shortcutId) {
 				sendFlags |= SendFlag::f_quick_reply_shortcut;
@@ -170,6 +173,7 @@ namespace Media::Stories {
 					MTPReplyMarkup(),
 					MTPVector<MTPMessageEntity>(),
 					MTP_int(options.scheduled),
+					MTP_int(options.scheduleRepeatPeriod),
 					MTP_inputPeerEmpty(),
 					Data::ShortcutIdToMTP(session, options.shortcutId),
 					MTP_long(options.effectId),

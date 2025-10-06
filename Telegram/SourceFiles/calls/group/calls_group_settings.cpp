@@ -690,6 +690,7 @@ void SettingsBox(
 			const auto session = &peer->session();
 			state->requestId = session->api().request(
 				MTPphone_GetGroupCallStreamRtmpUrl(
+					MTP_flags(0),
 					peer->input,
 					MTP_bool(true)
 			)).done([=](const MTPphone_GroupCallStreamRtmpUrl &result) {

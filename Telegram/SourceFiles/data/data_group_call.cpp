@@ -450,10 +450,8 @@ void GroupCall::discard(const MTPDgroupCallDiscarded &data) {
 	Core::App().calls().applyGroupCallUpdateChecked(
 		&peer->session(),
 		MTP_updateGroupCall(
-			MTP_flags(MTPDupdateGroupCall::Flag::f_chat_id),
-			MTP_long(peer->isChat()
-				? peerToChat(peer->id).bare
-				: peerToChannel(peer->id).bare),
+			MTP_flags(MTPDupdateGroupCall::Flag::f_peer),
+			peerToMTP(peer->id),
 			MTP_groupCallDiscarded(
 				data.vid(),
 				data.vaccess_hash(),

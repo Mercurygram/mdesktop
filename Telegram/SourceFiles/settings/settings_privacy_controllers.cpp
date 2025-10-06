@@ -205,7 +205,8 @@ AdminLog::OwnedItem GenerateForwardedItem(
 		MTPFactCheck(),
 		MTPint(), // report_delivery_until_date
 		MTPlong(), // paid_message_stars
-		MTPSuggestedPost()
+		MTPSuggestedPost(),
+		MTPint() // schedule_repeat_period
 	).match([&](const MTPDmessage &data) {
 		return history->makeMessage(
 			history->nextNonHistoryEntryId(),

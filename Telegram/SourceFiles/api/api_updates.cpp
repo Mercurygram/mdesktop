@@ -1234,7 +1234,8 @@ void Updates::applyUpdatesNoPtsCheck(const MTPUpdates &updates) {
 				MTPFactCheck(),
 				MTPint(), // report_delivery_until_date
 				MTPlong(), // paid_message_stars
-				MTPSuggestedPost()),
+				MTPSuggestedPost(),
+				MTPint()), // schedule_repeat_period
 			MessageFlags(),
 			NewMessageType::Unread);
 	} break;
@@ -1274,7 +1275,8 @@ void Updates::applyUpdatesNoPtsCheck(const MTPUpdates &updates) {
 				MTPFactCheck(),
 				MTPint(), // report_delivery_until_date
 				MTPlong(), // paid_message_stars
-				MTPSuggestedPost()),
+				MTPSuggestedPost(),
+				MTPint()), // schedule_repeat_period
 			MessageFlags(),
 			NewMessageType::Unread);
 	} break;

@@ -156,7 +156,8 @@ void ShareBotGame(
 			MTP_long(randomId),
 			MTPReplyMarkup(),
 			MTPVector<MTPMessageEntity>(),
-			MTP_int(0), // schedule_date
+			MTPint(), // schedule_date
+			MTPint(), // schedule_repeat_period
 			MTPInputPeer(), // send_as
 			MTPInputQuickReplyShortcut(),
 			MTPlong(),

@@ -384,6 +384,9 @@ std::unique_ptr<Data::Media> HistoryItem::CreateMedia(
 		return std::make_unique<Data::MediaInvoice>(
 			item,
 			Data::ComputeInvoiceData(item, media));
+	}, [](const MTPDmessageMediaVideoStream &) -> Result {
+		// Live stories.
+		return nullptr;
 	}, [](const MTPDmessageMediaEmpty &) -> Result {
 		return nullptr;
 	}, [](const MTPDmessageMediaUnsupported &) -> Result {
