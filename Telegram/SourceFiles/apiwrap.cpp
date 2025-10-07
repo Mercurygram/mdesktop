@@ -4100,6 +4100,7 @@ void ApiWrap::sendMessage(
 			.from = NewMessageFromId(action),
 			.replyTo = action.replyTo,
 			.date = NewMessageDate(action.options),
+			.scheduleRepeatPeriod = action.options.scheduleRepeatPeriod,
 			.shortcutId = action.options.shortcutId,
 			.starsPaid = starsPaid,
 			.postAuthor = NewMessagePostAuthor(action),

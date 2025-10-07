@@ -698,7 +698,7 @@ FillMenuResult FillSendMenu(
 	}
 	if (sending && type != Type::SilentOnly) {
 		menu->addAction(
-			(type == Type::Reminder
+			((type == Type::Reminder)
 				? tr::lng_reminder_message(tr::now)
 				: tr::lng_schedule_message(tr::now)),
 			[=] { action({ .type = ActionType::Schedule }, details); },
