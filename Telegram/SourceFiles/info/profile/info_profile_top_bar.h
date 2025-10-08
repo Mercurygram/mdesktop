@@ -21,13 +21,21 @@ namespace Ui {
 class FlatLabel;
 } //namespace Ui
 
+namespace Info {
+class Controller;
+} //namespace Info
+
 namespace Info::Profile {
 
 class StatusLabel;
 
 class TopBar final : public Ui::RpWidget {
 public:
-	TopBar(not_null<Ui::RpWidget*> parent, not_null<PeerData*> peer);
+	struct Descriptor {
+		not_null<Controller*> controller;
+	};
+
+	TopBar(not_null<Ui::RpWidget*> parent, Descriptor descriptor);
 	~TopBar();
 
 	void setRoundEdges(bool value);

@@ -25,11 +25,11 @@ namespace Info::Profile {
 
 TopBar::TopBar(
 	not_null<Ui::RpWidget*> parent,
-	not_null<PeerData*> peer)
+	Descriptor descriptor)
 : RpWidget(parent)
-, _peer(peer)
+, _peer(descriptor.controller->key().peer())
 , _st(st::infoTopBar)
-, _title(this, Info::Profile::NameValue(peer), _st.title)
+, _title(this, Info::Profile::NameValue(_peer), _st.title)
 , _status(this, QString(), _st.subtitle)
 , _statusLabel(
 	std::make_unique<StatusLabel>(_status.data(), _peer, rpl::single(0))) {

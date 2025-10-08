@@ -336,7 +336,11 @@ bool InnerWidget::hasFlexibleTopBar() const {
 
 base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 		not_null<Ui::RpWidget*> parent) {
-	const auto content = Ui::CreateChild<TopBar>(parent, _peer);
+	const auto content = Ui::CreateChild<TopBar>(
+		parent,
+		TopBar::Descriptor{
+			.controller = _controller,
+		});
 	struct State {
 		base::unique_qptr<Ui::IconButton> close;
 		base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> back;
