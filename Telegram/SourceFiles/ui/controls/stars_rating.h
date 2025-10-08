@@ -38,6 +38,7 @@ public:
 
 	void raise();
 	void moveTo(int x, int y);
+	void setOpacity(float64 opacity);
 
 	[[nodiscard]] rpl::producer<int> widthValue() const;
 
@@ -64,6 +65,7 @@ private:
 	int _cachedLevel = std::numeric_limits<int>::min();
 
 	int _currentLevel = 0;
+	float64 _opacity = 1.;
 
 };
 

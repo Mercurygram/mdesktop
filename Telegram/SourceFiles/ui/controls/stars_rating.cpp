@@ -535,7 +535,13 @@ void StarsRating::moveTo(int x, int y) {
 	_widget->move(x - st::levelMargin.left(), y - st::levelMargin.top());
 }
 
+void StarsRating::setOpacity(float64 opacity) {
+	_opacity = opacity;
+	_widget->update();
+}
+
 void StarsRating::paint(QPainter &p) {
+	p.setOpacity(_opacity);
 	if (!_shape) {
 		return;
 	}
@@ -562,6 +568,7 @@ void StarsRating::paint(QPainter &p) {
 		_cachedLevel = _currentLevel;
 	}
 
+	p.setOpacity(_opacity);
 	p.drawImage(0, 0, _cache);
 }
 
