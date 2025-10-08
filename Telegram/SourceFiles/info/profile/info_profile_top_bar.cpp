@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_emoji_statuses.h"
 #include "data/data_peer_values.h"
 #include "data/data_peer.h"
+#include "data/data_saved_sublist.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
 #include "data/stickers/data_custom_emoji.h"
@@ -114,7 +115,12 @@ TopBar::TopBar(
 			? [=] { return _peer->owner().pendingStarsRating(); }
 			: Fn<Data::StarsRatingPending()>()))
 	: nullptr)
-, _status(this, QString(), _st.subtitle)
+, _status(
+	this,
+	QString(),
+	_peer->isMegagroup()
+		? st::infoProfileMegagroupCover.status
+		: st::infoProfileCover.status)
 , _statusLabel(std::make_unique<StatusLabel>(_status.data(), _peer))
 , _showLastSeen(
 		this,
@@ -123,6 +129,20 @@ TopBar::TopBar(
 	QWidget::setMinimumHeight(st::infoLayerTopBarHeight);
 	QWidget::setMaximumHeight(st::infoLayerProfileTopBarHeightMax);
 
+	if (_peer->isMegagroup() || _peer->isChat()) {
+		_statusLabel->setMembersLinkCallback([=,
+				controller = descriptor.controller] {
+			const auto topic = controller->key().topic();
+			const auto sublist = controller->key().sublist();
+			const auto shown = sublist
+				? sublist->sublistPeer().get()
+				: controller->key().peer();
+			const auto section = Section::Type::Members;
+			controller->showSection(topic
+				? std::make_shared<Info::Memento>(topic, section)
+				: std::make_shared<Info::Memento>(shown, section));
+		});
+	}
 	if (!_peer->isMegagroup()) {
 		_status->setAttribute(Qt::WA_TransparentForMouseEvents);
 		if (const auto rating = _starsRating.get()) {
