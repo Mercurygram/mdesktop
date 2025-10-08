@@ -62,6 +62,8 @@ public:
 	TopBar(not_null<Ui::RpWidget*> parent, Descriptor descriptor);
 	~TopBar();
 
+	void setOnlineCount(rpl::producer<int> &&count);
+
 	void setRoundEdges(bool value);
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
 	void addTopBarMenuButton(
@@ -110,7 +112,6 @@ private:
 	object_ptr<Ui::RoundButton> _showLastSeen = { nullptr };
 	QGraphicsOpacityEffect *_showLastSeenOpacity = nullptr;
 
-	rpl::variable<int> _onlineCount = 0;
 	rpl::variable<float64> _progress = 0.;
 	bool _roundEdges = true;
 

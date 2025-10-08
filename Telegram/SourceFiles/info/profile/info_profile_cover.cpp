@@ -404,10 +404,7 @@ Cover::Cover(
 			: Fn<Data::StarsRatingPending()>()))
 	: nullptr)
 , _status(this, _st.status)
-, _statusLabel(std::make_unique<StatusLabel>(
-	_status.data(),
-	_peer,
-	_onlineCount.value()))
+, _statusLabel(std::make_unique<StatusLabel>(_status.data(), _peer))
 , _showLastSeen(this, tr::lng_status_lastseen_when(), _st.showLastSeen) {
 	_peer->updateFull();
 	if (const auto broadcast = _peer->monoforumBroadcast()) {
@@ -605,7 +602,12 @@ void Cover::setupSavedMusic() {
 }
 
 Cover *Cover::setOnlineCount(rpl::producer<int> &&count) {
-	_onlineCount = std::move(count);
+	std::move(count) | rpl::start_with_next([=](int value) {
+		if (_statusLabel) {
+			_statusLabel->setOnlineCount(value);
+			refreshStatusGeometry(width());
+		}
+	}, lifetime());
 	return this;
 }
 
@@ -626,11 +628,9 @@ void Cover::initViewers(rpl::producer<QString> title) {
 		_showSection.fire(Section::Type::Members);
 	});
 
-	rpl::combine(
-		_peer->session().changes().peerFlagsValue(
-			_peer,
-			Flag::OnlineStatus | Flag::Members),
-		_onlineCount.value()
+	_peer->session().changes().peerFlagsValue(
+		_peer,
+		Flag::OnlineStatus | Flag::Members
 	) | rpl::start_with_next([=] {
 		_statusLabel->refresh();
 		refreshStatusGeometry(width());

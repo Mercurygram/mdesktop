@@ -163,7 +163,6 @@ private:
 	rpl::variable<Badge::Content> _badgeContent;
 	const std::unique_ptr<Badge> _badge;
 	const std::unique_ptr<Badge> _verified;
-	rpl::variable<int> _onlineCount;
 
 	const Fn<not_null<QWidget*>()> _parentForTooltip;
 	std::unique_ptr<BadgeTooltip> _badgeTooltip;

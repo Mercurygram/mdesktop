@@ -19,16 +19,16 @@ class StatusLabel final {
 public:
 	StatusLabel(
 		not_null<Ui::FlatLabel*> label,
-		not_null<PeerData*> peer,
-		rpl::variable<int> onlineCount);
+		not_null<PeerData*> peer);
 
 	void refresh();
 	void setMembersLinkCallback(Fn<void()> callback);
+	void setOnlineCount(int count);
 
 private:
 	const not_null<Ui::FlatLabel*> _label;
 	const not_null<PeerData*> _peer;
-	rpl::variable<int> _onlineCount;
+	int _onlineCount = 0;
 	Fn<void()> _membersLinkCallback;
 	base::Timer _refreshTimer;
 

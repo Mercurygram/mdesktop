@@ -115,8 +115,7 @@ TopBar::TopBar(
 			: Fn<Data::StarsRatingPending()>()))
 	: nullptr)
 , _status(this, QString(), _st.subtitle)
-, _statusLabel(
-	std::make_unique<StatusLabel>(_status.data(), _peer, rpl::single(0)))
+, _statusLabel(std::make_unique<StatusLabel>(_status.data(), _peer))
 , _showLastSeen(
 		this,
 		tr::lng_status_lastseen_when(),
@@ -139,11 +138,14 @@ TopBar::TopBar(
 
 	_peer->session().changes().peerFlagsValue(
 		_peer,
-		Data::PeerUpdate::Flag::OnlineStatus
-			| Data::PeerUpdate::Flag::Members
+		Data::PeerUpdate::Flag::OnlineStatus | Data::PeerUpdate::Flag::Members
 	) | rpl::start_with_next([=] {
 		_statusLabel->refresh();
 	}, lifetime());
+
+	_status->widthValue() | rpl::start_with_next([=] {
+		updateLabelsPosition();
+	}, _status->lifetime());
 
 	auto badgeUpdates = rpl::producer<rpl::empty_value>();
 	if (_badge) {
@@ -232,6 +234,14 @@ void TopBar::hideBadgeTooltip() {
 TopBar::~TopBar() {
 	base::take(_badgeTooltip);
 	base::take(_badgeOldTooltips);
+}
+
+void TopBar::setOnlineCount(rpl::producer<int> &&count) {
+	std::move(count) | rpl::start_with_next([=](int v) {
+		if (_statusLabel) {
+			_statusLabel->setOnlineCount(v);
+		}
+	}, lifetime());
 }
 
 void TopBar::setEnableBackButtonValue(rpl::producer<bool> &&producer) {

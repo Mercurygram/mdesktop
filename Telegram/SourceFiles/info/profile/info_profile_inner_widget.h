@@ -99,6 +99,7 @@ private:
 	rpl::event_stream<int> _desiredHeight;
 
 	rpl::variable<bool> _backToggles;
+	rpl::event_stream<int> _onlineCount;
 
 };
 

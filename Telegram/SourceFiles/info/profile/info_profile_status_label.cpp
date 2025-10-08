@@ -60,12 +60,15 @@ namespace {
 
 StatusLabel::StatusLabel(
 	not_null<Ui::FlatLabel*> label,
-	not_null<PeerData*> peer,
-	rpl::variable<int> onlineCount)
+	not_null<PeerData*> peer)
 : _label(label)
 , _peer(peer)
-, _onlineCount(std::move(onlineCount))
 , _refreshTimer([=] { refresh(); }) {
+}
+
+void StatusLabel::setOnlineCount(int count) {
+	_onlineCount = count;
+	refresh();
 }
 
 void StatusLabel::refresh() {
@@ -98,7 +101,7 @@ void StatusLabel::refresh() {
 					{},
 					WithEntities);
 			}
-			const auto onlineCount = _onlineCount.current();
+			const auto onlineCount = _onlineCount;
 			const auto fullCount = std::max(
 				chat->count,
 				int(chat->participants.size()));
@@ -113,7 +116,7 @@ void StatusLabel::refresh() {
 				false);
 			return TextWithEntities{ .text = result };
 		} else if (auto channel = _peer->asChannel()) {
-			const auto onlineCount = _onlineCount.current();
+			const auto onlineCount = _onlineCount;
 			const auto fullCount = qMax(channel->membersCount(), 1);
 			auto result = ChatStatusText(
 				fullCount,

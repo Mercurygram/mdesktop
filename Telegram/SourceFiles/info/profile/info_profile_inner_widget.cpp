@@ -131,7 +131,11 @@ void InnerWidget::setupMembers(not_null<Ui::VerticalLayout*> container) {
 			: MapFrom(this, _members, QPoint(0, request.ymax)).y();
 		_scrollToRequests.fire({ min, max });
 	}, _members->lifetime());
-	_cover->setOnlineCount(_members->onlineCountValue());
+	_cover->setOnlineCount(_onlineCount.events());
+	_members->onlineCountValue(
+	) | rpl::start_with_next([=](int count) {
+		_onlineCount.fire_copy(count);
+	}, _members->lifetime());
 
 	using namespace rpl::mappers;
 	wrap->toggleOn(
@@ -342,6 +346,7 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 			.controller = _controller,
 			.backToggles = _backToggles.value(),
 		});
+	content->setOnlineCount(_onlineCount.events());
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });
 }
 
