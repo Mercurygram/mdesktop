@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_top_bar.h"
 
+#include "data/data_peer.h"
+#include "info_profile_actions.h"
 #include "ui/painter.h"
 #include "styles/style_boxes.h"
 #include "styles/style_info.h"
@@ -15,8 +17,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Info::Profile {
 
-TopBar::TopBar(QWidget *parent)
-: RpWidget(parent) {
+TopBar::TopBar(
+	not_null<Ui::RpWidget*> parent,
+	not_null<PeerData*> peer)
+: RpWidget(parent)
+, _peer(peer) {
 	setMinimumHeight(st::infoLayerTopBarHeight);
 	setMaximumHeight(st::settingsPremiumTopHeight);
 }

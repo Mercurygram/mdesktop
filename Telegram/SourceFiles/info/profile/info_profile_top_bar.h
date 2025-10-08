@@ -9,11 +9,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "ui/rp_widget.h"
 
+class PeerData;
+
 namespace Info::Profile {
 
 class TopBar final : public Ui::RpWidget {
 public:
-	TopBar(QWidget *parent);
+	TopBar(not_null<Ui::RpWidget*> parent, not_null<PeerData*> peer);
 
 	void setRoundEdges(bool value);
 
@@ -23,6 +25,8 @@ protected:
 private:
 	void paintEdges(QPainter &p, const QBrush &brush) const;
 	void paintEdges(QPainter &p) const;
+
+	const not_null<PeerData*> _peer;
 
 	bool _roundEdges = true;
 
