@@ -79,11 +79,14 @@ private:
 	void paintEdges(QPainter &p, const QBrush &brush) const;
 	void paintEdges(QPainter &p) const;
 	void updateLabelsPosition();
+	[[nodiscard]] QRect userpicGeometry() const;
+	void updateUserpicButtonGeometry();
 	void paintUserpic(QPainter &p);
 	void showTopBarMenu(not_null<Controller*> controller, bool check);
 	void fillTopBarMenu(
 		not_null<Controller*> controller,
 		const Ui::Menu::MenuCallback &addAction);
+	void setupUserpicButton(not_null<Controller*> controller);
 	void setupButtons(
 		not_null<Controller*> controller,
 		rpl::producer<bool> backToggles);
@@ -126,6 +129,8 @@ private:
 	base::unique_qptr<Ui::PopupMenu> _topBarMenu;
 
 	base::unique_qptr<Ui::IconButton> _callsButton;
+
+	base::unique_qptr<Ui::AbstractButton> _userpicButton;
 
 };
 

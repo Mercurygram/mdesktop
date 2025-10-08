@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_emoji_statuses.h"
 #include "data/data_peer_values.h"
 #include "data/data_peer.h"
+#include "data/data_photo.h"
 #include "data/data_saved_sublist.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
@@ -79,9 +80,9 @@ TopBar::TopBar(
 	&_peer->session(),
 	BotVerifyBadgeForPeer(_peer),
 	nullptr,
-	Fn<bool()>([=] {
-		return descriptor.controller->parentController()
-			->isGifPausedAtLeastFor(Window::GifPauseReason::Layer);
+	Fn<bool()>([=, controller = descriptor.controller->parentController()] {
+		return controller->isGifPausedAtLeastFor(
+			Window::GifPauseReason::Layer);
 	})))
 , _badgeContent(BadgeContentForPeer(_peer))
 , _badge(std::make_unique<Badge>(
@@ -90,9 +91,9 @@ TopBar::TopBar(
 	&_peer->session(),
 	_badgeContent.value(),
 	nullptr,
-	Fn<bool()>([=] {
-		return descriptor.controller->parentController()
-			->isGifPausedAtLeastFor(Window::GifPauseReason::Layer);
+	Fn<bool()>([=, controller = descriptor.controller->parentController()] {
+		return controller->isGifPausedAtLeastFor(
+			Window::GifPauseReason::Layer);
 	})))
 , _verified(std::make_unique<Badge>(
 	this,
@@ -100,9 +101,9 @@ TopBar::TopBar(
 	&_peer->session(),
 	VerifiedContentForPeer(_peer),
 	nullptr,
-	Fn<bool()>([=] {
-		return descriptor.controller->parentController()
-			->isGifPausedAtLeastFor(Window::GifPauseReason::Layer);
+	Fn<bool()>([=, controller = descriptor.controller->parentController()] {
+		return controller->isGifPausedAtLeastFor(
+			Window::GifPauseReason::Layer);
 	})))
 , _title(this, Info::Profile::NameValue(_peer), _st.title)
 , _starsRating(_peer->isUser()
@@ -129,9 +130,10 @@ TopBar::TopBar(
 	QWidget::setMinimumHeight(st::infoLayerTopBarHeight);
 	QWidget::setMaximumHeight(st::infoLayerProfileTopBarHeightMax);
 
+	const auto controller = descriptor.controller;
+
 	if (_peer->isMegagroup() || _peer->isChat()) {
-		_statusLabel->setMembersLinkCallback([=,
-				controller = descriptor.controller] {
+		_statusLabel->setMembersLinkCallback([=] {
 			const auto topic = controller->key().topic();
 			const auto sublist = controller->key().sublist();
 			const auto shown = sublist
@@ -154,7 +156,7 @@ TopBar::TopBar(
 		}
 	}
 
-	setupShowLastSeen(descriptor.controller);
+	setupShowLastSeen(controller);
 
 	_peer->session().changes().peerFlagsValue(
 		_peer,
@@ -188,7 +190,30 @@ TopBar::TopBar(
 	}, _title->lifetime());
 
 	setupUniqueBadgeTooltip();
-	setupButtons(descriptor.controller, descriptor.backToggles.value());
+	setupButtons(controller, descriptor.backToggles.value());
+	setupUserpicButton(controller);
+}
+
+void TopBar::setupUserpicButton(not_null<Controller*> controller) {
+	_userpicButton = base::make_unique_q<Ui::AbstractButton>(this);
+	rpl::single(
+		rpl::empty_value()
+	) | rpl::then(
+		_peer->session().changes().peerFlagsValue(
+			_peer,
+			Data::PeerUpdate::Flag::Photo) | rpl::to_empty
+	) | rpl::start_with_next([=] {
+		_userpicButton->setAttribute(
+			Qt::WA_TransparentForMouseEvents,
+			!_peer->userpicPhotoId());
+	}, lifetime());
+	_userpicButton->setClickedCallback([=] {
+		if (const auto id = _peer->userpicPhotoId()) {
+			if (const auto photo = _peer->owner().photo(id); photo->date()) {
+				controller->parentController()->openPhoto(photo, _peer);
+			}
+		}
+	});
 }
 
 void TopBar::setupUniqueBadgeTooltip() {
@@ -411,6 +436,10 @@ void TopBar::updateLabelsPosition() {
 	if (_badgeTooltip) {
 		_badgeTooltip->setOpacity(progressCurrent);
 	}
+
+	if (_userpicButton) {
+		_userpicButton->setGeometry(userpicGeometry());
+	}
 }
 
 void TopBar::resizeEvent(QResizeEvent *e) {
@@ -418,7 +447,7 @@ void TopBar::resizeEvent(QResizeEvent *e) {
 	RpWidget::resizeEvent(e);
 }
 
-void TopBar::paintUserpic(QPainter &p) {
+QRect TopBar::userpicGeometry() const {
 	constexpr auto kMinScale = 0.25;
 	const auto progressCurrent = _progress.current();
 	const auto fullSize = st::infoLayerProfileTopBarPhotoSize;
@@ -428,10 +457,15 @@ void TopBar::paintUserpic(QPainter &p) {
 	const auto minY = -minSize;
 	const auto maxY = st::infoLayerProfileTopBarPhotoTop;
 	const auto y = anim::interpolate(minY, maxY, progressCurrent);
+	return QRect(x, y, size, size);
+}
 
+void TopBar::paintUserpic(QPainter &p) {
+	const auto geometry = userpicGeometry();
 	const auto key = _peer->userpicUniqueKey(_userpicView);
 	if (_userpicUniqueKey != key) {
 		_userpicUniqueKey = key;
+		const auto fullSize = st::infoLayerProfileTopBarPhotoSize;
 		const auto scaled = fullSize * style::DevicePixelRatio();
 		_cachedUserpic = PeerData::GenerateUserpicImage(
 			_peer,
@@ -439,8 +473,7 @@ void TopBar::paintUserpic(QPainter &p) {
 			scaled);
 		_cachedUserpic.setDevicePixelRatio(style::DevicePixelRatio());
 	}
-
-	p.drawImage(QRect(x, y, size, size), _cachedUserpic);
+	p.drawImage(geometry, _cachedUserpic);
 }
 
 void TopBar::paintEvent(QPaintEvent *e) {
