@@ -47,6 +47,7 @@ namespace Info::Profile {
 class EmojiStatusPanel;
 class MusicButton;
 class Badge;
+class StatusLabel;
 
 class TopicIconView final {
 public:
@@ -143,7 +144,6 @@ private:
 	void setupChildGeometry();
 	void setupSavedMusic();
 	void initViewers(rpl::producer<QString> title);
-	void refreshStatusText();
 	void refreshNameGeometry(int newWidth);
 	void refreshStatusGeometry(int newWidth);
 	void refreshUploadPhotoOverlay();
@@ -176,10 +176,10 @@ private:
 	object_ptr<Ui::FlatLabel> _name = { nullptr };
 	std::unique_ptr<Ui::StarsRating> _starsRating;
 	object_ptr<Ui::FlatLabel> _status = { nullptr };
+	std::unique_ptr<StatusLabel> _statusLabel;
 	rpl::variable<int> _statusShift = 0;
 	object_ptr<Ui::RoundButton> _showLastSeen = { nullptr };
 	//object_ptr<CoverDropArea> _dropArea = { nullptr };
-	base::Timer _refreshStatusTimer;
 
 	std::unique_ptr<MusicButton> _musicButton;
 

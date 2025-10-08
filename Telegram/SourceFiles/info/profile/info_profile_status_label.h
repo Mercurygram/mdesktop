@@ -1,0 +1,37 @@
+/*
+This file is part of Telegram Desktop,
+the official desktop application for the Telegram messaging service.
+
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
+*/
+#pragma once
+
+#include "base/timer.h"
+
+namespace Ui {
+class FlatLabel;
+} // namespace Ui
+
+namespace Info::Profile {
+
+class StatusLabel final {
+public:
+	StatusLabel(
+		not_null<Ui::FlatLabel*> label,
+		not_null<PeerData*> peer,
+		rpl::variable<int> onlineCount);
+
+	void refresh();
+	void setMembersLinkCallback(Fn<void()> callback);
+
+private:
+	const not_null<Ui::FlatLabel*> _label;
+	const not_null<PeerData*> _peer;
+	rpl::variable<int> _onlineCount;
+	Fn<void()> _membersLinkCallback;
+	base::Timer _refreshTimer;
+
+};
+
+} // namespace Info::Profile

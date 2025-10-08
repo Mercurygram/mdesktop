@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_badge.h"
 #include "info/profile/info_profile_emoji_status_panel.h"
 #include "info/profile/info_profile_music_button.h"
+#include "info/profile/info_profile_status_label.h"
 #include "info/profile/info_profile_values.h"
 #include "info/saved/info_saved_music_widget.h"
 #include "info/info_controller.h"
@@ -65,41 +66,6 @@ constexpr auto kWaitBeforeGiftBadge = crl::time(1000);
 constexpr auto kGiftBadgeGlares = 3;
 constexpr auto kGlareDurationStep = crl::time(320);
 constexpr auto kGlareTimeout = crl::time(1000);
-
-[[nodiscard]] auto MembersStatusText(int count) {
-	return tr::lng_chat_status_members(tr::now, lt_count_decimal, count);
-};
-
-[[nodiscard]] auto OnlineStatusText(int count) {
-	return tr::lng_chat_status_online(tr::now, lt_count_decimal, count);
-};
-
-[[nodiscard]] auto ChatStatusText(
-		int fullCount,
-		int onlineCount,
-		bool isGroup) {
-	if (onlineCount > 1 && onlineCount <= fullCount) {
-		return tr::lng_chat_status_members_online(
-			tr::now,
-			lt_members_count,
-			MembersStatusText(fullCount),
-			lt_online_count,
-			OnlineStatusText(onlineCount));
-	} else if (fullCount > 0) {
-		return isGroup
-			? tr::lng_chat_status_members(
-				tr::now,
-				lt_count_decimal,
-				fullCount)
-			: tr::lng_chat_status_subscribers(
-				tr::now,
-				lt_count_decimal,
-				fullCount);
-	}
-	return isGroup
-		? tr::lng_group_status(tr::now)
-		: tr::lng_channel_status(tr::now);
-};
 
 [[nodiscard]] const style::InfoProfileCover &CoverStyle(
 		not_null<PeerData*> peer,
@@ -685,8 +651,11 @@ Cover::Cover(
 			: Fn<Data::StarsRatingPending()>()))
 	: nullptr)
 , _status(this, _st.status)
-, _showLastSeen(this, tr::lng_status_lastseen_when(), _st.showLastSeen)
-, _refreshStatusTimer([this] { refreshStatusText(); }) {
+, _statusLabel(std::make_unique<StatusLabel>(
+	_status.data(),
+	_peer,
+	_onlineCount.value()))
+, _showLastSeen(this, tr::lng_status_lastseen_when(), _st.showLastSeen) {
 	_peer->updateFull();
 	if (const auto broadcast = _peer->monoforumBroadcast()) {
 		broadcast->updateFull();
@@ -900,13 +869,18 @@ void Cover::initViewers(rpl::producer<QString> title) {
 		refreshNameGeometry(width());
 	}, lifetime());
 
+	_statusLabel->setMembersLinkCallback([=] {
+		_showSection.fire(Section::Type::Members);
+	});
+
 	rpl::combine(
 		_peer->session().changes().peerFlagsValue(
 			_peer,
 			Flag::OnlineStatus | Flag::Members),
 		_onlineCount.value()
 	) | rpl::start_with_next([=] {
-		refreshStatusText();
+		_statusLabel->refresh();
+		refreshStatusGeometry(width());
 	}, lifetime());
 
 	_peer->session().changes().peerFlagsValue(
@@ -1056,62 +1030,7 @@ void Cover::setupChangePersonal() {
 	}, _changePersonal->lifetime());
 }
 
-void Cover::refreshStatusText() {
-	auto hasMembersLink = [&] {
-		if (auto megagroup = _peer->asMegagroup()) {
-			return megagroup->canViewMembers();
-		}
-		return false;
-	}();
-	auto statusText = [&]() -> TextWithEntities {
-		using namespace Ui::Text;
-		auto currentTime = base::unixtime::now();
-		if (auto user = _peer->asUser()) {
-			const auto result = Data::OnlineTextFull(user, currentTime);
-			const auto showOnline = Data::OnlineTextActive(user, currentTime);
-			const auto updateIn = Data::OnlineChangeTimeout(user, currentTime);
-			if (showOnline) {
-				_refreshStatusTimer.callOnce(updateIn);
-			}
-			return showOnline
-				? Ui::Text::Colorized(result)
-				: TextWithEntities{ .text = result };
-		} else if (auto chat = _peer->asChat()) {
-			if (!chat->amIn()) {
-				return tr::lng_chat_status_unaccessible({}, WithEntities);
-			}
-			const auto onlineCount = _onlineCount.current();
-			const auto fullCount = std::max(
-				chat->count,
-				int(chat->participants.size()));
-			return { .text = ChatStatusText(fullCount, onlineCount, true) };
-		} else if (auto broadcast = _peer->monoforumBroadcast()) {
-			auto result = ChatStatusText(
-				qMax(broadcast->membersCount(), 1),
-				0,
-				false);
-			return TextWithEntities{ .text = result };
-		} else if (auto channel = _peer->asChannel()) {
-			const auto onlineCount = _onlineCount.current();
-			const auto fullCount = qMax(channel->membersCount(), 1);
-			auto result = ChatStatusText(
-				fullCount,
-				onlineCount,
-				channel->isMegagroup());
-			return hasMembersLink
-				? Ui::Text::Link(result)
-				: TextWithEntities{ .text = result };
-		}
-		return tr::lng_chat_status_unaccessible(tr::now, WithEntities);
-	}();
-	_status->setMarkedText(statusText);
-	if (hasMembersLink) {
-		_status->setLink(1, std::make_shared<LambdaClickHandler>([=] {
-			_showSection.fire(Section::Type::Members);
-		}));
-	}
-	refreshStatusGeometry(width());
-}
+
 
 Cover::~Cover() {
 	base::take(_badgeTooltip);
