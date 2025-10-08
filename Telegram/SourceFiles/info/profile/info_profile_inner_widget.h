@@ -59,6 +59,8 @@ public:
 	base::weak_qptr<Ui::RpWidget> createPinnedToBottom(
 		not_null<Ui::RpWidget*> parent);
 
+	void enableBackButton();
+
 protected:
 	int resizeGetHeight(int newWidth) override;
 	void visibleTopBottomUpdated(
@@ -95,6 +97,8 @@ private:
 	bool _inResize = false;
 	rpl::event_stream<Ui::ScrollToRequest> _scrollToRequests;
 	rpl::event_stream<int> _desiredHeight;
+
+	rpl::variable<bool> _backToggles;
 
 };
 

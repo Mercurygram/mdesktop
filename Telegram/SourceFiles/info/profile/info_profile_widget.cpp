@@ -108,11 +108,6 @@ Widget::Widget(
 			_flexibleScroll.fillerWidthValue,
 			lifetime());
 
-		controller->stepDataReference() = SectionCustomTopBarData{
-			.backButtonEnables = _flexibleScroll.backButtonEnables.events(),
-			.wrapValue = controller->wrapValue(),
-		};
-
 		inner->setParent(filler->parentWidget()->parentWidget());
 		inner->raise();
 
@@ -217,7 +212,7 @@ void Widget::setInnerFocus() {
 }
 
 void Widget::enableBackButton() {
-	_flexibleScroll.backButtonEnables.fire({});
+	_inner->enableBackButton();
 }
 
 rpl::producer<QString> Widget::title() {

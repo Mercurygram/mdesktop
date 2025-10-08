@@ -33,6 +33,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/scroll_area.h"
 #include "ui/widgets/shadow.h"
+#include "ui/wrap/fade_wrap.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/wrap/slide_wrap.h"
 #include "ui/ui_utility.h"
@@ -325,6 +326,10 @@ int InnerWidget::resizeGetHeight(int newWidth) {
 	return _content->heightNoMargins();
 }
 
+void InnerWidget::enableBackButton() {
+	_backToggles = true;
+}
+
 bool InnerWidget::hasFlexibleTopBar() const {
 	return true;
 }
@@ -334,12 +339,27 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 	const auto content = Ui::CreateChild<TopBar>(parent);
 	struct State {
 		base::unique_qptr<Ui::IconButton> close;
+		base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> back;
 	};
 	const auto state = content->lifetime().make_state<State>();
 	const auto controller = _controller;
 	controller->wrapValue() | rpl::start_with_next([=](Wrap wrap) {
 		const auto isLayer = (wrap == Wrap::Layer);
 		content->setRoundEdges(isLayer);
+
+		state->back = base::make_unique_q<Ui::FadeWrap<Ui::IconButton>>(
+			content,
+			object_ptr<Ui::IconButton>(
+				content,
+				(isLayer ? st::infoTopBarBack : st::infoLayerTopBarBack)),
+			st::infoTopBarScale);
+		state->back->setDuration(0);
+		state->back->toggleOn(isLayer
+			? _backToggles.value() | rpl::type_erased()
+			: rpl::single(true));
+		state->back->entity()->addClickHandler([=] {
+			controller->showBackFromStack();
+		});
 
 		if (!isLayer) {
 			state->close = nullptr;

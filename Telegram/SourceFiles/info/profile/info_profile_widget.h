@@ -92,7 +92,6 @@ private:
 	struct {
 		rpl::event_stream<int> contentHeightValue;
 		rpl::event_stream<int> fillerWidthValue;
-		rpl::event_stream<> backButtonEnables;
 	} _flexibleScroll;
 	InnerWidget *_inner = nullptr;
 	base::weak_qptr<Ui::RpWidget> _pinnedToTop;
