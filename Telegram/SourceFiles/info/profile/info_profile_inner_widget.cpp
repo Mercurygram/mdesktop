@@ -332,9 +332,29 @@ bool InnerWidget::hasFlexibleTopBar() const {
 base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 		not_null<Ui::RpWidget*> parent) {
 	const auto content = Ui::CreateChild<TopBar>(parent);
-	_controller->wrapValue(
-	) | rpl::start_with_next([=](Wrap wrap) {
-		content->setRoundEdges(wrap == Wrap::Layer);
+	struct State {
+		base::unique_qptr<Ui::IconButton> close;
+	};
+	const auto state = content->lifetime().make_state<State>();
+	const auto controller = _controller;
+	controller->wrapValue() | rpl::start_with_next([=](Wrap wrap) {
+		const auto isLayer = (wrap == Wrap::Layer);
+		content->setRoundEdges(isLayer);
+
+		if (!isLayer) {
+			state->close = nullptr;
+		} else {
+			state->close = base::make_unique_q<Ui::IconButton>(
+				content,
+				st::infoTopBarClose);
+			state->close->addClickHandler([=] {
+				controller->parentController()->hideLayer();
+				controller->parentController()->hideSpecialLayer();
+			});
+			content->widthValue() | rpl::start_with_next([=] {
+				state->close->moveToRight(0, 0);
+			}, state->close->lifetime());
+		}
 	}, content->lifetime());
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });
 }
