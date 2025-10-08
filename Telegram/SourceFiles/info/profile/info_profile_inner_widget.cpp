@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_cover.h"
 #include "info/profile/info_profile_icon.h"
 #include "info/profile/info_profile_members.h"
+#include "info/profile/info_profile_top_bar.h"
 #include "info/profile/info_profile_actions.h"
 #include "info/media/info_media_buttons.h"
 #include "data/data_changes.h"
@@ -330,7 +331,8 @@ bool InnerWidget::hasFlexibleTopBar() const {
 
 base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 		not_null<Ui::RpWidget*> parent) {
-	return nullptr;
+	const auto content = Ui::CreateChild<TopBar>(parent);
+	return base::make_weak(not_null<Ui::RpWidget*>{ content });
 }
 
 base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToBottom(
