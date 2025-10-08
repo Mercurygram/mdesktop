@@ -326,12 +326,16 @@ int InnerWidget::resizeGetHeight(int newWidth) {
 }
 
 bool InnerWidget::hasFlexibleTopBar() const {
-	return false;
+	return true;
 }
 
 base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 		not_null<Ui::RpWidget*> parent) {
 	const auto content = Ui::CreateChild<TopBar>(parent);
+	_controller->wrapValue(
+	) | rpl::start_with_next([=](Wrap wrap) {
+		content->setRoundEdges(wrap == Wrap::Layer);
+	}, content->lifetime());
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });
 }
 
