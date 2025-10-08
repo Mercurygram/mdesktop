@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/object_ptr.h"
 #include "ui/rp_widget.h"
+#include "ui/userpic_view.h"
 
 class PeerData;
 
@@ -40,6 +41,7 @@ private:
 	void paintEdges(QPainter &p, const QBrush &brush) const;
 	void paintEdges(QPainter &p) const;
 	void updateLabelsPosition();
+	void paintUserpic(QPainter &p);
 
 	const not_null<PeerData*> _peer;
 	const style::InfoTopBar &_st;
@@ -51,6 +53,10 @@ private:
 	rpl::variable<int> _onlineCount = 0;
 	rpl::variable<float64> _progress = 0.;
 	bool _roundEdges = true;
+
+	Ui::PeerUserpicView _userpicView;
+	InMemoryKey _userpicUniqueKey;
+	QImage _cachedUserpic;
 
 };
 

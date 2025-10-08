@@ -115,9 +115,35 @@ void TopBar::resizeEvent(QResizeEvent *e) {
 	RpWidget::resizeEvent(e);
 }
 
+void TopBar::paintUserpic(QPainter &p) {
+	constexpr auto kMinScale = 0.25;
+	const auto progressCurrent = _progress.current();
+	const auto fullSize = st::infoLayerProfileTopBarPhotoSize;
+	const auto minSize = fullSize * kMinScale;
+	const auto size = anim::interpolate(minSize, fullSize, progressCurrent);
+	const auto x = (width() - size) / 2;
+	const auto minY = -minSize;
+	const auto maxY = st::infoLayerProfileTopBarPhotoTop;
+	const auto y = anim::interpolate(minY, maxY, progressCurrent);
+
+	const auto key = _peer->userpicUniqueKey(_userpicView);
+	if (_userpicUniqueKey != key) {
+		_userpicUniqueKey = key;
+		const auto scaled = fullSize * style::DevicePixelRatio();
+		_cachedUserpic = PeerData::GenerateUserpicImage(
+			_peer,
+			_userpicView,
+			scaled);
+		_cachedUserpic.setDevicePixelRatio(style::DevicePixelRatio());
+	}
+
+	p.drawImage(QRect(x, y, size, size), _cachedUserpic);
+}
+
 void TopBar::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 	paintEdges(p);
+	paintUserpic(p);
 }
 
 } // namespace Info::Profile

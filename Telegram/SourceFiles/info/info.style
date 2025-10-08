@@ -247,9 +247,11 @@ infoTopBar: InfoTopBar {
 infoTopBarScale: 0.7;
 infoTopBarDuration: 150;
 
-infoLayerProfileTopBarHeightMax: 336px;
-infoLayerProfileTopBarTitleTop: 280px;
-infoLayerProfileTopBarStatusTop: 300px;
+infoLayerProfileTopBarHeightMax: 224px;
+infoLayerProfileTopBarTitleTop: 150px;
+infoLayerProfileTopBarStatusTop: 170px;
+infoLayerProfileTopBarPhotoTop: 30px;
+infoLayerProfileTopBarPhotoSize: 104px;
 
 infoLayerTopMinimal: 20px;
 infoLayerTopMaximal: 40px;
