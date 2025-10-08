@@ -33,11 +33,13 @@ public:
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
 
 protected:
+	void resizeEvent(QResizeEvent *e) override;
 	void paintEvent(QPaintEvent *e) override;
 
 private:
 	void paintEdges(QPainter &p, const QBrush &brush) const;
 	void paintEdges(QPainter &p) const;
+	void updateLabelsPosition();
 
 	const not_null<PeerData*> _peer;
 	const style::InfoTopBar &_st;
@@ -47,6 +49,7 @@ private:
 	std::unique_ptr<StatusLabel> _statusLabel;
 
 	rpl::variable<int> _onlineCount = 0;
+	rpl::variable<float64> _progress = 0.;
 	bool _roundEdges = true;
 
 };

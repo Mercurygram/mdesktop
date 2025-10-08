@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_status_label.h"
 #include "info/profile/info_profile_values.h"
 #include "main/main_session.h"
+#include "ui/effects/animations.h"
 #include "ui/painter.h"
 #include "ui/widgets/labels.h"
 #include "styles/style_boxes.h"
@@ -32,8 +33,8 @@ TopBar::TopBar(
 , _status(this, QString(), _st.subtitle)
 , _statusLabel(
 	std::make_unique<StatusLabel>(_status.data(), _peer, rpl::single(0))) {
-	setMinimumHeight(st::infoLayerTopBarHeight);
-	setMaximumHeight(st::settingsPremiumTopHeight);
+	QWidget::setMinimumHeight(st::infoLayerTopBarHeight);
+	QWidget::setMaximumHeight(st::infoLayerProfileTopBarHeightMax);
 
 	_peer->session().changes().peerFlagsValue(
 		_peer,
@@ -50,12 +51,7 @@ void TopBar::setEnableBackButtonValue(rpl::producer<bool> &&producer) {
 	std::move(
 		producer
 	) | rpl::start_with_next([=](bool value) {
-		_title->moveToLeft(
-			_st.titleWithSubtitlePosition.x() + (value ? _st.back.width : 0),
-			_st.titleWithSubtitlePosition.y());
-		_status->moveToLeft(
-			_st.subtitlePosition.x() + (value ? _st.back.width : 0),
-			_st.subtitlePosition.y());
+		updateLabelsPosition();
 	}, lifetime());
 }
 
@@ -82,6 +78,41 @@ void TopBar::paintEdges(QPainter &p, const QBrush &brush) const {
 
 void TopBar::paintEdges(QPainter &p) const {
 	paintEdges(p, st::boxBg);
+}
+
+void TopBar::updateLabelsPosition() {
+	const auto max = QWidget::maximumHeight();
+	const auto min = QWidget::minimumHeight();
+	_progress = (max > min)
+		? ((height() - min) / float64(max - min))
+		: 1.;
+	const auto progressCurrent = _progress.current();
+
+	const auto titleTop = anim::interpolate(
+		_st.titleWithSubtitlePosition.y(),
+		st::infoLayerProfileTopBarTitleTop,
+		progressCurrent);
+	const auto statusTop = anim::interpolate(
+		_st.subtitlePosition.y(),
+		st::infoLayerProfileTopBarStatusTop,
+		progressCurrent);
+
+	const auto titleLeft = anim::interpolate(
+		_st.titleWithSubtitlePosition.x(),
+		(width() - _title->width()) / 2,
+		progressCurrent);
+	const auto statusLeft = anim::interpolate(
+		_st.subtitlePosition.x(),
+		(width() - _status->width()) / 2,
+		progressCurrent);
+
+	_title->moveToLeft(titleLeft, titleTop);
+	_status->moveToLeft(statusLeft, statusTop);
+}
+
+void TopBar::resizeEvent(QResizeEvent *e) {
+	updateLabelsPosition();
+	RpWidget::resizeEvent(e);
 }
 
 void TopBar::paintEvent(QPaintEvent *e) {
