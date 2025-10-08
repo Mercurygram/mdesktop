@@ -22,6 +22,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "ui/effects/animations.h"
 #include "ui/painter.h"
+#include "ui/rect.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
@@ -103,6 +104,33 @@ void TopBar::updateLabelsPosition() {
 		? ((height() - min) / float64(max - min))
 		: 1.;
 	const auto progressCurrent = _progress.current();
+
+	auto rightButtonsWidth = 0;
+	if (_close) {
+		rightButtonsWidth += _close->width();
+	}
+	if (_topBarMenuToggle) {
+		rightButtonsWidth += _topBarMenuToggle->width();
+	}
+	if (_callsButton) {
+		rightButtonsWidth += _callsButton->width();
+	}
+
+	const auto reservedRight = anim::interpolate(
+		0,
+		rightButtonsWidth,
+		1. - progressCurrent);
+	const auto interpolatedPadding = anim::interpolate(
+		_st.titleWithSubtitlePosition.x(),
+		rect::m::sum::h(st::boxRowPadding),
+		progressCurrent);
+	const auto available = width()
+		- interpolatedPadding
+		- reservedRight;
+
+	if (available > 0 && _title->textMaxWidth() > available) {
+		_title->resizeToWidth(available);
+	}
 
 	const auto titleTop = anim::interpolate(
 		_st.titleWithSubtitlePosition.y(),
