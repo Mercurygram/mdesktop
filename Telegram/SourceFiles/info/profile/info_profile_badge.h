@@ -98,5 +98,7 @@ private:
 	not_null<PeerData*> peer);
 [[nodiscard]] rpl::producer<Badge::Content> VerifiedContentForPeer(
 	not_null<PeerData*> peer);
+[[nodiscard]] rpl::producer<Badge::Content> BotVerifyBadgeForPeer(
+	not_null<PeerData*> peer);
 
 } // namespace Info::Profile

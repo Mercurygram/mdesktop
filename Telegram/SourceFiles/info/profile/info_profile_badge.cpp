@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_badge.h"
 
+#include "data/data_changes.h"
 #include "data/data_emoji_statuses.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
@@ -234,6 +235,20 @@ rpl::producer<Badge::Content> VerifiedContentForPeer(
 			badge = BadgeType::None;
 		}
 		return Badge::Content{ badge };
+	});
+}
+
+rpl::producer<Badge::Content> BotVerifyBadgeForPeer(
+		not_null<PeerData*> peer) {
+	return peer->session().changes().peerFlagsValue(
+		peer,
+		Data::PeerUpdate::Flag::VerifyInfo
+	) | rpl::map([=] {
+		const auto info = peer->botVerifyDetails();
+		return Badge::Content{
+			.badge = info ? BadgeType::BotVerified : BadgeType::None,
+			.emojiStatusId = { info ? info->iconId : DocumentId() },
+		};
 	});
 }
 

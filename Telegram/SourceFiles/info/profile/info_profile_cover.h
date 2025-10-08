@@ -44,10 +44,13 @@ struct InfoProfileCover;
 
 namespace Info::Profile {
 
+class BadgeTooltip;
 class EmojiStatusPanel;
 class MusicButton;
 class Badge;
 class StatusLabel;
+
+[[nodiscard]] QMargins LargeCustomEmojiMargins();
 
 class TopicIconView final {
 public:
@@ -129,7 +132,6 @@ public:
 	[[nodiscard]] std::optional<QImage> updatedPersonalPhoto() const;
 
 private:
-	class BadgeTooltip;
 
 	Cover(
 		QWidget *parent,
