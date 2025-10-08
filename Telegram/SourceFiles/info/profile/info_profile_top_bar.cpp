@@ -7,10 +7,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_top_bar.h"
 
+#include "calls/calls_instance.h"
+#include "core/application.h"
 #include "core/shortcuts.h"
 #include "data/data_changes.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
+#include "data/data_user.h"
 #include "info_profile_actions.h"
 #include "info/info_controller.h"
 #include "info/info_memento.h"
@@ -201,6 +204,7 @@ void TopBar::setupButtons(
 
 		if (wrap != Wrap::Side) {
 			addTopBarMenuButton(controller, wrap);
+			addProfileCallsButton(controller, wrap);
 		}
 	}, lifetime());
 }
@@ -299,6 +303,49 @@ void TopBar::fillTopBarMenu(
 			.section = Dialogs::EntryState::Section::Profile,
 		},
 		addAction);
+}
+
+void TopBar::addProfileCallsButton(
+		not_null<Controller*> controller,
+		Wrap wrap) {
+	const auto peer = controller->key().peer();
+	const auto user = peer ? peer->asUser() : nullptr;
+	if (!user || user->sharedMediaInfo() || user->isInaccessible()) {
+		return;
+	}
+
+	user->session().changes().peerFlagsValue(
+		user,
+		Data::PeerUpdate::Flag::HasCalls
+	) | rpl::filter([=] {
+		return user->hasCalls();
+	}) | rpl::take(
+		1
+	) | rpl::start_with_next([=] {
+		_callsButton = base::make_unique_q<Ui::IconButton>(
+			this,
+			(wrap == Wrap::Layer
+				? st::infoLayerTopBarCall
+				: st::infoTopBarCall));
+		_callsButton->addClickHandler([=] {
+			Core::App().calls().startOutgoingCall(user, false);
+		});
+
+		widthValue() | rpl::start_with_next([=] {
+			auto right = 0;
+			if (_close) {
+				right += _close->width();
+			}
+			if (_topBarMenuToggle) {
+				right += _topBarMenuToggle->width();
+			}
+			_callsButton->moveToRight(right, 0);
+		}, _callsButton->lifetime());
+	}, lifetime());
+
+	if (user && user->callsStatus() == UserData::CallsStatus::Unknown) {
+		user->updateFull();
+	}
 }
 
 } // namespace Info::Profile

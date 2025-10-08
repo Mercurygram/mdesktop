@@ -53,6 +53,7 @@ public:
 	void addTopBarMenuButton(
 		not_null<Controller*> controller,
 		Wrap wrap);
+	void addProfileCallsButton(not_null<Controller*> controller, Wrap wrap);
 
 protected:
 	void resizeEvent(QResizeEvent *e) override;
@@ -91,6 +92,8 @@ private:
 
 	base::unique_qptr<Ui::IconButton> _topBarMenuToggle;
 	base::unique_qptr<Ui::PopupMenu> _topBarMenu;
+
+	base::unique_qptr<Ui::IconButton> _callsButton;
 
 };
 
