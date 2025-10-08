@@ -7,9 +7,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_top_bar.h"
 
+#include "data/data_changes.h"
 #include "data/data_peer.h"
-#include "info/profile/info_profile_values.h"
 #include "info_profile_actions.h"
+#include "info/profile/info_profile_status_label.h"
+#include "info/profile/info_profile_values.h"
+#include "main/main_session.h"
 #include "ui/painter.h"
 #include "ui/widgets/labels.h"
 #include "styles/style_boxes.h"
@@ -25,11 +28,23 @@ TopBar::TopBar(
 : RpWidget(parent)
 , _peer(peer)
 , _st(st::infoTopBar)
-, _title(this, Info::Profile::NameValue(peer), _st.title) {
+, _title(this, Info::Profile::NameValue(peer), _st.title)
+, _status(this, QString(), _st.subtitle)
+, _statusLabel(
+	std::make_unique<StatusLabel>(_status.data(), _peer, rpl::single(0))) {
 	setMinimumHeight(st::infoLayerTopBarHeight);
 	setMaximumHeight(st::settingsPremiumTopHeight);
-	_title->move(_st.titleWithSubtitlePosition);
+
+	_peer->session().changes().peerFlagsValue(
+		_peer,
+		Data::PeerUpdate::Flag::OnlineStatus
+			| Data::PeerUpdate::Flag::Members
+	) | rpl::start_with_next([=] {
+		_statusLabel->refresh();
+	}, lifetime());
 }
+
+TopBar::~TopBar() = default;
 
 void TopBar::setEnableBackButtonValue(rpl::producer<bool> &&producer) {
 	std::move(
@@ -38,6 +53,9 @@ void TopBar::setEnableBackButtonValue(rpl::producer<bool> &&producer) {
 		_title->moveToLeft(
 			_st.titleWithSubtitlePosition.x() + (value ? _st.back.width : 0),
 			_st.titleWithSubtitlePosition.y());
+		_status->moveToLeft(
+			_st.subtitlePosition.x() + (value ? _st.back.width : 0),
+			_st.subtitlePosition.y());
 	}, lifetime());
 }
 

@@ -22,9 +22,12 @@ class FlatLabel;
 
 namespace Info::Profile {
 
+class StatusLabel;
+
 class TopBar final : public Ui::RpWidget {
 public:
 	TopBar(not_null<Ui::RpWidget*> parent, not_null<PeerData*> peer);
+	~TopBar();
 
 	void setRoundEdges(bool value);
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
@@ -40,7 +43,10 @@ private:
 	const style::InfoTopBar &_st;
 
 	object_ptr<Ui::FlatLabel> _title;
+	object_ptr<Ui::FlatLabel> _status;
+	std::unique_ptr<StatusLabel> _statusLabel;
 
+	rpl::variable<int> _onlineCount = 0;
 	bool _roundEdges = true;
 
 };
