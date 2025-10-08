@@ -340,8 +340,8 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 		parent,
 		TopBar::Descriptor{
 			.controller = _controller,
+			.backToggles = _backToggles.value(),
 		});
-	content->setupButtons(_controller, _backToggles.value());
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });
 }
 

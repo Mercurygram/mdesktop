@@ -20,13 +20,19 @@ struct InfoTopBar;
 namespace Ui {
 class FlatLabel;
 class IconButton;
+class PopupMenu;
 template <typename Widget>
 class FadeWrap;
 } //namespace Ui
 
 namespace Info {
 class Controller;
+enum class Wrap;
 } //namespace Info
+
+namespace Ui::Menu {
+struct MenuCallback;
+} //namespace Ui::Menu
 
 namespace Info::Profile {
 
@@ -36,6 +42,7 @@ class TopBar final : public Ui::RpWidget {
 public:
 	struct Descriptor {
 		not_null<Controller*> controller;
+		rpl::variable<bool> backToggles;
 	};
 
 	TopBar(not_null<Ui::RpWidget*> parent, Descriptor descriptor);
@@ -43,9 +50,9 @@ public:
 
 	void setRoundEdges(bool value);
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
-	void setupButtons(
+	void addTopBarMenuButton(
 		not_null<Controller*> controller,
-		rpl::producer<bool> backToggles);
+		Wrap wrap);
 
 protected:
 	void resizeEvent(QResizeEvent *e) override;
@@ -56,6 +63,13 @@ private:
 	void paintEdges(QPainter &p) const;
 	void updateLabelsPosition();
 	void paintUserpic(QPainter &p);
+	void showTopBarMenu(not_null<Controller*> controller, bool check);
+	void fillTopBarMenu(
+		not_null<Controller*> controller,
+		const Ui::Menu::MenuCallback &addAction);
+	void setupButtons(
+		not_null<Controller*> controller,
+		rpl::producer<bool> backToggles);
 
 	const not_null<PeerData*> _peer;
 	const style::InfoTopBar &_st;
@@ -74,6 +88,9 @@ private:
 
 	base::unique_qptr<Ui::IconButton> _close;
 	base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> _back;
+
+	base::unique_qptr<Ui::IconButton> _topBarMenuToggle;
+	base::unique_qptr<Ui::PopupMenu> _topBarMenu;
 
 };
 

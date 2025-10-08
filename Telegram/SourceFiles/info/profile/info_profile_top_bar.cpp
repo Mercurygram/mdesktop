@@ -7,11 +7,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_top_bar.h"
 
+#include "core/shortcuts.h"
 #include "data/data_changes.h"
 #include "data/data_peer.h"
+#include "data/data_session.h"
+#include "info_profile_actions.h"
 #include "info/info_controller.h"
 #include "info/info_memento.h"
-#include "info_profile_actions.h"
 #include "info/profile/info_profile_status_label.h"
 #include "info/profile/info_profile_values.h"
 #include "main/main_session.h"
@@ -19,8 +21,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
+#include "ui/widgets/menu/menu_add_action_callback_factory.h"
+#include "ui/widgets/popup_menu.h"
 #include "ui/wrap/fade_wrap.h"
+#include "window/window_peer_menu.h"
+#include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
+#include "styles/style_chat.h"
 #include "styles/style_info.h"
 #include "styles/style_layers.h"
 #include "styles/style_settings.h"
@@ -47,6 +54,8 @@ TopBar::TopBar(
 	) | rpl::start_with_next([=] {
 		_statusLabel->refresh();
 	}, lifetime());
+
+	setupButtons(descriptor.controller, descriptor.backToggles.value());
 }
 
 TopBar::~TopBar() = default;
@@ -189,7 +198,107 @@ void TopBar::setupButtons(
 				_close->moveToRight(0, 0);
 			}, _close->lifetime());
 		}
+
+		if (wrap != Wrap::Side) {
+			addTopBarMenuButton(controller, wrap);
+		}
 	}, lifetime());
+}
+
+void TopBar::addTopBarMenuButton(
+		not_null<Controller*> controller,
+		Wrap wrap) {
+	{
+		const auto guard = gsl::finally([&] { _topBarMenu = nullptr; });
+		showTopBarMenu(controller, true);
+		if (!_topBarMenu) {
+			return;
+		}
+	}
+
+	_topBarMenuToggle = base::make_unique_q<Ui::IconButton>(
+		this,
+		(wrap == Wrap::Layer ? st::infoLayerTopBarMenu : st::infoTopBarMenu));
+	_topBarMenuToggle->addClickHandler([=] {
+		showTopBarMenu(controller, false);
+	});
+
+	widthValue() | rpl::start_with_next([=] {
+		if (_close) {
+			_topBarMenuToggle->moveToRight(_close->width(), 0);
+		} else {
+			_topBarMenuToggle->moveToRight(0, 0);
+		}
+	}, _topBarMenuToggle->lifetime());
+
+	Shortcuts::Requests(
+	) | rpl::filter([=] {
+		return (controller->section().type() == Section::Type::Profile);
+	}) | rpl::start_with_next([=](not_null<Shortcuts::Request*> request) {
+		using Command = Shortcuts::Command;
+
+		request->check(Command::ShowChatMenu, 1) && request->handle([=] {
+			Window::ActivateWindow(controller->parentController());
+			showTopBarMenu(controller, false);
+			return true;
+		});
+	}, _topBarMenuToggle->lifetime());
+}
+
+void TopBar::showTopBarMenu(
+		not_null<Controller*> controller,
+		bool check) {
+	if (_topBarMenu) {
+		_topBarMenu->hideMenu(true);
+		return;
+	}
+	_topBarMenu = base::make_unique_q<Ui::PopupMenu>(
+		QWidget::window(),
+		st::popupMenuExpandedSeparator);
+
+	_topBarMenu->setDestroyedCallback([this] {
+		InvokeQueued(this, [this] { _topBarMenu = nullptr; });
+		if (auto toggle = _topBarMenuToggle.get()) {
+			toggle->setForceRippled(false);
+		}
+	});
+
+	fillTopBarMenu(
+		controller,
+		Ui::Menu::CreateAddActionCallback(_topBarMenu));
+	if (_topBarMenu->empty()) {
+		_topBarMenu = nullptr;
+		return;
+	} else if (check) {
+		return;
+	}
+	_topBarMenu->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
+	_topBarMenuToggle->setForceRippled(true);
+	_topBarMenu->popup(_topBarMenuToggle->mapToGlobal(
+		st::infoLayerTopBarMenuPosition));
+}
+
+void TopBar::fillTopBarMenu(
+		not_null<Controller*> controller,
+		const Ui::Menu::MenuCallback &addAction) {
+	const auto peer = controller->key().peer();
+	const auto topic = controller->key().topic();
+	const auto sublist = controller->key().sublist();
+	if (!peer && !topic) {
+		return;
+	}
+
+	Window::FillDialogsEntryMenu(
+		controller->parentController(),
+		Dialogs::EntryState{
+			.key = (topic
+				? Dialogs::Key{ topic }
+				: sublist
+				? Dialogs::Key{ sublist }
+				: Dialogs::Key{ peer->owner().history(peer) }),
+			.section = Dialogs::EntryState::Section::Profile,
+		},
+		addAction);
 }
 
 } // namespace Info::Profile
