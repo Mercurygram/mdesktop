@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 #include "info/profile/info_profile_inner_widget.h"
 #include "info/profile/info_profile_members.h"
+#include "info/settings/info_settings_widget.h"
 #include "ui/widgets/scroll_area.h"
 #include "ui/ui_utility.h"
 #include "data/data_peer.h"
@@ -21,7 +22,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "info/info_controller.h"
 
+namespace Info::Settings {
+struct SectionCustomTopBarData;
+} // namespace Info::Settings
+
 namespace Info::Profile {
+
+using Info::Settings::SectionCustomTopBarData;
 
 Memento::Memento(not_null<Controller*> controller)
 : Memento(
@@ -84,13 +91,43 @@ Widget::Widget(
 	QWidget *parent,
 	not_null<Controller*> controller,
 	Origin origin)
-: ContentWidget(parent, controller) {
+: ContentWidget(parent, controller)
+, _inner([&] {
+	auto inner = object_ptr<InnerWidget>(this, controller, origin);
+	if (inner->hasFlexibleTopBar()) {
+		auto filler = setInnerWidget(object_ptr<Ui::RpWidget>(this));
+		filler->resize(1, 1);
+
+		_flexibleScroll.contentHeightValue.events(
+		) | rpl::start_with_next([=](int h) {
+			filler->resize(filler->width(), h);
+		}, filler->lifetime());
+
+		filler->widthValue(
+		) | rpl::start_to_stream(
+			_flexibleScroll.fillerWidthValue,
+			lifetime());
+
+		controller->stepDataReference() = SectionCustomTopBarData{
+			.backButtonEnables = _flexibleScroll.backButtonEnables.events(),
+			.wrapValue = controller->wrapValue(),
+		};
+
+		inner->setParent(filler->parentWidget()->parentWidget());
+		inner->raise();
+
+		using InnerPtr = base::unique_qptr<InnerWidget>;
+		auto owner = filler->lifetime().make_state<InnerPtr>(
+			std::move(inner.release()));
+		return owner->get();
+	} else {
+		return setInnerWidget(std::move(inner));
+	}
+}())
+, _pinnedToTop(_inner->createPinnedToTop(this))
+, _pinnedToBottom(_inner->createPinnedToBottom(this)) {
 	controller->setSearchEnabledByContent(false);
 
-	_inner = setInnerWidget(object_ptr<InnerWidget>(
-		this,
-		controller,
-		origin));
 	_inner->move(0, 0);
 	_inner->scrollToRequests(
 	) | rpl::start_with_next([this](Ui::ScrollToRequest request) {
@@ -101,10 +138,86 @@ Widget::Widget(
 			scrollTo(request);
 		}
 	}, lifetime());
+
+	if (_pinnedToTop) {
+		_inner->widthValue(
+		) | rpl::start_with_next([=](int w) {
+			_pinnedToTop->resizeToWidth(w);
+			setScrollTopSkip(_pinnedToTop->height());
+		}, _pinnedToTop->lifetime());
+
+		_pinnedToTop->heightValue(
+		) | rpl::start_with_next([=](int h) {
+			setScrollTopSkip(h);
+		}, _pinnedToTop->lifetime());
+	}
+
+	if (_pinnedToBottom) {
+		const auto processHeight = [=] {
+			setScrollBottomSkip(_pinnedToBottom->height());
+			_pinnedToBottom->moveToLeft(
+				_pinnedToBottom->x(),
+				height() - _pinnedToBottom->height());
+		};
+
+		_inner->sizeValue(
+		) | rpl::start_with_next([=](const QSize &s) {
+			_pinnedToBottom->resizeToWidth(s.width());
+		}, _pinnedToBottom->lifetime());
+
+		rpl::combine(
+			_pinnedToBottom->heightValue(),
+			heightValue()
+		) | rpl::start_with_next(processHeight, _pinnedToBottom->lifetime());
+	}
+
+	if (_pinnedToTop
+		&& _pinnedToTop->minimumHeight()
+		&& _inner->hasFlexibleTopBar()) {
+		const auto heightDiff = [=] {
+			return _pinnedToTop->maximumHeight()
+				- _pinnedToTop->minimumHeight();
+		};
+
+		rpl::combine(
+			_pinnedToTop->heightValue(),
+			_inner->heightValue()
+		) | rpl::start_with_next([=](int, int h) {
+			_flexibleScroll.contentHeightValue.fire(h + heightDiff());
+		}, _pinnedToTop->lifetime());
+
+		scrollTopValue(
+		) | rpl::start_with_next([=](int top) {
+			if (!_pinnedToTop) {
+				return;
+			}
+			const auto current = heightDiff() - top;
+			_inner->moveToLeft(0, std::min(0, current));
+			_pinnedToTop->resize(
+				_pinnedToTop->width(),
+				std::max(current + _pinnedToTop->minimumHeight(), 0));
+		}, _inner->lifetime());
+
+		_flexibleScroll.fillerWidthValue.events(
+		) | rpl::start_with_next([=](int w) {
+			_inner->resizeToWidth(w);
+		}, _inner->lifetime());
+
+		setPaintPadding({ 0, _pinnedToTop->minimumHeight(), 0, 0 });
+
+		setViewport(_pinnedToTop->events(
+		) | rpl::filter([](not_null<QEvent*> e) {
+			return e->type() == QEvent::Wheel;
+		}));
+	}
 }
 
 void Widget::setInnerFocus() {
 	_inner->setFocus();
+}
+
+void Widget::enableBackButton() {
+	_flexibleScroll.backButtonEnables.fire({});
 }
 
 rpl::producer<QString> Widget::title() {

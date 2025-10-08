@@ -78,6 +78,7 @@ public:
 		not_null<Memento*> memento);
 
 	void setInnerFocus() override;
+	void enableBackButton() override;
 
 	rpl::producer<QString> title() override;
 	rpl::producer<Dialogs::Stories::Content> titleStories() override;
@@ -88,7 +89,14 @@ private:
 
 	std::shared_ptr<ContentMemento> doCreateMemento() override;
 
+	struct {
+		rpl::event_stream<int> contentHeightValue;
+		rpl::event_stream<int> fillerWidthValue;
+		rpl::event_stream<> backButtonEnables;
+	} _flexibleScroll;
 	InnerWidget *_inner = nullptr;
+	base::weak_qptr<Ui::RpWidget> _pinnedToTop;
+	base::weak_qptr<Ui::RpWidget> _pinnedToBottom;
 
 };
 

@@ -53,6 +53,12 @@ public:
 	rpl::producer<Ui::ScrollToRequest> scrollToRequests() const;
 	rpl::producer<int> desiredHeightValue() const override;
 
+	bool hasFlexibleTopBar() const;
+	base::weak_qptr<Ui::RpWidget> createPinnedToTop(
+		not_null<Ui::RpWidget*> parent);
+	base::weak_qptr<Ui::RpWidget> createPinnedToBottom(
+		not_null<Ui::RpWidget*> parent);
+
 protected:
 	int resizeGetHeight(int newWidth) override;
 	void visibleTopBottomUpdated(

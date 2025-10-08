@@ -23,6 +23,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_user.h"
 #include "data/data_saved_music.h"
 #include "data/data_saved_sublist.h"
+#include "info_profile_actions.h"
 #include "main/main_session.h"
 #include "apiwrap.h"
 #include "api/api_peer_photo.h"
@@ -321,6 +322,20 @@ int InnerWidget::resizeGetHeight(int newWidth) {
 	_content->moveToLeft(0, 0);
 	updateDesiredHeight();
 	return _content->heightNoMargins();
+}
+
+bool InnerWidget::hasFlexibleTopBar() const {
+	return false;
+}
+
+base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
+		not_null<Ui::RpWidget*> parent) {
+	return nullptr;
+}
+
+base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToBottom(
+		not_null<Ui::RpWidget*> parent) {
+	return nullptr;
 }
 
 } // namespace Profile
