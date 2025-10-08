@@ -9,13 +9,17 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "data/data_changes.h"
 #include "data/data_peer.h"
+#include "info/info_controller.h"
+#include "info/info_memento.h"
 #include "info_profile_actions.h"
 #include "info/profile/info_profile_status_label.h"
 #include "info/profile/info_profile_values.h"
 #include "main/main_session.h"
 #include "ui/effects/animations.h"
 #include "ui/painter.h"
+#include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
+#include "ui/wrap/fade_wrap.h"
 #include "styles/style_boxes.h"
 #include "styles/style_info.h"
 #include "styles/style_layers.h"
@@ -144,6 +148,48 @@ void TopBar::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 	paintEdges(p);
 	paintUserpic(p);
+}
+
+void TopBar::setupButtons(
+		not_null<Controller*> controller,
+		rpl::producer<bool> backToggles) {
+	controller->wrapValue() | rpl::start_with_next([=,
+			backToggles = std::move(backToggles)](Wrap wrap) mutable {
+		const auto isLayer = (wrap == Wrap::Layer);
+		setRoundEdges(isLayer);
+
+		_back = base::make_unique_q<Ui::FadeWrap<Ui::IconButton>>(
+			this,
+			object_ptr<Ui::IconButton>(
+				this,
+				(isLayer
+					? st::infoTopBarBack
+					: st::infoLayerTopBarBack)),
+			st::infoTopBarScale);
+		_back->setDuration(0);
+		_back->toggleOn(isLayer
+			? rpl::duplicate(backToggles) | rpl::type_erased()
+			: rpl::single(true));
+		setEnableBackButtonValue(_back->toggledValue());
+		_back->entity()->addClickHandler([=] {
+			controller->showBackFromStack();
+		});
+
+		if (!isLayer) {
+			_close = nullptr;
+		} else {
+			_close = base::make_unique_q<Ui::IconButton>(
+				this,
+				st::infoTopBarClose);
+			_close->addClickHandler([=] {
+				controller->parentController()->hideLayer();
+				controller->parentController()->hideSpecialLayer();
+			});
+			widthValue() | rpl::start_with_next([=] {
+				_close->moveToRight(0, 0);
+			}, _close->lifetime());
+		}
+	}, lifetime());
 }
 
 } // namespace Info::Profile

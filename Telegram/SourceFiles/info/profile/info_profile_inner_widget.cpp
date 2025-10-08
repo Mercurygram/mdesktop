@@ -327,7 +327,7 @@ int InnerWidget::resizeGetHeight(int newWidth) {
 }
 
 void InnerWidget::enableBackButton() {
-	_backToggles = true;
+	_backToggles.force_assign(true);
 }
 
 bool InnerWidget::hasFlexibleTopBar() const {
@@ -341,46 +341,7 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 		TopBar::Descriptor{
 			.controller = _controller,
 		});
-	struct State {
-		base::unique_qptr<Ui::IconButton> close;
-		base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> back;
-	};
-	const auto state = content->lifetime().make_state<State>();
-	const auto controller = _controller;
-	controller->wrapValue() | rpl::start_with_next([=](Wrap wrap) {
-		const auto isLayer = (wrap == Wrap::Layer);
-		content->setRoundEdges(isLayer);
-
-		state->back = base::make_unique_q<Ui::FadeWrap<Ui::IconButton>>(
-			content,
-			object_ptr<Ui::IconButton>(
-				content,
-				(isLayer ? st::infoTopBarBack : st::infoLayerTopBarBack)),
-			st::infoTopBarScale);
-		state->back->setDuration(0);
-		state->back->toggleOn(isLayer
-			? _backToggles.value() | rpl::type_erased()
-			: rpl::single(true));
-		content->setEnableBackButtonValue(state->back->toggledValue());
-		state->back->entity()->addClickHandler([=] {
-			controller->showBackFromStack();
-		});
-
-		if (!isLayer) {
-			state->close = nullptr;
-		} else {
-			state->close = base::make_unique_q<Ui::IconButton>(
-				content,
-				st::infoTopBarClose);
-			state->close->addClickHandler([=] {
-				controller->parentController()->hideLayer();
-				controller->parentController()->hideSpecialLayer();
-			});
-			content->widthValue() | rpl::start_with_next([=] {
-				state->close->moveToRight(0, 0);
-			}, state->close->lifetime());
-		}
-	}, content->lifetime());
+	content->setupButtons(_controller, _backToggles.value());
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });
 }
 

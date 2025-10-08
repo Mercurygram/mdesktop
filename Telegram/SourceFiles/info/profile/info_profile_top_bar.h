@@ -19,6 +19,9 @@ struct InfoTopBar;
 
 namespace Ui {
 class FlatLabel;
+class IconButton;
+template <typename Widget>
+class FadeWrap;
 } //namespace Ui
 
 namespace Info {
@@ -40,6 +43,9 @@ public:
 
 	void setRoundEdges(bool value);
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
+	void setupButtons(
+		not_null<Controller*> controller,
+		rpl::producer<bool> backToggles);
 
 protected:
 	void resizeEvent(QResizeEvent *e) override;
@@ -65,6 +71,9 @@ private:
 	Ui::PeerUserpicView _userpicView;
 	InMemoryKey _userpicUniqueKey;
 	QImage _cachedUserpic;
+
+	base::unique_qptr<Ui::IconButton> _close;
+	base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> _back;
 
 };
 
