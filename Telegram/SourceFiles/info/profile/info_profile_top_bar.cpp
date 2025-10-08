@@ -9,18 +9,25 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "api/api_user_privacy.h"
 #include "apiwrap.h"
+#include "base/timer_rpl.h"
+#include "base/timer.h"
 #include "base/unixtime.h"
 #include "calls/calls_instance.h"
 #include "core/application.h"
 #include "core/shortcuts.h"
 #include "data/data_changes.h"
+#include "data/data_emoji_statuses.h"
 #include "data/data_peer_values.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
+#include "data/stickers/data_custom_emoji.h"
 #include "info_profile_actions.h"
 #include "info/info_controller.h"
 #include "info/info_memento.h"
+#include "info/profile/info_profile_badge_tooltip.h"
+#include "info/profile/info_profile_badge.h"
+#include "info/profile/info_profile_cover.h" // LargeCustomEmojiMargins
 #include "info/profile/info_profile_status_label.h"
 #include "info/profile/info_profile_values.h"
 #include "lang/lang_keys.h"
@@ -32,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/layers/generic_box.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
+#include "ui/ui_utility.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
@@ -49,6 +57,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QGraphicsOpacityEffect>
 
 namespace Info::Profile {
+namespace {
+
+constexpr auto kWaitBeforeGiftBadge = crl::time(1000);
+constexpr auto kGiftBadgeGlares = 3;
+
+} // namespace
 
 TopBar::TopBar(
 	not_null<Ui::RpWidget*> parent,
@@ -56,6 +70,39 @@ TopBar::TopBar(
 : RpWidget(parent)
 , _peer(descriptor.controller->key().peer())
 , _st(st::infoTopBar)
+, _badgeTooltipHide(
+	std::make_unique<base::Timer>([=] { hideBadgeTooltip(); }))
+, _botVerify(std::make_unique<Badge>(
+	this,
+	st::infoBotVerifyBadge,
+	&_peer->session(),
+	BotVerifyBadgeForPeer(_peer),
+	nullptr,
+	Fn<bool()>([=] {
+		return descriptor.controller->parentController()
+			->isGifPausedAtLeastFor(Window::GifPauseReason::Layer);
+	})))
+, _badgeContent(BadgeContentForPeer(_peer))
+, _badge(std::make_unique<Badge>(
+	this,
+	st::infoPeerBadge,
+	&_peer->session(),
+	_badgeContent.value(),
+	nullptr,
+	Fn<bool()>([=] {
+		return descriptor.controller->parentController()
+			->isGifPausedAtLeastFor(Window::GifPauseReason::Layer);
+	})))
+, _verified(std::make_unique<Badge>(
+	this,
+	st::infoPeerBadge,
+	&_peer->session(),
+	VerifiedContentForPeer(_peer),
+	nullptr,
+	Fn<bool()>([=] {
+		return descriptor.controller->parentController()
+			->isGifPausedAtLeastFor(Window::GifPauseReason::Layer);
+	})))
 , _title(this, Info::Profile::NameValue(_peer), _st.title)
 , _starsRating(_peer->isUser()
 	? std::make_unique<Ui::StarsRating>(
@@ -98,10 +145,94 @@ TopBar::TopBar(
 		_statusLabel->refresh();
 	}, lifetime());
 
+	auto badgeUpdates = rpl::producer<rpl::empty_value>();
+	if (_badge) {
+		badgeUpdates = rpl::merge(
+			std::move(badgeUpdates),
+			_badge->updated());
+	}
+	if (_verified) {
+		badgeUpdates = rpl::merge(
+			std::move(badgeUpdates),
+			_verified->updated());
+	}
+	if (_botVerify) {
+		badgeUpdates = rpl::merge(
+			std::move(badgeUpdates),
+			_botVerify->updated());
+	}
+	std::move(badgeUpdates) | rpl::start_with_next([=] {
+		updateLabelsPosition();
+	}, _title->lifetime());
+
+	setupUniqueBadgeTooltip();
 	setupButtons(descriptor.controller, descriptor.backToggles.value());
 }
 
-TopBar::~TopBar() = default;
+void TopBar::setupUniqueBadgeTooltip() {
+	if (!_badge) {
+		return;
+	}
+	base::timer_once(kWaitBeforeGiftBadge) | rpl::then(
+		_badge->updated()
+	) | rpl::start_with_next([=] {
+		const auto widget = _badge->widget();
+		const auto &content = _badgeContent.current();
+		const auto &collectible = content.emojiStatusId.collectible;
+		const auto premium = (content.badge == BadgeType::Premium);
+		const auto id = (collectible && widget && premium)
+			? collectible->id
+			: uint64();
+		if (_badgeCollectibleId == id) {
+			return;
+		}
+		hideBadgeTooltip();
+		if (!collectible) {
+			return;
+		}
+		const auto parent = window();
+		_badgeTooltip = std::make_unique<BadgeTooltip>(
+			parent,
+			collectible,
+			widget);
+		const auto raw = _badgeTooltip.get();
+		raw->fade(true);
+		_badgeTooltipHide->callOnce(kGiftBadgeGlares * raw->glarePeriod()
+			- st::infoGiftTooltip.duration * 1.5);
+		raw->setOpacity(_progress.current());
+	}, lifetime());
+
+	if (const auto raw = _badgeTooltip.get()) {
+		raw->finishAnimating();
+	}
+}
+
+void TopBar::hideBadgeTooltip() {
+	_badgeTooltipHide->cancel();
+	if (auto old = base::take(_badgeTooltip)) {
+		const auto raw = old.get();
+		_badgeOldTooltips.push_back(std::move(old));
+
+		raw->fade(false);
+		raw->shownValue(
+		) | rpl::filter(
+			!rpl::mappers::_1
+		) | rpl::start_with_next([=] {
+			const auto i = ranges::find(
+				_badgeOldTooltips,
+				raw,
+				&std::unique_ptr<BadgeTooltip>::get);
+			if (i != end(_badgeOldTooltips)) {
+				_badgeOldTooltips.erase(i);
+			}
+		}, raw->lifetime());
+	}
+}
+
+TopBar::~TopBar() {
+	base::take(_badgeTooltip);
+	base::take(_badgeOldTooltips);
+}
 
 void TopBar::setEnableBackButtonValue(rpl::producer<bool> &&producer) {
 	std::move(
@@ -163,12 +294,21 @@ void TopBar::updateLabelsPosition() {
 		_st.titleWithSubtitlePosition.x(),
 		rect::m::sum::h(st::boxRowPadding),
 		progressCurrent);
-	const auto available = width()
-		- interpolatedPadding
-		- reservedRight;
+	auto titleWidth = width() - interpolatedPadding - reservedRight;
+	const auto verifiedWidget = _verified ? _verified->widget() : nullptr;
+	const auto badgeWidget = _badge ? _badge->widget() : nullptr;
+	if (verifiedWidget) {
+		titleWidth -= verifiedWidget->width();
+	}
+	if (badgeWidget) {
+		titleWidth -= badgeWidget->width();
+	}
+	if (verifiedWidget || badgeWidget) {
+		titleWidth -= st::infoVerifiedCheckPosition.x();
+	}
 
-	if (available > 0 && _title->textMaxWidth() > available) {
-		_title->resizeToWidth(available);
+	if (titleWidth > 0 && _title->textMaxWidth() > titleWidth) {
+		_title->resizeToWidth(titleWidth);
 	}
 
 	const auto titleTop = anim::interpolate(
@@ -180,10 +320,26 @@ void TopBar::updateLabelsPosition() {
 		st::infoLayerProfileTopBarStatusTop,
 		progressCurrent);
 
-	const auto titleLeft = anim::interpolate(
+	auto titleLeft = anim::interpolate(
 		_st.titleWithSubtitlePosition.x(),
 		(width() - _title->width()) / 2,
 		progressCurrent);
+	const auto badgeTop = titleTop;
+	const auto badgeBottom = titleTop + _title->height();
+	const auto margins = LargeCustomEmojiMargins();
+
+	if (_botVerify) {
+		const auto widget = _botVerify->widget();
+		const auto skip = widget
+			? widget->width() + st::infoVerifiedCheckPosition.x()
+			: 0;
+		_botVerify->move(
+			titleLeft - margins.left() - skip * progressCurrent,
+			badgeTop,
+			badgeBottom);
+		titleLeft += skip * (1. - progressCurrent);
+	}
+
 	const auto statusLeft = anim::interpolate(
 		_st.subtitlePosition.x(),
 		(width() - _status->width()) / 2,
@@ -195,6 +351,17 @@ void TopBar::updateLabelsPosition() {
 	}
 
 	_title->moveToLeft(titleLeft, titleTop);
+	const auto badgeLeft = titleLeft + _title->width();
+	if (_badge) {
+		_badge->move(badgeLeft, badgeTop, badgeBottom);
+	}
+	if (_verified) {
+		_verified->move(
+			badgeLeft + (badgeWidget ? badgeWidget->width() : 0),
+			badgeTop,
+			badgeBottom);
+	}
+
 	_status->moveToLeft(statusLeft, statusTop);
 
 	if (!_showLastSeen->isHidden()) {
@@ -209,6 +376,10 @@ void TopBar::updateLabelsPosition() {
 		_showLastSeen->setAttribute(
 			Qt::WA_TransparentForMouseEvents,
 			!progressCurrent);
+	}
+
+	if (_badgeTooltip) {
+		_badgeTooltip->setOpacity(progressCurrent);
 	}
 }
 

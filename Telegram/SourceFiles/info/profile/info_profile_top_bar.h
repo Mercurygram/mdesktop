@@ -9,9 +9,18 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/object_ptr.h"
 #include "ui/rp_widget.h"
+#include "info/profile/info_profile_badge.h"
 #include "ui/userpic_view.h"
 
+namespace Info::Profile {
+class BadgeTooltip;
+} // namespace Info::Profile
+
 class PeerData;
+
+namespace base {
+class Timer;
+} // namespace base
 
 namespace style {
 struct InfoTopBar;
@@ -40,6 +49,7 @@ struct MenuCallback;
 
 namespace Info::Profile {
 
+class Badge;
 class StatusLabel;
 
 class TopBar final : public Ui::RpWidget {
@@ -76,9 +86,21 @@ private:
 		not_null<Controller*> controller,
 		rpl::producer<bool> backToggles);
 	void setupShowLastSeen(not_null<Controller*> controller);
+	void setupUniqueBadgeTooltip();
+	void hideBadgeTooltip();
 
 	const not_null<PeerData*> _peer;
 	const style::InfoTopBar &_st;
+
+	std::unique_ptr<base::Timer> _badgeTooltipHide;
+	const std::unique_ptr<Badge> _botVerify;
+	rpl::variable<Badge::Content> _badgeContent;
+	const std::unique_ptr<Badge> _badge;
+	const std::unique_ptr<Badge> _verified;
+
+	std::unique_ptr<BadgeTooltip> _badgeTooltip;
+	std::vector<std::unique_ptr<BadgeTooltip>> _badgeOldTooltips;
+	uint64 _badgeCollectibleId = 0;
 
 	object_ptr<Ui::FlatLabel> _title;
 	std::unique_ptr<Ui::StarsRating> _starsRating;
