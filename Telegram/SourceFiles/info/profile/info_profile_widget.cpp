@@ -22,6 +22,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "info/info_controller.h"
 
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QScrollBar>
+
 namespace Info::Settings {
 struct SectionCustomTopBarData;
 } // namespace Info::Settings
@@ -181,9 +184,62 @@ Widget::Widget(
 			_flexibleScroll.contentHeightValue.fire(h + heightDiff());
 		}, _pinnedToTop->lifetime());
 
+		constexpr auto kScrollStepTime = crl::time(60);
+
+		const auto clearScrollState = [=] {
+			_scrollAnimation.stop();
+			_scrollTopFrom = 0;
+			_scrollTopTo = 0;
+			_timeOffset = 0;
+			_lastScrollApplied = 0;
+		};
+
+		_scrollAnimation.init([=](crl::time now) {
+			const auto progress = float64(now
+				- _scrollAnimation.started()
+				- _timeOffset) / kScrollStepTime;
+			const auto scrollCurrent = anim::interpolate(
+				_scrollTopFrom,
+				_scrollTopTo,
+				std::clamp(progress, 0., 1.));
+			scroll()->scrollToY(scrollCurrent);
+			_lastScrollApplied = scrollCurrent;
+			if (progress >= 1) {
+				clearScrollState();
+			}
+		});
+
+		const auto singleStep = scroll()->verticalScrollBar()->singleStep()
+			* QApplication::wheelScrollLines();
+		_scrollTopPrevious = scroll()->scrollTop();
 		scrollTopValue(
 		) | rpl::start_with_next([=](int top) {
-			if (!_pinnedToTop) {
+			if (!_pinnedToTop || _applyingFakeScrollState) {
+				return;
+			}
+			const auto diff = top - _scrollTopPrevious;
+			_scrollTopPrevious = top;
+			if (std::abs(diff) == singleStep) {
+				const auto previousValue = top - diff;
+				{
+					_applyingFakeScrollState = true;
+					scroll()->scrollToY(previousValue);
+					_applyingFakeScrollState = false;
+				}
+				if (_scrollAnimation.animating()
+					&& ((_scrollTopTo > _scrollTopFrom) != (diff > 0))) {
+					clearScrollState();
+				}
+				_scrollTopFrom = _lastScrollApplied
+					? _lastScrollApplied
+					: previousValue;
+				if (!_scrollAnimation.animating()) {
+					_scrollTopTo = top;
+					_scrollAnimation.start();
+				} else {
+					_scrollTopTo += diff;
+					_timeOffset = (crl::now() - _scrollAnimation.started());
+				}
 				return;
 			}
 			const auto current = heightDiff() - top;
