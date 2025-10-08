@@ -252,6 +252,7 @@ infoLayerProfileTopBarTitleTop: 150px;
 infoLayerProfileTopBarStatusTop: 170px;
 infoLayerProfileTopBarPhotoTop: 30px;
 infoLayerProfileTopBarPhotoSize: 104px;
+infoLayerProfileTopBarLastSeenSkip: 8px;
 
 infoLayerTopMinimal: 20px;
 infoLayerTopMaximal: 40px;

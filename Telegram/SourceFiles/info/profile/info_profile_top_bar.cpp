@@ -7,10 +7,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_top_bar.h"
 
+#include "api/api_user_privacy.h"
+#include "apiwrap.h"
+#include "base/unixtime.h"
 #include "calls/calls_instance.h"
 #include "core/application.h"
 #include "core/shortcuts.h"
 #include "data/data_changes.h"
+#include "data/data_peer_values.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
@@ -19,10 +23,16 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/info_memento.h"
 #include "info/profile/info_profile_status_label.h"
 #include "info/profile/info_profile_values.h"
+#include "lang/lang_keys.h"
 #include "main/main_session.h"
+#include "settings/settings_premium.h"
+#include "ui/boxes/show_or_premium_box.h"
+#include "ui/controls/stars_rating.h"
 #include "ui/effects/animations.h"
+#include "ui/layers/generic_box.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
+#include "ui/widgets/buttons.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
@@ -36,6 +46,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_layers.h"
 #include "styles/style_settings.h"
 
+#include <QGraphicsOpacityEffect>
+
 namespace Info::Profile {
 
 TopBar::TopBar(
@@ -45,11 +57,38 @@ TopBar::TopBar(
 , _peer(descriptor.controller->key().peer())
 , _st(st::infoTopBar)
 , _title(this, Info::Profile::NameValue(_peer), _st.title)
+, _starsRating(_peer->isUser()
+	? std::make_unique<Ui::StarsRating>(
+		this,
+		descriptor.controller->uiShow(),
+		_peer->isSelf() ? QString() : _peer->shortName(),
+		Data::StarsRatingValue(_peer),
+		(_peer->isSelf()
+			? [=] { return _peer->owner().pendingStarsRating(); }
+			: Fn<Data::StarsRatingPending()>()))
+	: nullptr)
 , _status(this, QString(), _st.subtitle)
 , _statusLabel(
-	std::make_unique<StatusLabel>(_status.data(), _peer, rpl::single(0))) {
+	std::make_unique<StatusLabel>(_status.data(), _peer, rpl::single(0)))
+, _showLastSeen(
+		this,
+		tr::lng_status_lastseen_when(),
+		st::infoProfileCover.showLastSeen) {
 	QWidget::setMinimumHeight(st::infoLayerTopBarHeight);
 	QWidget::setMaximumHeight(st::infoLayerProfileTopBarHeightMax);
+
+	if (!_peer->isMegagroup()) {
+		_status->setAttribute(Qt::WA_TransparentForMouseEvents);
+		if (const auto rating = _starsRating.get()) {
+			_statusShift = rating->widthValue();
+			_statusShift.changes() | rpl::start_with_next([=] {
+				updateLabelsPosition();
+			}, _status->lifetime());
+			rating->raise();
+		}
+	}
+
+	setupShowLastSeen(descriptor.controller);
 
 	_peer->session().changes().peerFlagsValue(
 		_peer,
@@ -150,8 +189,27 @@ void TopBar::updateLabelsPosition() {
 		(width() - _status->width()) / 2,
 		progressCurrent);
 
+	if (const auto rating = _starsRating.get()) {
+		rating->moveTo(statusLeft - _statusShift.current(), statusTop);
+		rating->setOpacity(progressCurrent);
+	}
+
 	_title->moveToLeft(titleLeft, titleTop);
 	_status->moveToLeft(statusLeft, statusTop);
+
+	if (!_showLastSeen->isHidden()) {
+		_showLastSeen->moveToLeft(
+			statusLeft
+				+ _status->textMaxWidth()
+				+ st::infoLayerProfileTopBarLastSeenSkip,
+			statusTop);
+		if (_showLastSeenOpacity) {
+			_showLastSeenOpacity->setOpacity(progressCurrent);
+		}
+		_showLastSeen->setAttribute(
+			Qt::WA_TransparentForMouseEvents,
+			!progressCurrent);
+	}
 }
 
 void TopBar::resizeEvent(QResizeEvent *e) {
@@ -374,6 +432,81 @@ void TopBar::addProfileCallsButton(
 	if (user && user->callsStatus() == UserData::CallsStatus::Unknown) {
 		user->updateFull();
 	}
+}
+
+void TopBar::setupShowLastSeen(not_null<Controller*> controller) {
+	const auto user = _peer->asUser();
+	if (!user
+		|| user->isSelf()
+		|| user->isBot()
+		|| user->isServiceUser()
+		|| !user->session().premiumPossible()) {
+		_showLastSeen->hide();
+		return;
+	}
+
+	if (user->session().premium()) {
+		if (user->lastseen().isHiddenByMe()) {
+			user->updateFullForced();
+		}
+		_showLastSeen->hide();
+		return;
+	}
+
+	rpl::combine(
+		user->session().changes().peerFlagsValue(
+			user,
+			Data::PeerUpdate::Flag::OnlineStatus),
+		Data::AmPremiumValue(&user->session())
+	) | rpl::start_with_next([=](auto, bool premium) {
+		const auto wasShown = !_showLastSeen->isHidden();
+		const auto hiddenByMe = user->lastseen().isHiddenByMe();
+		const auto shown = hiddenByMe
+			&& !user->lastseen().isOnline(base::unixtime::now())
+			&& !premium
+			&& user->session().premiumPossible();
+		_showLastSeen->setVisible(shown);
+		if (wasShown && premium && hiddenByMe) {
+			user->updateFullForced();
+		}
+	}, _showLastSeen->lifetime());
+
+	controller->session().api().userPrivacy().value(
+		Api::UserPrivacy::Key::LastSeen
+	) | rpl::filter([=](Api::UserPrivacy::Rule rule) {
+		return (rule.option == Api::UserPrivacy::Option::Everyone);
+	}) | rpl::start_with_next([=] {
+		if (user->lastseen().isHiddenByMe()) {
+			user->updateFullForced();
+		}
+	}, _showLastSeen->lifetime());
+
+	_showLastSeenOpacity = Ui::CreateChild<QGraphicsOpacityEffect>(
+		_showLastSeen.get());
+	_showLastSeen->setGraphicsEffect(_showLastSeenOpacity);
+	_showLastSeenOpacity->setOpacity(0.);
+
+	using TextTransform = Ui::RoundButton::TextTransform;
+	_showLastSeen->setTextTransform(TextTransform::NoTransform);
+	_showLastSeen->setFullRadius(true);
+
+	_showLastSeen->setClickedCallback([=] {
+		const auto type = Ui::ShowOrPremium::LastSeen;
+		controller->parentController()->show(Box(
+			Ui::ShowOrPremiumBox,
+			type,
+			user->shortName(),
+			[=] {
+				controller->session().api().userPrivacy().save(
+					::Api::UserPrivacy::Key::LastSeen,
+					{});
+			},
+			[=] {
+				::Settings::ShowPremium(
+					controller->parentController(),
+					u"lastseen_hidden"_q);
+			}));
+	});
 }
 
 } // namespace Info::Profile

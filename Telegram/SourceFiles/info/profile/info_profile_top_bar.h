@@ -17,10 +17,14 @@ namespace style {
 struct InfoTopBar;
 } //namespace style
 
+class QGraphicsOpacityEffect;
+
 namespace Ui {
 class FlatLabel;
 class IconButton;
 class PopupMenu;
+class RoundButton;
+class StarsRating;
 template <typename Widget>
 class FadeWrap;
 } //namespace Ui
@@ -71,13 +75,18 @@ private:
 	void setupButtons(
 		not_null<Controller*> controller,
 		rpl::producer<bool> backToggles);
+	void setupShowLastSeen(not_null<Controller*> controller);
 
 	const not_null<PeerData*> _peer;
 	const style::InfoTopBar &_st;
 
 	object_ptr<Ui::FlatLabel> _title;
+	std::unique_ptr<Ui::StarsRating> _starsRating;
 	object_ptr<Ui::FlatLabel> _status;
 	std::unique_ptr<StatusLabel> _statusLabel;
+	rpl::variable<int> _statusShift = 0;
+	object_ptr<Ui::RoundButton> _showLastSeen = { nullptr };
+	QGraphicsOpacityEffect *_showLastSeenOpacity = nullptr;
 
 	rpl::variable<int> _onlineCount = 0;
 	rpl::variable<float64> _progress = 0.;
