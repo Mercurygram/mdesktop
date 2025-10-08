@@ -7,9 +7,18 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "base/object_ptr.h"
 #include "ui/rp_widget.h"
 
 class PeerData;
+
+namespace style {
+struct InfoTopBar;
+} //namespace style
+
+namespace Ui {
+class FlatLabel;
+} //namespace Ui
 
 namespace Info::Profile {
 
@@ -18,6 +27,7 @@ public:
 	TopBar(not_null<Ui::RpWidget*> parent, not_null<PeerData*> peer);
 
 	void setRoundEdges(bool value);
+	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
 
 protected:
 	void paintEvent(QPaintEvent *e) override;
@@ -27,6 +37,9 @@ private:
 	void paintEdges(QPainter &p) const;
 
 	const not_null<PeerData*> _peer;
+	const style::InfoTopBar &_st;
+
+	object_ptr<Ui::FlatLabel> _title;
 
 	bool _roundEdges = true;
 

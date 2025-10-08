@@ -357,6 +357,7 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 		state->back->toggleOn(isLayer
 			? _backToggles.value() | rpl::type_erased()
 			: rpl::single(true));
+		content->setEnableBackButtonValue(state->back->toggledValue());
 		state->back->entity()->addClickHandler([=] {
 			controller->showBackFromStack();
 		});

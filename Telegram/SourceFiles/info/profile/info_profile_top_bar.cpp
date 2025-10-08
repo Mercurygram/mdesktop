@@ -8,8 +8,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_top_bar.h"
 
 #include "data/data_peer.h"
+#include "info/profile/info_profile_values.h"
 #include "info_profile_actions.h"
 #include "ui/painter.h"
+#include "ui/widgets/labels.h"
 #include "styles/style_boxes.h"
 #include "styles/style_info.h"
 #include "styles/style_layers.h"
@@ -21,9 +23,22 @@ TopBar::TopBar(
 	not_null<Ui::RpWidget*> parent,
 	not_null<PeerData*> peer)
 : RpWidget(parent)
-, _peer(peer) {
+, _peer(peer)
+, _st(st::infoTopBar)
+, _title(this, Info::Profile::NameValue(peer), _st.title) {
 	setMinimumHeight(st::infoLayerTopBarHeight);
 	setMaximumHeight(st::settingsPremiumTopHeight);
+	_title->move(_st.titleWithSubtitlePosition);
+}
+
+void TopBar::setEnableBackButtonValue(rpl::producer<bool> &&producer) {
+	std::move(
+		producer
+	) | rpl::start_with_next([=](bool value) {
+		_title->moveToLeft(
+			_st.titleWithSubtitlePosition.x() + (value ? _st.back.width : 0),
+			_st.titleWithSubtitlePosition.y());
+	}, lifetime());
 }
 
 void TopBar::setRoundEdges(bool value) {
