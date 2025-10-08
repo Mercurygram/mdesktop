@@ -7,7 +7,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_top_bar.h"
 
+#include "ui/painter.h"
+#include "styles/style_boxes.h"
 #include "styles/style_info.h"
+#include "styles/style_layers.h"
 #include "styles/style_settings.h"
 
 namespace Info::Profile {
@@ -18,9 +21,34 @@ TopBar::TopBar(QWidget *parent)
 	setMaximumHeight(st::settingsPremiumTopHeight);
 }
 
+void TopBar::setRoundEdges(bool value) {
+	_roundEdges = value;
+	update();
+}
+
+void TopBar::paintEdges(QPainter &p, const QBrush &brush) const {
+	const auto r = rect();
+	if (_roundEdges) {
+		auto hq = PainterHighQualityEnabler(p);
+		const auto radius = st::boxRadius;
+		p.setPen(Qt::NoPen);
+		p.setBrush(brush);
+		p.drawRoundedRect(
+			r + QMargins{ 0, 0, 0, radius + 1 },
+			radius,
+			radius);
+	} else {
+		p.fillRect(r, brush);
+	}
+}
+
+void TopBar::paintEdges(QPainter &p) const {
+	paintEdges(p, st::boxBg);
+}
+
 void TopBar::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
-	p.fillRect(rect(), st::boxBg);
+	paintEdges(p);
 }
 
 } // namespace Info::Profile

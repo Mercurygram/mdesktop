@@ -15,8 +15,16 @@ class TopBar final : public Ui::RpWidget {
 public:
 	TopBar(QWidget *parent);
 
+	void setRoundEdges(bool value);
+
 protected:
 	void paintEvent(QPaintEvent *e) override;
+
+private:
+	void paintEdges(QPainter &p, const QBrush &brush) const;
+	void paintEdges(QPainter &p) const;
+
+	bool _roundEdges = true;
 
 };
 
