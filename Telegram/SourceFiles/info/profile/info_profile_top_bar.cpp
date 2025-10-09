@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_saved_sublist.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
+#include "data/data_document.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "info_profile_actions.h"
 #include "info/info_controller.h"
@@ -219,6 +220,17 @@ TopBar::TopBar(
 		_hasBackground = collectible != nullptr;
 		_cachedClipPath = QPainterPath();
 		_cachedGradient = QImage();
+		_patternEmojis.clear();
+		if (collectible && collectible->patternDocumentId) {
+			const auto document = _peer->owner().document(
+				collectible->patternDocumentId);
+			_patternEmoji = document->owner().customEmojiManager().create(
+				document,
+				[=] { update(); },
+				Data::CustomEmojiSizeTag::Large);
+		} else {
+			_patternEmoji = nullptr;
+		}
 		update();
 		if (collectible) {
 			constexpr auto kMinContrast = 5.5;
@@ -592,6 +604,20 @@ void TopBar::paintEvent(QPaintEvent *e) {
 			p.drawImage(x, y, _cachedGradient);
 		} else {
 			p.drawImage(x, y, _cachedGradient);
+		}
+
+		if (_patternEmoji && _patternEmoji->ready()) {
+			const auto collectible = _peer->emojiStatusId().collectible;
+			if (collectible) {
+				Ui::PaintBgPoints(
+					p,
+					Ui::PatternBgPoints(),
+					_patternEmojis,
+					_patternEmoji.get(),
+					collectible->patternColor,
+					rect(),
+					1.);
+			}
 		}
 	}
 	paintUserpic(p);
