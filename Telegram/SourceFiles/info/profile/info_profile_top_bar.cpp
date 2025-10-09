@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_changes.h"
 #include "data/data_channel.h"
 #include "data/data_emoji_statuses.h"
+#include "data/data_forum_topic.h"
 #include "data/data_peer_values.h"
 #include "data/data_peer.h"
 #include "data/data_photo.h"
@@ -74,6 +75,7 @@ TopBar::TopBar(
 	Descriptor descriptor)
 : RpWidget(parent)
 , _peer(descriptor.controller->key().peer())
+, _topic(descriptor.controller->key().topic())
 , _st(st::infoTopBar)
 , _badgeTooltipHide(
 	std::make_unique<base::Timer>([=] { hideBadgeTooltip(); }))
@@ -195,7 +197,17 @@ TopBar::TopBar(
 	setupUniqueBadgeTooltip();
 	setupButtons(controller, descriptor.backToggles.value());
 	setupUserpicButton(controller);
-	updateVideoUserpic();
+	if (_topic) {
+		_topicIconView = std::make_unique<TopicIconView>(
+			_topic,
+			[controller = controller->parentController()] {
+				return controller->isGifPausedAtLeastFor(
+					Window::GifPauseReason::Layer);
+			},
+			[=] { update(); });
+	} else {
+		updateVideoUserpic();
+	}
 }
 
 void TopBar::setupUserpicButton(not_null<Controller*> controller) {
@@ -467,6 +479,10 @@ QRect TopBar::userpicGeometry() const {
 
 void TopBar::paintUserpic(QPainter &p) {
 	const auto geometry = userpicGeometry();
+	if (_topicIconView) {
+		_topicIconView->paintInRect(p, geometry);
+		return;
+	}
 	if (_videoUserpicPlayer && _videoUserpicPlayer->ready()) {
 		const auto size = st::infoLayerProfileTopBarPhotoSize;
 		const auto frame = _videoUserpicPlayer->frame(Size(size), _peer);

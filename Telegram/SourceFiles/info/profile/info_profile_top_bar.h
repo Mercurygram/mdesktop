@@ -12,8 +12,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_badge.h"
 #include "ui/userpic_view.h"
 
+namespace Data {
+class ForumTopic;
+} // namespace Data
+
 namespace Info::Profile {
 class BadgeTooltip;
+class TopicIconView;
 } // namespace Info::Profile
 
 namespace Ui {
@@ -100,6 +105,7 @@ private:
 	void hideBadgeTooltip();
 
 	const not_null<PeerData*> _peer;
+	Data::ForumTopic *_topic = nullptr;
 	const style::InfoTopBar &_st;
 
 	std::unique_ptr<base::Timer> _badgeTooltipHide;
@@ -128,6 +134,7 @@ private:
 	QImage _cachedUserpic;
 	QImage _monoforumMask;
 	std::unique_ptr<Ui::VideoUserpicPlayer> _videoUserpicPlayer;
+	std::unique_ptr<TopicIconView> _topicIconView;
 
 	base::unique_qptr<Ui::IconButton> _close;
 	base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> _back;
