@@ -129,6 +129,10 @@ private:
 	rpl::variable<float64> _progress = 0.;
 	bool _roundEdges = true;
 
+	bool _hasBackground = false;
+	QImage _cachedGradient;
+	QPainterPath _cachedClipPath;
+
 	Ui::PeerUserpicView _userpicView;
 	InMemoryKey _userpicUniqueKey;
 	QImage _cachedUserpic;

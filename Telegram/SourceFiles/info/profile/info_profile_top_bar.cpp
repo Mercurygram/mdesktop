@@ -38,6 +38,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "settings/settings_premium.h"
 #include "ui/boxes/show_or_premium_box.h"
+#include "ui/color_contrast.h"
 #include "ui/controls/stars_rating.h"
 #include "ui/effects/animations.h"
 #include "ui/empty_userpic.h"
@@ -45,6 +46,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/peer/video_userpic_player.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
+#include "ui/top_background_gradient.h"
 #include "ui/ui_utility.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/buttons.h"
@@ -208,6 +210,35 @@ TopBar::TopBar(
 	} else {
 		updateVideoUserpic();
 	}
+
+	_peer->session().changes().peerFlagsValue(
+		_peer,
+		Data::PeerUpdate::Flag::EmojiStatus
+	) | rpl::start_with_next([=] {
+		const auto collectible = _peer->emojiStatusId().collectible;
+		_hasBackground = collectible != nullptr;
+		_cachedClipPath = QPainterPath();
+		_cachedGradient = QImage();
+		update();
+		if (collectible) {
+			constexpr auto kMinContrast = 5.5;
+			const auto contrastTitle = Ui::CountContrast(
+				_title->st().textFg->c,
+				collectible->edgeColor);
+			const auto contrastStatus = Ui::CountContrast(
+				_status->st().textFg->c,
+				collectible->edgeColor);
+			_title->setTextColorOverride((contrastTitle < kMinContrast)
+				? std::optional<QColor>(st::groupCallMembersFg->c)
+				: std::nullopt);
+			_status->setTextColorOverride((contrastStatus < kMinContrast)
+				? std::optional<QColor>(st::groupCallVideoSubTextFg->c)
+				: std::nullopt);
+		} else {
+			_title->setTextColorOverride(std::nullopt);
+			_status->setTextColorOverride(std::nullopt);
+		}
+	}, lifetime());
 }
 
 void TopBar::setupUserpicButton(not_null<Controller*> controller) {
@@ -460,6 +491,7 @@ void TopBar::updateLabelsPosition() {
 }
 
 void TopBar::resizeEvent(QResizeEvent *e) {
+	_cachedClipPath = QPainterPath();
 	updateLabelsPosition();
 	RpWidget::resizeEvent(e);
 }
@@ -532,7 +564,36 @@ void TopBar::paintUserpic(QPainter &p) {
 
 void TopBar::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
-	paintEdges(p);
+	if (_hasBackground && _cachedGradient.isNull()) {
+		_cachedGradient = Ui::CreateTopBgGradient(
+			QSize(width(), maximumHeight()),
+			_peer);
+	}
+	if (!_hasBackground) {
+		paintEdges(p);
+	} else {
+		const auto x = (width()
+			- _cachedGradient.width() / style::DevicePixelRatio())
+				/ 2;
+		const auto y = (height()
+			- _cachedGradient.height() / style::DevicePixelRatio())
+				/ 2;
+		if (_roundEdges) {
+			if (_cachedClipPath.isEmpty()) {
+				const auto radius = st::boxRadius;
+				_cachedClipPath.addRoundedRect(
+					rect() + QMargins{ 0, 0, 0, radius + 1 },
+					radius,
+					radius);
+			}
+			auto hq = PainterHighQualityEnabler(p);
+			p.setPen(Qt::NoPen);
+			p.setClipPath(_cachedClipPath);
+			p.drawImage(x, y, _cachedGradient);
+		} else {
+			p.drawImage(x, y, _cachedGradient);
+		}
+	}
 	paintUserpic(p);
 }
 
