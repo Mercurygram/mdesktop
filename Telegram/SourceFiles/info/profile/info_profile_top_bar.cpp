@@ -41,6 +41,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/effects/animations.h"
 #include "ui/empty_userpic.h"
 #include "ui/layers/generic_box.h"
+#include "ui/peer/video_userpic_player.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
 #include "ui/ui_utility.h"
@@ -194,6 +195,7 @@ TopBar::TopBar(
 	setupUniqueBadgeTooltip();
 	setupButtons(controller, descriptor.backToggles.value());
 	setupUserpicButton(controller);
+	updateVideoUserpic();
 }
 
 void TopBar::setupUserpicButton(not_null<Controller*> controller) {
@@ -208,6 +210,7 @@ void TopBar::setupUserpicButton(not_null<Controller*> controller) {
 		_userpicButton->setAttribute(
 			Qt::WA_TransparentForMouseEvents,
 			!_peer->userpicPhotoId());
+		updateVideoUserpic();
 	}, lifetime());
 	_userpicButton->setClickedCallback([=] {
 		if (const auto id = _peer->userpicPhotoId()) {
@@ -464,6 +467,15 @@ QRect TopBar::userpicGeometry() const {
 
 void TopBar::paintUserpic(QPainter &p) {
 	const auto geometry = userpicGeometry();
+	if (_videoUserpicPlayer && _videoUserpicPlayer->ready()) {
+		const auto size = st::infoLayerProfileTopBarPhotoSize;
+		const auto frame = _videoUserpicPlayer->frame(Size(size), _peer);
+		if (!frame.isNull()) {
+			p.drawImage(geometry, frame);
+			update();
+			return;
+		}
+	}
 	const auto key = _peer->userpicUniqueKey(_userpicView);
 	if (_userpicUniqueKey != key) {
 		_userpicUniqueKey = key;
@@ -692,6 +704,23 @@ void TopBar::addProfileCallsButton(
 	if (user && user->callsStatus() == UserData::CallsStatus::Unknown) {
 		user->updateFull();
 	}
+}
+
+void TopBar::updateVideoUserpic() {
+	const auto id = _peer->userpicPhotoId();
+	if (!id) {
+		_videoUserpicPlayer = nullptr;
+		return;
+	}
+	const auto photo = _peer->owner().photo(id);
+	if (!photo->date() || !photo->videoCanBePlayed()) {
+		_videoUserpicPlayer = nullptr;
+		return;
+	}
+	if (!_videoUserpicPlayer) {
+		_videoUserpicPlayer = std::make_unique<Ui::VideoUserpicPlayer>();
+	}
+	_videoUserpicPlayer->setup(_peer, photo);
 }
 
 void TopBar::setupShowLastSeen(not_null<Controller*> controller) {

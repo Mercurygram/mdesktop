@@ -16,6 +16,10 @@ namespace Info::Profile {
 class BadgeTooltip;
 } // namespace Info::Profile
 
+namespace Ui {
+class VideoUserpicPlayer;
+} // namespace Ui
+
 class PeerData;
 
 namespace base {
@@ -82,6 +86,7 @@ private:
 	[[nodiscard]] QRect userpicGeometry() const;
 	void updateUserpicButtonGeometry();
 	void paintUserpic(QPainter &p);
+	void updateVideoUserpic();
 	void showTopBarMenu(not_null<Controller*> controller, bool check);
 	void fillTopBarMenu(
 		not_null<Controller*> controller,
@@ -122,6 +127,7 @@ private:
 	InMemoryKey _userpicUniqueKey;
 	QImage _cachedUserpic;
 	QImage _monoforumMask;
+	std::unique_ptr<Ui::VideoUserpicPlayer> _videoUserpicPlayer;
 
 	base::unique_qptr<Ui::IconButton> _close;
 	base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> _back;
