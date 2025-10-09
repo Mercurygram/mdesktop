@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/application.h"
 #include "core/shortcuts.h"
 #include "data/data_changes.h"
+#include "data/data_channel.h"
 #include "data/data_emoji_statuses.h"
 #include "data/data_peer_values.h"
 #include "data/data_peer.h"
@@ -38,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/boxes/show_or_premium_box.h"
 #include "ui/controls/stars_rating.h"
 #include "ui/effects/animations.h"
+#include "ui/empty_userpic.h"
 #include "ui/layers/generic_box.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
@@ -467,10 +469,34 @@ void TopBar::paintUserpic(QPainter &p) {
 		_userpicUniqueKey = key;
 		const auto fullSize = st::infoLayerProfileTopBarPhotoSize;
 		const auto scaled = fullSize * style::DevicePixelRatio();
-		_cachedUserpic = PeerData::GenerateUserpicImage(
-			_peer,
-			_userpicView,
-			scaled);
+		auto image = QImage();
+		if (const auto broadcast = _peer->monoforumBroadcast()) {
+			image = PeerData::GenerateUserpicImage(
+				broadcast,
+				_userpicView,
+				scaled,
+				0);
+			if (_monoforumMask.isNull()) {
+				_monoforumMask = Ui::MonoforumShapeMask(Size(scaled));
+			}
+			constexpr auto kFormat = QImage::Format_ARGB32_Premultiplied;
+			if (image.format() != kFormat) {
+				image = std::move(image).convertToFormat(kFormat);
+			}
+			auto q = QPainter(&image);
+			q.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+			q.drawImage(
+				Rect(image.size() / image.devicePixelRatio()),
+				_monoforumMask);
+			q.end();
+		} else {
+			image = PeerData::GenerateUserpicImage(
+				_peer,
+				_userpicView,
+				scaled,
+				std::nullopt);
+		}
+		_cachedUserpic = std::move(image);
 		_cachedUserpic.setDevicePixelRatio(style::DevicePixelRatio());
 	}
 	p.drawImage(geometry, _cachedUserpic);
