@@ -74,9 +74,11 @@ void Messages::send(TextWithTags text) {
 
 	if (!_call->conference()) {
 		_api->request(MTPphone_SendGroupCallMessage(
+			MTP_flags(0),
 			_call->inputCall(),
 			MTP_long(randomId),
-			serialized
+			serialized,
+			MTPlong() // allow_paid_stars
 		)).done([=](const MTPBool &, const MTP::Response &response) {
 			sent(randomId, response);
 		}).fail([=](const MTP::Error &, const MTP::Response &response) {

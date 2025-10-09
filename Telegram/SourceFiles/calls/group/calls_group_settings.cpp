@@ -86,7 +86,8 @@ void SaveCallJoinMuted(
 		MTP_flags(Flag::f_join_muted),
 		call->input(),
 		MTP_bool(joinMuted),
-		MTPBool() // messages_enabled
+		MTPBool(), // messages_enabled
+		MTPlong() // send_paid_messages_stars
 	)).send();
 }
 
@@ -108,7 +109,8 @@ void SaveCallMessagesEnabled(
 		MTP_flags(Flag::f_messages_enabled),
 		call->input(),
 		MTPBool(), // join_muted
-		MTP_bool(messagesEnabled)
+		MTP_bool(messagesEnabled),
+		MTPlong() // send_paid_messages_stars
 	)).send();
 }
 

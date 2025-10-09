@@ -282,7 +282,8 @@ void ShowConferenceCallLinkBox(
 						MTP_flags(Flag::f_reset_invite_hash),
 						call->input(),
 						MTPBool(), // join_muted
-						MTPBool()) // messages_enabled
+						MTPBool(), // messages_enabled
+						MTPlong()) // send_paid_messages_stars
 				).done([=](const MTPUpdates &result) {
 					call->session().api().applyUpdates(result);
 					ShowConferenceCallLinkBox(show, call, args);
