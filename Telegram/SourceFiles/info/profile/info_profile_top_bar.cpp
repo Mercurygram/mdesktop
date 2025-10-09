@@ -59,6 +59,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
 #include "styles/style_chat.h"
+#include "styles/style_chat_helpers.h"
 #include "styles/style_info.h"
 #include "styles/style_layers.h"
 #include "styles/style_settings.h"
@@ -70,6 +71,60 @@ namespace {
 
 constexpr auto kWaitBeforeGiftBadge = crl::time(1000);
 constexpr auto kGiftBadgeGlares = 3;
+constexpr auto kMinPatternRadius = 8;
+
+using AnimatedPatternPoint = TopBar::AnimatedPatternPoint;
+
+[[nodiscard]] std::vector<AnimatedPatternPoint> GenerateAnimatedPattern(
+		const QRect &userpicRect) {
+	auto points = std::vector<TopBar::AnimatedPatternPoint>();
+	points.reserve(18); // 6 + 6 + 4 + 2.
+	const auto ax = float64(userpicRect.x());
+	const auto ay = float64(userpicRect.y());
+	const auto aw = float64(userpicRect.width());
+	const auto ah = float64(userpicRect.height());
+	const auto acx = ax + aw / 2.;
+	const auto acy = ay + ah / 2.;
+
+	const auto padding24 = 24.;
+	const auto padding16 = 16.;
+	const auto padding8 = 8.;
+	const auto padding12 = 12.;
+	const auto padding48 = 48.;
+	const auto padding96 = 96.;
+	static const auto kCos120 = std::cos(M_PI * 120. / 180.);
+	static const auto kCos160 = std::cos(M_PI * 160. / 180.);
+	const auto r48Cos120 = (padding48 + aw / 2.) * kCos120;
+	const auto r16Cos160 = (padding16 + ah / 2.) * kCos160;
+
+	// First ring.
+	points.push_back({ { acx, ay - padding24 }, 20, 0.02, 0.42 });
+	points.push_back({ { acx, ay + ah + padding24 }, 20, 0.00, 0.32 });
+	points.push_back({ { ax - padding16, acy - ah / 4 - padding8 }, 23, 0.00, 0.40 });
+	points.push_back({ { ax + aw + padding16, acy - ah / 4 - padding8 }, 18, 0.00, 0.40 });
+	points.push_back({ { ax - padding16, acy + ah / 4 + padding8 }, 24, 0.00, 0.40 });
+	points.push_back({ { ax + aw + padding16 - 4, acy + ah / 4 + padding8 }, 24, 0.00, 0.40 });
+
+	// Second ring.
+	points.push_back({ { ax - padding48, acy }, 19, 0.14, 0.60 });
+	points.push_back({ { ax + aw + padding48, acy }, 19, 0.16, 0.64 });
+	points.push_back({ { acx + r48Cos120, ay - padding48 + padding12 }, 17, 0.14, 0.70 });
+	points.push_back({ { acx - r48Cos120, ay - padding48 + padding12 }, 17, 0.14, 0.90 });
+	points.push_back({ { acx + r48Cos120, ay + ah + padding48 - padding12 }, 20, 0.20, 0.75 });
+	points.push_back({ { acx - r48Cos120, ay + ah + padding48 - padding12 }, 20, 0.20, 0.85 });
+
+	// Third ring.
+	points.push_back({ { ax - padding48 - padding8, acy + r16Cos160 }, 20, 0.09, 0.45 });
+	points.push_back({ { ax + aw + padding48 + padding8, acy + r16Cos160 }, 19, 0.09, 0.45 });
+	points.push_back({ { ax - padding48 - padding8, acy - r16Cos160 }, 21, 0.09, 0.45 });
+	points.push_back({ { ax + aw + padding48 + padding8, acy - r16Cos160 }, 18, 0.11, 0.45 });
+
+	// Fourth ring.
+	points.push_back({ { ax - padding96, acy }, 19, 0.14, 0.75 });
+	points.push_back({ { ax + aw + padding96, acy }, 19, 0.20, 0.80 });
+
+	return points;
+}
 
 } // namespace
 
@@ -220,6 +275,7 @@ TopBar::TopBar(
 		_hasBackground = collectible != nullptr;
 		_cachedClipPath = QPainterPath();
 		_cachedGradient = QImage();
+		_basePatternImage = QImage();
 		_patternEmojis.clear();
 		if (collectible && collectible->patternDocumentId) {
 			const auto document = _peer->owner().document(
@@ -228,8 +284,10 @@ TopBar::TopBar(
 				document,
 				[=] { update(); },
 				Data::CustomEmojiSizeTag::Large);
+			setupAnimatedPattern();
 		} else {
 			_patternEmoji = nullptr;
+			_animatedPoints.clear();
 		}
 		update();
 		if (collectible) {
@@ -504,6 +562,9 @@ void TopBar::updateLabelsPosition() {
 
 void TopBar::resizeEvent(QResizeEvent *e) {
 	_cachedClipPath = QPainterPath();
+	if (_hasBackground && !_animatedPoints.empty()) {
+		setupAnimatedPattern();
+	}
 	updateLabelsPosition();
 	RpWidget::resizeEvent(e);
 }
@@ -607,17 +668,7 @@ void TopBar::paintEvent(QPaintEvent *e) {
 		}
 
 		if (_patternEmoji && _patternEmoji->ready()) {
-			const auto collectible = _peer->emojiStatusId().collectible;
-			if (collectible) {
-				Ui::PaintBgPoints(
-					p,
-					Ui::PatternBgPoints(),
-					_patternEmojis,
-					_patternEmoji.get(),
-					collectible->patternColor,
-					rect(),
-					1.);
-			}
+			paintAnimatedPattern(p, rect());
 		}
 	}
 	paintUserpic(p);
@@ -899,6 +950,122 @@ void TopBar::setupShowLastSeen(not_null<Controller*> controller) {
 					u"lastseen_hidden"_q);
 			}));
 	});
+}
+
+void TopBar::setupAnimatedPattern() {
+	_animatedPoints = GenerateAnimatedPattern(userpicGeometry());
+}
+
+void TopBar::paintAnimatedPattern(QPainter &p, const QRect &rect) {
+	const auto collectible = _peer->emojiStatusId().collectible;
+	if (!collectible || !_patternEmoji->ready()) {
+		return;
+	}
+
+	{
+		// TODO make it better.
+		const auto currentUserpicRect = userpicGeometry();
+		if (_lastUserpicRect != currentUserpicRect) {
+			_lastUserpicRect = currentUserpicRect;
+			setupAnimatedPattern();
+		}
+	}
+
+	if (_basePatternImage.isNull()) {
+		const auto ratio = style::DevicePixelRatio();
+		const auto scale = 0.75;
+		const auto size = Ui::Emoji::GetSizeNormal() * scale;
+		_basePatternImage = QImage(
+			QSize(size, size) * ratio,
+			QImage::Format_ARGB32_Premultiplied);
+		_basePatternImage.setDevicePixelRatio(ratio);
+		_basePatternImage.fill(Qt::transparent);
+		auto painter = QPainter(&_basePatternImage);
+		auto hq = PainterHighQualityEnabler(painter);
+		painter.scale(scale, scale);
+		_patternEmoji->paint(painter, {
+			.textColor = collectible->patternColor,
+		});
+	}
+
+	const auto progress = _progress.current();
+	// const auto collapseDiff = progress >= 0.85 ? 1. : (progress / 0.85);
+	// const auto collapse = std::clamp((collapseDiff - 0.2) / 0.8, 0., 1.);
+	const auto collapse = progress;
+
+	const auto userpicCenter = userpicGeometry().center();
+	const auto yOffset = 12 * (1. - progress);
+	const auto imageSize = _basePatternImage.size()
+		/ style::DevicePixelRatio();
+	const auto halfImageWidth = imageSize.width() * 0.5;
+	const auto halfImageHeight = imageSize.height() * 0.5;
+
+	for (const auto &point : _animatedPoints) {
+		const auto timeRange = point.endTime - point.startTime;
+		const auto collapseProgress = (1. - collapse <= point.startTime)
+			? 1.
+			: 1.
+				- std::clamp(
+					(1. - collapse - point.startTime) / timeRange,
+					0.,
+					1.);
+
+		if (collapseProgress <= 0.) {
+			continue;
+		}
+
+		auto x = point.basePosition.x();
+		auto y = point.basePosition.y() - yOffset;
+		auto r = point.size * 0.5;
+
+		if (collapseProgress < 1.) {
+			const auto dx = x - userpicCenter.x();
+			const auto dy = y - userpicCenter.y();
+			x = userpicCenter.x() + dx * collapseProgress;
+			y = userpicCenter.y() + dy * collapseProgress;
+			r = kMinPatternRadius
+				+ (r - kMinPatternRadius) * collapseProgress;
+		}
+
+		const auto scale = r / (point.size * 0.5);
+		const auto scaledHalfWidth = halfImageWidth * scale;
+		const auto scaledHalfHeight = halfImageHeight * scale;
+
+		// Distance-based alpha calculation.
+		const auto userpicRect = _lastUserpicRect;
+		const auto acx = userpicRect.x() + userpicRect.width() / 2.;
+		const auto acy = userpicRect.y() + userpicRect.height() / 2.;
+		const auto aw = userpicRect.width();
+		const auto ah = userpicRect.height();
+		const auto distance = std::sqrt((x - acx) * (x - acx)
+			+ (y - acy) * (y - acy));
+		const auto normalizedDistance = std::clamp(
+			distance / (aw * 2.),
+			0.,
+			1.);
+		const auto distanceAlpha = 1. - normalizedDistance;
+
+		// Bottom alpha calculation.
+		const auto bottomThreshold = userpicRect.y() + ah + kMinPatternRadius;
+		const auto bottomAlpha = (y > bottomThreshold)
+			? 1. - std::clamp((y - bottomThreshold) / 56., 0., 1.)
+			: 1.;
+
+		auto alpha = progress * distanceAlpha * 0.5 * bottomAlpha;
+		if (collapseProgress < 1.) {
+			alpha = alpha * collapseProgress;
+		}
+
+		p.setOpacity(alpha);
+		p.drawImage(
+			QRectF(
+				x - scaledHalfWidth,
+				y - scaledHalfHeight,
+				scaledHalfWidth * 2,
+				scaledHalfHeight * 2),
+			_basePatternImage);
+	}
+	p.setOpacity(1.);
 }
 
 } // namespace Info::Profile

@@ -71,6 +71,13 @@ public:
 		rpl::variable<bool> backToggles;
 	};
 
+	struct AnimatedPatternPoint {
+		QPointF basePosition;
+		float64 size;
+		float64 startTime;
+		float64 endTime;
+	};
+
 	TopBar(not_null<Ui::RpWidget*> parent, Descriptor descriptor);
 	~TopBar();
 
@@ -106,6 +113,8 @@ private:
 	void setupShowLastSeen(not_null<Controller*> controller);
 	void setupUniqueBadgeTooltip();
 	void hideBadgeTooltip();
+	void setupAnimatedPattern();
+	void paintAnimatedPattern(QPainter &p, const QRect &rect);
 
 	const not_null<PeerData*> _peer;
 	Data::ForumTopic *_topic = nullptr;
@@ -136,7 +145,11 @@ private:
 	QImage _cachedGradient;
 	QPainterPath _cachedClipPath;
 	std::unique_ptr<Ui::Text::CustomEmoji> _patternEmoji;
+	QImage _basePatternImage;
 	base::flat_map<float64, QImage> _patternEmojis;
+
+	std::vector<AnimatedPatternPoint> _animatedPoints;
+	QRect _lastUserpicRect;
 
 	Ui::PeerUserpicView _userpicView;
 	InMemoryKey _userpicUniqueKey;
