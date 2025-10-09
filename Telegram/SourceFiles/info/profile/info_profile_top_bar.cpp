@@ -13,10 +13,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer.h"
 #include "base/unixtime.h"
 #include "calls/calls_instance.h"
+#include "chat_helpers/stickers_lottie.h"
 #include "core/application.h"
 #include "core/shortcuts.h"
+#include "data/components/recent_shared_media_gifts.h"
 #include "data/data_changes.h"
 #include "data/data_channel.h"
+#include "data/data_document_media.h"
+#include "data/data_document.h"
 #include "data/data_emoji_statuses.h"
 #include "data/data_forum_topic.h"
 #include "data/data_peer_values.h"
@@ -25,7 +29,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_saved_sublist.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
-#include "data/data_document.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "info_profile_actions.h"
 #include "info/info_controller.h"
@@ -36,6 +39,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_status_label.h"
 #include "info/profile/info_profile_values.h"
 #include "lang/lang_keys.h"
+#include "lottie/lottie_animation.h"
+#include "lottie/lottie_multi_player.h"
 #include "main/main_session.h"
 #include "settings/settings_premium.h"
 #include "ui/boxes/show_or_premium_box.h"
@@ -74,6 +79,13 @@ constexpr auto kGiftBadgeGlares = 3;
 constexpr auto kMinPatternRadius = 8;
 
 using AnimatedPatternPoint = TopBar::AnimatedPatternPoint;
+
+[[nodiscard]] int PinnedGiftSize() {
+	static const auto Size = []() -> int {
+		return Ui::Emoji::GetSizeNormal() * 0.5;
+	}();
+	return Size;
+}
 
 [[nodiscard]] std::vector<AnimatedPatternPoint> GenerateAnimatedPattern(
 		const QRect &userpicRect) {
@@ -255,6 +267,7 @@ TopBar::TopBar(
 	setupUniqueBadgeTooltip();
 	setupButtons(controller, descriptor.backToggles.value());
 	setupUserpicButton(controller);
+	setupPinnedToTopGifts();
 	if (_topic) {
 		_topicIconView = std::make_unique<TopicIconView>(
 			_topic,
@@ -288,6 +301,7 @@ TopBar::TopBar(
 		} else {
 			_patternEmoji = nullptr;
 			_animatedPoints.clear();
+			_pinnedToTopGifts.clear();
 		}
 		update();
 		if (collectible) {
@@ -670,6 +684,8 @@ void TopBar::paintEvent(QPaintEvent *e) {
 		if (_patternEmoji && _patternEmoji->ready()) {
 			paintAnimatedPattern(p, rect());
 		}
+
+		paintPinnedToTopGifts(p, rect());
 	}
 	paintUserpic(p);
 }
@@ -1064,6 +1080,166 @@ void TopBar::paintAnimatedPattern(QPainter &p, const QRect &rect) {
 				scaledHalfWidth * 2,
 				scaledHalfHeight * 2),
 			_basePatternImage);
+	}
+	p.setOpacity(1.);
+}
+
+void TopBar::setupPinnedToTopGifts() {
+	const auto requestDone = crl::guard(this, [=](
+			std::vector<DocumentId> ids) {
+		_pinnedToTopGifts.clear();
+		_pinnedToTopGifts.reserve(ids.size());
+		_giftsLoadingLifetime.destroy();
+		if (ids.empty()) {
+			_lottiePlayer = nullptr;
+		} else if (!_lottiePlayer) {
+			_lottiePlayer = std::make_unique<Lottie::MultiPlayer>(
+				Lottie::Quality::Default);
+			_lottiePlayer->updates() | rpl::start_with_next([=] {
+				update();
+			}, lifetime());
+		}
+
+		constexpr auto kMaxPinnedToTopGifts = 6;
+
+		auto positions = ranges::views::iota(
+			0,
+			kMaxPinnedToTopGifts) | ranges::to_vector;
+		ranges::shuffle(positions);
+
+		for (auto i = 0; i < ids.size() && i < kMaxPinnedToTopGifts; ++i) {
+			const auto document = _peer->owner().document(ids[i]);
+			auto entry = PinnedToTopGiftEntry();
+			entry.media = document->createMediaView();
+			entry.media->checkStickerSmall();
+			entry.position = positions[i];
+			_pinnedToTopGifts.push_back(std::move(entry));
+		}
+
+		using namespace ChatHelpers;
+
+		rpl::single(
+			rpl::empty_value()
+		) | rpl::then(
+			_peer->session().downloaderTaskFinished()
+		) | rpl::start_with_next([=] {
+			auto allLoaded = true;
+			for (auto &entry : _pinnedToTopGifts) {
+				if (!entry.animation && entry.media->loaded()) {
+					entry.animation = LottieAnimationFromDocument(
+						_lottiePlayer.get(),
+						entry.media.get(),
+						StickerLottieSize::StickerSet,
+						Size(PinnedGiftSize()) * style::DevicePixelRatio());
+				} else if (!entry.media->loaded()) {
+					allLoaded = false;
+				}
+			}
+			if (allLoaded) {
+				_giftsLoadingLifetime.destroy();
+			}
+		}, _giftsLoadingLifetime);
+	});
+	_peer->session().recentSharedGifts().request(_peer, requestDone, true);
+}
+
+void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
+	if (_pinnedToTopGifts.empty()) {
+		return;
+	}
+
+	const auto progress = _progress.current();
+	const auto userpicRect = _lastUserpicRect;
+	const auto acx = userpicRect.x() + userpicRect.width() / 2.;
+	const auto acy = userpicRect.y() + userpicRect.height() / 2.;
+	const auto aw = userpicRect.width();
+	const auto ah = userpicRect.height();
+
+	const auto sz = PinnedGiftSize();
+	const auto halfSz = sz / 2.;
+
+	for (const auto &gift : _pinnedToTopGifts) {
+		if (!gift.animation) {
+			continue;
+		}
+
+		auto giftPos = QPointF();
+		auto delayValue = 0.;
+		switch (gift.position) {
+		case 0: // Left.
+			giftPos = QPointF(
+				acx / 2. - st::infoLayerProfileTopBarGiftLeft.x(),
+				acy - st::infoLayerProfileTopBarGiftLeft.y());
+			delayValue = 1.6;
+			break;
+		case 1: // Top left.
+			giftPos = QPointF(
+				acx * 2. / 3. - st::infoLayerProfileTopBarGiftTopLeft.x(),
+				userpicRect.y() - st::infoLayerProfileTopBarGiftTopLeft.y());
+			delayValue = 0.;
+			break;
+		case 2: // Bottom left.
+			giftPos = QPointF(
+				acx * 2. / 3. - st::infoLayerProfileTopBarGiftBottomLeft.x(),
+				userpicRect.y() + ah - st::infoLayerProfileTopBarGiftBottomLeft.y());
+			delayValue = 0.9;
+			break;
+		case 3: // Right.
+			giftPos = QPointF(
+				acx + aw / 2. + st::infoLayerProfileTopBarGiftRight.x(),
+				acy - st::infoLayerProfileTopBarGiftRight.y());
+			delayValue = 1.6;
+			break;
+		case 4: // Top right.
+			giftPos = QPointF(
+				acx + aw / 3. + st::infoLayerProfileTopBarGiftTopRight.x(),
+				userpicRect.y() - st::infoLayerProfileTopBarGiftTopRight.y());
+			delayValue = 0.9;
+			break;
+		default: // Bottom right.
+			giftPos = QPointF(
+				acx + aw / 3. + st::infoLayerProfileTopBarGiftBottomRight.x(),
+				userpicRect.y() + ah - st::infoLayerProfileTopBarGiftBottomRight.y());
+			delayValue = 0.;
+			break;
+		}
+
+		const auto delayFraction = 0.2;
+		const auto maxDelayFraction = 1.6 * delayFraction;
+		const auto intervalFraction = 1. - maxDelayFraction;
+		const auto delay = delayValue * delayFraction;
+		const auto collapse = (progress >= 1. - delay)
+			? 1.
+			: std::clamp((progress - maxDelayFraction + delay)
+				/ intervalFraction, 0., 1.);
+
+		if (collapse < 1.) {
+			const auto collapseX = 1. - std::pow(1. - collapse, 2.);
+			giftPos = QPointF(
+				acx + (giftPos.x() - acx) * collapseX,
+				acy + (giftPos.y() - acy) * collapse);
+		}
+
+		const auto alpha = progress;
+		if (alpha <= 0.) {
+			continue;
+		}
+
+		p.setOpacity(alpha);
+		if (gift.animation && gift.animation->ready()) {
+			const auto frame = gift.animation->frame();
+			if (!frame.isNull()) {
+				const auto resultRect = QRect(
+					QPoint(giftPos.x() - halfSz, giftPos.y() - halfSz),
+					QSize(sz, sz));
+				p.drawImage(
+					resultRect,
+					frame);
+				if (_lottiePlayer) {
+					_lottiePlayer->markFrameShown();
+				}
+			}
+		}
 	}
 	p.setOpacity(1.);
 }

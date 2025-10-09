@@ -14,12 +14,18 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Data {
 class ForumTopic;
+class DocumentMedia;
 } // namespace Data
 
 namespace Info::Profile {
 class BadgeTooltip;
 class TopicIconView;
 } // namespace Info::Profile
+
+namespace Lottie {
+class Animation;
+class MultiPlayer;
+} // namespace Lottie
 
 namespace Ui {
 class VideoUserpicPlayer;
@@ -115,6 +121,8 @@ private:
 	void hideBadgeTooltip();
 	void setupAnimatedPattern();
 	void paintAnimatedPattern(QPainter &p, const QRect &rect);
+	void setupPinnedToTopGifts();
+	void paintPinnedToTopGifts(QPainter &p, const QRect &rect);
 
 	const not_null<PeerData*> _peer;
 	Data::ForumTopic *_topic = nullptr;
@@ -167,6 +175,15 @@ private:
 	base::unique_qptr<Ui::IconButton> _callsButton;
 
 	base::unique_qptr<Ui::AbstractButton> _userpicButton;
+
+	std::unique_ptr<Lottie::MultiPlayer> _lottiePlayer;
+	struct PinnedToTopGiftEntry {
+		Lottie::Animation *animation = nullptr;
+		std::shared_ptr<Data::DocumentMedia> media;
+		int position = 0;
+	};
+	std::vector<PinnedToTopGiftEntry> _pinnedToTopGifts;
+	rpl::lifetime _giftsLoadingLifetime;
 
 };
 
