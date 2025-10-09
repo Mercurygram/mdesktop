@@ -454,6 +454,18 @@ void TopBar::paintEdges(QPainter &p) const {
 	paintEdges(p, st::boxBg);
 }
 
+int TopBar::titleMostLeft() const {
+	return (_back && _back->toggled())
+		? _back->width()
+		: _st.titleWithSubtitlePosition.x();
+}
+
+int TopBar::statusMostLeft() const {
+	return (_back && _back->toggled())
+		? _back->width()
+		: _st.subtitlePosition.x();
+}
+
 void TopBar::updateLabelsPosition() {
 	const auto max = QWidget::maximumHeight();
 	const auto min = QWidget::minimumHeight();
@@ -478,7 +490,7 @@ void TopBar::updateLabelsPosition() {
 		rightButtonsWidth,
 		1. - progressCurrent);
 	const auto interpolatedPadding = anim::interpolate(
-		_st.titleWithSubtitlePosition.x(),
+		titleMostLeft(),
 		rect::m::sum::h(st::boxRowPadding),
 		progressCurrent);
 	auto titleWidth = width() - interpolatedPadding - reservedRight;
@@ -508,7 +520,7 @@ void TopBar::updateLabelsPosition() {
 		progressCurrent);
 
 	auto titleLeft = anim::interpolate(
-		_st.titleWithSubtitlePosition.x(),
+		titleMostLeft(),
 		(width() - _title->width()) / 2,
 		progressCurrent);
 	const auto badgeTop = titleTop;
@@ -528,7 +540,7 @@ void TopBar::updateLabelsPosition() {
 	}
 
 	const auto statusLeft = anim::interpolate(
-		_st.subtitlePosition.x(),
+		statusMostLeft(),
 		(width() - _status->width()) / 2,
 		progressCurrent);
 
@@ -708,8 +720,8 @@ void TopBar::setupButtons(
 			st::infoTopBarScale);
 		_back->setDuration(0);
 		_back->toggleOn(isLayer
-			? rpl::duplicate(backToggles) | rpl::type_erased()
-			: rpl::single(true));
+			? rpl::duplicate(backToggles)
+			: rpl::single(wrap == Wrap::Narrow));
 		setEnableBackButtonValue(_back->toggledValue());
 		_back->entity()->addClickHandler([=] {
 			controller->showBackFromStack();

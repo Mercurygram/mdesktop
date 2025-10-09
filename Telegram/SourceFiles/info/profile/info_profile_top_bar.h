@@ -104,6 +104,8 @@ private:
 	void paintEdges(QPainter &p, const QBrush &brush) const;
 	void paintEdges(QPainter &p) const;
 	void updateLabelsPosition();
+	[[nodiscard]] int titleMostLeft() const;
+	[[nodiscard]] int statusMostLeft() const;
 	[[nodiscard]] QRect userpicGeometry() const;
 	void updateUserpicButtonGeometry();
 	void paintUserpic(QPainter &p);
