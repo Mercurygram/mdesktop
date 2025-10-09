@@ -572,38 +572,6 @@ auto GenerateGiftMedia(
 	};
 }
 
-
-
-void PrepareImage(
-		QImage &image,
-		not_null<Text::CustomEmoji*> emoji,
-		const PatternPoint &point,
-		const Data::UniqueGift &gift) {
-	if (!image.isNull() || !emoji->ready()) {
-		return;
-	}
-	const auto ratio = style::DevicePixelRatio();
-	const auto size = Emoji::GetSizeNormal() / ratio;
-	image = QImage(
-		2 * QSize(size, size) * ratio,
-		QImage::Format_ARGB32_Premultiplied);
-	image.setDevicePixelRatio(ratio);
-	image.fill(Qt::transparent);
-	auto p = QPainter(&image);
-	auto hq = PainterHighQualityEnabler(p);
-	p.setOpacity(point.opacity);
-	if (point.scale < 1.) {
-		p.translate(size, size);
-		p.scale(point.scale, point.scale);
-		p.translate(-size, -size);
-	}
-	const auto shift = (2 * size - (Emoji::GetSizeLarge() / ratio)) / 2;
-	emoji->paint(p, {
-		.textColor = gift.backdrop.patternColor,
-		.position = QPoint(shift, shift),
-	});
-}
-
 PreviewWrap::PreviewWrap(
 	not_null<QWidget*> parent,
 	not_null<PeerData*> recipient,
@@ -3894,9 +3862,9 @@ void AddUniqueGiftCover(
 			}
 			p.drawImage(0, 0, gift.gradient);
 
-			PaintPoints(
+			Ui::PaintBgPoints(
 				p,
-				PatternPoints(),
+				Ui::PatternBgPoints(),
 				gift.emojis,
 				gift.emoji.get(),
 				*gift.gift,
@@ -4007,9 +3975,9 @@ void AddWearGiftCover(
 		}
 		p.drawImage(0, 0, state->gradient);
 
-		PaintPoints(
+		Ui::PaintBgPoints(
 			p,
-			PatternPoints(),
+			Ui::PatternBgPoints(),
 			state->emojis,
 			state->emoji.get(),
 			state->gift,
@@ -5042,119 +5010,11 @@ void UpgradeBox(
 	AddUniqueCloseButton(box, {});
 }
 
-const std::vector<PatternPoint> &PatternPoints() {
-	static const auto kSmall = 0.7;
-	static const auto kFaded = 0.2;
-	static const auto kLarge = 0.85;
-	static const auto kOpaque = 0.3;
-	static const auto result = std::vector<PatternPoint>{
-		{ { 0.5, 0.066 }, kSmall, kFaded },
 
-		{ { 0.177, 0.168 }, kSmall, kFaded },
-		{ { 0.822, 0.168 }, kSmall, kFaded },
 
-		{ { 0.37, 0.168 }, kLarge, kOpaque },
-		{ { 0.63, 0.168 }, kLarge, kOpaque },
 
-		{ { 0.277, 0.308 }, kSmall, kOpaque },
-		{ { 0.723, 0.308 }, kSmall, kOpaque },
 
-		{ { 0.13, 0.42 }, kSmall, kFaded },
-		{ { 0.87, 0.42 }, kSmall, kFaded },
 
-		{ { 0.27, 0.533 }, kLarge, kOpaque },
-		{ { 0.73, 0.533 }, kLarge, kOpaque },
-
-		{ { 0.2, 0.73 }, kSmall, kFaded },
-		{ { 0.8, 0.73 }, kSmall, kFaded },
-
-		{ { 0.302, 0.825 }, kLarge, kOpaque },
-		{ { 0.698, 0.825 }, kLarge, kOpaque },
-
-		{ { 0.5, 0.876 }, kLarge, kFaded },
-
-		{ { 0.144, 0.936 }, kSmall, kFaded },
-		{ { 0.856, 0.936 }, kSmall, kFaded },
-	};
-	return result;
-}
-
-const std::vector<PatternPoint> &PatternPointsSmall() {
-	static const auto kSmall = 0.45;
-	static const auto kFaded = 0.2;
-	static const auto kLarge = 0.55;
-	static const auto kOpaque = 0.3;
-	static const auto result = std::vector<PatternPoint>{
-		{ { 0.5, 0.066 }, kSmall, kFaded },
-
-		{ { 0.177, 0.168 }, kSmall, kFaded },
-		{ { 0.822, 0.168 }, kSmall, kFaded },
-
-		{ { 0.37, 0.168 }, kLarge, kOpaque },
-		{ { 0.63, 0.168 }, kLarge, kOpaque },
-
-		{ { 0.277, 0.308 }, kSmall, kOpaque },
-		{ { 0.723, 0.308 }, kSmall, kOpaque },
-
-		{ { 0.13, 0.42 }, kSmall, kFaded },
-		{ { 0.87, 0.42 }, kSmall, kFaded },
-
-		{ { 0.27, 0.533 }, kLarge, kOpaque },
-		{ { 0.73, 0.533 }, kLarge, kOpaque },
-
-		{ { 0.2, 0.73 }, kSmall, kFaded },
-		{ { 0.8, 0.73 }, kSmall, kFaded },
-
-		{ { 0.302, 0.825 }, kLarge, kOpaque },
-		{ { 0.698, 0.825 }, kLarge, kOpaque },
-
-		{ { 0.5, 0.876 }, kLarge, kFaded },
-
-		{ { 0.144, 0.936 }, kSmall, kFaded },
-		{ { 0.856, 0.936 }, kSmall, kFaded },
-	};
-	return result;
-}
-
-void PaintPoints(
-		QPainter &p,
-		const std::vector<PatternPoint> &points,
-		base::flat_map<float64, QImage> &cache,
-		not_null<Text::CustomEmoji*> emoji,
-		const Data::UniqueGift &gift,
-		const QRect &rect,
-		float64 shown) {
-	const auto origin = rect.topLeft();
-	const auto width = rect.width();
-	const auto height = rect.height();
-	const auto ratio = style::DevicePixelRatio();
-	const auto paintPoint = [&](const PatternPoint &point) {
-		const auto key = (1. + point.opacity) * 10. + point.scale;
-		auto &image = cache[key];
-		PrepareImage(image, emoji, point, gift);
-		if (!image.isNull()) {
-			const auto position = origin + QPoint(
-				int(point.position.x() * width),
-				int(point.position.y() * height));
-			if (shown < 1.) {
-				p.save();
-				p.translate(position);
-				p.scale(shown, shown);
-				p.translate(-position);
-			}
-			const auto size = image.size() / ratio;
-			p.drawImage(
-				position - QPoint(size.width() / 2, size.height() / 2),
-				image);
-			if (shown < 1.) {
-				p.restore();
-			}
-		}
-	};
-	for (const auto &point : points) {
-		paintPoint(point);
-	}
-}
 
 void ShowStarGiftUpgradeBox(StarGiftUpgradeArgs &&args) {
 	const auto weak = base::make_weak(args.controller);

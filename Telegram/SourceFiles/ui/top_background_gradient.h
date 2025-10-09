@@ -11,9 +11,19 @@ namespace Data {
 struct UniqueGift;
 } // namespace Data
 
+namespace Ui::Text {
+class CustomEmoji;
+} // namespace Ui::Text
+
 class PeerData;
 
 namespace Ui {
+
+struct PatternPoint {
+	QPointF position;
+	float64 scale = 1.;
+	float64 opacity = 1.;
+};
 
 [[nodiscard]] QImage CreateTopBgGradient(
 	QSize size,
@@ -28,5 +38,26 @@ namespace Ui {
 [[nodiscard]] QImage CreateTopBgGradient(
 	QSize size,
 	not_null<PeerData*> peer);
+
+[[nodiscard]] const std::vector<PatternPoint> &PatternBgPoints();
+[[nodiscard]] const std::vector<PatternPoint> &PatternBgPointsSmall();
+
+void PaintBgPoints(
+	QPainter &p,
+	const std::vector<PatternPoint> &points,
+	base::flat_map<float64, QImage> &cache,
+	not_null<Ui::Text::CustomEmoji*> emoji,
+	const Data::UniqueGift &gift,
+	const QRect &rect,
+	float64 shown = 1.);
+
+void PaintBgPoints(
+	QPainter &p,
+	const std::vector<PatternPoint> &points,
+	base::flat_map<float64, QImage> &cache,
+	not_null<Ui::Text::CustomEmoji*> emoji,
+	const QColor &patternColor,
+	const QRect &rect,
+	float64 shown);
 
 } // namespace Ui
