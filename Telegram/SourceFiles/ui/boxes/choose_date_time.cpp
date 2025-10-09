@@ -246,6 +246,7 @@ object_ptr<Ui::RpWidget> ChooseRepeatPeriod(
 		{ 0, tr::lng_schedule_repeat_never(tr::now) },
 		{ 24 * 60 * 60, tr::lng_schedule_repeat_daily(tr::now) },
 		{ 7 * 24 * 60 * 60, tr::lng_schedule_repeat_weekly(tr::now) },
+		{ 14 * 24 * 60 * 60, tr::lng_schedule_repeat_biweekly(tr::now) },
 		{ 30 * 24 * 60 * 60, tr::lng_schedule_repeat_monthly(tr::now) },
 		{
 			91 * 24 * 60 * 60,

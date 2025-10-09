@@ -4141,6 +4141,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_schedule_repeat_never" = "Never";
 "lng_schedule_repeat_daily" = "Daily";
 "lng_schedule_repeat_weekly" = "Weekly";
+"lng_schedule_repeat_biweekly" = "Biweekly";
 "lng_schedule_repeat_monthly" = "Monthly";
 "lng_schedule_repeat_every_month#one" = "Every {count} month";
 "lng_schedule_repeat_every_month#other" = "Every {count} month";
