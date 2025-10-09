@@ -91,6 +91,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/format_values.h"
 #include "ui/text/text_utilities.h"
 #include "ui/toast/toast.h"
+#include "ui/top_background_gradient.h"
 #include "ui/ui_utility.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/fields/input_field.h"
@@ -571,30 +572,7 @@ auto GenerateGiftMedia(
 	};
 }
 
-[[nodiscard]] QImage CreateGradient(
-		QSize size,
-		const Data::UniqueGift &gift) {
-	const auto ratio = style::DevicePixelRatio();
-	auto result = QImage(size * ratio, QImage::Format_ARGB32_Premultiplied);
-	result.setDevicePixelRatio(ratio);
 
-	auto p = QPainter(&result);
-	auto hq = PainterHighQualityEnabler(p);
-	auto gradient = QRadialGradient(
-		QRect(QPoint(), size).center(),
-		size.height() / 2);
-	gradient.setStops({
-		{ 0., gift.backdrop.centerColor },
-		{ 1., gift.backdrop.edgeColor },
-	});
-	p.setBrush(gradient);
-	p.setPen(Qt::NoPen);
-	p.drawRect(QRect(QPoint(), size));
-	p.end();
-
-	const auto mask = Images::CornersMask(st::boxRadius);
-	return Images::Round(std::move(result), mask, RectPart::FullTop);
-}
 
 void PrepareImage(
 		QImage &image,
@@ -3910,7 +3888,9 @@ void AddUniqueGiftCover(
 			const auto pointsHeight = st::uniqueGiftSubtitleTop;
 			const auto ratio = style::DevicePixelRatio();
 			if (gift.gradient.size() != cover->size() * ratio) {
-				gift.gradient = CreateGradient(cover->size(), *gift.gift);
+				gift.gradient = Ui::CreateTopBgGradient(
+					cover->size(),
+					*gift.gift);
 			}
 			p.drawImage(0, 0, gift.gradient);
 
@@ -4021,7 +4001,9 @@ void AddWearGiftCover(
 		const auto pointsHeight = st::uniqueGiftSubtitleTop;
 		const auto ratio = style::DevicePixelRatio();
 		if (state->gradient.size() != cover->size() * ratio) {
-			state->gradient = CreateGradient(cover->size(), state->gift);
+			state->gradient = Ui::CreateTopBgGradient(
+				cover->size(),
+				state->gift);
 		}
 		p.drawImage(0, 0, state->gradient);
 
