@@ -19,6 +19,7 @@ namespace {
 
 constexpr auto kReloadThreshold = 60 * crl::time(1000);
 constexpr auto kMaxGifts = 3;
+constexpr auto kMaxPinnedGifts = 6;
 
 } // namespace
 
@@ -29,19 +30,42 @@ RecentSharedMediaGifts::RecentSharedMediaGifts(
 
 RecentSharedMediaGifts::~RecentSharedMediaGifts() = default;
 
+std::vector<DocumentId> RecentSharedMediaGifts::filterGifts(
+		const std::deque<GiftItem> &gifts,
+		bool onlyPinnedToTop) {
+	auto result = std::vector<DocumentId>();
+	const auto maxCount = onlyPinnedToTop ? kMaxPinnedGifts : kMaxGifts;
+	for (const auto &gift : gifts) {
+		if (!onlyPinnedToTop || gift.pinned) {
+			result.push_back(gift.id);
+			if (result.size() >= maxCount) {
+				break;
+			}
+		}
+	}
+	return result;
+}
+
 void RecentSharedMediaGifts::request(
 		not_null<PeerData*> peer,
-		Fn<void(std::vector<DocumentId>)> done) {
+		Fn<void(std::vector<DocumentId>)> done,
+		bool onlyPinnedToTop) {
 	const auto it = _recent.find(peer->id);
 	if (it != _recent.end()) {
 		auto &entry = it->second;
 		if (entry.lastRequestTime
 			&& entry.lastRequestTime + kReloadThreshold > crl::now()) {
-			done(std::vector<DocumentId>(entry.ids.begin(), entry.ids.end()));
+			done(filterGifts(entry.gifts, onlyPinnedToTop));
 			return;
 		}
 		if (entry.requestId) {
-			peer->session().api().request(entry.requestId).cancel();
+			entry.pendingCallbacks.push_back([=] {
+				const auto it = _recent.find(peer->id);
+				if (it != _recent.end()) {
+					done(filterGifts(it->second.gifts, onlyPinnedToTop));
+				}
+			});
+			return;
 		}
 	}
 
@@ -51,7 +75,7 @@ void RecentSharedMediaGifts::request(
 			peer->input,
 			MTP_int(0), // collection_id
 			MTP_string(QString()),
-			MTP_int(kMaxGifts)
+			MTP_int(kMaxPinnedGifts)
 	)).done([=](const MTPpayments_SavedStarGifts &result) {
 		const auto &data = result.data();
 		const auto owner = &peer->owner();
@@ -60,21 +84,22 @@ void RecentSharedMediaGifts::request(
 		auto &entry = _recent[peer->id];
 		entry.lastRequestTime = crl::now();
 		entry.requestId = 0;
-		entry.ids = {};
+		entry.gifts.clear();
 
-		auto conter = 0;
 		for (const auto &gift : data.vgifts().v) {
 			if (auto parsed = Api::FromTL(peer, gift)) {
-				entry.ids.push_back(parsed->info.document->id);
-				if (entry.ids.size() > kMaxGifts) {
-					entry.ids.pop_front();
-				}
-				if (++conter >= kMaxGifts) {
-					break;
-				}
+				entry.gifts.push_back({
+					.id = parsed->info.document->id,
+					.pinned = parsed->pinned
+				});
 			}
 		}
-		done(std::vector<DocumentId>(entry.ids.begin(), entry.ids.end()));
+
+		done(filterGifts(entry.gifts, onlyPinnedToTop));
+		for (const auto &callback : entry.pendingCallbacks) {
+			callback();
+		}
+		entry.pendingCallbacks.clear();
 	}).send();
 }
 

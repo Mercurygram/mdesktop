@@ -20,13 +20,24 @@ public:
 
 	void request(
 		not_null<PeerData*> peer,
-		Fn<void(std::vector<DocumentId>)> done);
+		Fn<void(std::vector<DocumentId>)> done,
+		bool onlyPinnedToTop = false);
 
 private:
+	struct GiftItem {
+		DocumentId id;
+		bool pinned = false;
+	};
+
+	[[nodiscard]] std::vector<DocumentId> filterGifts(
+		const std::deque<GiftItem> &gifts,
+		bool onlyPinnedToTop);
+
 	struct Entry {
-		std::deque<DocumentId> ids;
+		std::deque<GiftItem> gifts;
 		crl::time lastRequestTime = 0;
 		mtpRequestId requestId = 0;
+		std::vector<Fn<void()>> pendingCallbacks;
 	};
 
 	const not_null<Main::Session*> _session;
