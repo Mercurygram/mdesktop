@@ -1675,6 +1675,8 @@ PRIVATE
     ui/resize_area.h
     ui/unread_badge.cpp
     ui/unread_badge.h
+    ui/peer/video_userpic_player.cpp
+    ui/peer/video_userpic_player.h
     window/main_window.cpp
     window/main_window.h
     window/notifications_manager.cpp
