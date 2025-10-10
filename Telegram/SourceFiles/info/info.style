@@ -254,6 +254,8 @@ infoLayerProfileTopBarPhotoTop: 30px;
 infoLayerProfileTopBarPhotoSize: 104px;
 infoLayerProfileTopBarLastSeenSkip: 8px;
 
+infoLayerProfileTopBarGiftSize: 20px;
+
 infoLayerProfileTopBarGiftLeft: point(15px, 13px);
 infoLayerProfileTopBarGiftTopLeft: point(4px, 4px);
 infoLayerProfileTopBarGiftBottomLeft: point(9px, 16px);

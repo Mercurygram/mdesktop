@@ -60,6 +60,9 @@ QImage CreateTopBgGradient(
 		bool rounded) {
 	const auto ratio = style::DevicePixelRatio();
 	auto result = QImage(size * ratio, QImage::Format_ARGB32_Premultiplied);
+	if (!rounded) {
+		result.fill(Qt::transparent);
+	}
 	result.setDevicePixelRatio(ratio);
 
 	auto p = QPainter(&result);

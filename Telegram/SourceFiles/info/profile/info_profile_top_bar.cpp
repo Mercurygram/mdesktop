@@ -80,13 +80,6 @@ constexpr auto kMinPatternRadius = 8;
 
 using AnimatedPatternPoint = TopBar::AnimatedPatternPoint;
 
-[[nodiscard]] int PinnedGiftSize() {
-	static const auto Size = []() -> int {
-		return Ui::Emoji::GetSizeNormal() * 0.5;
-	}();
-	return Size;
-}
-
 [[nodiscard]] std::vector<AnimatedPatternPoint> GenerateAnimatedPattern(
 		const QRect &userpicRect) {
 	auto points = std::vector<TopBar::AnimatedPatternPoint>();
@@ -1120,11 +1113,22 @@ void TopBar::setupPinnedToTopGifts() {
 		ranges::shuffle(positions);
 
 		for (auto i = 0; i < gifts.size() && i < kMaxPinnedToTopGifts; ++i) {
+			const auto &gift = gifts[i];
 			const auto document = _peer->owner().document(
-				gifts[i].info.document->id);
+				gift.info.document->id);
 			auto entry = PinnedToTopGiftEntry();
 			entry.media = document->createMediaView();
 			entry.media->checkStickerSmall();
+			if (const auto &unique = gift.info.unique) {
+				if (unique->backdrop.centerColor.isValid()
+					&& unique->backdrop.edgeColor.isValid()) {
+					entry.bg = Ui::CreateTopBgGradient(
+						Size(st::infoLayerProfileTopBarGiftSize * 2),
+						unique->backdrop.centerColor,
+						anim::with_alpha(unique->backdrop.edgeColor, 0.0),
+						false);
+				}
+			}
 			entry.position = positions[i];
 			_pinnedToTopGifts.push_back(std::move(entry));
 		}
@@ -1143,7 +1147,8 @@ void TopBar::setupPinnedToTopGifts() {
 						_lottiePlayer.get(),
 						entry.media.get(),
 						StickerLottieSize::StickerSet,
-						Size(PinnedGiftSize()) * style::DevicePixelRatio());
+						Size(st::infoLayerProfileTopBarGiftSize)
+							* style::DevicePixelRatio());
 				} else if (!entry.media->loaded()) {
 					allLoaded = false;
 				}
@@ -1168,7 +1173,7 @@ void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
 	const auto aw = userpicRect.width();
 	const auto ah = userpicRect.height();
 
-	const auto sz = PinnedGiftSize();
+	const auto sz = st::infoLayerProfileTopBarGiftSize;
 	const auto halfSz = sz / 2.;
 
 	for (const auto &gift : _pinnedToTopGifts) {
@@ -1245,9 +1250,19 @@ void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
 				const auto resultRect = QRect(
 					QPoint(giftPos.x() - halfSz, giftPos.y() - halfSz),
 					QSize(sz, sz));
-				p.drawImage(
-					resultRect,
-					frame);
+				if (!gift.bg.isNull()) {
+					const auto bgSize = gift.bg.size()
+						/ gift.bg.devicePixelRatio();
+					const auto bgRect = QRect(
+						resultRect.x()
+							+ (resultRect.width() - bgSize.width()) / 2,
+						resultRect.y()
+							+ (resultRect.height() - bgSize.height()) / 2,
+						bgSize.width(),
+						bgSize.height());
+					p.drawImage(bgRect, gift.bg);
+				}
+				p.drawImage(resultRect, frame);
 				if (_lottiePlayer) {
 					_lottiePlayer->markFrameShown();
 				}

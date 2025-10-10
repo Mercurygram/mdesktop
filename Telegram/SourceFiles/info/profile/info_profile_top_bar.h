@@ -182,6 +182,7 @@ private:
 	struct PinnedToTopGiftEntry {
 		Lottie::Animation *animation = nullptr;
 		std::shared_ptr<Data::DocumentMedia> media;
+		QImage bg;
 		int position = 0;
 	};
 	std::vector<PinnedToTopGiftEntry> _pinnedToTopGifts;
