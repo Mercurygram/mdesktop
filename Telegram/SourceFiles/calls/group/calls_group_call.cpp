@@ -2068,7 +2068,8 @@ void GroupCall::applyMeInCallLocally() {
 					MTPstring(), // Don't update about text in local updates.
 					MTP_long(raisedHandRating),
 					MTPGroupCallParticipantVideo(),
-					MTPGroupCallParticipantVideo())),
+					MTPGroupCallParticipantVideo(),
+					MTPlong())),
 			MTP_int(0)).c_updateGroupCallParticipants());
 }
 
@@ -2115,7 +2116,8 @@ void GroupCall::applyParticipantLocally(
 					MTPstring(), // Don't update about text in local updates.
 					MTP_long(participant->raisedHandRating),
 					MTPGroupCallParticipantVideo(),
-					MTPGroupCallParticipantVideo())),
+					MTPGroupCallParticipantVideo(),
+					MTPlong())),
 			MTP_int(0)).c_updateGroupCallParticipants());
 }
 
