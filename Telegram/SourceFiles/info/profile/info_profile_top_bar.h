@@ -54,6 +54,7 @@ class RoundButton;
 class StarsRating;
 template <typename Widget>
 class FadeWrap;
+class HorizontalFitContainer;
 } //namespace Ui
 
 namespace Info {
@@ -115,6 +116,7 @@ private:
 		not_null<Controller*> controller,
 		const Ui::Menu::MenuCallback &addAction);
 	void setupUserpicButton(not_null<Controller*> controller);
+	void setupActions(not_null<Controller*> controller);
 	void setupButtons(
 		not_null<Controller*> controller,
 		rpl::producer<bool> backToggles);
@@ -177,6 +179,8 @@ private:
 	base::unique_qptr<Ui::IconButton> _callsButton;
 
 	base::unique_qptr<Ui::AbstractButton> _userpicButton;
+
+	base::unique_qptr<Ui::HorizontalFitContainer> _actions;
 
 	std::unique_ptr<Lottie::MultiPlayer> _lottiePlayer;
 	struct PinnedToTopGiftEntry {

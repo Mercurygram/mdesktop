@@ -29,7 +29,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_saved_sublist.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
+#include "data/notify/data_notify_settings.h"
+#include "data/notify/data_peer_notify_settings.h"
 #include "data/stickers/data_custom_emoji.h"
+#include "history/history.h"
 #include "info_profile_actions.h"
 #include "info/info_controller.h"
 #include "info/info_memento.h"
@@ -37,11 +40,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_badge.h"
 #include "info/profile/info_profile_cover.h" // LargeCustomEmojiMargins
 #include "info/profile/info_profile_status_label.h"
+#include "info/profile/info_profile_top_bar_action_button.h"
 #include "info/profile/info_profile_values.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_animation.h"
 #include "lottie/lottie_multi_player.h"
 #include "main/main_session.h"
+#include "menu/menu_mute.h"
 #include "settings/settings_premium.h"
 #include "ui/boxes/show_or_premium_box.h"
 #include "ui/color_contrast.h"
@@ -55,7 +60,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/top_background_gradient.h"
 #include "ui/ui_utility.h"
 #include "ui/widgets/buttons.h"
-#include "ui/widgets/buttons.h"
+#include "ui/widgets/horizontal_fit_container.h"
 #include "ui/widgets/labels.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
 #include "ui/widgets/popup_menu.h"
@@ -261,6 +266,7 @@ TopBar::TopBar(
 	setupButtons(controller, descriptor.backToggles.value());
 	setupUserpicButton(controller);
 	setupPinnedToTopGifts();
+	setupActions(controller);
 	if (_topic) {
 		_topicIconView = std::make_unique<TopicIconView>(
 			_topic,
@@ -316,6 +322,107 @@ TopBar::TopBar(
 			_status->setTextColorOverride(std::nullopt);
 		}
 	}, lifetime());
+}
+
+void TopBar::setupActions(not_null<Controller*> controller) {
+	const auto peer = controller->key().peer();
+	const auto user = peer->asUser();
+	const auto channel = peer->asChannel();
+	const auto chat = peer->asChat();
+	const auto topic = controller->key().topic();
+	_actions = base::make_unique_q<Ui::HorizontalFitContainer>(
+		this,
+		st::infoProfileTopBarActionButtonsSpace);
+	if (user) {
+		const auto message = Ui::CreateChild<TopBarActionButton>(
+			this,
+			tr::lng_profile_action_short_message(tr::now),
+			st::infoProfileTopBarActionMessage);
+		message->setClickedCallback([=, window = controller] {
+			window->showPeerHistory(
+				peer->id,
+				Window::SectionShow::Way::Forward);
+		});
+		_actions->add(message);
+	}
+	{
+		const auto notifications = Ui::CreateChild<TopBarActionButton>(
+			this,
+			tr::lng_profile_action_short_mute(tr::now),
+			st::infoProfileTopBarActionMessage);
+		notifications->convertToToggle(
+			st::infoProfileTopBarActionUnmute,
+			st::infoProfileTopBarActionMute,
+			u"profile_muting"_q,
+			u"profile_unmuting"_q);
+
+		const auto topicRootId = topic ? topic->rootId() : MsgId();
+		const auto makeThread = [=] {
+			return topicRootId
+				? static_cast<Data::Thread*>(peer->forumTopicFor(topicRootId))
+				: peer->owner().history(peer).get();
+		};
+		(topic
+			? NotificationsEnabledValue(topic)
+			: NotificationsEnabledValue(peer)
+		) | rpl::start_with_next([=](bool enabled) {
+			notifications->toggle(enabled);
+			notifications->setText(enabled
+				? tr::lng_profile_action_short_mute(tr::now)
+				: tr::lng_profile_action_short_unmute(tr::now));
+		}, notifications->lifetime());
+		notifications->finishAnimating();
+
+		notifications->setAcceptBoth();
+		const auto notifySettings = &peer->owner().notifySettings();
+			MuteMenu::SetupMuteMenu(
+				notifications,
+				notifications->clicks(
+				) | rpl::filter([=](Qt::MouseButton button) {
+					if (button == Qt::RightButton) {
+						return true;
+					}
+					const auto topic = topicRootId
+						? peer->forumTopicFor(topicRootId)
+						: nullptr;
+					Assert(!topicRootId || topic != nullptr);
+					const auto is = topic
+						? notifySettings->isMuted(topic)
+						: notifySettings->isMuted(peer);
+					if (is) {
+						if (topic) {
+							notifySettings->update(topic, { .unmute = true });
+						} else {
+							notifySettings->update(peer, { .unmute = true });
+						}
+						return false;
+					} else {
+						return true;
+					}
+				}) | rpl::to_empty,
+				makeThread,
+				controller->uiShow());
+		_actions->add(notifications);
+	}
+	const auto padding = st::infoProfileTopBarActionButtonsPadding;
+	sizeValue() | rpl::start_with_next([=](const QSize &size) {
+		const auto ratio = float64(size.height())
+			/ (st::infoProfileTopBarActionButtonsHeight
+				+ st::infoLayerTopBarHeight);
+		const auto h = st::infoProfileTopBarActionButtonSize;
+		const auto resultHeight = (ratio >= 1.)
+			? h
+			: (ratio <= 0.5)
+			? 0
+			: int(h * (ratio - 0.5) / 0.5);
+		_actions->setGeometry(
+			padding.left(),
+			size.height() - resultHeight - padding.bottom(),
+			size.width() - rect::m::sum::h(padding),
+			resultHeight);
+	}, _actions->lifetime());
+	_actions->show();
+	_actions->raise();
 }
 
 void TopBar::setupUserpicButton(not_null<Controller*> controller) {
@@ -460,11 +567,15 @@ int TopBar::statusMostLeft() const {
 }
 
 void TopBar::updateLabelsPosition() {
-	const auto max = QWidget::maximumHeight();
-	const auto min = QWidget::minimumHeight();
-	_progress = (max > min)
-		? ((height() - min) / float64(max - min))
-		: 1.;
+	_progress = [&] {
+		const auto max = QWidget::maximumHeight();
+		const auto min = QWidget::minimumHeight()
+			+ st::infoProfileTopBarActionButtonsHeight;
+		const auto p = (max > min)
+			? ((height() - min) / float64(max - min))
+			: 1.;
+		return std::clamp(p, 0., 1.);
+	}();
 	const auto progressCurrent = _progress.current();
 
 	auto rightButtonsWidth = 0;

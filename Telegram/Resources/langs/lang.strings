@@ -1668,6 +1668,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_profile_changed_photo_title" = "Photo updated";
 "lng_profile_changed_photo_about" = "You can change it in {link}.";
 "lng_profile_changed_photo_link" = "Settings";
+
+"lng_profile_action_short_message" = "Message";
+"lng_profile_action_short_mute" = "Mute";
+"lng_profile_action_short_unmute" = "Unmute";
+
 "lng_media_type_photos" = "Photos";
 "lng_media_type_gifs" = "GIFs";
 "lng_media_type_videos" = "Videos";
