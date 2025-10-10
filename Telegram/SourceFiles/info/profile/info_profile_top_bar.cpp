@@ -1098,11 +1098,11 @@ void TopBar::paintAnimatedPattern(QPainter &p, const QRect &rect) {
 
 void TopBar::setupPinnedToTopGifts() {
 	const auto requestDone = crl::guard(this, [=](
-			std::vector<DocumentId> ids) {
+			std::vector<Data::SavedStarGift> gifts) {
 		_pinnedToTopGifts.clear();
-		_pinnedToTopGifts.reserve(ids.size());
+		_pinnedToTopGifts.reserve(gifts.size());
 		_giftsLoadingLifetime.destroy();
-		if (ids.empty()) {
+		if (gifts.empty()) {
 			_lottiePlayer = nullptr;
 		} else if (!_lottiePlayer) {
 			_lottiePlayer = std::make_unique<Lottie::MultiPlayer>(
@@ -1119,8 +1119,9 @@ void TopBar::setupPinnedToTopGifts() {
 			kMaxPinnedToTopGifts) | ranges::to_vector;
 		ranges::shuffle(positions);
 
-		for (auto i = 0; i < ids.size() && i < kMaxPinnedToTopGifts; ++i) {
-			const auto document = _peer->owner().document(ids[i]);
+		for (auto i = 0; i < gifts.size() && i < kMaxPinnedToTopGifts; ++i) {
+			const auto document = _peer->owner().document(
+				gifts[i].info.document->id);
 			auto entry = PinnedToTopGiftEntry();
 			entry.media = document->createMediaView();
 			entry.media->checkStickerSmall();

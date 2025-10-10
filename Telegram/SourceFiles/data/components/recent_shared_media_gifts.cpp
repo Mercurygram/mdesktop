@@ -30,14 +30,14 @@ RecentSharedMediaGifts::RecentSharedMediaGifts(
 
 RecentSharedMediaGifts::~RecentSharedMediaGifts() = default;
 
-std::vector<DocumentId> RecentSharedMediaGifts::filterGifts(
-		const std::deque<GiftItem> &gifts,
+std::vector<Data::SavedStarGift> RecentSharedMediaGifts::filterGifts(
+		const std::deque<Data::SavedStarGift> &gifts,
 		bool onlyPinnedToTop) {
-	auto result = std::vector<DocumentId>();
+	auto result = std::vector<Data::SavedStarGift>();
 	const auto maxCount = onlyPinnedToTop ? kMaxPinnedGifts : kMaxGifts;
 	for (const auto &gift : gifts) {
 		if (!onlyPinnedToTop || gift.pinned) {
-			result.push_back(gift.id);
+			result.push_back(gift);
 			if (result.size() >= maxCount) {
 				break;
 			}
@@ -48,7 +48,7 @@ std::vector<DocumentId> RecentSharedMediaGifts::filterGifts(
 
 void RecentSharedMediaGifts::request(
 		not_null<PeerData*> peer,
-		Fn<void(std::vector<DocumentId>)> done,
+		Fn<void(std::vector<SavedStarGift>)> done,
 		bool onlyPinnedToTop) {
 	const auto it = _recent.find(peer->id);
 	if (it != _recent.end()) {
@@ -88,10 +88,7 @@ void RecentSharedMediaGifts::request(
 
 		for (const auto &gift : data.vgifts().v) {
 			if (auto parsed = Api::FromTL(peer, gift)) {
-				entry.gifts.push_back({
-					.id = parsed->info.document->id,
-					.pinned = parsed->pinned
-				});
+				entry.gifts.push_back(std::move(*parsed));
 			}
 		}
 

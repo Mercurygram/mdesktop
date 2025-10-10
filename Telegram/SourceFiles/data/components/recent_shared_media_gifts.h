@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "data/data_star_gift.h"
+
 namespace Main {
 class Session;
 } // namespace Main
@@ -20,21 +22,16 @@ public:
 
 	void request(
 		not_null<PeerData*> peer,
-		Fn<void(std::vector<DocumentId>)> done,
+		Fn<void(std::vector<Data::SavedStarGift>)> done,
 		bool onlyPinnedToTop = false);
 
 private:
-	struct GiftItem {
-		DocumentId id;
-		bool pinned = false;
-	};
-
-	[[nodiscard]] std::vector<DocumentId> filterGifts(
-		const std::deque<GiftItem> &gifts,
+	[[nodiscard]] std::vector<Data::SavedStarGift> filterGifts(
+		const std::deque<SavedStarGift> &gifts,
 		bool onlyPinnedToTop);
 
 	struct Entry {
-		std::deque<GiftItem> gifts;
+		std::deque<SavedStarGift> gifts;
 		crl::time lastRequestTime = 0;
 		mtpRequestId requestId = 0;
 		std::vector<Fn<void()>> pendingCallbacks;
