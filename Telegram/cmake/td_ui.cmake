@@ -476,6 +476,8 @@ PRIVATE
     ui/widgets/discrete_sliders.h
     ui/widgets/gradient_round_button.cpp
     ui/widgets/gradient_round_button.h
+    ui/widgets/horizontal_fit_container.cpp
+    ui/widgets/horizontal_fit_container.h
     ui/widgets/level_meter.cpp
     ui/widgets/level_meter.h
     ui/widgets/multi_select.cpp
