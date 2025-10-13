@@ -265,7 +265,6 @@ TopBar::TopBar(
 	setupUniqueBadgeTooltip();
 	setupButtons(controller, descriptor.backToggles.value());
 	setupUserpicButton(controller);
-	setupPinnedToTopGifts();
 	setupActions(controller);
 	if (_topic) {
 		_topicIconView = std::make_unique<TopicIconView>(
@@ -303,6 +302,12 @@ TopBar::TopBar(
 		adjustColors(collectible
 			? std::optional<QColor>(collectible->edgeColor)
 			: std::nullopt);
+	}, lifetime());
+
+	std::move(
+		descriptor.showFinished
+	) | rpl::take(1) | rpl::start_with_next([=] {
+		setupPinnedToTopGifts();
 	}, lifetime());
 }
 
@@ -1249,6 +1254,7 @@ void TopBar::setupPinnedToTopGifts() {
 		_pinnedToTopGifts.reserve(gifts.size());
 		_giftsLoadingLifetime.destroy();
 		if (gifts.empty()) {
+			_giftsAppearing = nullptr;
 			_lottiePlayer = nullptr;
 		} else if (!_lottiePlayer) {
 			_lottiePlayer = std::make_unique<Lottie::MultiPlayer>(
@@ -1257,6 +1263,8 @@ void TopBar::setupPinnedToTopGifts() {
 				update();
 			}, lifetime());
 		}
+
+		_giftsAppearing = std::make_unique<Ui::Animations::Simple>();
 
 		constexpr auto kMaxPinnedToTopGifts = 6;
 
@@ -1308,6 +1316,13 @@ void TopBar::setupPinnedToTopGifts() {
 			}
 			if (allLoaded) {
 				_giftsLoadingLifetime.destroy();
+				_giftsAppearing->stop();
+				_giftsAppearing->start([=](float64 value) {
+					update();
+					if (value >= 1.) {
+						_giftsAppearing = nullptr;
+					}
+				}, 0., 1., 400, anim::easeOutQuint);
 			}
 		}, _giftsLoadingLifetime);
 	});
@@ -1319,7 +1334,9 @@ void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
 		return;
 	}
 
-	const auto progress = _progress.current();
+	const auto progress = _giftsAppearing
+		? _progress.current() * _giftsAppearing->value(0.)
+		: _progress.current();
 	const auto userpicRect = _lastUserpicRect;
 	const auto acx = userpicRect.x() + userpicRect.width() / 2.;
 	const auto acy = userpicRect.y() + userpicRect.height() / 2.;

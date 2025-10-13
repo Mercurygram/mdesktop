@@ -334,6 +334,10 @@ void InnerWidget::enableBackButton() {
 	_backToggles.force_assign(true);
 }
 
+void InnerWidget::showFinished() {
+	_showFinished.fire({});
+}
+
 bool InnerWidget::hasFlexibleTopBar() const {
 	return true;
 }
@@ -345,6 +349,7 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 		TopBar::Descriptor{
 			.controller = _controller,
 			.backToggles = _backToggles.value(),
+			.showFinished = _showFinished.events(),
 		});
 	content->setOnlineCount(_onlineCount.events());
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });

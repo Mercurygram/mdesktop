@@ -335,6 +335,10 @@ void Widget::enableBackButton() {
 	_inner->enableBackButton();
 }
 
+void Widget::showFinished() {
+	_inner->showFinished();
+}
+
 rpl::producer<QString> Widget::title() {
 	if (const auto topic = controller()->key().topic()) {
 		return topic->peer()->isBot()

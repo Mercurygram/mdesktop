@@ -55,6 +55,9 @@ class StarsRating;
 template <typename Widget>
 class FadeWrap;
 class HorizontalFitContainer;
+namespace Animations {
+class Simple;
+} // namespace Animations
 } //namespace Ui
 
 namespace Info {
@@ -76,6 +79,7 @@ public:
 	struct Descriptor {
 		not_null<Controller*> controller;
 		rpl::variable<bool> backToggles;
+		rpl::producer<> showFinished;
 	};
 
 	struct AnimatedPatternPoint {
@@ -193,6 +197,7 @@ private:
 		int position = 0;
 	};
 	std::vector<PinnedToTopGiftEntry> _pinnedToTopGifts;
+	std::unique_ptr<Ui::Animations::Simple> _giftsAppearing;
 	rpl::lifetime _giftsLoadingLifetime;
 
 };

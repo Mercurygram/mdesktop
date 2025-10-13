@@ -80,6 +80,7 @@ public:
 
 	void setInnerFocus() override;
 	void enableBackButton() override;
+	void showFinished() override;
 
 	rpl::producer<QString> title() override;
 	rpl::producer<Dialogs::Stories::Content> titleStories() override;

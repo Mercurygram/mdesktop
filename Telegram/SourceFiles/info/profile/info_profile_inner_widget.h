@@ -60,6 +60,7 @@ public:
 		not_null<Ui::RpWidget*> parent);
 
 	void enableBackButton();
+	void showFinished();
 
 protected:
 	int resizeGetHeight(int newWidth) override;
@@ -100,6 +101,7 @@ private:
 
 	rpl::variable<bool> _backToggles;
 	rpl::event_stream<int> _onlineCount;
+	rpl::event_stream<> _showFinished;
 
 };
 
