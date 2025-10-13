@@ -344,6 +344,32 @@ infoLayerTopBar: InfoTopBar(infoTopBar) {
 
 infoLayerTopBarMenuPosition: point(40px, 37px);
 
+infoTopBarColoredBack: IconButton(infoTopBarBack) {
+	icon: icon {{ "info/info_back", groupCallMembersFg }};
+	iconOver: icon {{ "info/info_back", groupCallMembersFg }};
+	ripple: universalRippleAnimation;
+}
+infoLayerTopBarColoredBack: IconButton(infoLayerTopBarBack) {
+	icon: icon {{ "info/info_back", groupCallMembersFg }};
+	iconOver: icon {{ "info/info_back", groupCallMembersFg }};
+	ripple: universalRippleAnimation;
+}
+infoTopBarColoredClose: IconButton(infoTopBarClose) {
+	icon: icon {{ "info/info_close", groupCallMembersFg }};
+	iconOver: icon {{ "info/info_close", groupCallMembersFg }};
+	ripple: universalRippleAnimation;
+}
+infoTopBarColoredMenu: IconButton(infoTopBarMenu) {
+	icon: icon {{ "title_menu_dots", groupCallMembersFg }};
+	iconOver: icon {{ "title_menu_dots", groupCallMembersFg }};
+	ripple: universalRippleAnimation;
+}
+infoLayerTopBarColoredMenu: IconButton(infoLayerTopBarMenu) {
+	icon: icon {{ "title_menu_dots", groupCallMembersFg }};
+	iconOver: icon {{ "title_menu_dots", groupCallMembersFg }};
+	ripple: universalRippleAnimation;
+}
+
 infoProfileTopBarHeightMax: 224px + infoLayerTopBarHeight;
 infoProfileTopBarTitleTop: 150px;
 infoProfileTopBarStatusTop: 170px;

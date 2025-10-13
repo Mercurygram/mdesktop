@@ -822,8 +822,12 @@ void TopBar::paintEvent(QPaintEvent *e) {
 void TopBar::setupButtons(
 		not_null<Controller*> controller,
 		rpl::producer<bool> backToggles) {
-	controller->wrapValue() | rpl::start_with_next([=,
-			backToggles = std::move(backToggles)](Wrap wrap) mutable {
+	rpl::combine(
+		controller->wrapValue(),
+		_hasBackground.value()
+	) | rpl::start_with_next([=, backToggles = std::move(backToggles)](
+			Wrap wrap,
+			bool hasBackground) mutable {
 		const auto isLayer = (wrap == Wrap::Layer);
 		setRoundEdges(isLayer);
 
@@ -832,9 +836,14 @@ void TopBar::setupButtons(
 			object_ptr<Ui::IconButton>(
 				this,
 				(isLayer
-					? st::infoTopBarBack
-					: st::infoLayerTopBarBack)),
+					? (hasBackground
+						? st::infoTopBarColoredBack
+						: st::infoTopBarBack)
+					: (hasBackground
+						? st::infoLayerTopBarColoredBack
+						: st::infoLayerTopBarBack))),
 			st::infoTopBarScale);
+		_back->QWidget::show();
 		_back->setDuration(0);
 		_back->toggleOn(isLayer
 			? rpl::duplicate(backToggles)
@@ -849,7 +858,10 @@ void TopBar::setupButtons(
 		} else {
 			_close = base::make_unique_q<Ui::IconButton>(
 				this,
-				st::infoTopBarClose);
+				hasBackground
+					? st::infoTopBarColoredClose
+					: st::infoTopBarClose);
+			_close->show();
 			_close->addClickHandler([=] {
 				controller->parentController()->hideLayer();
 				controller->parentController()->hideSpecialLayer();
@@ -860,7 +872,7 @@ void TopBar::setupButtons(
 		}
 
 		if (wrap != Wrap::Side) {
-			addTopBarMenuButton(controller, wrap);
+			addTopBarMenuButton(controller, wrap, hasBackground);
 			addProfileCallsButton(controller, wrap);
 		}
 	}, lifetime());
@@ -868,7 +880,8 @@ void TopBar::setupButtons(
 
 void TopBar::addTopBarMenuButton(
 		not_null<Controller*> controller,
-		Wrap wrap) {
+		Wrap wrap,
+		bool hasBackground) {
 	{
 		const auto guard = gsl::finally([&] { _topBarMenu = nullptr; });
 		showTopBarMenu(controller, true);
@@ -879,7 +892,14 @@ void TopBar::addTopBarMenuButton(
 
 	_topBarMenuToggle = base::make_unique_q<Ui::IconButton>(
 		this,
-		(wrap == Wrap::Layer ? st::infoLayerTopBarMenu : st::infoTopBarMenu));
+		((wrap == Wrap::Layer)
+			? (hasBackground
+				? st::infoLayerTopBarColoredMenu
+				: st::infoLayerTopBarMenu)
+			: (hasBackground
+				? st::infoTopBarColoredMenu
+				: st::infoTopBarMenu)));
+	_topBarMenuToggle->show();
 	_topBarMenuToggle->addClickHandler([=] {
 		showTopBarMenu(controller, false);
 	});

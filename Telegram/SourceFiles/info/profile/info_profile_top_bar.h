@@ -94,7 +94,8 @@ public:
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
 	void addTopBarMenuButton(
 		not_null<Controller*> controller,
-		Wrap wrap);
+		Wrap wrap,
+		bool hasBackground);
 	void addProfileCallsButton(not_null<Controller*> controller, Wrap wrap);
 
 protected:
