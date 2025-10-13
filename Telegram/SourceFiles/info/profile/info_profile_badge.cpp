@@ -91,11 +91,12 @@ void Badge::setContent(Content content) {
 			? (Data::FrameSizeFromTag(sizeTag())
 				/ style::DevicePixelRatio())
 			: 0;
+		const auto &style = st();
 		const auto icon = (_content.badge == BadgeType::Verified)
-			? &_st.verified
+			? &style.verified
 			: id
 			? nullptr
-			: &_st.premium;
+			: &style.premium;
 		if (id) {
 			_emojiStatus = _session->data().customEmojiManager().create(
 				Data::EmojiStatusCustomId(id),
@@ -114,7 +115,7 @@ void Badge::setContent(Content content) {
 		) | rpl::start_with_next([=, check = _view.data()]{
 			if (_emojiStatus) {
 				auto args = Ui::Text::CustomEmoji::Context{
-					.textColor = _st.premiumFg->c,
+					.textColor = style.premiumFg->c,
 					.now = crl::now(),
 					.paused = ((_animationPaused && _animationPaused())
 						|| On(PowerSaving::kEmojiStatus)),
@@ -180,6 +181,13 @@ void Badge::setPremiumClickCallback(Fn<void()> callback) {
 	}
 }
 
+void Badge::setOverrideStyle(const style::InfoPeerBadge *st) {
+	const auto was = _content;
+	_overrideSt = st;
+	_content = {};
+	setContent(was);
+}
+
 rpl::producer<> Badge::updated() const {
 	return _updated.events();
 }
@@ -188,24 +196,30 @@ void Badge::move(int left, int top, int bottom) {
 	if (!_view) {
 		return;
 	}
+	const auto &style = st();
 	const auto star = !_emojiStatus
 		&& (_content.badge == BadgeType::Premium
 			|| _content.badge == BadgeType::Verified);
 	const auto fake = !_emojiStatus && !star;
-	const auto skip = fake ? 0 : _st.position.x();
+	const auto skip = fake ? 0 : style.position.x();
 	const auto badgeLeft = left + skip;
 	const auto badgeTop = top
 		+ (star
-			? _st.position.y()
+			? style.position.y()
 			: (bottom - top - _view->height()) / 2);
 	_view->moveToLeft(badgeLeft, badgeTop);
 }
 
+const style::InfoPeerBadge &Badge::st() const {
+	return _overrideSt ? *_overrideSt : _st;
+}
+
 Data::CustomEmojiSizeTag Badge::sizeTag() const {
 	using SizeTag = Data::CustomEmojiSizeTag;
-	return (_st.sizeTag == 2)
+	const auto &style = st();
+	return (style.sizeTag == 2)
 		? SizeTag::Isolated
-		: (_st.sizeTag == 1)
+		: (style.sizeTag == 1)
 		? SizeTag::Large
 		: SizeTag::Normal;
 }
