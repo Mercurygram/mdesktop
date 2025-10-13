@@ -196,7 +196,7 @@ TopBar::TopBar(
 		tr::lng_status_lastseen_when(),
 		st::infoProfileCover.showLastSeen) {
 	QWidget::setMinimumHeight(st::infoLayerTopBarHeight);
-	QWidget::setMaximumHeight(st::infoLayerProfileTopBarHeightMax);
+	QWidget::setMaximumHeight(st::infoProfileTopBarHeightMax);
 
 	const auto controller = descriptor.controller;
 
@@ -505,11 +505,11 @@ void TopBar::updateLabelsPosition() {
 
 	const auto titleTop = anim::interpolate(
 		_st.titleWithSubtitlePosition.y(),
-		st::infoLayerProfileTopBarTitleTop,
+		st::infoProfileTopBarTitleTop,
 		progressCurrent);
 	const auto statusTop = anim::interpolate(
 		_st.subtitlePosition.y(),
-		st::infoLayerProfileTopBarStatusTop,
+		st::infoProfileTopBarStatusTop,
 		progressCurrent);
 
 	auto titleLeft = anim::interpolate(
@@ -560,7 +560,7 @@ void TopBar::updateLabelsPosition() {
 		_showLastSeen->moveToLeft(
 			statusLeft
 				+ _status->textMaxWidth()
-				+ st::infoLayerProfileTopBarLastSeenSkip,
+				+ st::infoProfileTopBarLastSeenSkip,
 			statusTop);
 		if (_showLastSeenOpacity) {
 			_showLastSeenOpacity->setOpacity(progressCurrent);
@@ -591,12 +591,12 @@ void TopBar::resizeEvent(QResizeEvent *e) {
 QRect TopBar::userpicGeometry() const {
 	constexpr auto kMinScale = 0.25;
 	const auto progressCurrent = _progress.current();
-	const auto fullSize = st::infoLayerProfileTopBarPhotoSize;
+	const auto fullSize = st::infoProfileTopBarPhotoSize;
 	const auto minSize = fullSize * kMinScale;
 	const auto size = anim::interpolate(minSize, fullSize, progressCurrent);
 	const auto x = (width() - size) / 2;
 	const auto minY = -minSize;
-	const auto maxY = st::infoLayerProfileTopBarPhotoTop;
+	const auto maxY = st::infoProfileTopBarPhotoTop;
 	const auto y = anim::interpolate(minY, maxY, progressCurrent);
 	return QRect(x, y, size, size);
 }
@@ -608,7 +608,7 @@ void TopBar::paintUserpic(QPainter &p) {
 		return;
 	}
 	if (_videoUserpicPlayer && _videoUserpicPlayer->ready()) {
-		const auto size = st::infoLayerProfileTopBarPhotoSize;
+		const auto size = st::infoProfileTopBarPhotoSize;
 		const auto frame = _videoUserpicPlayer->frame(Size(size), _peer);
 		if (!frame.isNull()) {
 			p.drawImage(geometry, frame);
@@ -619,7 +619,7 @@ void TopBar::paintUserpic(QPainter &p) {
 	const auto key = _peer->userpicUniqueKey(_userpicView);
 	if (_userpicUniqueKey != key) {
 		_userpicUniqueKey = key;
-		const auto fullSize = st::infoLayerProfileTopBarPhotoSize;
+		const auto fullSize = st::infoProfileTopBarPhotoSize;
 		const auto scaled = fullSize * style::DevicePixelRatio();
 		auto image = QImage();
 		if (const auto broadcast = _peer->monoforumBroadcast()) {
@@ -1123,7 +1123,7 @@ void TopBar::setupPinnedToTopGifts() {
 				if (unique->backdrop.centerColor.isValid()
 					&& unique->backdrop.edgeColor.isValid()) {
 					entry.bg = Ui::CreateTopBgGradient(
-						Size(st::infoLayerProfileTopBarGiftSize * 2),
+						Size(st::infoProfileTopBarGiftSize * 2),
 						unique->backdrop.centerColor,
 						anim::with_alpha(unique->backdrop.edgeColor, 0.0),
 						false);
@@ -1147,7 +1147,7 @@ void TopBar::setupPinnedToTopGifts() {
 						_lottiePlayer.get(),
 						entry.media.get(),
 						StickerLottieSize::StickerSet,
-						Size(st::infoLayerProfileTopBarGiftSize)
+						Size(st::infoProfileTopBarGiftSize)
 							* style::DevicePixelRatio());
 				} else if (!entry.media->loaded()) {
 					allLoaded = false;
@@ -1173,7 +1173,7 @@ void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
 	const auto aw = userpicRect.width();
 	const auto ah = userpicRect.height();
 
-	const auto sz = st::infoLayerProfileTopBarGiftSize;
+	const auto sz = st::infoProfileTopBarGiftSize;
 	const auto halfSz = sz / 2.;
 
 	for (const auto &gift : _pinnedToTopGifts) {
@@ -1186,38 +1186,38 @@ void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
 		switch (gift.position) {
 		case 0: // Left.
 			giftPos = QPointF(
-				acx / 2. - st::infoLayerProfileTopBarGiftLeft.x(),
-				acy - st::infoLayerProfileTopBarGiftLeft.y());
+				acx / 2. - st::infoProfileTopBarGiftLeft.x(),
+				acy - st::infoProfileTopBarGiftLeft.y());
 			delayValue = 1.6;
 			break;
 		case 1: // Top left.
 			giftPos = QPointF(
-				acx * 2. / 3. - st::infoLayerProfileTopBarGiftTopLeft.x(),
-				userpicRect.y() - st::infoLayerProfileTopBarGiftTopLeft.y());
+				acx * 2. / 3. - st::infoProfileTopBarGiftTopLeft.x(),
+				userpicRect.y() - st::infoProfileTopBarGiftTopLeft.y());
 			delayValue = 0.;
 			break;
 		case 2: // Bottom left.
 			giftPos = QPointF(
-				acx * 2. / 3. - st::infoLayerProfileTopBarGiftBottomLeft.x(),
-				userpicRect.y() + ah - st::infoLayerProfileTopBarGiftBottomLeft.y());
+				acx * 2. / 3. - st::infoProfileTopBarGiftBottomLeft.x(),
+				userpicRect.y() + ah - st::infoProfileTopBarGiftBottomLeft.y());
 			delayValue = 0.9;
 			break;
 		case 3: // Right.
 			giftPos = QPointF(
-				acx + aw / 2. + st::infoLayerProfileTopBarGiftRight.x(),
-				acy - st::infoLayerProfileTopBarGiftRight.y());
+				acx + aw / 2. + st::infoProfileTopBarGiftRight.x(),
+				acy - st::infoProfileTopBarGiftRight.y());
 			delayValue = 1.6;
 			break;
 		case 4: // Top right.
 			giftPos = QPointF(
-				acx + aw / 3. + st::infoLayerProfileTopBarGiftTopRight.x(),
-				userpicRect.y() - st::infoLayerProfileTopBarGiftTopRight.y());
+				acx + aw / 3. + st::infoProfileTopBarGiftTopRight.x(),
+				userpicRect.y() - st::infoProfileTopBarGiftTopRight.y());
 			delayValue = 0.9;
 			break;
 		default: // Bottom right.
 			giftPos = QPointF(
-				acx + aw / 3. + st::infoLayerProfileTopBarGiftBottomRight.x(),
-				userpicRect.y() + ah - st::infoLayerProfileTopBarGiftBottomRight.y());
+				acx + aw / 3. + st::infoProfileTopBarGiftBottomRight.x(),
+				userpicRect.y() + ah - st::infoProfileTopBarGiftBottomRight.y());
 			delayValue = 0.;
 			break;
 		}

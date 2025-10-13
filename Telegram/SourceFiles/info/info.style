@@ -247,22 +247,6 @@ infoTopBar: InfoTopBar {
 infoTopBarScale: 0.7;
 infoTopBarDuration: 150;
 
-infoLayerProfileTopBarHeightMax: 224px;
-infoLayerProfileTopBarTitleTop: 150px;
-infoLayerProfileTopBarStatusTop: 170px;
-infoLayerProfileTopBarPhotoTop: 30px;
-infoLayerProfileTopBarPhotoSize: 104px;
-infoLayerProfileTopBarLastSeenSkip: 8px;
-
-infoLayerProfileTopBarGiftSize: 20px;
-
-infoLayerProfileTopBarGiftLeft: point(15px, 13px);
-infoLayerProfileTopBarGiftTopLeft: point(4px, 4px);
-infoLayerProfileTopBarGiftBottomLeft: point(9px, 16px);
-infoLayerProfileTopBarGiftRight: point(50px, 13px);
-infoLayerProfileTopBarGiftTopRight: point(30px, 4px);
-infoLayerProfileTopBarGiftBottomRight: point(30px, 16px);
-
 infoLayerTopMinimal: 20px;
 infoLayerTopMaximal: 40px;
 infoLayerTopBarHeight: 56px;
@@ -359,6 +343,22 @@ infoLayerTopBar: InfoTopBar(infoTopBar) {
 }
 
 infoLayerTopBarMenuPosition: point(40px, 37px);
+
+infoProfileTopBarHeightMax: 224px + infoLayerTopBarHeight;
+infoProfileTopBarTitleTop: 150px;
+infoProfileTopBarStatusTop: 170px;
+infoProfileTopBarPhotoTop: 30px;
+infoProfileTopBarPhotoSize: 104px;
+infoProfileTopBarLastSeenSkip: 8px;
+
+infoProfileTopBarGiftSize: 20px;
+
+infoProfileTopBarGiftLeft: point(15px, 13px);
+infoProfileTopBarGiftTopLeft: point(4px, 4px);
+infoProfileTopBarGiftBottomLeft: point(9px, 16px);
+infoProfileTopBarGiftRight: point(50px, 13px);
+infoProfileTopBarGiftTopRight: point(30px, 4px);
+infoProfileTopBarGiftBottomRight: point(30px, 16px);
 
 infoMinimalWidth: 324px;
 infoDesiredWidth: 392px;
