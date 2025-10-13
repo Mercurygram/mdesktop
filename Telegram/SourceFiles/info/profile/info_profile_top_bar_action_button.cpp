@@ -49,6 +49,49 @@ void TopBarActionButton::setupLottie(const QString &lottieName) {
 	_lottie->animate([=] { update(); }, 0, _lottie->framesCount() - 1);
 }
 
+void TopBarActionButton::convertToToggle(
+		const style::icon &offIcon,
+		const style::icon &onIcon,
+		const QString &offLottie,
+		const QString &onLottie) {
+	_isToggle = true;
+	_offIcon = &offIcon;
+	_onIcon = &onIcon;
+	_offLottie = offLottie;
+	_onLottie = onLottie;
+	_icon = _offIcon;
+	_lottie.reset();
+}
+
+void TopBarActionButton::toggle(bool state) {
+	if (!_isToggle || _toggleState == state) {
+		return;
+	}
+	_toggleState = state;
+	const auto &lottie = _toggleState ? _onLottie : _offLottie;
+	setupLottie(lottie);
+	_lottie->animate([=] {
+		update();
+		if (_lottie->frameIndex() == _lottie->framesCount() - 1) {
+			_icon = _toggleState ? _onIcon : _offIcon;
+			_lottie.reset();
+		}
+	}, 0, _lottie->framesCount() - 1);
+}
+
+void TopBarActionButton::finishAnimating() {
+	if (_lottie) {
+		_icon = _toggleState ? _onIcon : _offIcon;
+		_lottie.reset();
+		update();
+	}
+}
+
+void TopBarActionButton::setText(const QString &text) {
+	_text = text;
+	update();
+}
+
 void TopBarActionButton::paintEvent(QPaintEvent *e) {
 	auto p = Painter(this);
 

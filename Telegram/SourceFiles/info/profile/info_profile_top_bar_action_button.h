@@ -26,6 +26,15 @@ public:
 		const QString &text,
 		const style::icon &icon);
 
+	void convertToToggle(
+		const style::icon &offIcon,
+		const style::icon &onIcon,
+		const QString &offLottie,
+		const QString &onLottie);
+	void toggle(bool state);
+	void finishAnimating();
+	void setText(const QString &text);
+
 protected:
 	void paintEvent(QPaintEvent *e) override;
 
@@ -38,6 +47,13 @@ private:
 	QString _text;
 	std::unique_ptr<Lottie::Icon> _lottie;
 	const style::icon *_icon = nullptr;
+
+	bool _isToggle = false;
+	bool _toggleState = false;
+	const style::icon *_offIcon = nullptr;
+	const style::icon *_onIcon = nullptr;
+	QString _offLottie;
+	QString _onLottie;
 
 };
 
