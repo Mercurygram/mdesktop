@@ -34,6 +34,9 @@ public:
 	void toggle(bool state);
 	void finishAnimating();
 	void setText(const QString &text);
+	void setBgColor(const QColor &color);
+
+	~TopBarActionButton();
 
 protected:
 	void paintEvent(QPaintEvent *e) override;
@@ -54,6 +57,8 @@ private:
 	const style::icon *_onIcon = nullptr;
 	QString _offLottie;
 	QString _onLottie;
+
+	QColor _bgColor;
 
 };
 

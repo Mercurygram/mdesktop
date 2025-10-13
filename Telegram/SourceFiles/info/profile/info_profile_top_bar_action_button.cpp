@@ -19,7 +19,6 @@ namespace {
 
 constexpr auto kIconFadeStart = 0.4;
 constexpr auto kIconFadeRange = 1.0 - kIconFadeStart;
-constexpr auto kBgOpacity = 40;
 
 } // namespace
 
@@ -40,6 +39,8 @@ TopBarActionButton::TopBarActionButton(
 , _text(text)
 , _icon(&icon) {
 }
+
+TopBarActionButton::~TopBarActionButton() = default;
 
 void TopBarActionButton::setupLottie(const QString &lottieName) {
 	_lottie = std::make_unique<Lottie::Icon>(Lottie::IconDescriptor{
@@ -92,6 +93,11 @@ void TopBarActionButton::setText(const QString &text) {
 	update();
 }
 
+void TopBarActionButton::setBgColor(const QColor &color) {
+	_bgColor = color;
+	update();
+}
+
 void TopBarActionButton::paintEvent(QPaintEvent *e) {
 	auto p = Painter(this);
 
@@ -99,9 +105,8 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 		/ st::infoProfileTopBarActionButtonSize;
 	p.setOpacity(progress);
 
-	const auto bg = QColor(0, 0, 0, kBgOpacity);
 	p.setPen(Qt::NoPen);
-	p.setBrush(bg);
+	p.setBrush(_bgColor);
 	{
 		auto hq = PainterHighQualityEnabler(p);
 		p.drawRoundedRect(rect(), st::boxRadius, st::boxRadius);

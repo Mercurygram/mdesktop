@@ -153,7 +153,7 @@ private:
 	rpl::variable<float64> _progress = 0.;
 	bool _roundEdges = true;
 
-	bool _hasBackground = false;
+	rpl::variable<bool> _hasBackground = false;
 	QImage _cachedGradient;
 	QPainterPath _cachedClipPath;
 	std::unique_ptr<Ui::Text::CustomEmoji> _patternEmoji;

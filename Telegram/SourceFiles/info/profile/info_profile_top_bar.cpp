@@ -82,6 +82,7 @@ namespace {
 constexpr auto kWaitBeforeGiftBadge = crl::time(1000);
 constexpr auto kGiftBadgeGlares = 3;
 constexpr auto kMinPatternRadius = 8;
+constexpr auto kBgOpacity = 40. / 255.;
 
 using AnimatedPatternPoint = TopBar::AnimatedPatternPoint;
 
@@ -330,6 +331,7 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 	const auto channel = peer->asChannel();
 	const auto chat = peer->asChat();
 	const auto topic = controller->key().topic();
+	auto buttons = std::vector<not_null<TopBarActionButton*>>();
 	_actions = base::make_unique_q<Ui::HorizontalFitContainer>(
 		this,
 		st::infoProfileTopBarActionButtonsSpace);
@@ -343,6 +345,7 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 				peer->id,
 				Window::SectionShow::Way::Forward);
 		});
+		buttons.push_back(message);
 		_actions->add(message);
 	}
 	{
@@ -402,8 +405,17 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 				}) | rpl::to_empty,
 				makeThread,
 				controller->uiShow());
+		buttons.push_back(notifications);
 		_actions->add(notifications);
 	}
+	_hasBackground.value() | rpl::start_with_next([=](bool hasBackground) {
+		const auto bg = !hasBackground
+			? anim::with_alpha(st::activeButtonBg->c, 1. - kBgOpacity)
+			: anim::with_alpha(Qt::black, kBgOpacity);
+		for (const auto &button : buttons) {
+			button->setBgColor(bg);
+		}
+	}, _actions->lifetime());
 	const auto padding = st::infoProfileTopBarActionButtonsPadding;
 	sizeValue() | rpl::start_with_next([=](const QSize &size) {
 		const auto ratio = float64(size.height())
@@ -692,7 +704,7 @@ void TopBar::updateLabelsPosition() {
 
 void TopBar::resizeEvent(QResizeEvent *e) {
 	_cachedClipPath = QPainterPath();
-	if (_hasBackground && !_animatedPoints.empty()) {
+	if (_hasBackground.current() && !_animatedPoints.empty()) {
 		setupAnimatedPattern();
 	}
 	updateLabelsPosition();
@@ -767,12 +779,13 @@ void TopBar::paintUserpic(QPainter &p) {
 
 void TopBar::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
-	if (_hasBackground && _cachedGradient.isNull()) {
+	const auto hasBackground = _hasBackground.current();
+	if (hasBackground && _cachedGradient.isNull()) {
 		_cachedGradient = Ui::CreateTopBgGradient(
 			QSize(width(), maximumHeight()),
 			_peer);
 	}
-	if (!_hasBackground) {
+	if (!hasBackground) {
 		paintEdges(p);
 	} else {
 		const auto x = (width()
