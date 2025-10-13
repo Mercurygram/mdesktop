@@ -103,7 +103,12 @@ void BadgeTooltip::setupGeometry(not_null<QWidget*> pointTo) {
 	auto widget = pointTo.get();
 	const auto parent = parentWidget();
 
-	const auto refresh = [=] {
+	const auto refresh = [=, weak = base::make_weak(pointTo)] {
+		const auto strong = weak.get();
+		if (!strong) {
+			hide();
+			return setGeometry({});
+		}
 		const auto rect = Ui::MapFrom(parent, pointTo, pointTo->rect());
 		const auto point = QPoint(rect.center().x(), rect.y());
 		const auto left = point.x() - (width() / 2);
