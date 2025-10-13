@@ -39,6 +39,9 @@ public:
 	void raise();
 	void moveTo(int x, int y);
 	void setOpacity(float64 opacity);
+	void setCustomColors(
+		std::optional<QColor> textColor,
+		std::optional<QColor> shapeColor);
 
 	[[nodiscard]] rpl::producer<int> widthValue() const;
 
@@ -66,6 +69,9 @@ private:
 
 	int _currentLevel = 0;
 	float64 _opacity = 1.;
+
+	std::optional<QColor> _customTextColor;
+	std::optional<QColor> _customShapeColor;
 
 };
 

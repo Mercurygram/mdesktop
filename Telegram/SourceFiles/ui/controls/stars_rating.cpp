@@ -540,6 +540,15 @@ void StarsRating::setOpacity(float64 opacity) {
 	_widget->update();
 }
 
+void StarsRating::setCustomColors(
+		std::optional<QColor> textColor,
+		std::optional<QColor> shapeColor) {
+	_customTextColor = textColor;
+	_customShapeColor = shapeColor;
+	_cachedLevel = std::numeric_limits<int>::min();
+	_widget->update();
+}
+
 void StarsRating::paint(QPainter &p) {
 	p.setOpacity(_opacity);
 	if (!_shape) {
@@ -554,10 +563,16 @@ void StarsRating::paint(QPainter &p) {
 		_cache.fill(Qt::transparent);
 
 		auto q = QPainter(&_cache);
-		_shape->icon.paint(q, 0, 0, _widget->width());
+		if (_customShapeColor) {
+			_shape->icon.paint(q, 0, 0, _widget->width(), *_customShapeColor);
+		} else {
+			_shape->icon.paint(q, 0, 0, _widget->width());
+		}
 
 		if (!_collapsedText.isEmpty()) {
-			q.setPen(st::levelTextFg);
+			q.setPen(_customTextColor
+				? *_customTextColor
+				: st::levelTextFg->c);
 			q.setFont(st::levelStyle.font);
 			q.drawText(
 				Rect(_shape->icon.size()),

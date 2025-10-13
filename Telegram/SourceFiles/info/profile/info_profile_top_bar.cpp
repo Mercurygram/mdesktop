@@ -337,6 +337,17 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 	_verified->setOverrideStyle(shouldOverrideBadges
 		? &st::infoColoredPeerBadge
 		: nullptr);
+
+	if (_starsRating) {
+		const auto shouldOverrideRating = shouldOverride(st::windowBgActive);
+		_starsRating->setCustomColors(
+			shouldOverrideRating
+				? edgeColor
+				: std::nullopt,
+			shouldOverrideRating
+				? std::make_optional<QColor>(st::windowFgActive->c)
+				: std::nullopt);
+	}
 }
 
 void TopBar::setupActions(not_null<Controller*> controller) {
