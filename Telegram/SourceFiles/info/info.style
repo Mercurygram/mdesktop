@@ -360,6 +360,12 @@ infoProfileTopBarGiftRight: point(50px, 13px);
 infoProfileTopBarGiftTopRight: point(30px, 4px);
 infoProfileTopBarGiftBottomRight: point(30px, 16px);
 
+infoProfileTopBarActionButtonSize: 56px;
+infoProfileTopBarActionButtonIconSize: 24px;
+infoProfileTopBarActionButtonLottieSize: infoProfileTopBarActionButtonIconSize - 2px;
+infoProfileTopBarActionButtonIconTop: 8px;
+infoProfileTopBarActionButtonTextSkip: 4px;
+
 infoMinimalWidth: 324px;
 infoDesiredWidth: 392px;
 infoMinimalLayerMargin: 48px;
