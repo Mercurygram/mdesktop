@@ -366,6 +366,12 @@ infoProfileTopBarActionButtonLottieSize: infoProfileTopBarActionButtonIconSize -
 infoProfileTopBarActionButtonIconTop: 8px;
 infoProfileTopBarActionButtonTextSkip: 4px;
 
+infoProfileTopBarActionButtonsPadding: margins(12px, 6px, 12px, 12px);
+infoProfileTopBarActionButtonsHeight: infoProfileTopBarActionButtonSize + infoProfileTopBarActionButtonsPadding.topBottom;
+
+infoProfileTopBarStep2: infoProfileTopBarHeightMax - infoLayerTopBarHeight;
+infoProfileTopBarStep1: infoProfileTopBarStep2 - infoProfileTopBarActionButtonsHeight;
+
 infoMinimalWidth: 324px;
 infoDesiredWidth: 392px;
 infoMinimalLayerMargin: 48px;

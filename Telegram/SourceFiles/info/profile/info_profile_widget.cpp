@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_user.h"
 #include "lang/lang_keys.h"
 #include "info/info_controller.h"
+#include "styles/style_info.h"
 
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QScrollBar>
@@ -184,7 +185,7 @@ Widget::Widget(
 			_flexibleScroll.contentHeightValue.fire(h + heightDiff());
 		}, _pinnedToTop->lifetime());
 
-		constexpr auto kScrollStepTime = crl::time(60);
+		constexpr auto kScrollStepTime = crl::time(260);
 
 		const auto clearScrollState = [=] {
 			_scrollAnimation.stop();
@@ -198,10 +199,11 @@ Widget::Widget(
 			const auto progress = float64(now
 				- _scrollAnimation.started()
 				- _timeOffset) / kScrollStepTime;
+			const auto eased = anim::easeOutQuint(1.0, progress);
 			const auto scrollCurrent = anim::interpolate(
 				_scrollTopFrom,
 				_scrollTopTo,
-				std::clamp(progress, 0., 1.));
+				std::clamp(eased, 0., 1.));
 			scroll()->scrollToY(scrollCurrent);
 			_lastScrollApplied = scrollCurrent;
 			if (progress >= 1) {
@@ -211,6 +213,10 @@ Widget::Widget(
 
 		const auto singleStep = scroll()->verticalScrollBar()->singleStep()
 			* QApplication::wheelScrollLines();
+		const auto step1 = st::infoProfileTopBarStep1;
+		const auto step2 = st::infoProfileTopBarStep2;
+		// const auto stepDepreciation = singleStep
+		// 	- st::infoProfileTopBarActionButtonsHeight;
 		_scrollTopPrevious = scroll()->scrollTop();
 		scrollTopValue(
 		) | rpl::start_with_next([=](int top) {
@@ -221,6 +227,20 @@ Widget::Widget(
 			_scrollTopPrevious = top;
 			if (std::abs(diff) == singleStep) {
 				const auto previousValue = top - diff;
+				const auto nextStep = (diff > 0)
+					? ((previousValue == 0)
+						? step1
+						: (previousValue == step1)
+						? step2
+						: -1)
+					// : ((top < step1
+					// 	&& (top + stepDepreciation != step1
+					// 		|| _scrollAnimation.animating()))
+					: ((top < step1)
+						? 0
+						: (top < step2)
+						? step1
+						: -1);
 				{
 					_applyingFakeScrollState = true;
 					scroll()->scrollToY(previousValue);
@@ -228,16 +248,60 @@ Widget::Widget(
 				}
 				if (_scrollAnimation.animating()
 					&& ((_scrollTopTo > _scrollTopFrom) != (diff > 0))) {
-					clearScrollState();
+					auto overriddenDirection = true;
+					if (_scrollTopTo > _scrollTopFrom) {
+						// From going down to going up.
+						if (_scrollTopTo == step1) {
+							_scrollTopTo = 0;
+						} else if (_scrollTopTo == step2) {
+							_scrollTopTo = step1;
+						} else {
+							overriddenDirection = false;
+						}
+					} else {
+						// From going up to going down.
+						if (_scrollTopTo == 0) {
+							_scrollTopTo = step1;
+						} else if (_scrollTopTo == step1) {
+							_scrollTopTo = step2;
+						} else {
+							overriddenDirection = false;
+						}
+					}
+					if (overriddenDirection) {
+						_timeOffset = crl::now() - _scrollAnimation.started();
+						_scrollTopFrom = _lastScrollApplied
+							? _lastScrollApplied
+							: previousValue;
+						return;
+					} else {
+						clearScrollState();
+					}
 				}
 				_scrollTopFrom = _lastScrollApplied
 					? _lastScrollApplied
 					: previousValue;
 				if (!_scrollAnimation.animating()) {
-					_scrollTopTo = top;
+					_scrollTopTo = ((nextStep != -1) ? nextStep : top);
 					_scrollAnimation.start();
 				} else {
-					_scrollTopTo += diff;
+					if (_scrollTopTo > _scrollTopFrom) {
+						// Down.
+						if (_scrollTopTo == step1) {
+							_scrollTopTo = step2;
+						} else {
+							_scrollTopTo += diff;
+						}
+					} else {
+						// Up.
+						if (_scrollTopTo == step2) {
+							_scrollTopTo = step1;
+						} else if (_scrollTopTo == step1) {
+							_scrollTopTo = 0;
+						} else {
+							_scrollTopTo += diff;
+						}
+					}
 					_timeOffset = (crl::now() - _scrollAnimation.started());
 				}
 				return;
