@@ -159,26 +159,25 @@ TopBar::TopBar(
 			Window::GifPauseReason::Layer);
 	})))
 , _badgeContent(BadgeContentForPeer(_peer))
+, _gifPausedChecker([=,
+		controller = descriptor.controller->parentController()] {
+	return controller->isGifPausedAtLeastFor(
+		Window::GifPauseReason::Layer);
+})
 , _badge(std::make_unique<Badge>(
 	this,
 	st::infoPeerBadge,
 	&_peer->session(),
 	_badgeContent.value(),
 	nullptr,
-	Fn<bool()>([=, controller = descriptor.controller->parentController()] {
-		return controller->isGifPausedAtLeastFor(
-			Window::GifPauseReason::Layer);
-	})))
+	_gifPausedChecker))
 , _verified(std::make_unique<Badge>(
 	this,
 	st::infoPeerBadge,
 	&_peer->session(),
 	VerifiedContentForPeer(_peer),
 	nullptr,
-	Fn<bool()>([=, controller = descriptor.controller->parentController()] {
-		return controller->isGifPausedAtLeastFor(
-			Window::GifPauseReason::Layer);
-	})))
+	_gifPausedChecker))
 , _title(this, Info::Profile::NameValue(_peer), _st.title)
 , _starsRating(_peer->isUser()
 	? std::make_unique<Ui::StarsRating>(
@@ -271,10 +270,7 @@ TopBar::TopBar(
 	if (_topic) {
 		_topicIconView = std::make_unique<TopicIconView>(
 			_topic,
-			[controller = controller->parentController()] {
-				return controller->isGifPausedAtLeastFor(
-					Window::GifPauseReason::Layer);
-			},
+			_gifPausedChecker,
 			[=] { update(); });
 	} else {
 		updateVideoUserpic();
@@ -304,25 +300,38 @@ TopBar::TopBar(
 			_pinnedToTopGifts.clear();
 		}
 		update();
-		if (collectible) {
-			constexpr auto kMinContrast = 5.5;
-			const auto contrastTitle = Ui::CountContrast(
-				_title->st().textFg->c,
-				collectible->edgeColor);
-			const auto contrastStatus = Ui::CountContrast(
-				_status->st().textFg->c,
-				collectible->edgeColor);
-			_title->setTextColorOverride((contrastTitle < kMinContrast)
-				? std::optional<QColor>(st::groupCallMembersFg->c)
-				: std::nullopt);
-			_status->setTextColorOverride((contrastStatus < kMinContrast)
-				? std::optional<QColor>(st::groupCallVideoSubTextFg->c)
-				: std::nullopt);
-		} else {
-			_title->setTextColorOverride(std::nullopt);
-			_status->setTextColorOverride(std::nullopt);
-		}
+		adjustColors(collectible
+			? std::optional<QColor>(collectible->edgeColor)
+			: std::nullopt);
 	}, lifetime());
+}
+
+void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
+	constexpr auto kMinContrast = 5.5;
+	const auto shouldOverride = [&](const style::color &color) {
+		return edgeColor
+			&& (kMinContrast > Ui::CountContrast(color->c, *edgeColor));
+	};
+	const auto shouldOverrideTitle = shouldOverride(_title->st().textFg);
+	const auto shouldOverrideStatus = shouldOverride(_status->st().textFg);
+	_title->setTextColorOverride(shouldOverrideTitle
+		? std::optional<QColor>(st::groupCallMembersFg->c)
+		: std::nullopt);
+	_status->setTextColorOverride(shouldOverrideStatus
+		? std::optional<QColor>(st::groupCallVideoSubTextFg->c)
+		: std::nullopt);
+
+	const auto shouldOverrideBadges = shouldOverride(
+		st::infoBotVerifyBadge.premiumFg);
+	_botVerify->setOverrideStyle(shouldOverrideBadges
+		? &st::infoColoredBotVerifyBadge
+		: nullptr);
+	_badge->setOverrideStyle(shouldOverrideBadges
+		? &st::infoColoredPeerBadge
+		: nullptr);
+	_verified->setOverrideStyle(shouldOverrideBadges
+		? &st::infoColoredPeerBadge
+		: nullptr);
 }
 
 void TopBar::setupActions(not_null<Controller*> controller) {

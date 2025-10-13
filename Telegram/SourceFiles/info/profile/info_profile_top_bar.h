@@ -128,6 +128,7 @@ private:
 	void paintAnimatedPattern(QPainter &p, const QRect &rect);
 	void setupPinnedToTopGifts();
 	void paintPinnedToTopGifts(QPainter &p, const QRect &rect);
+	void adjustColors(const std::optional<QColor> &edgeColor);
 
 	const not_null<PeerData*> _peer;
 	Data::ForumTopic *_topic = nullptr;
@@ -136,6 +137,7 @@ private:
 	std::unique_ptr<base::Timer> _badgeTooltipHide;
 	const std::unique_ptr<Badge> _botVerify;
 	rpl::variable<Badge::Content> _badgeContent;
+	const Fn<bool()> _gifPausedChecker;
 	const std::unique_ptr<Badge> _badge;
 	const std::unique_ptr<Badge> _verified;
 

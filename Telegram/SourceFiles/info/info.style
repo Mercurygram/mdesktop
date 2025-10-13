@@ -520,6 +520,17 @@ infoPeerBadge: InfoPeerBadge {
 infoBotVerifyBadge: InfoPeerBadge(infoPeerBadge) {
 	position: point(-2px, 2px);
 }
+infoColoredPeerBadge: InfoPeerBadge(infoPeerBadge) {
+	verified: icon {
+		{ "profile_verified_star", groupCallMembersFg },
+		{ "profile_verified_check", groupCallBg }
+	};
+	premium: icon {{ "profile_premium", groupCallMembersFg }};
+	premiumFg: groupCallMembersFg;
+}
+infoColoredBotVerifyBadge: InfoPeerBadge(infoColoredPeerBadge) {
+	position: point(-2px, 2px);
+}
 
 infoIconFg: windowBoldFg;
 
