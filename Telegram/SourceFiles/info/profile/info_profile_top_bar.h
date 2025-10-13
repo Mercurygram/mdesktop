@@ -99,7 +99,7 @@ public:
 	void addTopBarMenuButton(
 		not_null<Controller*> controller,
 		Wrap wrap,
-		bool hasBackground);
+		bool shouldUseColored);
 	void addProfileCallsButton(not_null<Controller*> controller, Wrap wrap);
 
 protected:
@@ -160,7 +160,8 @@ private:
 	rpl::variable<float64> _progress = 0.;
 	bool _roundEdges = true;
 
-	rpl::variable<bool> _hasBackground = false;
+	rpl::variable<std::optional<QColor>> _edgeColor;
+	bool _hasBackground = false;
 	QImage _cachedGradient;
 	QPainterPath _cachedClipPath;
 	std::unique_ptr<Ui::Text::CustomEmoji> _patternEmoji;

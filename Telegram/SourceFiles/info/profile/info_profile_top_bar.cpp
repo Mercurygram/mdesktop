@@ -83,6 +83,7 @@ constexpr auto kWaitBeforeGiftBadge = crl::time(1000);
 constexpr auto kGiftBadgeGlares = 3;
 constexpr auto kMinPatternRadius = 8;
 constexpr auto kBgOpacity = 40. / 255.;
+constexpr auto kMinContrast = 5.5;
 
 using AnimatedPatternPoint = TopBar::AnimatedPatternPoint;
 
@@ -348,6 +349,8 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 				? std::make_optional<QColor>(st::windowFgActive->c)
 				: std::nullopt);
 	}
+
+	_edgeColor = edgeColor;
 }
 
 void TopBar::setupActions(not_null<Controller*> controller) {
@@ -433,8 +436,8 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		buttons.push_back(notifications);
 		_actions->add(notifications);
 	}
-	_hasBackground.value() | rpl::start_with_next([=](bool hasBackground) {
-		const auto bg = !hasBackground
+	_edgeColor.value() | rpl::start_with_next([=](std::optional<QColor> c) {
+		const auto bg = !c
 			? anim::with_alpha(st::activeButtonBg->c, 1. - kBgOpacity)
 			: anim::with_alpha(Qt::black, kBgOpacity);
 		for (const auto &button : buttons) {
@@ -729,7 +732,7 @@ void TopBar::updateLabelsPosition() {
 
 void TopBar::resizeEvent(QResizeEvent *e) {
 	_cachedClipPath = QPainterPath();
-	if (_hasBackground.current() && !_animatedPoints.empty()) {
+	if (_hasBackground && !_animatedPoints.empty()) {
 		setupAnimatedPattern();
 	}
 	updateLabelsPosition();
@@ -804,7 +807,7 @@ void TopBar::paintUserpic(QPainter &p) {
 
 void TopBar::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
-	const auto hasBackground = _hasBackground.current();
+	const auto hasBackground = _hasBackground;
 	if (hasBackground && _cachedGradient.isNull()) {
 		_cachedGradient = Ui::CreateTopBgGradient(
 			QSize(width(), maximumHeight()),
@@ -849,22 +852,26 @@ void TopBar::setupButtons(
 		rpl::producer<bool> backToggles) {
 	rpl::combine(
 		controller->wrapValue(),
-		_hasBackground.value()
+		_edgeColor.value()
 	) | rpl::start_with_next([=, backToggles = std::move(backToggles)](
 			Wrap wrap,
-			bool hasBackground) mutable {
+			std::optional<QColor> edgeColor) mutable {
 		const auto isLayer = (wrap == Wrap::Layer);
 		setRoundEdges(isLayer);
 
+		const auto shouldUseColored = edgeColor
+			&& (kMinContrast > Ui::CountContrast(
+				st::boxTitleCloseFg->c,
+				*edgeColor));
 		_back = base::make_unique_q<Ui::FadeWrap<Ui::IconButton>>(
 			this,
 			object_ptr<Ui::IconButton>(
 				this,
 				(isLayer
-					? (hasBackground
+					? (shouldUseColored
 						? st::infoTopBarColoredBack
 						: st::infoTopBarBack)
-					: (hasBackground
+					: (shouldUseColored
 						? st::infoLayerTopBarColoredBack
 						: st::infoLayerTopBarBack))),
 			st::infoTopBarScale);
@@ -883,7 +890,7 @@ void TopBar::setupButtons(
 		} else {
 			_close = base::make_unique_q<Ui::IconButton>(
 				this,
-				hasBackground
+				shouldUseColored
 					? st::infoTopBarColoredClose
 					: st::infoTopBarClose);
 			_close->show();
@@ -897,7 +904,7 @@ void TopBar::setupButtons(
 		}
 
 		if (wrap != Wrap::Side) {
-			addTopBarMenuButton(controller, wrap, hasBackground);
+			addTopBarMenuButton(controller, wrap, shouldUseColored);
 			addProfileCallsButton(controller, wrap);
 		}
 	}, lifetime());
@@ -906,7 +913,7 @@ void TopBar::setupButtons(
 void TopBar::addTopBarMenuButton(
 		not_null<Controller*> controller,
 		Wrap wrap,
-		bool hasBackground) {
+		bool shouldUseColored) {
 	{
 		const auto guard = gsl::finally([&] { _topBarMenu = nullptr; });
 		showTopBarMenu(controller, true);
@@ -914,14 +921,13 @@ void TopBar::addTopBarMenuButton(
 			return;
 		}
 	}
-
 	_topBarMenuToggle = base::make_unique_q<Ui::IconButton>(
 		this,
 		((wrap == Wrap::Layer)
-			? (hasBackground
+			? (shouldUseColored
 				? st::infoLayerTopBarColoredMenu
 				: st::infoLayerTopBarMenu)
-			: (hasBackground
+			: (shouldUseColored
 				? st::infoTopBarColoredMenu
 				: st::infoTopBarMenu)));
 	_topBarMenuToggle->show();
