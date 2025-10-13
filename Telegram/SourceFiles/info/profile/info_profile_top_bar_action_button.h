@@ -21,6 +21,10 @@ public:
 		not_null<QWidget*> parent,
 		const QString &text,
 		const QString &lottieName);
+	TopBarActionButton(
+		not_null<QWidget*> parent,
+		const QString &text,
+		const style::icon &icon);
 
 protected:
 	void paintEvent(QPaintEvent *e) override;
@@ -33,6 +37,7 @@ private:
 
 	QString _text;
 	std::unique_ptr<Lottie::Icon> _lottie;
+	const style::icon *_icon = nullptr;
 
 };
 

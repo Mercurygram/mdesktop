@@ -32,6 +32,15 @@ TopBarActionButton::TopBarActionButton(
 	setupLottie(lottieName);
 }
 
+TopBarActionButton::TopBarActionButton(
+	not_null<QWidget*> parent,
+	const QString &text,
+	const style::icon &icon)
+: RippleButton(parent, st::universalRippleAnimation)
+, _text(text)
+, _icon(&icon) {
+}
+
 void TopBarActionButton::setupLottie(const QString &lottieName) {
 	_lottie = std::make_unique<Lottie::Icon>(Lottie::IconDescriptor{
 		.name = lottieName,
@@ -60,7 +69,7 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 	const auto iconSize = st::infoProfileTopBarActionButtonIconSize;
 	const auto iconTop = st::infoProfileTopBarActionButtonIconTop;
 
-	if (_lottie) {
+	if (_lottie || _icon) {
 		const auto iconScale = (progress > kIconFadeStart)
 			? (progress - kIconFadeStart) / kIconFadeRange
 			: 0.0;
@@ -72,7 +81,11 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 		p.translate(iconCenter);
 		p.scale(iconScale, iconScale);
 		p.translate(-iconCenter);
-		_lottie->paint(p, iconLeft, iconTop);
+		if (_lottie) {
+			_lottie->paint(p, iconLeft, iconTop);
+		} else if (_icon) {
+			_icon->paint(p, iconLeft, iconTop, width());
+		}
 		p.restore();
 		p.setOpacity(progress);
 	}
