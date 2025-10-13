@@ -13,6 +13,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/weak_ptr.h"
 #include "data/data_story.h"
 
+namespace Data {
+class GroupCall;
+} // namespace Data
+
 namespace Main {
 class Session;
 } // namespace Main

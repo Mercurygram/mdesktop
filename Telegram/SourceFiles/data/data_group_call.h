@@ -60,6 +60,12 @@ struct GroupCallParticipant {
 	[[nodiscard]] bool screenPaused() const;
 };
 
+enum class GroupCallOrigin : uchar {
+	Group,
+	Conference,
+	VideoStream,
+};
+
 class GroupCall final {
 public:
 	GroupCall(
@@ -68,7 +74,7 @@ public:
 		uint64 accessHash,
 		TimeId scheduleDate,
 		bool rtmp,
-		bool conference);
+		GroupCallOrigin origin);
 	~GroupCall();
 
 	[[nodiscard]] Main::Session &session() const;
@@ -76,6 +82,7 @@ public:
 	[[nodiscard]] CallId id() const;
 	[[nodiscard]] bool loaded() const;
 	[[nodiscard]] bool rtmp() const;
+	[[nodiscard]] GroupCallOrigin origin() const;
 	[[nodiscard]] bool canManage() const;
 	[[nodiscard]] bool listenersHidden() const;
 	[[nodiscard]] bool blockchainMayBeEmpty() const;
@@ -292,6 +299,7 @@ private:
 	bool _applyingQueuedUpdates : 1 = false;
 	bool _rtmp : 1 = false;
 	bool _conference : 1 = false;
+	bool _videoStream : 1 = false;
 	bool _listenersHidden : 1 = false;
 
 };

@@ -1250,7 +1250,7 @@ std::shared_ptr<GroupCall> Session::sharedConferenceCall(
 		accessHash,
 		TimeId(), // scheduledDate
 		false, // rtmp
-		true); // conference
+		GroupCallOrigin::Conference);
 	if (i != end(_conferenceCalls)) {
 		i->second = result;
 	} else {

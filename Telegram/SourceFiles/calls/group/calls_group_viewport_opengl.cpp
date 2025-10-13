@@ -443,7 +443,7 @@ void Viewport::RendererGL::paint(
 }
 
 std::optional<QColor> Viewport::RendererGL::clearColor() {
-	return st::groupCallBg->c;
+	return _owner->videoStream() ? st::mediaviewBg->c : st::groupCallBg->c;
 }
 
 void Viewport::RendererGL::validateUserpicFrame(
@@ -784,12 +784,12 @@ void Viewport::RendererGL::paintTile(
 	program->setUniformValue("viewport", uniformViewport);
 	program->setUniformValue(
 		"frameBg",
-		fullscreen ? QColor(0, 0, 0) : st::groupCallBg->c);
+		fullscreen ? QColor(0, 0, 0) : *clearColor());
 	program->setUniformValue("radiusOutline", QVector2D(
 		GLfloat(st::roundRadiusLarge * _factor * (fullscreen ? 0. : 1.)),
 		(outline > 0) ? (st::groupCallOutline * _factor) : 0.f));
 	program->setUniformValue("roundRect", Uniform(rect));
-	program->setUniformValue("roundBg", st::groupCallBg->c);
+	program->setUniformValue("roundBg", *clearColor());
 	program->setUniformValue("outlineFg", QVector4D(
 		st::groupCallMemberActiveIcon->c.redF(),
 		st::groupCallMemberActiveIcon->c.greenF(),

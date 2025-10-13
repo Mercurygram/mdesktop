@@ -140,6 +140,7 @@ private:
 
 	void setup();
 	[[nodiscard]] bool wide() const;
+	[[nodiscard]] bool videoStream() const;
 
 	void updateCursor();
 	void updateTilesGeometry();

@@ -661,6 +661,8 @@ std::shared_ptr<DynamicImage> MakeStoryThumbnail(
 	const auto id = story->fullId();
 	return v::match(story->media().data, [](v::null_t) -> Result {
 		return std::make_shared<EmptyThumbnail>();
+	}, [](const std::shared_ptr<Data::GroupCall> &call) -> Result {
+		return std::make_shared<EmptyThumbnail>();
 	}, [&](not_null<PhotoData*> photo) -> Result {
 		return std::make_shared<PhotoThumbnail>(photo, id, true);
 	}, [&](not_null<DocumentData*> video) -> Result {

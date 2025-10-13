@@ -41,6 +41,7 @@ namespace Data {
 struct LastSpokeTimes;
 struct GroupCallParticipant;
 class GroupCall;
+enum class GroupCallOrigin : uchar;
 } // namespace Data
 
 namespace TdE2E {
@@ -255,6 +256,8 @@ public:
 	[[nodiscard]] bool scheduleStartSubscribed() const;
 	[[nodiscard]] bool rtmp() const;
 	[[nodiscard]] bool conference() const;
+	[[nodiscard]] bool videoStream() const;
+	[[nodiscard]] Data::GroupCallOrigin origin() const;
 	[[nodiscard]] bool listenersHidden() const;
 	[[nodiscard]] bool emptyRtmp() const;
 	[[nodiscard]] rpl::producer<bool> emptyRtmpValue() const;
@@ -265,7 +268,7 @@ public:
 	void setRtmpInfo(const Group::RtmpInfo &value);
 
 	[[nodiscard]] Data::GroupCall *lookupReal() const;
-	[[nodiscard]] std::shared_ptr<Data::GroupCall> conferenceCall() const;
+	[[nodiscard]] std::shared_ptr<Data::GroupCall> sharedCall() const;
 	[[nodiscard]] rpl::producer<not_null<Data::GroupCall*>> real() const;
 	[[nodiscard]] rpl::producer<QByteArray> emojiHashValue() const;
 
@@ -671,7 +674,7 @@ private:
 	[[nodiscard]] MTPInputGroupCall inputCallSafe() const;
 
 	const not_null<Delegate*> _delegate;
-	std::shared_ptr<Data::GroupCall> _conferenceCall;
+	std::shared_ptr<Data::GroupCall> _sharedCall;
 	std::unique_ptr<TdE2E::Call> _e2e;
 	std::shared_ptr<TdE2E::EncryptDecrypt> _e2eEncryptDecrypt;
 	rpl::variable<QByteArray> _emojiHash;

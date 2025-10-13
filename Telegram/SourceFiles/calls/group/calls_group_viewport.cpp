@@ -76,7 +76,7 @@ void Viewport::setup() {
 
 	_content->sizeValue(
 	) | rpl::filter([=] {
-		return wide();
+		return wide() || videoStream();
 	}) | rpl::start_with_next([=] {
 		updateTilesGeometry();
 	}, lifetime());
@@ -106,7 +106,7 @@ void Viewport::setup() {
 }
 
 void Viewport::setGeometry(bool fullscreen, QRect geometry) {
-	Expects(wide());
+	Expects(wide() || videoStream());
 
 	const auto changed = (_fullscreen != fullscreen);
 	if (changed) {
@@ -122,7 +122,7 @@ void Viewport::setGeometry(bool fullscreen, QRect geometry) {
 }
 
 void Viewport::resizeToWidth(int width) {
-	Expects(!wide());
+	Expects(!wide() && !videoStream());
 
 	updateTilesGeometry(width);
 }
@@ -139,6 +139,10 @@ bool Viewport::wide() const {
 	return (_mode == PanelMode::Wide);
 }
 
+bool Viewport::videoStream() const {
+	return (_mode == PanelMode::VideoStream);
+}
+
 void Viewport::setMode(PanelMode mode, not_null<QWidget*> parent) {
 	if (_mode == mode && widget()->parent() == parent) {
 		return;
@@ -153,7 +157,7 @@ void Viewport::setMode(PanelMode mode, not_null<QWidget*> parent) {
 			widget()->show();
 		}
 	}
-	if (!wide()) {
+	if (!wide() && !videoStream()) {
 		for (const auto &tile : _tiles) {
 			tile->toggleTopControlsShown(false);
 		}
@@ -173,7 +177,9 @@ void Viewport::handleMouseRelease(QPoint position, Qt::MouseButton button) {
 	setPressed({});
 	if (const auto tile = pressed.tile) {
 		if (pressed == _selected) {
-			if (button == Qt::RightButton) {
+			if (videoStream()) {
+				return;
+			} else if (button == Qt::RightButton) {
 				tile->row()->showContextMenu();
 			} else if (!wide()
 				|| (_hasTwoOrMore && !_large)
@@ -584,7 +590,7 @@ void Viewport::updateTilesGeometry(int outerWidth) {
 		return;
 	}
 
-	if (wide()) {
+	if (wide() || videoStream()) {
 		updateTilesGeometryWide(outerWidth, outerHeight);
 		refreshHasTwoOrMore();
 		_fullHeight = 0;
@@ -777,8 +783,10 @@ void Viewport::setTileGeometry(not_null<VideoTile*> tile, QRect geometry) {
 	const auto kSmall = style::ConvertScale(240);
 	const auto &endpoint = tile->endpoint();
 	const auto forceThumbnailQuality = !wide()
+		&& !videoStream()
 		&& (ranges::count(_tiles, false, &VideoTile::hidden) > 1);
-	const auto forceFullQuality = wide() && (tile.get() == _large);
+	const auto forceFullQuality = videoStream()
+		|| (wide() && (tile.get() == _large));
 	const auto quality = forceThumbnailQuality
 		? VideoQuality::Thumbnail
 		: (forceFullQuality || min >= kMedium)

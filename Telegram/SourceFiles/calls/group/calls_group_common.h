@@ -132,6 +132,7 @@ struct JoinInfo {
 enum class PanelMode {
 	Default,
 	Wide,
+	VideoStream,
 };
 
 enum class VideoQuality {

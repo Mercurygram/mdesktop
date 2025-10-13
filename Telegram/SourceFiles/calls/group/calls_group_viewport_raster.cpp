@@ -53,7 +53,11 @@ void Viewport::RendererSW::paintFallback(
 		paintTile(p, tile.get(), bounding, bg);
 	}
 	const auto fullscreen = _owner->_fullscreen;
-	const auto color = fullscreen ? QColor(0, 0, 0) : st::groupCallBg->c;
+	const auto color = fullscreen
+		? QColor(0, 0, 0)
+		: _owner->videoStream()
+		? st::mediaviewBg->c
+		: st::groupCallBg->c;
 	for (const auto &rect : bg) {
 		p.fillRect(rect, color);
 	}

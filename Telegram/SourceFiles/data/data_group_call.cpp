@@ -63,7 +63,7 @@ GroupCall::GroupCall(
 	uint64 accessHash,
 	TimeId scheduleDate,
 	bool rtmp,
-	bool conference)
+	GroupCallOrigin origin)
 : _id(id)
 , _accessHash(accessHash)
 , _peer(peer)
@@ -71,7 +71,8 @@ GroupCall::GroupCall(
 , _speakingByActiveFinishTimer([=] { checkFinishSpeakingByActive(); })
 , _scheduleDate(scheduleDate)
 , _rtmp(rtmp)
-, _conference(conference)
+, _conference(origin == GroupCallOrigin::Conference)
+, _videoStream(origin == GroupCallOrigin::VideoStream)
 , _listenersHidden(rtmp) {
 	if (_conference) {
 		session().data().registerGroupCall(this);
@@ -99,11 +100,13 @@ GroupCall::GroupCall(
 				requestParticipants();
 			}
 		}, _checkStaleLifetime);
+	} else if (_videoStream) {
+		session().data().registerGroupCall(this);
 	}
 }
 
 GroupCall::~GroupCall() {
-	if (_conference) {
+	if (_conference || _videoStream) {
 		session().data().unregisterGroupCall(this);
 	}
 	api().request(_unknownParticipantPeersRequestId).cancel();
@@ -125,6 +128,14 @@ bool GroupCall::loaded() const {
 
 bool GroupCall::rtmp() const {
 	return _rtmp;
+}
+
+GroupCallOrigin GroupCall::origin() const {
+	return _conference
+		? GroupCallOrigin::Conference
+		: _videoStream
+		? GroupCallOrigin::VideoStream
+		: GroupCallOrigin::Group;
 }
 
 bool GroupCall::canManage() const {
