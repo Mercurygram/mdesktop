@@ -359,6 +359,11 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 	const auto channel = peer->asChannel();
 	const auto chat = peer->asChat();
 	const auto topic = controller->key().topic();
+	const auto mapped = [=](std::optional<QColor> c) {
+		return !c
+			? anim::with_alpha(st::activeButtonBg->c, 1. - kBgOpacity)
+			: anim::with_alpha(Qt::black, kBgOpacity);
+	};
 	auto buttons = std::vector<not_null<TopBarActionButton*>>();
 	_actions = base::make_unique_q<Ui::HorizontalFitContainer>(
 		this,
@@ -436,12 +441,34 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		buttons.push_back(notifications);
 		_actions->add(notifications);
 	}
-	_edgeColor.value() | rpl::start_with_next([=](std::optional<QColor> c) {
-		const auto bg = !c
-			? anim::with_alpha(st::activeButtonBg->c, 1. - kBgOpacity)
-			: anim::with_alpha(Qt::black, kBgOpacity);
+	if (user && !user->sharedMediaInfo() && !user->isInaccessible()) {
+		user->session().changes().peerFlagsValue(
+			user,
+			Data::PeerUpdate::Flag::HasCalls
+		) | rpl::filter([=] {
+			return user->hasCalls();
+		}) | rpl::take(1) | rpl::start_with_next([=] {
+			const auto call = Ui::CreateChild<TopBarActionButton>(
+				this,
+				tr::lng_profile_action_short_call(tr::now),
+				st::infoProfileTopBarActionCall);
+			call->setClickedCallback([=] {
+				Core::App().calls().startOutgoingCall(user, false);
+			});
+			_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
+					QColor c) {
+				call->setBgColor(c);
+			}, call->lifetime());
+			_actions->add(call);
+		}, lifetime());
+		if (user->callsStatus() == UserData::CallsStatus::Unknown) {
+			user->updateFull();
+		}
+	}
+	_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
+			QColor c) {
 		for (const auto &button : buttons) {
-			button->setBgColor(bg);
+			button->setBgColor(c);
 		}
 	}, _actions->lifetime());
 	const auto padding = st::infoProfileTopBarActionButtonsPadding;
@@ -624,9 +651,6 @@ void TopBar::updateLabelsPosition() {
 	}
 	if (_topBarMenuToggle) {
 		rightButtonsWidth += _topBarMenuToggle->width();
-	}
-	if (_callsButton) {
-		rightButtonsWidth += _callsButton->width();
 	}
 
 	const auto reservedRight = anim::interpolate(
@@ -905,7 +929,6 @@ void TopBar::setupButtons(
 
 		if (wrap != Wrap::Side) {
 			addTopBarMenuButton(controller, wrap, shouldUseColored);
-			addProfileCallsButton(controller, wrap);
 		}
 	}, lifetime());
 }
@@ -1011,49 +1034,6 @@ void TopBar::fillTopBarMenu(
 			.section = Dialogs::EntryState::Section::Profile,
 		},
 		addAction);
-}
-
-void TopBar::addProfileCallsButton(
-		not_null<Controller*> controller,
-		Wrap wrap) {
-	const auto peer = controller->key().peer();
-	const auto user = peer ? peer->asUser() : nullptr;
-	if (!user || user->sharedMediaInfo() || user->isInaccessible()) {
-		return;
-	}
-
-	user->session().changes().peerFlagsValue(
-		user,
-		Data::PeerUpdate::Flag::HasCalls
-	) | rpl::filter([=] {
-		return user->hasCalls();
-	}) | rpl::take(
-		1
-	) | rpl::start_with_next([=] {
-		_callsButton = base::make_unique_q<Ui::IconButton>(
-			this,
-			(wrap == Wrap::Layer
-				? st::infoLayerTopBarCall
-				: st::infoTopBarCall));
-		_callsButton->addClickHandler([=] {
-			Core::App().calls().startOutgoingCall(user, false);
-		});
-
-		widthValue() | rpl::start_with_next([=] {
-			auto right = 0;
-			if (_close) {
-				right += _close->width();
-			}
-			if (_topBarMenuToggle) {
-				right += _topBarMenuToggle->width();
-			}
-			_callsButton->moveToRight(right, 0);
-		}, _callsButton->lifetime());
-	}, lifetime());
-
-	if (user && user->callsStatus() == UserData::CallsStatus::Unknown) {
-		user->updateFull();
-	}
 }
 
 void TopBar::updateVideoUserpic() {

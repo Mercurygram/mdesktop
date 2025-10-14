@@ -402,6 +402,7 @@ infoProfileTopBarStep1: infoProfileTopBarStep2 - infoProfileTopBarActionButtonsH
 infoProfileTopBarActionMessage: icon{{ "profile/message-22x22", premiumButtonFg }};
 infoProfileTopBarActionMute: icon{{ "profile/mute-22x22", premiumButtonFg }};
 infoProfileTopBarActionUnmute: icon{{ "profile/unmute-22x22", premiumButtonFg }};
+infoProfileTopBarActionCall: icon{{ "profile/call-22x22", premiumButtonFg }};
 
 infoMinimalWidth: 324px;
 infoDesiredWidth: 392px;
