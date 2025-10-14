@@ -8,15 +8,19 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_inner_widget.h"
 
 #include "info/info_controller.h"
+#include "info/info_memento.h"
 #include "info/profile/info_profile_widget.h"
 #include "info/profile/info_profile_cover.h"
 #include "info/profile/info_profile_icon.h"
 #include "info/profile/info_profile_members.h"
+#include "info/profile/info_profile_music_button.h"
 #include "info/profile/info_profile_top_bar.h"
 #include "info/profile/info_profile_actions.h"
 #include "info/media/info_media_buttons.h"
+#include "info/saved/info_saved_music_widget.h"
 #include "data/data_changes.h"
 #include "data/data_channel.h"
+#include "data/data_document.h"
 #include "data/data_forum_topic.h"
 #include "data/data_peer.h"
 #include "data/data_photo.h"
@@ -36,11 +40,28 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/fade_wrap.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/wrap/slide_wrap.h"
+#include "ui/vertical_list.h"
 #include "ui/ui_utility.h"
 #include "styles/style_info.h"
 
 namespace Info {
 namespace Profile {
+
+[[nodiscard]] MusicButtonData DocumentMusicButtonData(
+		not_null<DocumentData*> document) {
+	if (const auto song = document->song()) {
+		if (!song->performer.isEmpty() || !song->title.isEmpty()) {
+			return {
+				.performer = song->performer,
+				.title = song->title,
+			};
+		}
+	}
+	const auto name = document->filename();
+	return {
+		.title = !name.isEmpty() ? name : tr::lng_all_music(tr::now),
+	};
+}
 
 InnerWidget::InnerWidget(
 	QWidget *parent,
@@ -82,6 +103,7 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 
 	auto result = object_ptr<Ui::VerticalLayout>(parent);
 	_cover = AddCover(result, _controller, _peer, _topic, _sublist);
+	setupSavedMusicOrDivider(result);
 	if (_topic && _topic->creating()) {
 		return result;
 	}
@@ -141,6 +163,53 @@ void InnerWidget::setupMembers(not_null<Ui::VerticalLayout*> container) {
 	wrap->toggleOn(
 		_members->fullCountValue() | rpl::map(_1 > 0),
 		anim::type::instant);
+}
+
+void InnerWidget::setupSavedMusicOrDivider(
+		not_null<Ui::VerticalLayout*> container) {
+	auto musicValue = Data::SavedMusic::Supported(_peer->id)
+		? Data::SavedMusicList(
+			_peer,
+			nullptr,
+			1
+		) | rpl::map([=](const Data::SavedMusicSlice &data) {
+			return data.size() ? data[0].get() : nullptr;
+		})
+		: rpl::single<HistoryItem*>((HistoryItem*)(nullptr));
+
+	const auto divider = container->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			container,
+			object_ptr<Ui::VerticalLayout>(container)));
+
+	rpl::combine(
+		std::move(musicValue),
+		_topBarColor.value()
+	) | rpl::start_with_next([=](
+			HistoryItem *item,
+			std::optional<QColor> color) {
+		while (divider->entity()->count()) {
+			delete divider->entity()->widgetAt(0);
+		}
+		if (item) {
+			if (const auto document = item->media()
+					? item->media()->document()
+					: nullptr) {
+				divider->entity()->add(object_ptr<MusicButton>(
+					divider->entity(),
+					DocumentMusicButtonData(document),
+					[window = _controller, peer = _peer] {
+						window->showSection(Info::Saved::MakeMusic(peer));
+					}));
+			}
+			divider->toggle(true, anim::type::normal);
+		} else if (!color) {
+			Ui::AddDivider(divider->entity());
+			Ui::AddSkip(divider->entity());
+			divider->toggle(true, anim::type::normal);
+		}
+	}, lifetime());
+	divider->finishAnimating();
 }
 
 object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
@@ -352,6 +421,7 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 			.showFinished = _showFinished.events(),
 		});
 	content->setOnlineCount(_onlineCount.events());
+	_topBarColor = content->edgeColor();
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });
 }
 

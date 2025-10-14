@@ -1647,4 +1647,8 @@ void TopBar::paintStoryOutline(QPainter &p) {
 	Ui::PaintOutlineSegments(p, outlineRect, _storySegments);
 }
 
+rpl::producer<std::optional<QColor>> TopBar::edgeColor() const {
+	return _edgeColor.value();
+}
+
 } // namespace Info::Profile

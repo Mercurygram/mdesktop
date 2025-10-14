@@ -2102,7 +2102,7 @@ void DetailsFiller::setupAboutVerification() {
 			delete inner->widgetAt(0);
 		}
 		if (!info) {
-			Ui::AddDivider(inner);
+			// Ui::AddDivider(inner);
 		} else if (!info->description.empty()) {
 			Ui::AddDividerText(inner, rpl::single(info->description));
 		}

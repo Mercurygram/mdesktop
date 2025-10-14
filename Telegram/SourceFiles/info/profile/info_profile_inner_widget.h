@@ -74,6 +74,7 @@ private:
 		Origin origin);
 	object_ptr<RpWidget> setupSharedMedia(not_null<RpWidget*> parent);
 	void setupMembers(not_null<Ui::VerticalLayout*> container);
+	void setupSavedMusicOrDivider(not_null<Ui::VerticalLayout*> container);
 
 	int countDesiredHeight() const;
 	void updateDesiredHeight() {
@@ -89,6 +90,8 @@ private:
 	PeerData *_reactionGroup = nullptr;
 
 	std::shared_ptr<Data::PhotoMedia> _nonPersonalView;
+
+	rpl::variable<std::optional<QColor>> _topBarColor;
 
 	Members *_members = nullptr;
 	Cover *_cover = nullptr;

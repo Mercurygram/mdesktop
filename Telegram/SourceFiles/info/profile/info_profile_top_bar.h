@@ -103,6 +103,8 @@ public:
 		Wrap wrap,
 		bool shouldUseColored);
 
+	rpl::producer<std::optional<QColor>> edgeColor() const;
+
 protected:
 	void resizeEvent(QResizeEvent *e) override;
 	void paintEvent(QPaintEvent *e) override;
