@@ -46,7 +46,6 @@ namespace Info::Profile {
 
 class BadgeTooltip;
 class EmojiStatusPanel;
-class MusicButton;
 class Badge;
 class StatusLabel;
 
@@ -144,7 +143,6 @@ private:
 
 	void setupShowLastSeen();
 	void setupChildGeometry();
-	void setupSavedMusic();
 	void initViewers(rpl::producer<QString> title);
 	void refreshNameGeometry(int newWidth);
 	void refreshStatusGeometry(int newWidth);
@@ -181,8 +179,6 @@ private:
 	rpl::variable<int> _statusShift = 0;
 	object_ptr<Ui::RoundButton> _showLastSeen = { nullptr };
 	//object_ptr<CoverDropArea> _dropArea = { nullptr };
-
-	std::unique_ptr<MusicButton> _musicButton;
 
 	rpl::event_stream<Section> _showSection;
 

@@ -18,17 +18,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_document.h"
 #include "data/data_document_media.h"
 #include "data/data_changes.h"
-#include "data/data_saved_music.h"
 #include "data/data_session.h"
 #include "data/data_forum_topic.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "info/profile/info_profile_badge.h"
 #include "info/profile/info_profile_badge_tooltip.h"
 #include "info/profile/info_profile_emoji_status_panel.h"
-#include "info/profile/info_profile_music_button.h"
 #include "info/profile/info_profile_status_label.h"
 #include "info/profile/info_profile_values.h"
-#include "info/saved/info_saved_music_widget.h"
 #include "info/info_controller.h"
 #include "info/info_memento.h"
 #include "boxes/peers/edit_forum_topic_box.h"
@@ -79,22 +76,6 @@ constexpr auto kGlareTimeout = crl::time(1000);
 		: peer->isMegagroup()
 		? st::infoProfileMegagroupCover
 		: st::infoProfileCover;
-}
-
-[[nodiscard]] MusicButtonData DocumentMusicButtonData(
-		not_null<DocumentData*> document) {
-	if (const auto song = document->song()) {
-		if (!song->performer.isEmpty() || !song->title.isEmpty()) {
-			return {
-				.performer = song->performer,
-				.title = song->title,
-			};
-		}
-	}
-	const auto name = document->filename();
-	return {
-		.title = !name.isEmpty() ? name : tr::lng_all_music(tr::now),
-	};
 }
 
 } // namespace
@@ -459,9 +440,6 @@ Cover::Cover(
 	initViewers(std::move(title));
 	setupChildGeometry();
 	setupUniqueBadgeTooltip();
-	if (_role != Role::EditContact) {
-		setupSavedMusic();
-	}
 
 	if (_userpic) {
 	} else if (topic->canEdit()) {
@@ -561,43 +539,6 @@ void Cover::setupChildGeometry() {
 		}
 		refreshNameGeometry(newWidth);
 		refreshStatusGeometry(newWidth);
-	}, lifetime());
-}
-
-void Cover::setupSavedMusic() {
-	if (!Data::SavedMusic::Supported(_peer->id)) {
-		return;
-	}
-	Data::SavedMusicList(
-		_peer,
-		nullptr,
-		1
-	) | rpl::map([=](const Data::SavedMusicSlice &data) {
-		return data.size() ? data[0].get() : nullptr;
-	}) | rpl::start_with_next([=](HistoryItem *item) {
-		const auto media = item ? item->media() : nullptr;
-		const auto document = media ? media->document() : nullptr;
-		if (!document) {
-			_musicButton = nullptr;
-			resize(width(), _st.height);
-		} else if (!_musicButton) {
-			using namespace Info::Saved;
-			_musicButton = std::make_unique<MusicButton>(
-				this,
-				DocumentMusicButtonData(document),
-				[=] { _controller->showSection(MakeMusic(_peer)); });
-			_musicButton->show();
-
-			widthValue(
-			) | rpl::start_with_next([=](int newWidth) {
-				_musicButton->resizeToWidth(newWidth);
-				const auto skip = st::infoMusicButtonBottom;
-				_musicButton->moveToLeft(0, _st.height - skip, newWidth);
-				resize(width(), _st.height + _musicButton->height());
-			}, _musicButton->lifetime());
-		} else {
-			_musicButton->updateData(DocumentMusicButtonData(document));
-		}
 	}, lifetime());
 }
 
