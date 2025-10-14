@@ -74,6 +74,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_chat_helpers.h"
 #include "styles/style_info.h"
 #include "styles/style_layers.h"
+#include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
 
 #include <QGraphicsOpacityEffect>
@@ -511,15 +512,43 @@ void TopBar::setupUserpicButton(not_null<Controller*> controller) {
 			!_peer->userpicPhotoId() && !_hasStories);
 		updateVideoUserpic();
 	}, lifetime());
-	_userpicButton->setClickedCallback([=] {
-		if (_hasStories) {
-			controller->parentController()->openPeerStories(_peer->id);
-		} else if (const auto id = _peer->userpicPhotoId()) {
-			if (const auto photo = _peer->owner().photo(id); photo->date()) {
-				controller->parentController()->openPhoto(photo, _peer);
+
+	const auto openPhoto = [=, peer = _peer] {
+		if (const auto id = peer->userpicPhotoId()) {
+			if (const auto photo = peer->owner().photo(id); photo->date()) {
+				controller->parentController()->openPhoto(photo, peer);
 			}
 		}
-	});
+	};
+
+	_userpicButton->setAcceptBoth(true);
+
+	const auto menu = _userpicButton->lifetime().make_state<
+		base::unique_qptr<Ui::PopupMenu>
+	>();
+	_userpicButton->clicks() | rpl::start_with_next([=](
+			Qt::MouseButton button) {
+		if (button == Qt::RightButton
+			&& _hasStories
+			&& _peer->userpicPhotoId()) {
+			*menu = base::make_unique_q<Ui::PopupMenu>(
+				this,
+				st::popupMenuExpandedSeparator);
+
+			(*menu)->addAction(
+				tr::lng_profile_open_photo(tr::now),
+				openPhoto,
+				&st::menuIconPhoto);
+
+			(*menu)->popup(QCursor::pos());
+		} else if (button == Qt::LeftButton) {
+			if (_hasStories) {
+				controller->parentController()->openPeerStories(_peer->id);
+			} else {
+				openPhoto();
+			}
+		}
+	}, _userpicButton->lifetime());
 }
 
 void TopBar::setupUniqueBadgeTooltip() {
