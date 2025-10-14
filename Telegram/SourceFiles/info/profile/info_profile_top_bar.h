@@ -135,6 +135,7 @@ private:
 	void setupNewGifts(const std::vector<Data::SavedStarGift> &gifts);
 	void paintPinnedToTopGifts(QPainter &p, const QRect &rect);
 	void adjustColors(const std::optional<QColor> &edgeColor);
+	void updateCollectibleStatus();
 	void setupStoryOutline();
 	void updateStoryOutline(std::optional<QColor> edgeColor);
 	void paintStoryOutline(QPainter &p);

@@ -287,33 +287,11 @@ TopBar::TopBar(
 		_peer,
 		Data::PeerUpdate::Flag::EmojiStatus
 	) | rpl::start_with_next([=] {
-		const auto collectible = _peer->emojiStatusId().collectible;
-		_hasBackground = collectible != nullptr;
-		_cachedClipPath = QPainterPath();
-		_cachedGradient = QImage();
-		_basePatternImage = QImage();
-		_patternEmojis.clear();
-		if (collectible && collectible->patternDocumentId) {
-			const auto document = _peer->owner().document(
-				collectible->patternDocumentId);
-			_patternEmoji = document->owner().customEmojiManager().create(
-				document,
-				[=] { update(); },
-				Data::CustomEmojiSizeTag::Large);
-			setupAnimatedPattern();
-		} else {
-			_patternEmoji = nullptr;
-			_animatedPoints.clear();
-			_pinnedToTopGifts.clear();
-		}
-		update();
-		adjustColors(collectible
-			? std::optional<QColor>(collectible->edgeColor)
-			: std::nullopt);
-
 		if (_pinnedToTopGiftsFirstTimeShowed) {
 			_peer->session().recentSharedGifts().clearLastRequestTime(_peer);
 			setupPinnedToTopGifts();
+		} else {
+			updateCollectibleStatus();
 		}
 	}, lifetime());
 
@@ -363,6 +341,33 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 	}
 
 	_edgeColor = edgeColor;
+}
+
+void TopBar::updateCollectibleStatus() {
+	const auto collectible = _peer->emojiStatusId().collectible;
+	_hasBackground = collectible != nullptr;
+	_cachedClipPath = QPainterPath();
+	_cachedGradient = QImage();
+	_basePatternImage = QImage();
+	_lastUserpicRect = QRect();
+	_patternEmojis.clear();
+	if (collectible && collectible->patternDocumentId) {
+		const auto document = _peer->owner().document(
+			collectible->patternDocumentId);
+		_patternEmoji = document->owner().customEmojiManager().create(
+			document,
+			[=] { update(); },
+			Data::CustomEmojiSizeTag::Large);
+		setupAnimatedPattern();
+	} else {
+		_patternEmoji = nullptr;
+		_animatedPoints.clear();
+		_pinnedToTopGifts.clear();
+	}
+	update();
+	adjustColors(collectible
+		? std::optional<QColor>(collectible->edgeColor)
+		: std::nullopt);
 }
 
 void TopBar::setupActions(not_null<Controller*> controller) {
@@ -1180,8 +1185,7 @@ void TopBar::setupAnimatedPattern() {
 }
 
 void TopBar::paintAnimatedPattern(QPainter &p, const QRect &rect) {
-	const auto collectible = _peer->emojiStatusId().collectible;
-	if (!collectible || !_patternEmoji->ready()) {
+	if (!_patternEmoji || !_patternEmoji->ready()) {
 		return;
 	}
 
@@ -1195,6 +1199,10 @@ void TopBar::paintAnimatedPattern(QPainter &p, const QRect &rect) {
 	}
 
 	if (_basePatternImage.isNull()) {
+		const auto collectible = _peer->emojiStatusId().collectible;
+		if (!collectible) {
+			return;
+		}
 		const auto ratio = style::DevicePixelRatio();
 		const auto scale = 0.75;
 		const auto size = Ui::Emoji::GetSizeNormal() * scale;
@@ -1305,6 +1313,7 @@ void TopBar::setupPinnedToTopGifts() {
 					_giftsHiding = nullptr;
 					_pinnedToTopGifts.clear();
 					_giftsLoadingLifetime.destroy();
+					updateCollectibleStatus();
 					setupNewGifts(gifts);
 				}
 			}, 1., 0., 300, anim::linear);
@@ -1314,23 +1323,26 @@ void TopBar::setupPinnedToTopGifts() {
 		_pinnedToTopGifts.clear();
 		_giftsLoadingLifetime.destroy();
 
+		updateCollectibleStatus();
 		setupNewGifts(gifts);
 	});
 	_peer->session().recentSharedGifts().request(_peer, requestDone, true);
 }
 
 void TopBar::setupNewGifts(const std::vector<Data::SavedStarGift> &gifts) {
-	const auto emojiStatusDocumentId = _peer->emojiStatusId().collectible
-		? _peer->emojiStatusId().collectible->documentId
-		: DocumentId(0);
+	const auto emojiStatusId = _peer->emojiStatusId().collectible
+		? _peer->emojiStatusId().collectible->id
+		: CollectibleId(0);
 	auto filteredGifts = std::vector<Data::SavedStarGift>();
-	const auto subtract = emojiStatusDocumentId ? 1 : 0;
+	const auto subtract = emojiStatusId ? 1 : 0;
 	filteredGifts.reserve((gifts.size() > subtract)
 		? (gifts.size() - subtract)
 		: 0);
 	for (const auto &gift : gifts) {
-		if (gift.info.document->id != emojiStatusDocumentId) {
-			filteredGifts.push_back(gift);
+		if (const auto &unique = gift.info.unique) {
+			if (unique->id != emojiStatusId) {
+				filteredGifts.push_back(gift);
+			}
 		}
 	}
 
