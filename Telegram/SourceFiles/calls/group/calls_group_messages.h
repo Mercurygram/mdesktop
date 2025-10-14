@@ -53,6 +53,7 @@ private:
 		uint64 randomId,
 		const MTPPeer &from,
 		const MTPTextWithEntities &message,
+		TimeId date,
 		bool checkCustomEmoji = false);
 	void sent(uint64 randomId, const MTP::Response &response);
 	void failed(uint64 randomId, const MTP::Response &response);

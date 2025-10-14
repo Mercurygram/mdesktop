@@ -109,7 +109,12 @@ void Messages::received(const MTPDupdateGroupCallMessage &data) {
 	if (!ready()) {
 		return;
 	}
-	received(data.vrandom_id().v, data.vfrom_id(), data.vmessage());
+	const auto &fields = data.vmessage().data();
+	received(
+		fields.vrandom_id().v,
+		fields.vfrom_id(),
+		fields.vmessage(),
+		fields.vdate().v);
 	pushChanges();
 }
 
@@ -133,7 +138,12 @@ void Messages::received(const MTPDupdateGroupCallEncryptedMessage &data) {
 		LOG(("API Error: Can't parse decrypted message"));
 		return;
 	}
-	received(deserialized->randomId, fromId, deserialized->message, true);
+	received(
+		deserialized->randomId,
+		fromId,
+		deserialized->message,
+		base::unixtime::now(),
+		true);
 	pushChanges();
 }
 
@@ -141,12 +151,13 @@ void Messages::received(
 		uint64 randomId,
 		const MTPPeer &from,
 		const MTPTextWithEntities &message,
+		TimeId date,
 		bool checkCustomEmoji) {
 	const auto peer = _call->peer();
 	const auto i = ranges::find(_messages, randomId, &Message::randomId);
 	if (i != end(_messages)) {
 		if (peerFromMTP(from) == peer->session().userPeerId() && !i->date) {
-			i->date = base::unixtime::now();
+			i->date = date;
 			checkDestroying(true);
 		}
 		return;
@@ -166,7 +177,7 @@ void Messages::received(
 	}
 	_messages.push_back({
 		.randomId = randomId,
-		.date = base::unixtime::now(),
+		.date = date,
 		.peer = peer->owner().peer(peerFromMTP(from)),
 		.text = Ui::Text::Filtered(
 			Api::ParseTextWithEntities(&peer->session(), message),
