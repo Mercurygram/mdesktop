@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Data {
 class ForumTopic;
 class DocumentMedia;
+struct SavedStarGift;
 } // namespace Data
 
 namespace Info::Profile {
@@ -131,6 +132,7 @@ private:
 	void setupAnimatedPattern();
 	void paintAnimatedPattern(QPainter &p, const QRect &rect);
 	void setupPinnedToTopGifts();
+	void setupNewGifts(const std::vector<Data::SavedStarGift> &gifts);
 	void paintPinnedToTopGifts(QPainter &p, const QRect &rect);
 	void adjustColors(const std::optional<QColor> &edgeColor);
 	void setupStoryOutline();
@@ -198,8 +200,10 @@ private:
 		QImage bg;
 		int position = 0;
 	};
+	bool _pinnedToTopGiftsFirstTimeShowed = false;
 	std::vector<PinnedToTopGiftEntry> _pinnedToTopGifts;
 	std::unique_ptr<Ui::Animations::Simple> _giftsAppearing;
+	std::unique_ptr<Ui::Animations::Simple> _giftsHiding;
 	rpl::lifetime _giftsLoadingLifetime;
 
 	QBrush _storyOutlineBrush;

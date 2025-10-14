@@ -25,6 +25,8 @@ public:
 		Fn<void(std::vector<Data::SavedStarGift>)> done,
 		bool onlyPinnedToTop = false);
 
+	void clearLastRequestTime(not_null<PeerData*> peer);
+
 private:
 	[[nodiscard]] std::vector<Data::SavedStarGift> filterGifts(
 		const std::deque<SavedStarGift> &gifts,

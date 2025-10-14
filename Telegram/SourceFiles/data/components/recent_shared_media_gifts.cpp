@@ -100,4 +100,12 @@ void RecentSharedMediaGifts::request(
 	}).send();
 }
 
+void RecentSharedMediaGifts::clearLastRequestTime(
+		not_null<PeerData*> peer) {
+	const auto it = _recent.find(peer->id);
+	if (it != _recent.end()) {
+		it->second.lastRequestTime = 0;
+	}
+}
+
 } // namespace Data

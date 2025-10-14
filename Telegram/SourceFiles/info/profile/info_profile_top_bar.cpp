@@ -28,6 +28,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_photo.h"
 #include "data/data_saved_sublist.h"
 #include "data/data_session.h"
+#include "data/data_star_gift.h"
 #include "data/data_stories.h"
 #include "data/data_user.h"
 #include "data/notify/data_notify_settings.h"
@@ -309,6 +310,11 @@ TopBar::TopBar(
 		adjustColors(collectible
 			? std::optional<QColor>(collectible->edgeColor)
 			: std::nullopt);
+
+		if (_pinnedToTopGiftsFirstTimeShowed) {
+			_peer->session().recentSharedGifts().clearLastRequestTime(_peer);
+			setupPinnedToTopGifts();
+		}
 	}, lifetime());
 
 	std::move(
@@ -1288,83 +1294,123 @@ void TopBar::paintAnimatedPattern(QPainter &p, const QRect &rect) {
 void TopBar::setupPinnedToTopGifts() {
 	const auto requestDone = crl::guard(this, [=](
 			std::vector<Data::SavedStarGift> gifts) {
-		_pinnedToTopGifts.clear();
-		_pinnedToTopGifts.reserve(gifts.size());
-		_giftsLoadingLifetime.destroy();
-		if (gifts.empty()) {
-			_giftsAppearing = nullptr;
-			_lottiePlayer = nullptr;
-		} else if (!_lottiePlayer) {
-			_lottiePlayer = std::make_unique<Lottie::MultiPlayer>(
-				Lottie::Quality::Default);
-			_lottiePlayer->updates() | rpl::start_with_next([=] {
+		const auto shouldHideFirst = _pinnedToTopGiftsFirstTimeShowed
+			&& !_pinnedToTopGifts.empty();
+
+		if (shouldHideFirst) {
+			_giftsHiding = std::make_unique<Ui::Animations::Simple>();
+			_giftsHiding->start([=](float64 value) {
 				update();
-			}, lifetime());
+				if (value <= 0.) {
+					_giftsHiding = nullptr;
+					_pinnedToTopGifts.clear();
+					_giftsLoadingLifetime.destroy();
+					setupNewGifts(gifts);
+				}
+			}, 1., 0., 300, anim::linear);
+			return;
 		}
 
-		_giftsAppearing = std::make_unique<Ui::Animations::Simple>();
+		_pinnedToTopGifts.clear();
+		_giftsLoadingLifetime.destroy();
 
-		constexpr auto kMaxPinnedToTopGifts = 6;
-
-		auto positions = ranges::views::iota(
-			0,
-			kMaxPinnedToTopGifts) | ranges::to_vector;
-		ranges::shuffle(positions);
-
-		for (auto i = 0; i < gifts.size() && i < kMaxPinnedToTopGifts; ++i) {
-			const auto &gift = gifts[i];
-			const auto document = _peer->owner().document(
-				gift.info.document->id);
-			auto entry = PinnedToTopGiftEntry();
-			entry.media = document->createMediaView();
-			entry.media->checkStickerSmall();
-			if (const auto &unique = gift.info.unique) {
-				if (unique->backdrop.centerColor.isValid()
-					&& unique->backdrop.edgeColor.isValid()) {
-					entry.bg = Ui::CreateTopBgGradient(
-						Size(st::infoProfileTopBarGiftSize * 2),
-						unique->backdrop.centerColor,
-						anim::with_alpha(unique->backdrop.edgeColor, 0.0),
-						false);
-				}
-			}
-			entry.position = positions[i];
-			_pinnedToTopGifts.push_back(std::move(entry));
-		}
-
-		using namespace ChatHelpers;
-
-		rpl::single(
-			rpl::empty_value()
-		) | rpl::then(
-			_peer->session().downloaderTaskFinished()
-		) | rpl::start_with_next([=] {
-			auto allLoaded = true;
-			for (auto &entry : _pinnedToTopGifts) {
-				if (!entry.animation && entry.media->loaded()) {
-					entry.animation = LottieAnimationFromDocument(
-						_lottiePlayer.get(),
-						entry.media.get(),
-						StickerLottieSize::StickerSet,
-						Size(st::infoProfileTopBarGiftSize)
-							* style::DevicePixelRatio());
-				} else if (!entry.media->loaded()) {
-					allLoaded = false;
-				}
-			}
-			if (allLoaded) {
-				_giftsLoadingLifetime.destroy();
-				_giftsAppearing->stop();
-				_giftsAppearing->start([=](float64 value) {
-					update();
-					if (value >= 1.) {
-						_giftsAppearing = nullptr;
-					}
-				}, 0., 1., 400, anim::easeOutQuint);
-			}
-		}, _giftsLoadingLifetime);
+		setupNewGifts(gifts);
 	});
 	_peer->session().recentSharedGifts().request(_peer, requestDone, true);
+}
+
+void TopBar::setupNewGifts(const std::vector<Data::SavedStarGift> &gifts) {
+	const auto emojiStatusDocumentId = _peer->emojiStatusId().collectible
+		? _peer->emojiStatusId().collectible->documentId
+		: DocumentId(0);
+	auto filteredGifts = std::vector<Data::SavedStarGift>();
+	const auto subtract = emojiStatusDocumentId ? 1 : 0;
+	filteredGifts.reserve((gifts.size() > subtract)
+		? (gifts.size() - subtract)
+		: 0);
+	for (const auto &gift : gifts) {
+		if (gift.info.document->id != emojiStatusDocumentId) {
+			filteredGifts.push_back(gift);
+		}
+	}
+
+	_pinnedToTopGifts.reserve(filteredGifts.size());
+	if (filteredGifts.empty()) {
+		_giftsAppearing = nullptr;
+		_lottiePlayer = nullptr;
+		_pinnedToTopGiftsFirstTimeShowed = true;
+	} else if (!_lottiePlayer) {
+		_lottiePlayer = std::make_unique<Lottie::MultiPlayer>(
+			Lottie::Quality::Default);
+		_lottiePlayer->updates() | rpl::start_with_next([=] {
+			update();
+		}, lifetime());
+	}
+
+	_giftsAppearing = std::make_unique<Ui::Animations::Simple>();
+
+	constexpr auto kMaxPinnedToTopGifts = 6;
+
+	auto positions = ranges::views::iota(
+		0,
+		kMaxPinnedToTopGifts) | ranges::to_vector;
+	ranges::shuffle(positions);
+
+	for (auto i = 0;
+		i < filteredGifts.size() && i < kMaxPinnedToTopGifts;
+		++i) {
+		const auto &gift = filteredGifts[i];
+		const auto document = _peer->owner().document(
+			gift.info.document->id);
+		auto entry = PinnedToTopGiftEntry();
+		entry.media = document->createMediaView();
+		entry.media->checkStickerSmall();
+		if (const auto &unique = gift.info.unique) {
+			if (unique->backdrop.centerColor.isValid()
+				&& unique->backdrop.edgeColor.isValid()) {
+				entry.bg = Ui::CreateTopBgGradient(
+					Size(st::infoProfileTopBarGiftSize * 2),
+					unique->backdrop.centerColor,
+					anim::with_alpha(unique->backdrop.edgeColor, 0.0),
+					false);
+			}
+		}
+		entry.position = positions[i];
+		_pinnedToTopGifts.push_back(std::move(entry));
+	}
+
+	using namespace ChatHelpers;
+
+	rpl::single(
+		rpl::empty_value()
+	) | rpl::then(
+		_peer->session().downloaderTaskFinished()
+	) | rpl::start_with_next([=] {
+		auto allLoaded = true;
+		for (auto &entry : _pinnedToTopGifts) {
+			if (!entry.animation && entry.media->loaded()) {
+				entry.animation = LottieAnimationFromDocument(
+					_lottiePlayer.get(),
+					entry.media.get(),
+					StickerLottieSize::StickerSet,
+					Size(st::infoProfileTopBarGiftSize)
+						* style::DevicePixelRatio());
+			} else if (!entry.media->loaded()) {
+				allLoaded = false;
+			}
+		}
+		if (allLoaded) {
+			_giftsLoadingLifetime.destroy();
+			_giftsAppearing->stop();
+			_giftsAppearing->start([=](float64 value) {
+				update();
+				if (value >= 1.) {
+					_giftsAppearing = nullptr;
+					_pinnedToTopGiftsFirstTimeShowed = true;
+				}
+			}, 0., 1., 400, anim::easeOutQuint);
+		}
+	}, _giftsLoadingLifetime);
 }
 
 void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
@@ -1372,9 +1418,11 @@ void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
 		return;
 	}
 
-	const auto progress = _giftsAppearing
-		? _progress.current() * _giftsAppearing->value(0.)
-		: _progress.current();
+	const auto progress = _giftsHiding
+		? _progress.current() * _giftsHiding->value(1.)
+		: (_giftsAppearing
+			? _progress.current() * _giftsAppearing->value(0.)
+			: _progress.current());
 	const auto userpicRect = _lastUserpicRect;
 	const auto acx = userpicRect.x() + userpicRect.width() / 2.;
 	const auto acy = userpicRect.y() + userpicRect.height() / 2.;
