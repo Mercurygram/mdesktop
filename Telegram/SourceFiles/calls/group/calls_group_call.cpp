@@ -582,7 +582,7 @@ GroupCall::GroupCall(
 	StartConferenceInfo info)
 : GroupCall(delegate, Group::JoinInfo{
 	.peer = info.call ? info.call->peer() : info.show->session().user(),
-	.joinAs = info.call ? info.call->peer() : info.show->session().user(),
+	.joinAs = info.show ? info.show->session().user() : info.call->peer(),
 }, info, info.call
 	? info.call->input()
 	: MTP_inputGroupCall(MTP_long(0), MTP_long(0))) {
@@ -1196,6 +1196,10 @@ void GroupCall::stopConnectingSound() {
 
 void GroupCall::playConnectingSoundOnce() {
 	_delegate->groupCallPlaySound(Delegate::GroupCallSound::Connecting);
+}
+
+not_null<PeerData*> GroupCall::messagesFrom() const {
+	return joinAs();
 }
 
 bool GroupCall::showChooseJoinAs() const {

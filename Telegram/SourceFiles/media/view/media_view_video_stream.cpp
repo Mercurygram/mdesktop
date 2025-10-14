@@ -10,6 +10,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "calls/group/calls_group_call.h"
 #include "calls/group/calls_group_common.h"
 #include "calls/group/calls_group_members.h"
+#include "calls/group/calls_group_messages.h"
+#include "calls/group/calls_group_messages_ui.h"
 #include "calls/group/calls_group_viewport.h"
 #include "calls/calls_instance.h"
 #include "chat_helpers/compose/compose_show.h"
@@ -89,17 +91,29 @@ VideoStream::VideoStream(
 	std::make_unique<Calls::Group::Viewport>(
 		parent,
 		Calls::Group::PanelMode::VideoStream,
-		backend)) {
+		backend))
+, _messages(
+	std::make_unique<Calls::Group::MessagesUi>(
+		parent,
+		_show,
+		_call->messages()->listValue(),
+		_call->messagesEnabledValue())) {
 	Core::App().calls().registerVideoStream(_call.get());
 	setupMembers();
 	setupVideo();
+	setupMessages();
 }
 
 VideoStream::~VideoStream() {
 }
 
+not_null<Calls::GroupCall*> VideoStream::call() const {
+	return _call.get();
+}
+
 void VideoStream::updateGeometry(int x, int y, int width, int height) {
 	_viewport->setGeometry(false, { x, y, width, height });
+	_messages->move(x, y + height, width, height);
 }
 
 void VideoStream::setupMembers() {
@@ -175,6 +189,10 @@ void VideoStream::setupVideo() {
 	}, _viewport->lifetime());
 
 	_viewport->widget()->lower();
+}
+
+void VideoStream::setupMessages() {
+
 }
 
 } // namespace Media::View

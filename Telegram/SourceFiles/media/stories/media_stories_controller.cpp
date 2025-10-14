@@ -1784,6 +1784,10 @@ auto Controller::attachReactionsToMenu(
 	return _reactions->attachToMenu(menu, desiredPosition);
 }
 
+void Controller::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
+	_replyArea->updateVideoStream(videoStream);
+}
+
 rpl::lifetime &Controller::lifetime() {
 	return _lifetime;
 }

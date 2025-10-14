@@ -249,6 +249,7 @@ public:
 	[[nodiscard]] not_null<Group::Messages*> messages() const {
 		return _messages.get();
 	}
+	[[nodiscard]] not_null<PeerData*> messagesFrom() const;
 	[[nodiscard]] bool showChooseJoinAs() const;
 	[[nodiscard]] TimeId scheduleDate() const {
 		return _scheduleDate;

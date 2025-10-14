@@ -881,7 +881,8 @@ void Reactions::Panel::attachToReactionButton(
 void Reactions::Panel::create() {
 	auto reactions = Data::LookupPossibleReactions(
 		&_controller->uiShow()->session());
-	if (reactions.recent.empty()) {
+	if (reactions.recent.empty() || _mode.current() == Mode::Message) {
+		AssertIsDebug();
 		return;
 	}
 	_parent = std::make_unique<Ui::RpWidget>(_controller->wrap().get());

@@ -16,6 +16,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/premium_limits_box.h"
 #include "boxes/send_files_box.h"
 #include "boxes/share_box.h" // ShareBoxStyleOverrides
+#include "calls/group/calls_group_call.h"
+#include "calls/group/calls_group_messages.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "chat_helpers/tabbed_selector.h"
 #include "core/file_utilities.h"
@@ -217,10 +219,16 @@ bool ReplyArea::sendReaction(const Data::ReactionId &id) {
 }
 
 void ReplyArea::send(Api::SendOptions options) {
+	auto text = _controls->getTextWithAppliedMarkdown();
+	if (const auto stream = _videoStream.get()) {
+		stream->messages()->send(std::move(text));
+		_controls->clear();
+		return;
+	}
 	const auto webPageDraft = _controls->webPageDraft();
 
 	auto message = Api::MessageToSend(prepareSendAction(options));
-	message.textWithTags = _controls->getTextWithAppliedMarkdown();
+	message.textWithTags = std::move(text);
 	message.webPage = webPageDraft;
 
 	send(std::move(message));
@@ -891,6 +899,11 @@ void ReplyArea::show(
 			_cant = nullptr;
 		}
 	}
+}
+
+void ReplyArea::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
+	_isComment = true;
+	_videoStream = videoStream;
 }
 
 bool ReplyArea::showSlowmodeError() {

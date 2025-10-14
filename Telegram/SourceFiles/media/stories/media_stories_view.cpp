@@ -174,6 +174,11 @@ std::shared_ptr<ChatHelpers::Show> View::uiShow() const {
 	return _controller->uiShow();
 }
 
+
+void View::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
+	_controller->updateVideoStream(videoStream);
+}
+
 rpl::lifetime &View::lifetime() {
 	return _controller->lifetime();
 }

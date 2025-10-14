@@ -19,6 +19,10 @@ namespace base {
 class PowerSaveBlocker;
 } // namespace base
 
+namespace Calls {
+class GroupCall;
+} // namespace Calls
+
 namespace ChatHelpers {
 class Show;
 struct FileChosen;
@@ -181,6 +185,8 @@ public:
 	[[nodiscard]] AttachStripResult attachReactionsToMenu(
 		not_null<Ui::PopupMenu*> menu,
 		QPoint desiredPosition);
+
+	void updateVideoStream(not_null<Calls::GroupCall*> videoStream);
 
 	[[nodiscard]] rpl::lifetime &lifetime();
 

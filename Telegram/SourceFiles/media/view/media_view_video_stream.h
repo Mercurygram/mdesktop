@@ -14,6 +14,7 @@ class GroupCall;
 namespace Calls::Group {
 class Members;
 class Viewport;
+class MessagesUi;
 } // namespace Calls::Group
 
 namespace ChatHelpers {
@@ -41,6 +42,8 @@ public:
 		MsgId callJoinMessageId);
 	~VideoStream();
 
+	[[nodiscard]] not_null<Calls::GroupCall*> call() const;
+
 	void updateGeometry(int x, int y, int width, int height);
 
 private:
@@ -48,12 +51,14 @@ private:
 
 	void setupVideo();
 	void setupMembers();
+	void setupMessages();
 
 	std::shared_ptr<ChatHelpers::Show> _show;
 	std::unique_ptr<Delegate> _delegate;
 	std::unique_ptr<Calls::GroupCall> _call;
 	std::unique_ptr<Calls::Group::Members> _members;
 	std::unique_ptr<Calls::Group::Viewport> _viewport;
+	std::unique_ptr<Calls::Group::MessagesUi> _messages;
 
 };
 

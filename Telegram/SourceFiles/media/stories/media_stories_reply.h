@@ -19,6 +19,10 @@ struct SendAction;
 struct SendOptions;
 } // namespace Api
 
+namespace Calls {
+class GroupCall;
+} // namespace Calls
+
 namespace Data {
 struct ReactionId;
 } // namespace Data
@@ -57,6 +61,7 @@ class Controller;
 struct ReplyAreaData {
 	PeerData *peer = nullptr;
 	StoryId id = 0;
+	base::weak_ptr<Calls::GroupCall> videoStream;
 
 	friend inline auto operator<=>(ReplyAreaData, ReplyAreaData) = default;
 	friend inline bool operator==(ReplyAreaData, ReplyAreaData) = default;
@@ -81,6 +86,8 @@ public:
 	void tryProcessKeyInput(not_null<QKeyEvent*> e);
 
 	[[nodiscard]] not_null<Ui::RpWidget*> likeAnimationTarget() const;
+
+	void updateVideoStream(not_null<Calls::GroupCall*> videoStream);
 
 private:
 	class Cant;
@@ -161,6 +168,7 @@ private:
 	const not_null<Controller*> _controller;
 	rpl::variable<bool> _isComment;
 	rpl::variable<int> _starsForMessage;
+	base::weak_ptr<Calls::GroupCall> _videoStream;
 
 	const std::unique_ptr<HistoryView::ComposeControls> _controls;
 	std::unique_ptr<Cant> _cant;
