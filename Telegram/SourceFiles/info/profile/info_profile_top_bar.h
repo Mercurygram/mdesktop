@@ -29,6 +29,7 @@ class MultiPlayer;
 
 namespace Ui {
 class VideoUserpicPlayer;
+struct OutlineSegment;
 namespace Text {
 class CustomEmoji;
 } // namespace Text
@@ -132,6 +133,9 @@ private:
 	void setupPinnedToTopGifts();
 	void paintPinnedToTopGifts(QPainter &p, const QRect &rect);
 	void adjustColors(const std::optional<QColor> &edgeColor);
+	void setupStoryOutline();
+	void updateStoryOutline(std::optional<QColor> edgeColor);
+	void paintStoryOutline(QPainter &p);
 
 	const not_null<PeerData*> _peer;
 	Data::ForumTopic *_topic = nullptr;
@@ -197,6 +201,10 @@ private:
 	std::vector<PinnedToTopGiftEntry> _pinnedToTopGifts;
 	std::unique_ptr<Ui::Animations::Simple> _giftsAppearing;
 	rpl::lifetime _giftsLoadingLifetime;
+
+	QBrush _storyOutlineBrush;
+	std::vector<Ui::OutlineSegment> _storySegments;
+	bool _hasStories = false;
 
 };
 

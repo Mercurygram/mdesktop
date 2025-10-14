@@ -28,6 +28,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_photo.h"
 #include "data/data_saved_sublist.h"
 #include "data/data_session.h"
+#include "data/data_stories.h"
 #include "data/data_user.h"
 #include "data/notify/data_notify_settings.h"
 #include "data/notify/data_peer_notify_settings.h"
@@ -59,6 +60,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/rect.h"
 #include "ui/top_background_gradient.h"
 #include "ui/ui_utility.h"
+#include "ui/effects/outline_segments.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/horizontal_fit_container.h"
 #include "ui/widgets/labels.h"
@@ -84,6 +86,8 @@ constexpr auto kGiftBadgeGlares = 3;
 constexpr auto kMinPatternRadius = 8;
 constexpr auto kBgOpacity = 40. / 255.;
 constexpr auto kMinContrast = 5.5;
+constexpr auto kStoryOutlineFadeEnd = 0.4;
+constexpr auto kStoryOutlineFadeRange = 1. - kStoryOutlineFadeEnd;
 
 using AnimatedPatternPoint = TopBar::AnimatedPatternPoint;
 
@@ -267,6 +271,7 @@ TopBar::TopBar(
 	setupButtons(controller, descriptor.backToggles.value());
 	setupUserpicButton(controller);
 	setupActions(controller);
+	setupStoryOutline();
 	if (_topic) {
 		_topicIconView = std::make_unique<TopicIconView>(
 			_topic,
@@ -503,11 +508,13 @@ void TopBar::setupUserpicButton(not_null<Controller*> controller) {
 	) | rpl::start_with_next([=] {
 		_userpicButton->setAttribute(
 			Qt::WA_TransparentForMouseEvents,
-			!_peer->userpicPhotoId());
+			!_peer->userpicPhotoId() && !_hasStories);
 		updateVideoUserpic();
 	}, lifetime());
 	_userpicButton->setClickedCallback([=] {
-		if (const auto id = _peer->userpicPhotoId()) {
+		if (_hasStories) {
+			controller->parentController()->openPeerStories(_peer->id);
+		} else if (const auto id = _peer->userpicPhotoId()) {
 			if (const auto photo = _peer->owner().photo(id); photo->date()) {
 				controller->parentController()->openPhoto(photo, _peer);
 			}
@@ -869,6 +876,7 @@ void TopBar::paintEvent(QPaintEvent *e) {
 		paintPinnedToTopGifts(p, rect());
 	}
 	paintUserpic(p);
+	paintStoryOutline(p);
 }
 
 void TopBar::setupButtons(
@@ -1437,6 +1445,112 @@ void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
 		}
 	}
 	p.setOpacity(1.);
+}
+
+void TopBar::setupStoryOutline() {
+	const auto user = _peer->asUser();
+	if (!user) {
+		return;
+	}
+
+	rpl::combine(
+		_edgeColor.value(),
+		rpl::merge(
+			rpl::single(rpl::empty_value()),
+			style::PaletteChanged(),
+			user->session().changes().peerUpdates(
+				Data::PeerUpdate::Flag::StoriesState
+			) | rpl::filter([=](const Data::PeerUpdate &update) {
+				return update.peer == user;
+			}) | rpl::to_empty)
+	) | rpl::start_with_next([=](
+			std::optional<QColor> edgeColor,
+			rpl::empty_value) {
+		const auto geometry = userpicGeometry();
+		_storyOutlineBrush = Ui::UnreadStoryOutlineGradient(
+			QRectF(
+				geometry.x(),
+				geometry.y(),
+				geometry.width(),
+				geometry.height()));
+		updateStoryOutline(edgeColor);
+	}, lifetime());
+}
+
+void TopBar::updateStoryOutline(std::optional<QColor> edgeColor) {
+	const auto user = _peer->asUser();
+	if (!user) {
+		return;
+	}
+
+	const auto hasActiveStories = user->hasActiveStories();
+
+	if (_hasStories != hasActiveStories) {
+		_hasStories = hasActiveStories;
+		update();
+	}
+
+	if (!hasActiveStories) {
+		_storySegments.clear();
+		return;
+	}
+
+	_storySegments.clear();
+	const auto &stories = user->owner().stories();
+	const auto source = stories.source(user->id);
+	if (!source) {
+		return;
+	}
+
+	const auto baseColor = edgeColor
+		? Ui::BlendColors(*edgeColor, Qt::white, .5)
+		: _storyOutlineBrush.color();
+	const auto unreadBrush = edgeColor
+		? QBrush(baseColor)
+		: _storyOutlineBrush;
+	const auto readBrush = edgeColor
+		? QBrush(anim::with_alpha(baseColor, 0.5))
+		: QBrush(st::dialogsUnreadBgMuted->b);
+
+	const auto readTill = source->readTill;
+	const auto widthBig = style::ConvertFloatScale(3.0);
+	const auto widthSmall = widthBig / 2.;
+	for (const auto &storyIdDates : source->ids) {
+		const auto isUnread = (storyIdDates.id > readTill);
+		_storySegments.push_back({
+			.brush = isUnread ? unreadBrush : readBrush,
+			.width = !isUnread ? widthSmall : widthBig,
+		});
+	}
+}
+
+void TopBar::paintStoryOutline(QPainter &p) {
+	if (!_hasStories || _storySegments.empty()) {
+		return;
+	}
+	auto hq = PainterHighQualityEnabler(p);
+
+	const auto progress = _progress.current();
+	const auto alpha = std::clamp(
+		(progress - kStoryOutlineFadeEnd) / kStoryOutlineFadeRange,
+		0.,
+		1.);
+	if (alpha <= 0.) {
+		return;
+	}
+
+	p.setOpacity(alpha);
+
+	const auto geometry = userpicGeometry();
+	const auto outlineWidth = style::ConvertFloatScale(4.0);
+	const auto padding = style::ConvertFloatScale(3.0);
+	const auto outlineRect = QRectF(geometry).adjusted(
+		-padding - outlineWidth / 2,
+		-padding - outlineWidth / 2,
+		padding + outlineWidth / 2,
+		padding + outlineWidth / 2);
+
+	Ui::PaintOutlineSegments(p, outlineRect, _storySegments);
 }
 
 } // namespace Info::Profile
