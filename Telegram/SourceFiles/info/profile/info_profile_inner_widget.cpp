@@ -10,7 +10,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/info_controller.h"
 #include "info/info_memento.h"
 #include "info/profile/info_profile_widget.h"
-#include "info/profile/info_profile_cover.h"
 #include "info/profile/info_profile_icon.h"
 #include "info/profile/info_profile_members.h"
 #include "info/profile/info_profile_music_button.h"
@@ -102,7 +101,6 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 	}
 
 	auto result = object_ptr<Ui::VerticalLayout>(parent);
-	_cover = AddCover(result, _controller, _peer, _topic, _sublist);
 	setupSavedMusicOrDivider(result);
 	if (_topic && _topic->creating()) {
 		return result;
@@ -153,7 +151,6 @@ void InnerWidget::setupMembers(not_null<Ui::VerticalLayout*> container) {
 			: MapFrom(this, _members, QPoint(0, request.ymax)).y();
 		_scrollToRequests.fire({ min, max });
 	}, _members->lifetime());
-	_cover->setOnlineCount(_onlineCount.events());
 	_members->onlineCountValue(
 	) | rpl::start_with_next([=](int count) {
 		_onlineCount.fire_copy(count);

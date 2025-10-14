@@ -37,7 +37,6 @@ namespace Profile {
 
 class Memento;
 class Members;
-class Cover;
 struct Origin;
 
 class InnerWidget final : public Ui::RpWidget {
@@ -94,7 +93,6 @@ private:
 	rpl::variable<std::optional<QColor>> _topBarColor;
 
 	Members *_members = nullptr;
-	Cover *_cover = nullptr;
 	Ui::SlideWrap<RpWidget> *_sharedMediaWrap = nullptr;
 	object_ptr<RpWidget> _content;
 
