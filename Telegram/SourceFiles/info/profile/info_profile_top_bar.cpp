@@ -86,7 +86,6 @@ namespace {
 constexpr auto kWaitBeforeGiftBadge = crl::time(1000);
 constexpr auto kGiftBadgeGlares = 3;
 constexpr auto kMinPatternRadius = 8;
-constexpr auto kBgOpacity = 40. / 255.;
 constexpr auto kMinContrast = 5.5;
 constexpr auto kStoryOutlineFadeEnd = 0.4;
 constexpr auto kStoryOutlineFadeRange = 1. - kStoryOutlineFadeEnd;
@@ -379,8 +378,12 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 	const auto topic = controller->key().topic();
 	const auto mapped = [=](std::optional<QColor> c) {
 		return !c
-			? anim::with_alpha(st::activeButtonBg->c, 1. - kBgOpacity)
-			: anim::with_alpha(Qt::black, kBgOpacity);
+			? anim::with_alpha(
+				st::activeButtonBg->c,
+				1. - st::infoProfileTopBarActionButtonBgOpacity)
+			: anim::with_alpha(
+				Qt::black,
+				st::infoProfileTopBarActionButtonBgOpacity);
 	};
 	auto buttons = std::vector<not_null<TopBarActionButton*>>();
 	_actions = base::make_unique_q<Ui::HorizontalFitContainer>(

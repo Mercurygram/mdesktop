@@ -192,12 +192,14 @@ void InnerWidget::setupSavedMusicOrDivider(
 			if (const auto document = item->media()
 					? item->media()->document()
 					: nullptr) {
-				divider->entity()->add(object_ptr<MusicButton>(
-					divider->entity(),
-					DocumentMusicButtonData(document),
-					[window = _controller, peer = _peer] {
-						window->showSection(Info::Saved::MakeMusic(peer));
-					}));
+				const auto music = divider->entity()->add(
+					object_ptr<MusicButton>(
+						divider->entity(),
+						DocumentMusicButtonData(document),
+						[window = _controller, peer = _peer] {
+							window->showSection(Info::Saved::MakeMusic(peer));
+						}));
+				music->setOverrideBg(color);
 			}
 			divider->toggle(true, anim::type::normal);
 		} else if (!color) {

@@ -7,9 +7,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_music_button.h"
 
+#include "ui/effects/animation_value.h"
 #include "ui/text/text_utilities.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
+#include "ui/ui_utility.h"
 #include "styles/style_chat.h"
 #include "styles/style_info.h"
 
@@ -34,11 +36,24 @@ void MusicButton::updateData(MusicButtonData data) {
 	update();
 }
 
+void MusicButton::setOverrideBg(std::optional<QColor> color) {
+	_overrideBg = color;
+	update();
+}
+
 void MusicButton::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 
-	p.fillRect(e->rect(), st::windowBgOver);
-	paintRipple(p, QPoint());
+	if (_overrideBg) {
+		p.fillRect(e->rect(), Ui::BlendColors(
+			*_overrideBg,
+			Qt::black,
+			st::infoProfileTopBarActionButtonBgOpacity));
+		paintRipple(p, QPoint(), &st::universalRippleAnimation.color->c);
+	} else {
+		p.fillRect(e->rect(), st::windowBgOver);
+		paintRipple(p, QPoint());
+	}
 
 	const auto &icon = st::topicButtonArrow;
 	const auto iconWidth = icon.width();
@@ -79,7 +94,7 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 	const auto contentStartX = centerX - totalContentWidth / 2;
 	const auto textTop = (height() - st::normalFont->height) / 2;
 
-	p.setPen(st::windowBoldFg);
+	p.setPen(_overrideBg ? st::groupCallMembersFg : st::windowBoldFg);
 	p.setFont(st::normalFont);
 	p.drawText(contentStartX, textTop + st::normalFont->ascent, noteSymbol);
 
@@ -91,7 +106,7 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 		.elisionMiddle = true,
 	});
 
-	p.setPen(st::windowSubTextFg);
+	p.setPen(_overrideBg ? st::groupCallVideoSubTextFg : st::windowSubTextFg);
 	_title.draw(p, {
 		.position = QPoint(
 			contentStartX + noteWidth + actualPerformerWidth,
@@ -108,7 +123,7 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 		+ actualTitleWidth
 		+ skip;
 	const auto iconTop = (height() - iconHeight) / 2;
-	icon.paint(p, iconLeft, iconTop, iconWidth, st::windowSubTextFg->c);
+	icon.paint(p, iconLeft, iconTop, iconWidth, p.pen().color());
 }
 
 int MusicButton::resizeGetHeight(int newWidth) {

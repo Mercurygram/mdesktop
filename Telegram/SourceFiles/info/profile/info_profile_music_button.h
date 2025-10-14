@@ -23,6 +23,7 @@ public:
 	~MusicButton();
 
 	void updateData(MusicButtonData data);
+	void setOverrideBg(std::optional<QColor> color);
 
 private:
 	void paintEvent(QPaintEvent *e) override;
@@ -30,6 +31,7 @@ private:
 
 	Ui::Text::String _performer;
 	Ui::Text::String _title;
+	std::optional<QColor> _overrideBg;
 
 };
 

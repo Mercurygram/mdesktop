@@ -387,6 +387,7 @@ infoProfileTopBarGiftRight: point(50px, 13px);
 infoProfileTopBarGiftTopRight: point(30px, 4px);
 infoProfileTopBarGiftBottomRight: point(30px, 16px);
 
+infoProfileTopBarActionButtonBgOpacity: 0.16;
 infoProfileTopBarActionButtonSize: 56px;
 infoProfileTopBarActionButtonIconSize: 24px;
 infoProfileTopBarActionButtonLottieSize: infoProfileTopBarActionButtonIconSize - 2px;
