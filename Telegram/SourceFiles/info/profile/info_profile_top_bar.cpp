@@ -795,6 +795,10 @@ void TopBar::resizeEvent(QResizeEvent *e) {
 	if (_hasBackground && !_animatedPoints.empty()) {
 		setupAnimatedPattern();
 	}
+	if (_hasBackground && e->oldSize().width() != e->size().width()) {
+		_cachedClipPath = QPainterPath();
+		_cachedGradient = QImage();
+	}
 	updateLabelsPosition();
 	RpWidget::resizeEvent(e);
 }
