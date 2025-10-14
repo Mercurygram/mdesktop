@@ -33,11 +33,13 @@ struct PatternPoint {
 	QSize size,
 	QColor centerColor,
 	QColor edgeColor,
-	bool rounded = true);
+	bool rounded = true,
+	QPoint offset = QPoint());
 
 [[nodiscard]] QImage CreateTopBgGradient(
 	QSize size,
-	not_null<PeerData*> peer);
+	not_null<PeerData*> peer,
+	QPoint offset = QPoint());
 
 [[nodiscard]] const std::vector<PatternPoint> &PatternBgPoints();
 [[nodiscard]] const std::vector<PatternPoint> &PatternBgPointsSmall();

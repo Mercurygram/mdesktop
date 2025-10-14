@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/stickers/data_custom_emoji.h"
 #include "ui/image/image_prepare.h"
 #include "ui/painter.h"
+#include "ui/rect.h"
 #include "ui/text/custom_emoji_helper.h"
 #include "styles/style_layers.h"
 #include "styles/style_chat_helpers.h"
@@ -57,7 +58,8 @@ QImage CreateTopBgGradient(
 		QSize size,
 		QColor centerColor,
 		QColor edgeColor,
-		bool rounded) {
+		bool rounded,
+		QPoint offset) {
 	const auto ratio = style::DevicePixelRatio();
 	auto result = QImage(size * ratio, QImage::Format_ARGB32_Premultiplied);
 	if (!rounded) {
@@ -68,7 +70,7 @@ QImage CreateTopBgGradient(
 	auto p = QPainter(&result);
 	auto hq = PainterHighQualityEnabler(p);
 	auto gradient = QRadialGradient(
-		QRect(QPoint(), size).center(),
+		rect::center(QRect(offset, size)),
 		size.height() / 2);
 	gradient.setStops({
 		{ 0., centerColor },
@@ -76,7 +78,7 @@ QImage CreateTopBgGradient(
 	});
 	p.setBrush(gradient);
 	p.setPen(Qt::NoPen);
-	p.drawRect(QRect(QPoint(), size));
+	p.drawRect(Rect(size));
 	p.end();
 
 	if (rounded) {
@@ -93,13 +95,17 @@ QImage CreateTopBgGradient(QSize size, const Data::UniqueGift &gift) {
 		gift.backdrop.edgeColor);
 }
 
-QImage CreateTopBgGradient(QSize size, not_null<PeerData*> peer) {
+QImage CreateTopBgGradient(
+		QSize size,
+		not_null<PeerData*> peer,
+		QPoint offset) {
 	if (const auto collectible = peer->emojiStatusId().collectible) {
 		return CreateTopBgGradient(
 			size,
 			collectible->centerColor,
 			collectible->edgeColor,
-			false);
+			false,
+			offset);
 	} else {
 		return QImage();
 	}

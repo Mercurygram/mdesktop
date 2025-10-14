@@ -871,13 +871,13 @@ void TopBar::paintUserpic(QPainter &p) {
 
 void TopBar::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
-	const auto hasBackground = _hasBackground;
-	if (hasBackground && _cachedGradient.isNull()) {
+	if (_hasBackground && _cachedGradient.isNull()) {
 		_cachedGradient = Ui::CreateTopBgGradient(
 			QSize(width(), maximumHeight()),
-			_peer);
+			_peer,
+			QPoint(0, -st::infoProfileTopBarPhotoBgShift));
 	}
-	if (!hasBackground) {
+	if (!_hasBackground) {
 		paintEdges(p);
 	} else {
 		const auto x = (width()

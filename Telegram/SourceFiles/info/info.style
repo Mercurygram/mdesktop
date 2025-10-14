@@ -374,6 +374,7 @@ infoProfileTopBarHeightMax: 224px + infoLayerTopBarHeight;
 infoProfileTopBarTitleTop: 150px;
 infoProfileTopBarStatusTop: 170px;
 infoProfileTopBarPhotoTop: 30px;
+infoProfileTopBarPhotoBgShift: 60px;
 infoProfileTopBarPhotoSize: 104px;
 infoProfileTopBarLastSeenSkip: 8px;
 
