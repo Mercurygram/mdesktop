@@ -8,10 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "ui/widgets/buttons.h"
-
-namespace Ui {
-class FlatLabel;
-} // namespace Ui
+#include "ui/text/text.h"
 
 namespace Info::Profile {
 
@@ -31,8 +28,8 @@ private:
 	void paintEvent(QPaintEvent *e) override;
 	int resizeGetHeight(int newWidth) override;
 
-	std::unique_ptr<Ui::FlatLabel> _performer;
-	std::unique_ptr<Ui::FlatLabel> _title;
+	Ui::Text::String _performer;
+	Ui::Text::String _title;
 
 };
 
