@@ -24,11 +24,13 @@ public:
 	void refresh();
 	void setMembersLinkCallback(Fn<void()> callback);
 	void setOnlineCount(int count);
+	void setColorized(bool enabled);
 
 private:
 	const not_null<Ui::FlatLabel*> _label;
 	const not_null<PeerData*> _peer;
 	int _onlineCount = 0;
+	bool _colorized = true;
 	Fn<void()> _membersLinkCallback;
 	base::Timer _refreshTimer;
 

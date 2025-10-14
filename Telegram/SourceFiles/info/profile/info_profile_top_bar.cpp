@@ -316,6 +316,7 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 	_status->setTextColorOverride(shouldOverrideStatus
 		? std::optional<QColor>(st::groupCallVideoSubTextFg->c)
 		: std::nullopt);
+	_statusLabel->setColorized(!shouldOverrideStatus);
 
 	const auto shouldOverrideBadges = shouldOverride(
 		st::infoBotVerifyBadge.premiumFg);

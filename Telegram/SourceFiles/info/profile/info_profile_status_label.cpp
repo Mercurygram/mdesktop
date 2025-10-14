@@ -92,7 +92,7 @@ void StatusLabel::refresh() {
 			if (showOnline) {
 				_refreshTimer.callOnce(updateIn);
 			}
-			return showOnline
+			return (showOnline && _colorized)
 				? Ui::Text::Colorized(result)
 				: TextWithEntities{ .text = result };
 		} else if (auto chat = _peer->asChat()) {
@@ -138,6 +138,11 @@ void StatusLabel::refresh() {
 
 void StatusLabel::setMembersLinkCallback(Fn<void()> callback) {
 	_membersLinkCallback = std::move(callback);
+}
+
+void StatusLabel::setColorized(bool enabled) {
+	_colorized = enabled;
+	refresh();
 }
 
 } // namespace Info::Profile
