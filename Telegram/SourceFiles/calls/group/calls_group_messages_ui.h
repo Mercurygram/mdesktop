@@ -32,6 +32,7 @@ class RpWidget;
 namespace Calls::Group {
 
 struct Message;
+struct MessageIdUpdate;
 
 class MessagesUi final {
 public:
@@ -39,6 +40,7 @@ public:
 		not_null<QWidget*> parent,
 		std::shared_ptr<ChatHelpers::Show> show,
 		rpl::producer<std::vector<Message>> messages,
+		rpl::producer<MessageIdUpdate> idUpdates,
 		rpl::producer<bool> shown);
 	~MessagesUi();
 
@@ -53,13 +55,14 @@ private:
 	void setupList(
 		rpl::producer<std::vector<Message>> messages,
 		rpl::producer<bool> shown);
+	void handleIdUpdates(rpl::producer<MessageIdUpdate> idUpdates);
 	void toggleMessage(MessageView &entry, bool shown);
 	void setContentFailed(MessageView &entry);
 	void setContent(MessageView &entry, const TextWithEntities &text);
 	void updateMessageSize(MessageView &entry);
 	bool updateMessageHeight(MessageView &entry);
 	void animateMessageSent(MessageView &entry);
-	void repaintMessage(uint64 id);
+	void repaintMessage(MsgId id);
 	void recountHeights(std::vector<MessageView>::iterator i, int top);
 	void appendMessage(const Message &data);
 	void checkReactionContent(
@@ -99,7 +102,7 @@ private:
 	int _width = 0;
 	int _availableHeight = 0;
 
-	uint64 _revealedSpoilerId = 0;
+	MsgId _revealedSpoilerId = 0;
 
 	rpl::lifetime _lifetime;
 

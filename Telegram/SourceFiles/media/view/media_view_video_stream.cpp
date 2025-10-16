@@ -97,6 +97,7 @@ VideoStream::VideoStream(
 		parent,
 		_show,
 		_call->messages()->listValue(),
+		_call->messages()->idUpdates(),
 		_call->messagesEnabledValue())) {
 	Core::App().calls().registerVideoStream(_call.get());
 	setupMembers();

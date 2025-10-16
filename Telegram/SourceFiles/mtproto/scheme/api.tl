@@ -447,6 +447,7 @@ updateGroupCallMessage#d8326f0d call:InputGroupCall message:GroupCallMessage = U
 updateGroupCallEncryptedMessage#c957a766 call:InputGroupCall from_id:Peer encrypted_message:bytes = Update;
 updatePinnedForumTopic#683b2c52 flags:# pinned:flags.0?true peer:Peer topic_id:int = Update;
 updatePinnedForumTopics#def143d0 flags:# peer:Peer order:flags.0?Vector<int> = Update;
+updateDeleteGroupCallMessages#3e85e92c call:InputGroupCall messages:Vector<int> = Update;
 
 updates.state#a56c2a3e pts:int qts:int date:int seq:int unread_count:int = updates.State;
 
@@ -2046,7 +2047,7 @@ inputChatThemeUniqueGift#87e5dfe4 slug:string = InputChatTheme;
 
 starGiftUpgradePrice#99ea331d date:int upgrade_stars:long = StarGiftUpgradePrice;
 
-groupCallMessage#87b51be0 flags:# from_id:Peer date:int random_id:long message:TextWithEntities paid_message_stars:flags.0?long = GroupCallMessage;
+groupCallMessage#1a8afc7e flags:# id:int from_id:Peer date:int message:TextWithEntities paid_message_stars:flags.0?long = GroupCallMessage;
 
 ---functions---
 
@@ -2725,8 +2726,10 @@ phone.sendConferenceCallBroadcast#c6701900 call:InputGroupCall block:bytes = Upd
 phone.inviteConferenceCallParticipant#bcf22685 flags:# video:flags.0?true call:InputGroupCall user_id:InputUser = Updates;
 phone.declineConferenceCallInvite#3c479971 msg_id:int = Updates;
 phone.getGroupCallChainBlocks#ee9f88a6 call:InputGroupCall sub_chain_id:int offset:int limit:int = Updates;
-phone.sendGroupCallMessage#7e9b9c0d flags:# call:InputGroupCall random_id:long message:TextWithEntities allow_paid_stars:flags.0?long = Bool;
+phone.sendGroupCallMessage#1a8d41cf flags:# call:InputGroupCall random_id:long message:TextWithEntities allow_paid_stars:flags.0?long = Updates;
 phone.sendGroupCallEncryptedMessage#e5afa56d call:InputGroupCall encrypted_message:bytes = Bool;
+phone.deleteGroupCallMessages#f64f54f7 flags:# report_spam:flags.0?true call:InputGroupCall messages:Vector<int> = Updates;
+phone.deleteGroupCallParticipantMessages#1dbfeca0 flags:# report_spam:flags.0?true call:InputGroupCall participant:InputPeer = Updates;
 
 langpack.getLangPack#f2f2330a lang_pack:string lang_code:string = LangPackDifference;
 langpack.getStrings#efea3803 lang_pack:string lang_code:string keys:Vector<string> = Vector<LangPackString>;

@@ -64,10 +64,13 @@ void Messages::send(TextWithTags text) {
 			prepared.entities,
 			Api::ConvertOption::SkipLocal)));
 
+	const auto localId = _call->peer()->owner().nextLocalMessageId();
 	const auto randomId = base::RandomValue<uint64>();
+	_sendingIdByRandomId.emplace(randomId, localId);
+
 	const auto from = _call->messagesFrom();
 	_messages.push_back({
-		.randomId = randomId,
+		.id = localId,
 		.peer = from,
 		.text = std::move(prepared),
 	});
@@ -79,8 +82,10 @@ void Messages::send(TextWithTags text) {
 			MTP_long(randomId),
 			serialized,
 			MTPlong() // allow_paid_stars
-		)).done([=](const MTPBool &, const MTP::Response &response) {
-			sent(randomId, response);
+		)).done([=](
+				const MTPUpdates &result,
+				const MTP::Response &response) {
+			_call->peer()->session().api().applyUpdates(result, randomId);
 		}).fail([=](const MTP::Error &, const MTP::Response &response) {
 			failed(randomId, response);
 		}).send();
@@ -111,7 +116,7 @@ void Messages::received(const MTPDupdateGroupCallMessage &data) {
 	}
 	const auto &fields = data.vmessage().data();
 	received(
-		fields.vrandom_id().v,
+		fields.vid().v,
 		fields.vfrom_id(),
 		fields.vmessage(),
 		fields.vdate().v);
@@ -138,8 +143,14 @@ void Messages::received(const MTPDupdateGroupCallEncryptedMessage &data) {
 		LOG(("API Error: Can't parse decrypted message"));
 		return;
 	}
+	const auto realId = ++_conferenceIdAutoIncrement;
+	const auto randomId = deserialized->randomId;
+	if (!_conferenceIdByRandomId.emplace(randomId, realId).second) {
+		// Already received.
+		return;
+	}
 	received(
-		deserialized->randomId,
+		realId,
 		fromId,
 		deserialized->message,
 		base::unixtime::now(),
@@ -147,14 +158,59 @@ void Messages::received(const MTPDupdateGroupCallEncryptedMessage &data) {
 	pushChanges();
 }
 
+void Messages::deleted(const MTPDupdateDeleteGroupCallMessages &data) {
+	const auto was = _messages.size();
+	for (const auto &id : data.vmessages().v) {
+		const auto i = ranges::find(_messages, id.v, &Message::id);
+		if (i != end(_messages)) {
+			_messages.erase(i);
+		}
+	}
+	if (_messages.size() < was) {
+		pushChanges();
+	}
+}
+
+void Messages::sent(const MTPDupdateMessageID &data) {
+	sent(data.vrandom_id().v, data.vid().v);
+}
+
+void Messages::sent(uint64 randomId, const MTP::Response &response) {
+	const auto realId = ++_conferenceIdAutoIncrement;
+	_conferenceIdByRandomId.emplace(randomId, realId);
+	sent(randomId, realId);
+
+	const auto i = ranges::find(_messages, realId, &Message::id);
+	if (i != end(_messages) && !i->date) {
+		i->date = Api::UnixtimeFromMsgId(response.outerMsgId);
+		checkDestroying(true);
+	}
+}
+
+void Messages::sent(uint64 randomId, MsgId realId) {
+	const auto i = _sendingIdByRandomId.find(randomId);
+	if (i == end(_sendingIdByRandomId)) {
+		return;
+	}
+	const auto localId = i->second;
+	_sendingIdByRandomId.erase(i);
+
+	const auto j = ranges::find(_messages, localId, &Message::id);
+	if (j == end(_messages)) {
+		return;
+	}
+	j->id = realId;
+	_idUpdates.fire({ .localId = localId, .realId = realId });
+}
+
 void Messages::received(
-		uint64 randomId,
+		MsgId id,
 		const MTPPeer &from,
 		const MTPTextWithEntities &message,
 		TimeId date,
 		bool checkCustomEmoji) {
 	const auto peer = _call->peer();
-	const auto i = ranges::find(_messages, randomId, &Message::randomId);
+	const auto i = ranges::find(_messages, id, &Message::id);
 	if (i != end(_messages)) {
 		if (peerFromMTP(from) == peer->session().userPeerId() && !i->date) {
 			i->date = date;
@@ -176,7 +232,7 @@ void Messages::received(
 		allowedEntityTypes.pop_back();
 	}
 	_messages.push_back({
-		.randomId = randomId,
+		.id = id,
 		.date = date,
 		.peer = peer->owner().peer(peerFromMTP(from)),
 		.text = Ui::Text::Filtered(
@@ -194,7 +250,11 @@ void Messages::checkDestroying(bool afterChanges) {
 	for (auto i = begin(_messages); i != end(_messages);) {
 		const auto date = i->date;
 		if (!date) {
-			++i;
+			if (i->id < 0) {
+				++i;
+			} else {
+				i = _messages.erase(i);
+			}
 		} else if (date <= destroyTime) {
 			i = _messages.erase(i);
 		} else if (!next) {
@@ -222,6 +282,10 @@ rpl::producer<std::vector<Message>> Messages::listValue() const {
 	return _changes.events_starting_with_copy(_messages);
 }
 
+rpl::producer<MessageIdUpdate> Messages::idUpdates() const {
+	return _idUpdates.events();
+}
+
 void Messages::sendPending() {
 	Expects(_real != nullptr);
 
@@ -234,19 +298,18 @@ void Messages::pushChanges() {
 	_changes.fire_copy(_messages);
 }
 
-void Messages::sent(uint64 randomId, const MTP::Response &response) {
-	const auto i = ranges::find(_messages, randomId, &Message::randomId);
-	if (i != end(_messages) && !i->date) {
-		i->date = Api::UnixtimeFromMsgId(response.outerMsgId);
-		checkDestroying(true);
-	}
-}
-
 void Messages::failed(uint64 randomId, const MTP::Response &response) {
-	const auto i = ranges::find(_messages, randomId, &Message::randomId);
-	if (i != end(_messages) && !i->date) {
-		i->date = Api::UnixtimeFromMsgId(response.outerMsgId);
-		i->failed = true;
+	const auto i = _sendingIdByRandomId.find(randomId);
+	if (i == end(_sendingIdByRandomId)) {
+		return;
+	}
+	const auto localId = i->second;
+	_sendingIdByRandomId.erase(i);
+
+	const auto j = ranges::find(_messages, localId, &Message::id);
+	if (j != end(_messages) && !j->date) {
+		j->date = Api::UnixtimeFromMsgId(response.outerMsgId);
+		j->failed = true;
 		checkDestroying(true);
 	}
 }

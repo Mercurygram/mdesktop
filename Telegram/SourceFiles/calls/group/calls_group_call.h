@@ -289,6 +289,8 @@ public:
 	void handleIncomingMessage(const MTPDupdateGroupCallMessage &data);
 	void handleIncomingMessage(
 		const MTPDupdateGroupCallEncryptedMessage &data);
+	void handleDeleteMessages(const MTPDupdateDeleteGroupCallMessages &data);
+	void handleMessageSent(const MTPDupdateMessageID &data);
 	void changeTitle(const QString &title);
 	void toggleRecording(
 		bool enabled,

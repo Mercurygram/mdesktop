@@ -600,6 +600,10 @@ void Instance::handleUpdate(
 		handleGroupCallUpdate(session, update);
 	}, [&](const MTPDupdateGroupCallEncryptedMessage &data) {
 		handleGroupCallUpdate(session, update);
+	}, [&](const MTPDupdateDeleteGroupCallMessages &data) {
+		handleGroupCallUpdate(session, update);
+	}, [&](const MTPDupdateMessageID &data) {
+		handleGroupCallUpdate(session, update);
 	}, [](const auto &) {
 		Unexpected("Update type in Calls::Instance::handleUpdate.");
 	});
@@ -723,6 +727,10 @@ void Instance::handleGroupCallUpdate(
 					strong->handleIncomingMessage(data);
 				}, [&](const MTPDupdateGroupCallEncryptedMessage &data) {
 					strong->handleIncomingMessage(data);
+				}, [&](const MTPDupdateDeleteGroupCallMessages &data) {
+					strong->handleDeleteMessages(data);
+				}, [&](const MTPDupdateMessageID &data) {
+					strong->handleMessageSent(data);
 				}, [&](const MTPDupdateGroupCallParticipants &data) {
 					strong->handleUpdate(update);
 				}, [&](const MTPDupdateGroupCallChainBlocks &data) {
@@ -748,13 +756,19 @@ void Instance::handleGroupCallUpdate(
 			groupCall->handleIncomingMessage(data);
 		}, [&](const MTPDupdateGroupCallEncryptedMessage &data) {
 			groupCall->handleIncomingMessage(data);
+		}, [&](const MTPDupdateDeleteGroupCallMessages &data) {
+			groupCall->handleDeleteMessages(data);
+		}, [&](const MTPDupdateMessageID &data) {
+			groupCall->handleMessageSent(data);
 		}, [](const auto &) {
 		});
 	}
 
 	if (update.type() == mtpc_updateGroupCallConnection
 		|| update.type() == mtpc_updateGroupCallMessage
-		|| update.type() == mtpc_updateGroupCallEncryptedMessage) {
+		|| update.type() == mtpc_updateGroupCallEncryptedMessage
+		|| update.type() == mtpc_updateDeleteGroupCallMessages
+		|| update.type() == mtpc_updateMessageID) {
 		return;
 	}
 	const auto callId = update.match([](const MTPDupdateGroupCall &data) {

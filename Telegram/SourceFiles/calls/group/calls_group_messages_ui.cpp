@@ -139,7 +139,8 @@ void ReceiveSomeMouseEvents(
 } // namespace
 
 struct MessagesUi::MessageView {
-	uint64 id = 0;
+	MsgId id = 0;
+	MsgId sendingId = 0;
 	PeerData *from = nullptr;
 	ClickHandlerPtr fromLink;
 	Ui::Animations::Simple toggleAnimation;
@@ -165,6 +166,7 @@ MessagesUi::MessagesUi(
 	not_null<QWidget*> parent,
 	std::shared_ptr<ChatHelpers::Show> show,
 	rpl::producer<std::vector<Message>> messages,
+	rpl::producer<MessageIdUpdate> idUpdates,
 	rpl::producer<bool> shown)
 : _parent(parent)
 , _show(std::move(show))
@@ -176,6 +178,7 @@ MessagesUi::MessagesUi(
 , _messageBgRect(CountMessageRadius(), _messageBg.color())
 , _fadeHeight(st::normalFont->height) {
 	setupList(std::move(messages), std::move(shown));
+	handleIdUpdates(std::move(idUpdates));
 }
 
 MessagesUi::~MessagesUi() = default;
@@ -199,7 +202,7 @@ void MessagesUi::setupList(
 					from,
 					till,
 					id,
-					&Message::randomId);
+					&Message::id);
 				if (i == till) {
 					toggleMessage(entry, false);
 					continue;
@@ -217,7 +220,7 @@ void MessagesUi::setupList(
 		}
 		auto addedSendingToBottom = false;
 		for (auto i = from; i != till; ++i) {
-			if (!ranges::contains(_views, i->randomId, &MessageView::id)) {
+			if (!ranges::contains(_views, i->id, &MessageView::id)) {
 				if (i + 1 == till && !i->date) {
 					addedSendingToBottom = true;
 				}
@@ -230,6 +233,25 @@ void MessagesUi::setupList(
 			_scrollToBottomAnimation.start([=] {
 				_scroll->scrollToY(_scrollToBottomAnimation.value(till));
 			}, from, till, st::slideDuration, anim::easeOutCirc);
+		}
+	}, _lifetime);
+}
+
+void MessagesUi::handleIdUpdates(rpl::producer<MessageIdUpdate> idUpdates) {
+	std::move(
+		idUpdates
+	) | rpl::start_with_next([=](MessageIdUpdate update) {
+		const auto i = ranges::find(
+			_views,
+			update.localId,
+			&MessageView::id);
+		if (i == end(_views)) {
+			return;
+		}
+		i->sendingId = update.localId;
+		i->id = update.realId;
+		if (_revealedSpoilerId == update.localId) {
+			_revealedSpoilerId = update.realId;
 		}
 	}, _lifetime);
 }
@@ -345,8 +367,11 @@ void MessagesUi::toggleMessage(MessageView &entry, bool shown) {
 	repaintMessage(id);
 }
 
-void MessagesUi::repaintMessage(uint64 id) {
+void MessagesUi::repaintMessage(MsgId id) {
 	auto i = ranges::find(_views, id, &MessageView::id);
+	if (i == end(_views) && id < 0) {
+		i = ranges::find(_views, id, &MessageView::sendingId);
+	}
 	if (i == end(_views)) {
 		return;
 	} else if (i->removed && !i->toggleAnimation.animating()) {
@@ -395,7 +420,7 @@ void MessagesUi::appendMessage(const Message &data) {
 	}
 
 	auto &entry = _views.emplace_back();
-	const auto id = entry.id = data.randomId;
+	const auto id = entry.id = data.id;
 	const auto repaint = [=] {
 		repaintMessage(id);
 	};

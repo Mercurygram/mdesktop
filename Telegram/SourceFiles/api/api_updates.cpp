@@ -1707,6 +1707,8 @@ void Updates::feedUpdate(const MTPUpdate &update) {
 				owner.histories().checkTopicCreated(id, newId);
 			}
 			session().data().unregisterMessageRandomId(randomId);
+		} else {
+			Core::App().calls().handleUpdate(&session(), update);
 		}
 		session().data().unregisterMessageSentData(randomId);
 	} break;
@@ -2143,7 +2145,8 @@ void Updates::feedUpdate(const MTPUpdate &update) {
 	case mtpc_updateGroupCallConnection:
 	case mtpc_updateGroupCall:
 	case mtpc_updateGroupCallMessage:
-	case mtpc_updateGroupCallEncryptedMessage: {
+	case mtpc_updateGroupCallEncryptedMessage:
+	case mtpc_updateDeleteGroupCallMessages: {
 		Core::App().calls().handleUpdate(&session(), update);
 	} break;
 

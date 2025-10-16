@@ -2443,6 +2443,26 @@ void GroupCall::handleIncomingMessage(
 	_messages->received(data);
 }
 
+void GroupCall::handleDeleteMessages(
+		const MTPDupdateDeleteGroupCallMessages &data) {
+	const auto id = data.vcall().match([&](const MTPDinputGroupCall &data) {
+		return data.vid().v;
+	}, [](const auto &) -> CallId {
+		Unexpected("slug/msg in GroupCall::handleIncomingMessage");
+	});
+	if (id != _id || conference()) {
+		return;
+	}
+	_messages->deleted(data);
+}
+
+void GroupCall::handleMessageSent(const MTPDupdateMessageID &data) {
+	if (conference()) {
+		return;
+	}
+	_messages->sent(data);
+}
+
 void GroupCall::handlePossibleDiscarded(const MTPDgroupCallDiscarded &data) {
 	if (data.vid().v == _id) {
 		LOG(("Call Info: Hangup after groupCallDiscarded."));

@@ -981,18 +981,18 @@ void SessionNavigation::resolveConferenceCall(
 				if (call->fullCount() >= conferenceLimit) {
 					showToast(tr::lng_confcall_participants_limit(tr::now));
 				} else {
-					parentController()->window().openInMediaView(
-						Media::View::OpenRequest(
-							parentController(),
-							call,
-							slug,
-							inviteMsgId));
-					AssertIsDebug();
-					//Core::App().calls().startOrJoinConferenceCall({
-					//	.call = call,
-					//	.linkSlug = slug,
-					//	.joinMessageId = inviteMsgId,
-					//});
+					//parentController()->window().openInMediaView(
+					//	Media::View::OpenRequest(
+					//		parentController(),
+					//		call,
+					//		slug,
+					//		inviteMsgId));
+					//AssertIsDebug();
+					Core::App().calls().startOrJoinConferenceCall({
+						.call = call,
+						.linkSlug = slug,
+						.joinMessageId = inviteMsgId,
+					});
 					close();
 				}
 			};
