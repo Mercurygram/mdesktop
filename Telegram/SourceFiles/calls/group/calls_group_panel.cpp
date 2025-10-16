@@ -241,6 +241,7 @@ Panel::Panel(not_null<GroupCall*> call, ConferencePanelMigration info)
 , _messages(std::make_unique<MessagesUi>(
 	widget(),
 	uiShow(),
+	MessagesMode::GroupCall,
 	_call->messages()->listValue(),
 	_call->messages()->idUpdates(),
 	_call->messagesEnabledValue()))

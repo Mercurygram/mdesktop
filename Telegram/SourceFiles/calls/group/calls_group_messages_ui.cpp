@@ -165,18 +165,21 @@ struct MessagesUi::MessageView {
 MessagesUi::MessagesUi(
 	not_null<QWidget*> parent,
 	std::shared_ptr<ChatHelpers::Show> show,
+	MessagesMode mode,
 	rpl::producer<std::vector<Message>> messages,
 	rpl::producer<MessageIdUpdate> idUpdates,
 	rpl::producer<bool> shown)
 : _parent(parent)
 , _show(std::move(show))
+, _mode(mode)
 , _messageBg([] {
 	auto result = st::groupCallBg->c;
 	result.setAlphaF(kMessageBgOpacity);
 	return result;
 })
 , _messageBgRect(CountMessageRadius(), _messageBg.color())
-, _fadeHeight(st::normalFont->height) {
+, _fadeHeight(st::normalFont->height)
+, _streamMode(_mode == MessagesMode::VideoStream) {
 	setupList(std::move(messages), std::move(shown));
 	handleIdUpdates(std::move(idUpdates));
 }
@@ -284,7 +287,7 @@ void MessagesUi::updateMessageSize(MessageView &entry) {
 
 	const auto textHeight = size.height();
 	entry.width = size.width() + widthSkip;
-	entry.left = (_width - entry.width) / 2;
+	entry.left = _streamMode ? 0 : (_width - entry.width) / 2;
 	updateReactionPosition(entry);
 
 	const auto contentHeight = padding.top() + textHeight + padding.bottom();
@@ -687,6 +690,8 @@ void MessagesUi::setupMessagesWidget() {
 			} else if (entry.top >= end) {
 				break;
 			}
+			const auto x = entry.left;
+			const auto y = entry.top;
 			const auto use = entry.realHeight - skip;
 			const auto width = entry.width;
 			p.setBrush(st::radialBg);
@@ -694,8 +699,8 @@ void MessagesUi::setupMessagesWidget() {
 			const auto scaled = (entry.height < entry.realHeight);
 			if (scaled) {
 				const auto used = entry.height - skip;
-				const auto mx = scaled ? (entry.left + (width / 2)) : 0;
-				const auto my = scaled ? (entry.top + (used / 2)) : 0;
+				const auto mx = scaled ? (x + (width / 2)) : 0;
+				const auto my = scaled ? (y + (used / 2)) : 0;
 				const auto scale = used / float64(use);
 				p.save();
 				p.translate(mx, my);
@@ -703,7 +708,9 @@ void MessagesUi::setupMessagesWidget() {
 				p.setOpacity(scale);
 				p.translate(-mx, -my);
 			}
-			_messageBgRect.paint(p, { entry.left, entry.top, width, use });
+			if (!_streamMode) {
+				_messageBgRect.paint(p, { x, y, width, use });
+			}
 
 			auto leftSkip = padding.left();
 			const auto hasUserpic = !entry.failed;
@@ -711,8 +718,8 @@ void MessagesUi::setupMessagesWidget() {
 				const auto userpicSize = st::groupCallUserpic;
 				const auto userpicPadding = st::groupCallUserpicPadding;
 				const auto position = QPoint(
-					entry.left + userpicPadding.left(),
-					entry.top + userpicPadding.top());
+					x + userpicPadding.left(),
+					y + userpicPadding.top());
 				const auto rect = QRect(
 					position,
 					QSize(userpicSize, userpicSize));
@@ -747,8 +754,8 @@ void MessagesUi::setupMessagesWidget() {
 			p.setPen(st::radialFg);
 			entry.text.draw(p, {
 				.position = {
-					entry.left + leftSkip,
-					entry.top + padding.top()
+					x + leftSkip,
+					y + padding.top()
 				},
 				.availableWidth = entry.width - leftSkip - padding.right(),
 				.palette = &st::groupCallMessagePalette,

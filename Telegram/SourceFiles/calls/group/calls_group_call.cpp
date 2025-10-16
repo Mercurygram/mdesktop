@@ -959,7 +959,8 @@ void GroupCall::setScheduledDate(TimeId date) {
 }
 
 void GroupCall::setMessagesEnabled(bool enabled) {
-	_messagesEnabled = enabled && !_rtmp;
+	_messagesEnabled = enabled
+		&& (!_rtmp || origin() == Data::GroupCallOrigin::VideoStream);
 }
 
 void GroupCall::subscribeToReal(not_null<Data::GroupCall*> real) {

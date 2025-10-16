@@ -96,6 +96,7 @@ VideoStream::VideoStream(
 	std::make_unique<Calls::Group::MessagesUi>(
 		parent,
 		_show,
+		Calls::Group::MessagesMode::VideoStream,
 		_call->messages()->listValue(),
 		_call->messages()->idUpdates(),
 		_call->messagesEnabledValue())) {

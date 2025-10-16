@@ -34,11 +34,17 @@ namespace Calls::Group {
 struct Message;
 struct MessageIdUpdate;
 
+enum class MessagesMode {
+	GroupCall,
+	VideoStream,
+};
+
 class MessagesUi final {
 public:
 	MessagesUi(
 		not_null<QWidget*> parent,
 		std::shared_ptr<ChatHelpers::Show> show,
+		MessagesMode mode,
 		rpl::producer<std::vector<Message>> messages,
 		rpl::producer<MessageIdUpdate> idUpdates,
 		rpl::producer<bool> shown);
@@ -79,6 +85,7 @@ private:
 
 	const not_null<QWidget*> _parent;
 	const std::shared_ptr<ChatHelpers::Show> _show;
+	const MessagesMode _mode;
 	std::unique_ptr<Ui::ElasticScroll> _scroll;
 	Ui::Animations::Simple _scrollToBottomAnimation;
 	Ui::RpWidget *_messages = nullptr;
@@ -96,6 +103,7 @@ private:
 	int _fadeHeight = 0;
 	bool _topFadeShown = false;
 	bool _bottomFadeShown = false;
+	bool _streamMode = false;
 
 	int _left = 0;
 	int _bottom = 0;
