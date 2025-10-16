@@ -117,7 +117,7 @@ private:
 	[[nodiscard]] int statusMostLeft() const;
 	[[nodiscard]] QRect userpicGeometry() const;
 	void updateUserpicButtonGeometry();
-	void paintUserpic(QPainter &p);
+	void paintUserpic(QPainter &p, const QRect &geometry);
 	void updateVideoUserpic();
 	void showTopBarMenu(not_null<Controller*> controller, bool check);
 	void fillTopBarMenu(
@@ -131,16 +131,22 @@ private:
 	void setupShowLastSeen(not_null<Controller*> controller);
 	void setupUniqueBadgeTooltip();
 	void hideBadgeTooltip();
-	void setupAnimatedPattern();
-	void paintAnimatedPattern(QPainter &p, const QRect &rect);
+	void setupAnimatedPattern(const QRect &userpicGeometry = QRect());
+	void paintAnimatedPattern(
+		QPainter &p,
+		const QRect &rect,
+		const QRect &userpicGeometry);
 	void setupPinnedToTopGifts();
 	void setupNewGifts(const std::vector<Data::SavedStarGift> &gifts);
-	void paintPinnedToTopGifts(QPainter &p, const QRect &rect);
+	void paintPinnedToTopGifts(
+		QPainter &p,
+		const QRect &rect,
+		const QRect &userpicGeometry);
 	void adjustColors(const std::optional<QColor> &edgeColor);
 	void updateCollectibleStatus();
-	void setupStoryOutline();
+	void setupStoryOutline(const QRect &geometry = QRect());
 	void updateStoryOutline(std::optional<QColor> edgeColor);
-	void paintStoryOutline(QPainter &p);
+	void paintStoryOutline(QPainter &p, const QRect &geometry);
 
 	const not_null<PeerData*> _peer;
 	Data::ForumTopic *_topic = nullptr;

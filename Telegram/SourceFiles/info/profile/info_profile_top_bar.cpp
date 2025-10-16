@@ -831,8 +831,7 @@ QRect TopBar::userpicGeometry() const {
 	return QRect(x, y, size, size);
 }
 
-void TopBar::paintUserpic(QPainter &p) {
-	const auto geometry = userpicGeometry();
+void TopBar::paintUserpic(QPainter &p, const QRect &geometry) {
 	if (_topicIconView) {
 		_topicIconView->paintInRect(p, geometry);
 		return;
@@ -886,6 +885,8 @@ void TopBar::paintUserpic(QPainter &p) {
 
 void TopBar::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
+	const auto geometry = userpicGeometry();
+
 	if (_hasBackground && _cachedGradient.isNull()) {
 		_cachedGradient = Ui::CreateTopBgGradient(
 			QSize(width(), maximumHeight()),
@@ -918,13 +919,13 @@ void TopBar::paintEvent(QPaintEvent *e) {
 		}
 
 		if (_patternEmoji && _patternEmoji->ready()) {
-			paintAnimatedPattern(p, rect());
+			paintAnimatedPattern(p, rect(), geometry);
 		}
 
-		paintPinnedToTopGifts(p, rect());
+		paintPinnedToTopGifts(p, rect(), geometry);
 	}
-	paintUserpic(p);
-	paintStoryOutline(p);
+	paintUserpic(p, geometry);
+	paintStoryOutline(p, geometry);
 }
 
 void TopBar::setupButtons(
@@ -1184,21 +1185,25 @@ void TopBar::setupShowLastSeen(not_null<Controller*> controller) {
 	});
 }
 
-void TopBar::setupAnimatedPattern() {
-	_animatedPoints = GenerateAnimatedPattern(userpicGeometry());
+void TopBar::setupAnimatedPattern(const QRect &userpicGeometry) {
+	_animatedPoints = GenerateAnimatedPattern(userpicGeometry.isNull()
+		? TopBar::userpicGeometry()
+		: userpicGeometry);
 }
 
-void TopBar::paintAnimatedPattern(QPainter &p, const QRect &rect) {
+void TopBar::paintAnimatedPattern(
+		QPainter &p,
+		const QRect &rect,
+		const QRect &userpicGeometry) {
 	if (!_patternEmoji || !_patternEmoji->ready()) {
 		return;
 	}
 
 	{
 		// TODO make it better.
-		const auto currentUserpicRect = userpicGeometry();
-		if (_lastUserpicRect != currentUserpicRect) {
-			_lastUserpicRect = currentUserpicRect;
-			setupAnimatedPattern();
+		if (_lastUserpicRect != userpicGeometry) {
+			_lastUserpicRect = userpicGeometry;
+			setupAnimatedPattern(userpicGeometry);
 		}
 	}
 
@@ -1228,7 +1233,7 @@ void TopBar::paintAnimatedPattern(QPainter &p, const QRect &rect) {
 	// const auto collapse = std::clamp((collapseDiff - 0.2) / 0.8, 0., 1.);
 	const auto collapse = progress;
 
-	const auto userpicCenter = userpicGeometry().center();
+	const auto userpicCenter = rect::center(userpicGeometry);
 	const auto yOffset = 12 * (1. - progress);
 	const auto imageSize = _basePatternImage.size()
 		/ style::DevicePixelRatio();
@@ -1429,7 +1434,10 @@ void TopBar::setupNewGifts(const std::vector<Data::SavedStarGift> &gifts) {
 	}, _giftsLoadingLifetime);
 }
 
-void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
+void TopBar::paintPinnedToTopGifts(
+		QPainter &p,
+		const QRect &rect,
+		const QRect &userpicRect) {
 	if (_pinnedToTopGifts.empty()) {
 		return;
 	}
@@ -1439,7 +1447,6 @@ void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
 		: (_giftsAppearing
 			? _progress.current() * _giftsAppearing->value(0.)
 			: _progress.current());
-	const auto userpicRect = _lastUserpicRect;
 	const auto acx = userpicRect.x() + userpicRect.width() / 2.;
 	const auto acy = userpicRect.y() + userpicRect.height() / 2.;
 	const auto aw = userpicRect.width();
@@ -1544,7 +1551,7 @@ void TopBar::paintPinnedToTopGifts(QPainter &p, const QRect &rect) {
 	p.setOpacity(1.);
 }
 
-void TopBar::setupStoryOutline() {
+void TopBar::setupStoryOutline(const QRect &geometry) {
 	const auto user = _peer->asUser();
 	if (!user) {
 		return;
@@ -1621,7 +1628,7 @@ void TopBar::updateStoryOutline(std::optional<QColor> edgeColor) {
 	}
 }
 
-void TopBar::paintStoryOutline(QPainter &p) {
+void TopBar::paintStoryOutline(QPainter &p, const QRect &geometry) {
 	if (!_hasStories || _storySegments.empty()) {
 		return;
 	}
@@ -1637,8 +1644,6 @@ void TopBar::paintStoryOutline(QPainter &p) {
 	}
 
 	p.setOpacity(alpha);
-
-	const auto geometry = userpicGeometry();
 	const auto outlineWidth = style::ConvertFloatScale(4.0);
 	const auto padding = style::ConvertFloatScale(3.0);
 	const auto outlineRect = QRectF(geometry).adjusted(
