@@ -80,6 +80,7 @@ class TopBar final : public Ui::RpWidget {
 public:
 	struct Descriptor {
 		not_null<Controller*> controller;
+		PeerData *peer = nullptr;
 		rpl::variable<bool> backToggles;
 		rpl::producer<> showFinished;
 	};

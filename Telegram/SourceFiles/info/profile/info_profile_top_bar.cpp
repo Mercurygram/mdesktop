@@ -150,7 +150,9 @@ TopBar::TopBar(
 	not_null<Ui::RpWidget*> parent,
 	Descriptor descriptor)
 : RpWidget(parent)
-, _peer(descriptor.controller->key().peer())
+, _peer(descriptor.peer
+	? descriptor.peer
+	: descriptor.controller->key().peer())
 , _topic(descriptor.controller->key().topic())
 , _st(st::infoTopBar)
 , _badgeTooltipHide(
@@ -213,12 +215,12 @@ TopBar::TopBar(
 	const auto controller = descriptor.controller;
 
 	if (_peer->isMegagroup() || _peer->isChat()) {
-		_statusLabel->setMembersLinkCallback([=] {
+		_statusLabel->setMembersLinkCallback([=, peer = _peer] {
 			const auto topic = controller->key().topic();
 			const auto sublist = controller->key().sublist();
 			const auto shown = sublist
 				? sublist->sublistPeer().get()
-				: controller->key().peer();
+				: peer.get();
 			const auto section = Section::Type::Members;
 			controller->showSection(topic
 				? std::make_shared<Info::Memento>(topic, section)
@@ -372,7 +374,7 @@ void TopBar::updateCollectibleStatus() {
 }
 
 void TopBar::setupActions(not_null<Controller*> controller) {
-	const auto peer = controller->key().peer();
+	const auto peer = _peer;
 	const auto user = peer->asUser();
 	const auto channel = peer->asChannel();
 	const auto chat = peer->asChat();
@@ -1098,7 +1100,7 @@ void TopBar::showTopBarMenu(
 void TopBar::fillTopBarMenu(
 		not_null<Controller*> controller,
 		const Ui::Menu::MenuCallback &addAction) {
-	const auto peer = controller->key().peer();
+	const auto peer = _peer;
 	const auto topic = controller->key().topic();
 	const auto sublist = controller->key().sublist();
 	if (!peer && !topic) {
