@@ -49,6 +49,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lottie/lottie_multi_player.h"
 #include "main/main_session.h"
 #include "menu/menu_mute.h"
+#include "settings/settings_credits_graphics.h"
 #include "settings/settings_premium.h"
 #include "ui/boxes/show_or_premium_box.h"
 #include "ui/color_contrast.h"
@@ -288,7 +289,7 @@ TopBar::TopBar(
 	) | rpl::start_with_next([=] {
 		if (_pinnedToTopGiftsFirstTimeShowed) {
 			_peer->session().recentSharedGifts().clearLastRequestTime(_peer);
-			setupPinnedToTopGifts();
+			setupPinnedToTopGifts(controller);
 		} else {
 			updateCollectibleStatus();
 		}
@@ -297,7 +298,7 @@ TopBar::TopBar(
 	std::move(
 		descriptor.showFinished
 	) | rpl::take(1) | rpl::start_with_next([=] {
-		setupPinnedToTopGifts();
+		setupPinnedToTopGifts(controller);
 	}, lifetime());
 }
 
@@ -800,8 +801,13 @@ void TopBar::updateLabelsPosition() {
 		_badgeTooltip->setOpacity(progressCurrent);
 	}
 
-	if (_userpicButton) {
-		_userpicButton->setGeometry(userpicGeometry());
+	{
+		const auto userpicRect = userpicGeometry();
+		if (_userpicButton) {
+			_userpicButton->setGeometry(userpicGeometry());
+		}
+
+		updateGiftButtonsGeometry(progressCurrent, userpicRect);
 	}
 }
 
@@ -829,6 +835,25 @@ QRect TopBar::userpicGeometry() const {
 	const auto maxY = st::infoProfileTopBarPhotoTop;
 	const auto y = anim::interpolate(minY, maxY, progressCurrent);
 	return QRect(x, y, size, size);
+}
+
+void TopBar::updateGiftButtonsGeometry(
+		float64 progressCurrent,
+		const QRect &userpicRect) {
+	const auto sz = st::infoProfileTopBarGiftSize;
+	const auto halfSz = sz / 2.;
+	for (const auto &gift : _pinnedToTopGifts) {
+		if (gift.button) {
+			const auto giftPos = calculateGiftPosition(
+				gift.position,
+				progressCurrent,
+				userpicRect);
+			const auto buttonRect = QRect(
+				QPoint(giftPos.x() - halfSz, giftPos.y() - halfSz),
+				Size(sz));
+			gift.button->setGeometry(buttonRect);
+		}
+	}
 }
 
 void TopBar::paintUserpic(QPainter &p, const QRect &geometry) {
@@ -1308,7 +1333,7 @@ void TopBar::paintAnimatedPattern(
 	p.setOpacity(1.);
 }
 
-void TopBar::setupPinnedToTopGifts() {
+void TopBar::setupPinnedToTopGifts(not_null<Controller*> controller) {
 	const auto requestDone = crl::guard(this, [=](
 			std::vector<Data::SavedStarGift> gifts) {
 		const auto shouldHideFirst = _pinnedToTopGiftsFirstTimeShowed
@@ -1323,7 +1348,7 @@ void TopBar::setupPinnedToTopGifts() {
 					_pinnedToTopGifts.clear();
 					_giftsLoadingLifetime.destroy();
 					updateCollectibleStatus();
-					setupNewGifts(gifts);
+					setupNewGifts(controller, gifts);
 				}
 			}, 1., 0., 300, anim::linear);
 			return;
@@ -1333,12 +1358,14 @@ void TopBar::setupPinnedToTopGifts() {
 		_giftsLoadingLifetime.destroy();
 
 		updateCollectibleStatus();
-		setupNewGifts(gifts);
+		setupNewGifts(controller, gifts);
 	});
 	_peer->session().recentSharedGifts().request(_peer, requestDone, true);
 }
 
-void TopBar::setupNewGifts(const std::vector<Data::SavedStarGift> &gifts) {
+void TopBar::setupNewGifts(
+		not_null<Controller*> controller,
+		const std::vector<Data::SavedStarGift> &gifts) {
 	const auto emojiStatusId = _peer->emojiStatusId().collectible
 		? _peer->emojiStatusId().collectible->id
 		: CollectibleId(0);
@@ -1397,8 +1424,19 @@ void TopBar::setupNewGifts(const std::vector<Data::SavedStarGift> &gifts) {
 			}
 		}
 		entry.position = positions[i];
+		entry.button = base::make_unique_q<Ui::AbstractButton>(this);
+		entry.button->show();
+
+		entry.button->setClickedCallback([=, giftData = gift, peer = _peer] {
+			::Settings::ShowSavedStarGiftBox(
+				controller->parentController(),
+				peer,
+				giftData);
+		});
+
 		_pinnedToTopGifts.push_back(std::move(entry));
 	}
+	updateGiftButtonsGeometry(_progress.current(), userpicGeometry());
 
 	using namespace ChatHelpers;
 
@@ -1434,6 +1472,75 @@ void TopBar::setupNewGifts(const std::vector<Data::SavedStarGift> &gifts) {
 	}, _giftsLoadingLifetime);
 }
 
+QPointF TopBar::calculateGiftPosition(
+		int position,
+		float64 progress,
+		const QRect &userpicRect) const {
+	const auto acx = userpicRect.x() + userpicRect.width() / 2.;
+	const auto acy = userpicRect.y() + userpicRect.height() / 2.;
+	const auto aw = userpicRect.width();
+	const auto ah = userpicRect.height();
+
+	auto giftPos = QPointF();
+	auto delayValue = 0.;
+	switch (position) {
+	case 0: // Left.
+		giftPos = QPointF(
+			acx / 2. - st::infoProfileTopBarGiftLeft.x(),
+			acy - st::infoProfileTopBarGiftLeft.y());
+		delayValue = 1.6;
+		break;
+	case 1: // Top left.
+		giftPos = QPointF(
+			acx * 2. / 3. - st::infoProfileTopBarGiftTopLeft.x(),
+			userpicRect.y() - st::infoProfileTopBarGiftTopLeft.y());
+		delayValue = 0.;
+		break;
+	case 2: // Bottom left.
+		giftPos = QPointF(
+			acx * 2. / 3. - st::infoProfileTopBarGiftBottomLeft.x(),
+			userpicRect.y() + ah - st::infoProfileTopBarGiftBottomLeft.y());
+		delayValue = 0.9;
+		break;
+	case 3: // Right.
+		giftPos = QPointF(
+			acx + aw / 2. + st::infoProfileTopBarGiftRight.x(),
+			acy - st::infoProfileTopBarGiftRight.y());
+		delayValue = 1.6;
+		break;
+	case 4: // Top right.
+		giftPos = QPointF(
+			acx + aw / 3. + st::infoProfileTopBarGiftTopRight.x(),
+			userpicRect.y() - st::infoProfileTopBarGiftTopRight.y());
+		delayValue = 0.9;
+		break;
+	default: // Bottom right.
+		giftPos = QPointF(
+			acx + aw / 3. + st::infoProfileTopBarGiftBottomRight.x(),
+			userpicRect.y() + ah - st::infoProfileTopBarGiftBottomRight.y());
+		delayValue = 0.;
+		break;
+	}
+
+	const auto delayFraction = 0.2;
+	const auto maxDelayFraction = 1.6 * delayFraction;
+	const auto intervalFraction = 1. - maxDelayFraction;
+	const auto delay = delayValue * delayFraction;
+	const auto collapse = (progress >= 1. - delay)
+		? 1.
+		: std::clamp((progress - maxDelayFraction + delay)
+			/ intervalFraction, 0., 1.);
+
+	if (collapse < 1.) {
+		const auto collapseX = 1. - std::pow(1. - collapse, 2.);
+		giftPos = QPointF(
+			acx + (giftPos.x() - acx) * collapseX,
+			acy + (giftPos.y() - acy) * collapse);
+	}
+
+	return giftPos;
+}
+
 void TopBar::paintPinnedToTopGifts(
 		QPainter &p,
 		const QRect &rect,
@@ -1447,75 +1554,19 @@ void TopBar::paintPinnedToTopGifts(
 		: (_giftsAppearing
 			? _progress.current() * _giftsAppearing->value(0.)
 			: _progress.current());
-	const auto acx = userpicRect.x() + userpicRect.width() / 2.;
-	const auto acy = userpicRect.y() + userpicRect.height() / 2.;
-	const auto aw = userpicRect.width();
-	const auto ah = userpicRect.height();
 
 	const auto sz = st::infoProfileTopBarGiftSize;
 	const auto halfSz = sz / 2.;
 
-	for (const auto &gift : _pinnedToTopGifts) {
+	for (auto &gift : _pinnedToTopGifts) {
 		if (!gift.animation) {
 			continue;
 		}
 
-		auto giftPos = QPointF();
-		auto delayValue = 0.;
-		switch (gift.position) {
-		case 0: // Left.
-			giftPos = QPointF(
-				acx / 2. - st::infoProfileTopBarGiftLeft.x(),
-				acy - st::infoProfileTopBarGiftLeft.y());
-			delayValue = 1.6;
-			break;
-		case 1: // Top left.
-			giftPos = QPointF(
-				acx * 2. / 3. - st::infoProfileTopBarGiftTopLeft.x(),
-				userpicRect.y() - st::infoProfileTopBarGiftTopLeft.y());
-			delayValue = 0.;
-			break;
-		case 2: // Bottom left.
-			giftPos = QPointF(
-				acx * 2. / 3. - st::infoProfileTopBarGiftBottomLeft.x(),
-				userpicRect.y() + ah - st::infoProfileTopBarGiftBottomLeft.y());
-			delayValue = 0.9;
-			break;
-		case 3: // Right.
-			giftPos = QPointF(
-				acx + aw / 2. + st::infoProfileTopBarGiftRight.x(),
-				acy - st::infoProfileTopBarGiftRight.y());
-			delayValue = 1.6;
-			break;
-		case 4: // Top right.
-			giftPos = QPointF(
-				acx + aw / 3. + st::infoProfileTopBarGiftTopRight.x(),
-				userpicRect.y() - st::infoProfileTopBarGiftTopRight.y());
-			delayValue = 0.9;
-			break;
-		default: // Bottom right.
-			giftPos = QPointF(
-				acx + aw / 3. + st::infoProfileTopBarGiftBottomRight.x(),
-				userpicRect.y() + ah - st::infoProfileTopBarGiftBottomRight.y());
-			delayValue = 0.;
-			break;
-		}
-
-		const auto delayFraction = 0.2;
-		const auto maxDelayFraction = 1.6 * delayFraction;
-		const auto intervalFraction = 1. - maxDelayFraction;
-		const auto delay = delayValue * delayFraction;
-		const auto collapse = (progress >= 1. - delay)
-			? 1.
-			: std::clamp((progress - maxDelayFraction + delay)
-				/ intervalFraction, 0., 1.);
-
-		if (collapse < 1.) {
-			const auto collapseX = 1. - std::pow(1. - collapse, 2.);
-			giftPos = QPointF(
-				acx + (giftPos.x() - acx) * collapseX,
-				acy + (giftPos.y() - acy) * collapse);
-		}
+		const auto giftPos = calculateGiftPosition(
+			gift.position,
+			progress,
+			userpicRect);
 
 		const auto alpha = progress;
 		if (alpha <= 0.) {

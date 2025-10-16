@@ -117,6 +117,9 @@ private:
 	[[nodiscard]] int statusMostLeft() const;
 	[[nodiscard]] QRect userpicGeometry() const;
 	void updateUserpicButtonGeometry();
+	void updateGiftButtonsGeometry(
+		float64 progressCurrent,
+		const QRect &userpicRect);
 	void paintUserpic(QPainter &p, const QRect &geometry);
 	void updateVideoUserpic();
 	void showTopBarMenu(not_null<Controller*> controller, bool check);
@@ -136,12 +139,19 @@ private:
 		QPainter &p,
 		const QRect &rect,
 		const QRect &userpicGeometry);
-	void setupPinnedToTopGifts();
-	void setupNewGifts(const std::vector<Data::SavedStarGift> &gifts);
+	void setupPinnedToTopGifts(not_null<Controller*> controller);
+	void setupNewGifts(
+		not_null<Controller*> controller,
+		const std::vector<Data::SavedStarGift> &gifts);
+	void setupGiftButtons(not_null<Controller*> controller);
 	void paintPinnedToTopGifts(
 		QPainter &p,
 		const QRect &rect,
 		const QRect &userpicGeometry);
+	[[nodiscard]] QPointF calculateGiftPosition(
+		int position,
+		float64 progress,
+		const QRect &userpicRect) const;
 	void adjustColors(const std::optional<QColor> &edgeColor);
 	void updateCollectibleStatus();
 	void setupStoryOutline(const QRect &geometry = QRect());
@@ -208,6 +218,7 @@ private:
 		std::shared_ptr<Data::DocumentMedia> media;
 		QImage bg;
 		int position = 0;
+		base::unique_qptr<Ui::AbstractButton> button;
 	};
 	bool _pinnedToTopGiftsFirstTimeShowed = false;
 	std::vector<PinnedToTopGiftEntry> _pinnedToTopGifts;
