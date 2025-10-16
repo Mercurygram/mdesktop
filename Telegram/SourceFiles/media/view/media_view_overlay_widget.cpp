@@ -2419,7 +2419,9 @@ void OverlayWidget::assignMediaPointer(
 		std::move(call),
 		_callLinkSlug,
 		_callJoinMessageId);
-	_stories->updateVideoStream(_videoStream->call());
+	if (const auto stories = _stories.get()) {
+		stories->updateVideoStream(_videoStream->call());
+	}
 	_widget->lower();
 }
 
