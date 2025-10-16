@@ -96,33 +96,10 @@ Widget::Widget(
 	not_null<Controller*> controller,
 	Origin origin)
 : ContentWidget(parent, controller)
-, _inner([&] {
-	auto inner = object_ptr<InnerWidget>(this, controller, origin);
-	if (inner->hasFlexibleTopBar()) {
-		auto filler = setInnerWidget(object_ptr<Ui::RpWidget>(this));
-		filler->resize(1, 1);
-
-		_flexibleScroll.contentHeightValue.events(
-		) | rpl::start_with_next([=](int h) {
-			filler->resize(filler->width(), h);
-		}, filler->lifetime());
-
-		filler->widthValue(
-		) | rpl::start_to_stream(
-			_flexibleScroll.fillerWidthValue,
-			lifetime());
-
-		inner->setParent(filler->parentWidget()->parentWidget());
-		inner->raise();
-
-		using InnerPtr = base::unique_qptr<InnerWidget>;
-		auto owner = filler->lifetime().make_state<InnerPtr>(
-			std::move(inner.release()));
-		return owner->get();
-	} else {
-		return setInnerWidget(std::move(inner));
-	}
-}())
+, _inner(
+	setupFlexibleInnerWidget(
+		object_ptr<InnerWidget>(this, controller, origin),
+		_flexibleScroll))
 , _pinnedToTop(_inner->createPinnedToTop(this))
 , _pinnedToBottom(_inner->createPinnedToBottom(this)) {
 	controller->setSearchEnabledByContent(false);

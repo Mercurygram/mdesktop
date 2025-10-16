@@ -8,7 +8,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "info/info_content_widget.h"
-#include "info/info_flexible_scroll.h"
 #include "ui/effects/animations.h"
 
 namespace Data {
