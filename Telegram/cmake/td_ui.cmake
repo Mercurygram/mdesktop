@@ -144,6 +144,9 @@ PRIVATE
     history/view/controls/history_view_voice_record_button.cpp
     history/view/controls/history_view_voice_record_button.h
 
+    info/info_flexible_scroll.cpp
+    info/info_flexible_scroll.h
+
     info/profile/info_profile_icon.cpp
     info/profile/info_profile_icon.h
     info/profile/info_profile_music_button.cpp

@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "info/info_content_widget.h"
+#include "info/info_flexible_scroll.h"
 #include "ui/effects/animations.h"
 
 namespace Data {
@@ -91,21 +92,11 @@ private:
 
 	std::shared_ptr<ContentMemento> doCreateMemento() override;
 
-	struct {
-		rpl::event_stream<int> contentHeightValue;
-		rpl::event_stream<int> fillerWidthValue;
-	} _flexibleScroll;
+	FlexibleScrollData _flexibleScroll;
 	InnerWidget *_inner = nullptr;
 	base::weak_qptr<Ui::RpWidget> _pinnedToTop;
 	base::weak_qptr<Ui::RpWidget> _pinnedToBottom;
-
-	bool _applyingFakeScrollState = false;
-	int _scrollTopFrom = 0;
-	int _scrollTopTo = 0;
-	int _scrollTopPrevious = 0;
-	int _lastScrollApplied = 0;
-	crl::time _timeOffset = 0;
-	Ui::Animations::Basic _scrollAnimation;
+	std::unique_ptr<FlexibleScrollHelper> _flexibleScrollHelper;
 
 };
 
