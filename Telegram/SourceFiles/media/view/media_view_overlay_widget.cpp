@@ -4621,6 +4621,8 @@ void OverlayWidget::playbackControlsSeekFinished(crl::time position) {
 void OverlayWidget::playbackControlsVolumeChanged(float64 volume) {
 	if (_streamed) {
 		Player::mixer()->setVideoVolume(volume);
+	} else if (_videoStream) {
+		_videoStream->setVolume(volume);
 	}
 	Core::App().settings().setVideoVolume(volume);
 	Core::App().saveSettingsDelayed();

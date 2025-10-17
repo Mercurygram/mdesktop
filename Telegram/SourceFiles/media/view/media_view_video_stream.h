@@ -44,6 +44,7 @@ public:
 
 	[[nodiscard]] not_null<Calls::GroupCall*> call() const;
 
+	void setVolume(float64 volume);
 	void updateGeometry(int x, int y, int width, int height);
 
 private:

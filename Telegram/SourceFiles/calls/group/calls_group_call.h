@@ -672,6 +672,7 @@ private:
 		Fn<not_null<InviteResult*>()> resultAddress,
 		Fn<void()> finishRequest);
 
+	[[nodiscard]] float64 singleSourceVolumeValue() const;
 	[[nodiscard]] int activeVideoSendersCount() const;
 
 	[[nodiscard]] MTPInputGroupCall inputCallSafe() const;
@@ -800,7 +801,7 @@ private:
 	bool _listenersHidden = false;
 	bool _rtmp = false;
 	bool _reloadedStaleCall = false;
-	int _rtmpVolume = 0;
+	int _singleSourceVolume = 0;
 
 	SubChainState _subchains[kSubChainsCount];
 

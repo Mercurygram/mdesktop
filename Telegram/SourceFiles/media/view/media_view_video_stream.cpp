@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "calls/calls_instance.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "core/application.h"
+#include "core/core_settings.h"
 
 namespace Media::View {
 
@@ -191,10 +192,20 @@ void VideoStream::setupVideo() {
 	}, _viewport->lifetime());
 
 	_viewport->widget()->lower();
+
+	setVolume(Core::App().settings().videoVolume());
 }
 
 void VideoStream::setupMessages() {
 
+}
+
+void VideoStream::setVolume(float64 volume) {
+	const auto value = volume * Calls::Group::kDefaultVolume;
+	_call->changeVolume({
+		.peer = _call->peer(),
+		.volume = int(base::SafeRound(value)),
+	});
 }
 
 } // namespace Media::View

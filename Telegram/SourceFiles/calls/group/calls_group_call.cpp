@@ -630,7 +630,7 @@ GroupCall::GroupCall(
 , _connectingSoundTimer([=] { playConnectingSoundOnce(); })
 , _listenersHidden(join.rtmp)
 , _rtmp(join.rtmp)
-, _rtmpVolume(Group::kDefaultVolume) {
+, _singleSourceVolume(Group::kDefaultVolume) {
 	applyInputCall(inputCall);
 
 	_muted.value(
@@ -1259,7 +1259,7 @@ rpl::producer<bool> GroupCall::emptyRtmpValue() const {
 }
 
 int GroupCall::rtmpVolume() const {
-	return _rtmpVolume;
+	return _singleSourceVolume;
 }
 
 Calls::Group::RtmpInfo GroupCall::rtmpInfo() const {
@@ -1350,6 +1350,9 @@ void GroupCall::initialJoinRequested() {
 				update.was->ssrc,
 				GetAdditionalAudioSsrc(update.was->videoParams),
 			});
+		} else if (videoStream()) {
+			const auto value = singleSourceVolumeValue();
+			_instance->setVolume(update.now->ssrc, value);
 		} else if (!_rtmp) {
 			updateInstanceVolume(update.was, *update.now);
 		}
@@ -2412,6 +2415,7 @@ void GroupCall::handlePossibleCreateOrJoinResponse(
 				setCameraEndpoint(endpoint ? endpoint->id : std::string());
 				_instance->setJoinResponsePayload(json.toStdString());
 			}
+			updateInstanceVolumes();
 			updateRequestedVideoChannels();
 			checkMediaChannelDescriptions();
 		});
@@ -3553,6 +3557,10 @@ void GroupCall::updateInstanceMuteState() {
 		&& state != MuteState::PushToTalk);
 }
 
+float64 GroupCall::singleSourceVolumeValue() const {
+	return _singleSourceVolume / float64(Group::kDefaultVolume);
+}
+
 void GroupCall::updateInstanceVolumes() {
 	const auto real = lookupReal();
 	if (!real) {
@@ -3560,8 +3568,12 @@ void GroupCall::updateInstanceVolumes() {
 	}
 
 	if (_rtmp) {
-		const auto value = _rtmpVolume / float64(Group::kDefaultVolume);
-		_instance->setVolume(1, value);
+		_instance->setVolume(1, singleSourceVolumeValue());
+	} else if (videoStream()) {
+		const auto value = singleSourceVolumeValue();
+		for (const auto &participant : real->participants()) {
+			_instance->setVolume(participant.ssrc, value);
+		}
 	} else {
 		const auto &participants = real->participants();
 		for (const auto &participant : participants) {
@@ -3954,8 +3966,8 @@ void GroupCall::requestVideoQuality(
 }
 
 void GroupCall::toggleMute(const Group::MuteRequest &data) {
-	if (_rtmp) {
-		_rtmpVolume = data.mute ? 0 : Group::kDefaultVolume;
+	if (_rtmp || videoStream()) {
+		_singleSourceVolume = data.mute ? 0 : Group::kDefaultVolume;
 		updateInstanceVolumes();
 	} else if (data.locallyOnly) {
 		applyParticipantLocally(data.peer, data.mute, std::nullopt);
@@ -3965,8 +3977,8 @@ void GroupCall::toggleMute(const Group::MuteRequest &data) {
 }
 
 void GroupCall::changeVolume(const Group::VolumeRequest &data) {
-	if (_rtmp) {
-		_rtmpVolume = data.volume;
+	if (_rtmp || videoStream()) {
+		_singleSourceVolume = data.volume;
 		updateInstanceVolumes();
 	} else if (data.locallyOnly) {
 		applyParticipantLocally(data.peer, false, data.volume);
