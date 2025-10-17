@@ -890,6 +890,7 @@ void Controller::show(
 		.privacy = story->privacy(),
 		.edited = story->edited(),
 		.video = (document != nullptr),
+		.stream = (story->call() != nullptr),
 		.silent = (document && document->isSilentVideo()),
 	});
 	uiShow()->hideLayer(anim::type::instant);

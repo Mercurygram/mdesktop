@@ -450,20 +450,26 @@ void Header::show(HeaderData data) {
 		}, _privacy->lifetime());
 	}
 
-	if (data.video) {
-		createPlayPause();
+	if (data.video || data.stream) {
+		if (data.video) {
+			createPlayPause();
+		}
 		createVolumeToggle();
 
 		_widget->widthValue() | rpl::start_with_next([=](int width) {
-			const auto playPause = st::storiesPlayButtonPosition;
-			_playPause->moveToRight(playPause.x(), playPause.y(), width);
+			if (_playPause) {
+				const auto playPause = st::storiesPlayButtonPosition;
+				_playPause->moveToRight(playPause.x(), playPause.y(), width);
+			}
 			const auto volume = st::storiesVolumeButtonPosition;
 			_volumeToggle->moveToRight(volume.x(), volume.y(), width);
 			updateTooltipGeometry();
-		}, _playPause->lifetime());
+		}, _volumeToggle->lifetime());
 
-		_pauseState = _controller->pauseState();
-		applyPauseState();
+		if (data.video) {
+			_pauseState = _controller->pauseState();
+			applyPauseState();
+		}
 	} else {
 		_playPause = nullptr;
 		_volumeToggle = nullptr;
