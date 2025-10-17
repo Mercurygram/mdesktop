@@ -417,6 +417,7 @@ infoProfileTopBarActionUnmute: icon{{ "profile/unmute-22x22", premiumButtonFg }}
 infoProfileTopBarActionCall: icon{{ "profile/call-22x22", premiumButtonFg }};
 infoProfileTopBarActionGift: icon{{ "profile/gift-22x22", premiumButtonFg }};
 infoProfileTopBarActionJoin: icon{{ "profile/join-22x22", premiumButtonFg }};
+infoProfileTopBarActionReport: icon{{ "profile/report-22x22", premiumButtonFg }};
 
 infoMinimalWidth: 324px;
 infoDesiredWidth: 392px;

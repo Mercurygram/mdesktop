@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer_rpl.h"
 #include "base/timer.h"
 #include "base/unixtime.h"
+#include "boxes/report_messages_box.h"
 #include "boxes/star_gift_box.h"
 #include "calls/calls_instance.h"
 #include "chat_helpers/stickers_lottie.h"
@@ -20,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/recent_shared_media_gifts.h"
 #include "data/data_changes.h"
 #include "data/data_channel.h"
+#include "data/data_chat.h"
 #include "data/data_document_media.h"
 #include "data/data_document.h"
 #include "data/data_emoji_statuses.h"
@@ -550,6 +552,20 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 			_actions->add(giftButton);
 			buttons.push_back(giftButton);
 		}
+	}
+	if (!topic
+		&& ((chat && !chat->amCreator())
+			|| (channel && !channel->amCreator()))) {
+		const auto show = controller->parentController()->uiShow();
+		const auto reportButton = Ui::CreateChild<TopBarActionButton>(
+			this,
+			tr::lng_profile_action_short_report(tr::now),
+			st::infoProfileTopBarActionReport);
+		reportButton->setClickedCallback([=] {
+			ShowReportMessageBox(show, peer, {}, {});
+		});
+		_actions->add(reportButton);
+		buttons.push_back(reportButton);
 	}
 	_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
 			QColor c) {
