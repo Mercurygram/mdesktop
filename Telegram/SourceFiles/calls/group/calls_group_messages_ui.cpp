@@ -336,7 +336,7 @@ void MessagesUi::setContent(
 		int stars) {
 	if (stars) {
 		entry.price = Ui::Text::String(
-			st::messageTextStyle,
+			st::whoReadDateStyle,
 			Ui::Text::IconEmoji(
 				&st::starIconEmojiSmall
 			).append(Lang::FormatCountDecimal(stars)),

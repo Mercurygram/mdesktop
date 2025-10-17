@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_text_entities.h"
 #include "base/random.h"
 #include "base/unixtime.h"
+#include "calls/group/ui/calls_group_stars_coloring.h"
 #include "calls/group/calls_group_call.h"
 #include "calls/group/calls_group_message_encryption.h"
 #include "data/data_group_call.h"
@@ -123,7 +124,6 @@ void Messages::received(const MTPDupdateGroupCallMessage &data) {
 		fields.vmessage(),
 		fields.vdate().v,
 		fields.vpaid_message_stars().value_or_empty());
-	pushChanges();
 }
 
 void Messages::received(const MTPDupdateGroupCallEncryptedMessage &data) {
@@ -159,7 +159,6 @@ void Messages::received(const MTPDupdateGroupCallEncryptedMessage &data) {
 		base::unixtime::now(), // date
 		0, // stars
 		true); // checkCustomEmoji
-	pushChanges();
 }
 
 void Messages::deleted(const MTPDupdateDeleteGroupCallMessages &data) {
@@ -245,26 +244,29 @@ void Messages::received(
 			allowedEntityTypes),
 		.stars = stars,
 	});
+	ranges::sort(_messages, ranges::less(), &Message::id);
 	checkDestroying(true);
 }
 
 void Messages::checkDestroying(bool afterChanges) {
 	auto next = TimeId();
 	const auto now = base::unixtime::now();
-	const auto destroyTime = now - _ttl;
 	const auto initial = _messages.size();
 	for (auto i = begin(_messages); i != end(_messages);) {
 		const auto date = i->date;
+		const auto ttl = i->stars
+			? (Ui::StarsColoringForCount(i->stars).minutesPin * 60)
+			: _ttl;
 		if (!date) {
 			if (i->id < 0) {
 				++i;
 			} else {
 				i = _messages.erase(i);
 			}
-		} else if (date <= destroyTime) {
+		} else if (date + ttl <= now) {
 			i = _messages.erase(i);
-		} else if (!next) {
-			next = date + _ttl - now;
+		} else if (!next || next > date + ttl - now) {
+			next = date + ttl - now;
 			++i;
 		} else {
 			++i;
@@ -301,7 +303,14 @@ void Messages::sendPending() {
 }
 
 void Messages::pushChanges() {
-	_changes.fire_copy(_messages);
+	if (_changesScheduled) {
+		return;
+	}
+	_changesScheduled = true;
+	Ui::PostponeCall(this, [=] {
+		_changesScheduled = false;
+		_changes.fire_copy(_messages);
+	});
 }
 
 void Messages::failed(uint64 randomId, const MTP::Response &response) {

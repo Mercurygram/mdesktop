@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "base/timer.h"
+#include "base/weak_ptr.h"
 
 namespace Calls {
 class GroupCall;
@@ -38,7 +39,7 @@ struct MessageIdUpdate {
 	MsgId realId = 0;
 };
 
-class Messages final {
+class Messages final : public base::has_weak_ptr {
 public:
 	Messages(not_null<GroupCall*> call, not_null<MTP::Sender*> api);
 
@@ -91,6 +92,7 @@ private:
 	rpl::event_stream<MessageIdUpdate> _idUpdates;
 
 	TimeId _ttl = 0;
+	bool _changesScheduled = false;
 
 	rpl::lifetime _lifetime;
 

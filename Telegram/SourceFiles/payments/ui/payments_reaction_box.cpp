@@ -584,6 +584,7 @@ void PaidReactionsBox(
 				rpl::single(Text::Bold(args.name)),
 				Text::RichLangValue)),
 		dark ? st::darkEditStarsText : st::boostText);
+	label->setTryMakeSimilarLines(true);
 	labelWrap->widthValue() | rpl::start_with_next([=](int width) {
 		label->resizeToWidth(width);
 	}, label->lifetime());
