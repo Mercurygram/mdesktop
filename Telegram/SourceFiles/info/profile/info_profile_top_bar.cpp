@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer_rpl.h"
 #include "base/timer.h"
 #include "base/unixtime.h"
+#include "boxes/moderate_messages_box.h"
 #include "boxes/report_messages_box.h"
 #include "boxes/star_gift_box.h"
 #include "calls/calls_instance.h"
@@ -386,6 +387,7 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 	const auto channel = peer->asChannel();
 	const auto chat = peer->asChat();
 	const auto topic = controller->key().topic();
+	const auto sublist = controller->key().sublist();
 	const auto mapped = [=](std::optional<QColor> c) {
 		return !c
 			? anim::with_alpha(
@@ -566,6 +568,20 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		});
 		_actions->add(reportButton);
 		buttons.push_back(reportButton);
+	}
+	if (!topic && !sublist && channel && channel->amIn()) {
+		const auto navigation = controller->parentController();
+		const auto leaveButton = Ui::CreateChild<TopBarActionButton>(
+			this,
+			tr::lng_profile_action_short_leave(tr::now),
+			st::infoProfileTopBarActionLeave);
+		leaveButton->setClickedCallback([=] {
+			if (!navigation->showFrozenError()) {
+				navigation->show(Box(DeleteChatBox, peer));
+			}
+		});
+		_actions->add(leaveButton);
+		buttons.push_back(leaveButton);
 	}
 	_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
 			QColor c) {
