@@ -436,10 +436,13 @@ void MessagesUi::appendMessage(const Message &data) {
 	if (data.failed) {
 		setContentFailed(entry);
 	} else {
-		setContent(
-			entry,
-			Ui::Text::Link(Ui::Text::Bold(data.peer->shortName()), 1).append(
-				' ').append(data.text));
+		auto text = Ui::Text::Link(Ui::Text::Bold(data.peer->shortName()), 1)
+			.append(' ').append(data.text);
+		if (data.stars) {
+			text.append(" (").append(
+				QString::number(data.stars)).append(" stars)");
+		}
+		setContent(entry, text);
 	}
 	entry.top = top;
 	updateMessageSize(entry);

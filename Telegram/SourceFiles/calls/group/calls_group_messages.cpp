@@ -47,9 +47,9 @@ bool Messages::ready() const {
 	return _real && (!_call->conference() || _call->e2eEncryptDecrypt());
 }
 
-void Messages::send(TextWithTags text) {
+void Messages::send(TextWithTags text, int stars) {
 	if (!ready()) {
-		_pending.push_back(std::move(text));
+		_pending.push_back({ std::move(text), stars });
 		return;
 	}
 
@@ -73,15 +73,17 @@ void Messages::send(TextWithTags text) {
 		.id = localId,
 		.peer = from,
 		.text = std::move(prepared),
+		.stars = stars,
 	});
 
 	if (!_call->conference()) {
+		using Flag = MTPphone_SendGroupCallMessage::Flag;
 		_api->request(MTPphone_SendGroupCallMessage(
-			MTP_flags(0),
+			MTP_flags(stars ? Flag::f_allow_paid_stars : Flag()),
 			_call->inputCall(),
 			MTP_long(randomId),
 			serialized,
-			MTPlong() // allow_paid_stars
+			MTP_long(stars)
 		)).done([=](
 				const MTPUpdates &result,
 				const MTP::Response &response) {
@@ -119,7 +121,8 @@ void Messages::received(const MTPDupdateGroupCallMessage &data) {
 		fields.vid().v,
 		fields.vfrom_id(),
 		fields.vmessage(),
-		fields.vdate().v);
+		fields.vdate().v,
+		fields.vpaid_message_stars().value_or_empty());
 	pushChanges();
 }
 
@@ -153,8 +156,9 @@ void Messages::received(const MTPDupdateGroupCallEncryptedMessage &data) {
 		realId,
 		fromId,
 		deserialized->message,
-		base::unixtime::now(),
-		true);
+		base::unixtime::now(), // date
+		0, // stars
+		true); // checkCustomEmoji
 	pushChanges();
 }
 
@@ -208,6 +212,7 @@ void Messages::received(
 		const MTPPeer &from,
 		const MTPTextWithEntities &message,
 		TimeId date,
+		int stars,
 		bool checkCustomEmoji) {
 	const auto peer = _call->peer();
 	const auto i = ranges::find(_messages, id, &Message::id);
@@ -238,6 +243,7 @@ void Messages::received(
 		.text = Ui::Text::Filtered(
 			Api::ParseTextWithEntities(&peer->session(), message),
 			allowedEntityTypes),
+		.stars = stars,
 	});
 	checkDestroying(true);
 }
@@ -290,7 +296,7 @@ void Messages::sendPending() {
 	Expects(_real != nullptr);
 
 	for (auto &pending : base::take(_pending)) {
-		send(std::move(pending));
+		send(std::move(pending.text), pending.stars);
 	}
 }
 

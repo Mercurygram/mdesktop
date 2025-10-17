@@ -909,6 +909,9 @@ ComposeControls::ComposeControls(
 , _like(_features.likes
 	? Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.like)
 	: nullptr)
+, _editStars(_features.editMessageStars
+	? Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.editStars)
+	: nullptr)
 , _attachToggle(Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.attach))
 , _tabbedSelectorToggle(Ui::CreateChild<Ui::EmojiButton>(
 	_wrap.get(),
@@ -1074,6 +1077,19 @@ void ComposeControls::initLikeButton() {
 	}
 }
 
+void ComposeControls::initEditStarsButton() {
+	if (_editStars) {
+		_editStars->setClickedCallback([=] {
+			if (!_chosenStarsCount) {
+				_chosenStarsCount = 1;
+			} else {
+				++*_chosenStarsCount;
+			}
+			updateSendButtonType();
+		});
+	}
+}
+
 void ComposeControls::updateLikeParent() {
 	if (_like) {
 		using namespace Controls;
@@ -1097,6 +1113,7 @@ void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
 	if (was.likes != features.likes) {
 		if (!features.likes) {
 			delete base::take(_like);
+			_likeShown = false;
 		} else {
 			_like = Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.like);
 			initLikeButton();
@@ -1106,6 +1123,21 @@ void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
 			}
 		}
 		updateControlsGeometry(_wrap->size());
+	}
+	if (was.editMessageStars != features.editMessageStars) {
+		if (!features.editMessageStars) {
+			delete base::take(_editStars);
+			_chosenStarsCount = std::nullopt;
+		} else {
+			_editStars = Ui::CreateChild<Ui::IconButton>(
+				_wrap.get(),
+				_st.editStars);
+			initEditStarsButton();
+			updateControlsGeometry(_wrap->size());
+		}
+	}
+	if (was.recordMediaMessage != features.recordMediaMessage) {
+		updateSendButtonType();
 	}
 }
 
@@ -1386,6 +1418,7 @@ void ComposeControls::clear() {
 		{},
 		saveTextDraft ? TextUpdateEvent::SaveDraft : TextUpdateEvent());
 	cancelReplyMessage();
+	clearChosenStarsForMessage();
 	if (_preview) {
 		_preview->apply({ .removed = true });
 	}
@@ -1658,7 +1691,8 @@ void ComposeControls::orderControls() {
 }
 
 bool ComposeControls::showRecordButton() const {
-	return (_recordAvailability != Webrtc::RecordAvailability::None)
+	return _features.recordMediaMessage
+		&& (_recordAvailability != Webrtc::RecordAvailability::None)
 		&& !_voiceRecordBar->isListenState()
 		&& !_voiceRecordBar->isRecordingByAnotherBar()
 		&& !HasSendText(_field)
@@ -1668,6 +1702,17 @@ bool ComposeControls::showRecordButton() const {
 
 void ComposeControls::clearListenState() {
 	_voiceRecordBar->clearListenState();
+}
+
+void ComposeControls::clearChosenStarsForMessage() {
+	if (_chosenStarsCount.has_value()) {
+		_chosenStarsCount = std::nullopt;
+		updateSendButtonType();
+	}
+}
+
+int ComposeControls::chosenStarsForMessage() const {
+	return _chosenStarsCount.value_or(0);
 }
 
 void ComposeControls::initKeyHandler() {
@@ -2726,7 +2771,8 @@ void ComposeControls::updateSendButtonType() {
 			: 0;
 	}();
 	const auto peer = _history ? _history->peer.get() : nullptr;
-	const auto stars = peer ? peer->starsPerMessageChecked() : 0;
+	const auto stars = _chosenStarsCount.value_or(
+		peer ? peer->starsPerMessageChecked() : 0);
 	_send->setState({
 		.type = type,
 		.slowmodeDelay = delay,
@@ -2754,6 +2800,7 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 		- _send->width()
 		- _tabbedSelectorToggle->width()
 		- (_likeShown ? _like->width() : 0)
+		- (_editStars ? _editStars->width() : 0)
 		- (_botCommandShown ? _botCommandStart->width() : 0)
 		- (_silent ? _silent->width() : 0)
 		- (_scheduled ? _scheduled->width() : 0)
@@ -2805,6 +2852,10 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 			}
 		}
 	}
+	if (_editStars) {
+		_editStars->moveToRight(right, buttonsTop);
+		right += _editStars->width();
+	}
 	if (_botCommandStart) {
 		_botCommandStart->moveToRight(right, buttonsTop);
 		if (_botCommandShown) {
@@ -2835,6 +2886,9 @@ void ComposeControls::updateControlsVisibility() {
 	}
 	if (_like) {
 		_like->setVisible(_likeShown);
+	}
+	if (_editStars) {
+		_editStars->show();
 	}
 	if (_ttlInfo) {
 		_ttlInfo->show();

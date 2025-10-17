@@ -487,6 +487,10 @@ storiesLike: IconButton(storiesAttach) {
 	icon: icon {{ "chat/input_like", storiesComposeGrayIcon }};
 	iconOver: icon {{ "chat/input_like", storiesComposeGrayIcon }};
 }
+storiesEditStars: IconButton(storiesAttach) {
+	icon: icon{{ "chat/input_paid", storiesComposeGrayIcon }};
+	iconOver: icon{{ "chat/input_paid", storiesComposeGrayIcon }};
+}
 storiesRecordVoice: icon {{ "chat/input_record", storiesComposeGrayIcon }};
 storiesRecordVoiceOver: icon {{ "chat/input_record", storiesComposeGrayIcon }};
 storiesRecordRound: icon {{ "chat/input_video", storiesComposeGrayIcon }};
@@ -706,6 +710,7 @@ storiesComposeControls: ComposeControls(defaultComposeControls) {
 	emoji: storiesAttachEmoji;
 	like: storiesLike;
 	liked: icon{};
+	editStars: storiesEditStars;
 	suggestions: EmojiSuggestions(defaultEmojiSuggestions) {
 		dropdown: InnerDropdown(emojiSuggestionsDropdown) {
 			animation: PanelAnimation(defaultPanelAnimation) {

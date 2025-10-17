@@ -4206,7 +4206,7 @@ std::function<std::vector<uint8_t>(
 }
 
 void GroupCall::sendMessage(TextWithTags message) {
-	_messages->send(std::move(message));
+	_messages->send(std::move(message), 0);
 }
 
 auto GroupCall::otherParticipantStateValue() const

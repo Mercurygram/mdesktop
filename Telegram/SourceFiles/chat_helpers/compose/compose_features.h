@@ -26,6 +26,8 @@ struct ComposeFeatures {
 	bool autocompleteCommands : 1 = true;
 	bool suggestStickersByEmoji : 1 = true;
 	bool commonTabbedPanel : 1 = true;
+	bool recordMediaMessage : 1 = true;
+	bool editMessageStars : 1 = false;
 };
 
 } // namespace ChatHelpers

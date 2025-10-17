@@ -229,6 +229,9 @@ public:
 	void hidePanelsAnimated();
 	void clearListenState();
 
+	void clearChosenStarsForMessage();
+	[[nodiscard]] int chosenStarsForMessage() const;
+
 	void hide();
 	void show();
 
@@ -281,6 +284,7 @@ private:
 	void initVoiceRecordBar();
 	void initKeyHandler();
 	void initLikeButton();
+	void initEditStarsButton();
 	void updateLikeParent();
 	void updateSubmitSettings();
 	void updateSendButtonType();
@@ -388,7 +392,9 @@ private:
 	std::optional<Ui::RoundRect> _backgroundRect;
 
 	const std::shared_ptr<Ui::SendButton> _send;
-	Ui::IconButton * _like = nullptr;
+	Ui::IconButton *_like = nullptr;
+	Ui::IconButton *_editStars = nullptr;
+	std::optional<int> _chosenStarsCount;
 	const not_null<Ui::IconButton*> _attachToggle;
 	std::unique_ptr<Ui::IconButton> _replaceMedia;
 	const not_null<Ui::EmojiButton*> _tabbedSelectorToggle;

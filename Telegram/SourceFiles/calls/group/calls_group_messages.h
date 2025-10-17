@@ -29,6 +29,7 @@ struct Message {
 	TimeId date = 0;
 	not_null<PeerData*> peer;
 	TextWithEntities text;
+	int stars = 0;
 	bool failed = false;
 };
 
@@ -41,7 +42,7 @@ class Messages final {
 public:
 	Messages(not_null<GroupCall*> call, not_null<MTP::Sender*> api);
 
-	void send(TextWithTags text);
+	void send(TextWithTags text, int stars);
 
 	void received(const MTPDupdateGroupCallMessage &data);
 	void received(const MTPDupdateGroupCallEncryptedMessage &data);
@@ -52,6 +53,10 @@ public:
 	[[nodiscard]] rpl::producer<MessageIdUpdate> idUpdates() const;
 
 private:
+	struct Pending {
+		TextWithTags text;
+		int stars = 0;
+	};
 	[[nodiscard]] bool ready() const;
 	void sendPending();
 	void pushChanges();
@@ -62,6 +67,7 @@ private:
 		const MTPPeer &from,
 		const MTPTextWithEntities &message,
 		TimeId date,
+		int stars,
 		bool checkCustomEmoji = false);
 	void sent(uint64 randomId, const MTP::Response &response);
 	void sent(uint64 randomId, MsgId realId);
@@ -77,7 +83,7 @@ private:
 
 	Data::GroupCall *_real = nullptr;
 
-	std::vector<TextWithTags> _pending;
+	std::vector<Pending> _pending;
 
 	base::Timer _destroyTimer;
 	std::vector<Message> _messages;

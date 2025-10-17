@@ -112,6 +112,8 @@ namespace {
 		.autocompleteHashtags = false,
 		.autocompleteMentions = false,
 		.autocompleteCommands = false,
+		.recordMediaMessage = !videoStream,
+		.editMessageStars = videoStream,
 	};
 }
 
@@ -224,8 +226,9 @@ bool ReplyArea::sendReaction(const Data::ReactionId &id) {
 
 void ReplyArea::send(Api::SendOptions options) {
 	auto text = _controls->getTextWithAppliedMarkdown();
+	const auto stars = _controls->chosenStarsForMessage();
 	if (const auto stream = _videoStream.get()) {
-		stream->messages()->send(std::move(text));
+		stream->messages()->send(std::move(text), stars);
 		_controls->clear();
 		return;
 	}

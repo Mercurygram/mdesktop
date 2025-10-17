@@ -192,6 +192,7 @@ void VideoStream::setupVideo() {
 	}, _viewport->lifetime());
 
 	_viewport->widget()->lower();
+	_viewport->setControlsShown(0.);
 
 	setVolume(Core::App().settings().videoVolume());
 }

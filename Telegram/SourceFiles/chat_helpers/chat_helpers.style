@@ -208,6 +208,7 @@ ComposeControls {
 	emoji: EmojiButton;
 	like: IconButton;
 	liked: icon;
+	editStars: IconButton;
 	suggestions: EmojiSuggestions;
 	tabbed: EmojiPan;
 	tabbedHeightMin: pixels;
