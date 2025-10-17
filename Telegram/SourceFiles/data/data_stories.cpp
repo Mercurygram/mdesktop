@@ -165,6 +165,7 @@ StoriesSourceInfo StoriesSource::info() const {
 		.count = uint32(std::min(int(ids.size()), kMaxSegmentsCount)),
 		.unreadCount = uint32(std::min(unreadCount(), kMaxSegmentsCount)),
 		.premium = (peer->isUser() && peer->asUser()->isPremium()) ? 1U : 0,
+		.hasVideoStream = hasVideoStream ? 1U : 0,
 	};
 }
 
@@ -442,6 +443,13 @@ void Stories::parseAndApply(
 	for (const auto &story : list) {
 		if (const auto id = parseAndApply(result.peer, story, now)) {
 			result.ids.emplace(id);
+
+			if (story.type() == mtpc_storyItem) {
+				const auto &media = story.c_storyItem().vmedia();
+				if (media.type() == mtpc_messageMediaVideoStream) {
+					result.hasVideoStream = true;
+				}
+			}
 		}
 	}
 	if (result.ids.empty()) {

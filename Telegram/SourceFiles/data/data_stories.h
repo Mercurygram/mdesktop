@@ -55,6 +55,7 @@ struct StoriesSourceInfo {
 	uint32 count : 15 = 0;
 	uint32 unreadCount : 15 = 0;
 	uint32 premium : 1 = 0;
+	uint32 hasVideoStream : 1 = 0;
 
 	friend inline bool operator==(
 		StoriesSourceInfo,
@@ -66,6 +67,7 @@ struct StoriesSource {
 	base::flat_set<StoryIdDates> ids;
 	StoryId readTill = 0;
 	bool hidden = false;
+	bool hasVideoStream = false;
 
 	[[nodiscard]] StoriesSourceInfo info() const;
 	[[nodiscard]] int unreadCount() const;

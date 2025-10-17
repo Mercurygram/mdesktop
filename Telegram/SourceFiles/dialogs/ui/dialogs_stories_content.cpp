@@ -75,6 +75,7 @@ Content State::next() {
 			.thumbnail = std::move(userpic),
 			.count = info.count,
 			.unreadCount = info.unreadCount,
+			.hasVideoStream = info.hasVideoStream ? 1U : 0U,
 			.skipSmall = peer->isSelf() ? 1U : 0U,
 		});
 	}
@@ -159,6 +160,7 @@ rpl::producer<Content> LastForPeer(not_null<PeerData*> peer) {
 								.thumbnail = Ui::MakeStoryThumbnail(*maybe),
 								.count = 1U,
 								.unreadCount = unread ? 1U : 0U,
+								.hasVideoStream = (*maybe)->call() ? 1U : 0U,
 							});
 							if (unread) {
 								done = false;

@@ -146,6 +146,7 @@ void List::showContent(Content &&content) {
 			}
 			item.element.count = element.count;
 			item.element.unreadCount = element.unreadCount;
+			item.element.hasVideoStream = element.hasVideoStream;
 		} else {
 			_data.items.emplace_back(Item{ .element = element });
 		}
@@ -509,6 +510,8 @@ void List::paint(
 		const auto small = single.itemSmall;
 		const auto itemFull = single.itemFull;
 		const auto smallUnread = (small && small->element.unreadCount);
+		const auto smallHasVideoStream = small
+			&& small->element.hasVideoStream;
 		const auto fullUnreadCount = itemFull
 			? itemFull->element.unreadCount
 			: 0;
@@ -527,7 +530,11 @@ void List::paint(
 			gradient.setStart(userpic.topRight());
 			gradient.setFinalStop(userpic.bottomLeft());
 			if (!fullUnreadCount) {
-				p.setPen(QPen(gradient, line));
+				if (smallHasVideoStream) {
+					p.setPen(QPen(st::attentionButtonFg->c, line));
+				} else {
+					p.setPen(QPen(gradient, line));
+				}
 				p.setBrush(Qt::NoBrush);
 				p.drawEllipse(outer);
 			} else {
@@ -638,6 +645,16 @@ void List::validateSegments(
 		bool forUnread) {
 	const auto count = item->element.count;
 	const auto unread = item->element.unreadCount;
+	if (item->element.hasVideoStream) {
+		item->segments.resize(1);
+		if (forUnread) {
+			item->segments[0].width = line;
+			item->segments[0].brush = st::attentionButtonFg->b;
+		} else {
+			item->segments[0].width = 0.;
+		}
+		return;
+	}
 	if (int(item->segments.size()) != count) {
 		item->segments.resize(count);
 	}

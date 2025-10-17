@@ -461,13 +461,18 @@ void Row::PaintCornerBadgeFrame(
 		const auto storiesUnread = st::dialogsStoriesFull.lineTwice / 2.;
 		const auto storiesLine = st::dialogsStoriesFull.lineReadTwice / 2.;
 		auto segments = std::vector<Ui::OutlineSegment>();
-		segments.reserve(storiesCount);
-		const auto storiesReadCount = storiesCount - storiesUnreadCount;
-		for (auto i = 0; i != storiesReadCount; ++i) {
-			segments.push_back({ storiesBrush, storiesLine });
-		}
-		for (auto i = 0; i != storiesUnreadCount; ++i) {
-			segments.push_back({ storiesUnreadBrush, storiesUnread });
+		if (data->storiesHasVideoStream) {
+			const auto storiesVideoStreamBrush = st::attentionButtonFg->b;
+			segments.push_back({ storiesVideoStreamBrush, storiesUnread });
+		} else {
+			segments.reserve(storiesCount);
+			const auto storiesReadCount = storiesCount - storiesUnreadCount;
+			for (auto i = 0; i != storiesReadCount; ++i) {
+				segments.push_back({ storiesBrush, storiesLine });
+			}
+			for (auto i = 0; i != storiesUnreadCount; ++i) {
+				segments.push_back({ storiesUnreadBrush, storiesUnread });
+			}
 		}
 		if (peer && (peer->forum() || peer->monoforum())) {
 			const auto radius = context.st->photoSize
@@ -597,6 +602,9 @@ void Row::paintUserpic(
 		: (storiesPeer && storiesPeer->hasUnreadStories())
 		? 1
 		: 0;
+	const auto storiesHasVideoStream = storiesSource
+		? storiesSource->hasVideoStream
+		: 0;
 	const auto limit = Ui::kOutlineSegmentsMax;
 	const auto storiesCount = std::min(storiesCountReal, limit);
 	const auto storiesUnreadCount = std::min(storiesUnreadCountReal, limit);
@@ -625,12 +633,14 @@ void Row::paintUserpic(
 		|| _cornerBadgeUserpic->frameIndex != frameIndex
 		|| _cornerBadgeUserpic->storiesCount != storiesCount
 		|| _cornerBadgeUserpic->storiesUnreadCount != storiesUnreadCount
+		|| _cornerBadgeUserpic->storiesHasVideoStream != storiesHasVideoStream
 		|| videoUserpic) {
 		_cornerBadgeUserpic->key = key;
 		_cornerBadgeUserpic->paletteVersion = paletteVersion;
 		_cornerBadgeUserpic->active = active;
 		_cornerBadgeUserpic->storiesCount = storiesCount;
 		_cornerBadgeUserpic->storiesUnreadCount = storiesUnreadCount;
+		_cornerBadgeUserpic->storiesHasVideoStream = storiesHasVideoStream;
 		_cornerBadgeUserpic->frameIndex = frameIndex;
 		_cornerBadgeUserpic->layersManager.markFrameShown();
 		PaintCornerBadgeFrame(
