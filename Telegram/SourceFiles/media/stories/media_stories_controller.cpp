@@ -793,6 +793,7 @@ void Controller::rebuildFromContext(
 	_slider->show({
 		.index = _sliderCount ? _sliderIndex : _index,
 		.total = _sliderCount ? _sliderCount : shownCount(),
+		.videoStream = _videoStream,
 	});
 }
 

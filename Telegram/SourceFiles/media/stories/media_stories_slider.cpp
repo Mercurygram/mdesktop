@@ -126,21 +126,24 @@ void Slider::paint(QRectF clip) {
 		} else if (i == _data.index) {
 			const auto progress = _progress->value();
 			const auto full = _rects[i].width();
-			const auto min = _rects[i].height();
+			const auto height = _rects[i].height();
+			const auto min = _data.videoStream ? 0. : height;
 			const auto activeWidth = std::max(full * progress, min);
 			const auto inactiveWidth = full - activeWidth + min;
 			const auto activeLeft = _rects[i].left();
 			const auto inactiveLeft = activeLeft + activeWidth - min;
 			p.setOpacity(kOpacityInactive);
 			p.drawRoundedRect(
-				QRectF(inactiveLeft, 0, inactiveWidth, min),
+				QRectF(inactiveLeft, 0, inactiveWidth, height),
 				radius,
 				radius);
-			p.setOpacity(kOpacityActive);
-			p.drawRoundedRect(
-				QRectF(activeLeft, 0, activeWidth, min),
-				radius,
-				radius);
+			if (activeWidth > 0.) {
+				p.setOpacity(kOpacityActive);
+				p.drawRoundedRect(
+					QRectF(activeLeft, 0, activeWidth, height),
+					radius,
+					radius);
+			}
 		} else {
 			p.setOpacity((i < _data.index)
 				? kOpacityActive
