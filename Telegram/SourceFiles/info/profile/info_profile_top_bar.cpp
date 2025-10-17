@@ -50,6 +50,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "menu/menu_mute.h"
 #include "settings/settings_credits_graphics.h"
+#include "settings/settings_information.h"
 #include "settings/settings_premium.h"
 #include "ui/boxes/show_or_premium_box.h"
 #include "ui/color_contrast.h"
@@ -272,7 +273,10 @@ TopBar::TopBar(
 	}, _title->lifetime());
 
 	setupUniqueBadgeTooltip();
-	setupButtons(controller, descriptor.backToggles.value());
+	setupButtons(
+		controller,
+		descriptor.backToggles.value(),
+		descriptor.source);
 	setupUserpicButton(controller);
 	setupActions(controller);
 	setupStoryOutline();
@@ -957,7 +961,8 @@ void TopBar::paintEvent(QPaintEvent *e) {
 
 void TopBar::setupButtons(
 		not_null<Controller*> controller,
-		rpl::producer<bool> backToggles) {
+		rpl::producer<bool> backToggles,
+		Source source) {
 	rpl::combine(
 		controller->wrapValue(),
 		_edgeColor.value()
@@ -1012,7 +1017,11 @@ void TopBar::setupButtons(
 		}
 
 		if (wrap != Wrap::Side) {
-			addTopBarMenuButton(controller, wrap, shouldUseColored);
+			if (source == Source::Profile) {
+				addTopBarMenuButton(controller, wrap, shouldUseColored);
+			} else if (source == Source::Stories) {
+				addTopBarEditButton(controller, wrap, shouldUseColored);
+			}
 		}
 	}, lifetime());
 }
@@ -1061,6 +1070,33 @@ void TopBar::addTopBarMenuButton(
 			showTopBarMenu(controller, false);
 			return true;
 		});
+	}, _topBarMenuToggle->lifetime());
+}
+
+void TopBar::addTopBarEditButton(
+		not_null<Controller*> controller,
+		Wrap wrap,
+		bool shouldUseColored) {
+	_topBarMenuToggle = base::make_unique_q<Ui::IconButton>(
+		this,
+		((wrap == Wrap::Layer)
+			? (shouldUseColored
+				? st::infoLayerTopBarColoredEdit
+				: st::infoLayerTopBarEdit)
+			: (shouldUseColored
+				? st::infoTopBarColoredEdit
+				: st::infoTopBarEdit)));
+	_topBarMenuToggle->show();
+	_topBarMenuToggle->addClickHandler([=] {
+		controller->showSettings(::Settings::Information::Id());
+	});
+
+	widthValue() | rpl::start_with_next([=] {
+		if (_close) {
+			_topBarMenuToggle->moveToRight(_close->width(), 0);
+		} else {
+			_topBarMenuToggle->moveToRight(0, 0);
+		}
 	}, _topBarMenuToggle->lifetime());
 }
 

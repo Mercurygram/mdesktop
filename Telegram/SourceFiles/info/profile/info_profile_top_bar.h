@@ -78,8 +78,14 @@ class StatusLabel;
 
 class TopBar final : public Ui::RpWidget {
 public:
+	enum class Source {
+		Profile,
+		Stories,
+	};
+
 	struct Descriptor {
 		not_null<Controller*> controller;
+		Source source = Source::Profile;
 		PeerData *peer = nullptr;
 		rpl::variable<bool> backToggles;
 		rpl::producer<> showFinished;
@@ -100,6 +106,10 @@ public:
 	void setRoundEdges(bool value);
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
 	void addTopBarMenuButton(
+		not_null<Controller*> controller,
+		Wrap wrap,
+		bool shouldUseColored);
+	void addTopBarEditButton(
 		not_null<Controller*> controller,
 		Wrap wrap,
 		bool shouldUseColored);
@@ -131,7 +141,8 @@ private:
 	void setupActions(not_null<Controller*> controller);
 	void setupButtons(
 		not_null<Controller*> controller,
-		rpl::producer<bool> backToggles);
+		rpl::producer<bool> backToggles,
+		Source source);
 	void setupShowLastSeen(not_null<Controller*> controller);
 	void setupUniqueBadgeTooltip();
 	void hideBadgeTooltip();

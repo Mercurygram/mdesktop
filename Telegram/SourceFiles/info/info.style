@@ -369,6 +369,16 @@ infoLayerTopBarColoredMenu: IconButton(infoLayerTopBarMenu) {
 	iconOver: icon {{ "title_menu_dots", groupCallMembersFg }};
 	ripple: universalRippleAnimation;
 }
+infoTopBarColoredEdit: IconButton(infoTopBarEdit) {
+	icon: icon {{ "menu/edit", groupCallMembersFg }};
+	iconOver: icon {{ "menu/edit", groupCallMembersFg }};
+	ripple: universalRippleAnimation;
+}
+infoLayerTopBarColoredEdit: IconButton(infoLayerTopBarEdit) {
+	icon: icon {{ "menu/edit", groupCallMembersFg }};
+	iconOver: icon {{ "menu/edit", groupCallMembersFg }};
+	ripple: universalRippleAnimation;
+}
 
 infoProfileTopBarHeightMax: 224px + infoLayerTopBarHeight;
 infoProfileTopBarTitleTop: 150px;
