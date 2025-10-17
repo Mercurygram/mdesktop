@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer_rpl.h"
 #include "base/timer.h"
 #include "base/unixtime.h"
+#include "boxes/star_gift_box.h"
 #include "calls/calls_instance.h"
 #include "chat_helpers/stickers_lottie.h"
 #include "core/application.h"
@@ -511,6 +512,33 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		});
 		_actions->add(discuss);
 		buttons.push_back(discuss);
+	}
+	{
+		const auto channel = peer->asBroadcast();
+		if (!user && !channel) {
+		} else if (user
+			&& (user->isInaccessible()
+				|| user->isSelf()
+				|| user->isBot()
+				|| user->isServiceUser()
+				|| user->isNotificationsUser()
+				|| user->isRepliesChat()
+				|| user->isVerifyCodes()
+				|| !user->session().premiumCanBuy())) {
+		} else if (channel
+			&& (channel->isForbidden() || !channel->stargiftsAvailable())) {
+		} else {
+			const auto navigation = controller->parentController();
+			const auto giftButton = Ui::CreateChild<TopBarActionButton>(
+				this,
+				tr::lng_profile_action_short_gift(tr::now),
+				st::infoProfileTopBarActionGift);
+			giftButton->setClickedCallback([=] {
+				Ui::ShowStarGiftBox(navigation, peer);
+			});
+			_actions->add(giftButton);
+			buttons.push_back(giftButton);
+		}
 	}
 	_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
 			QColor c) {
