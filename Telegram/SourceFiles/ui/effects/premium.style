@@ -548,3 +548,21 @@ starrefPopupMenu: PopupMenu(defaultPopupMenu) {
 		widthMax: 200px;
 	}
 }
+
+videoStreamInfoPadding: margins(12px, 8px, 12px, 8px);
+videoStreamInfoTitle: FlatLabel(defaultFlatLabel) {
+	minWidth: 40px;
+	textFg: groupCallMembersFg;
+	align: align(top);
+	style: TextStyle(boxTextStyle) {
+		font: font(18px semibold);
+	}
+}
+videoStreamInfoSubtext: FlatLabel(defaultFlatLabel) {
+	minWidth: 40px;
+	textFg: groupCallMembersFg;
+	align: align(top);
+	style: TextStyle(defaultTextStyle) {
+		font: font(12px);
+	}
+}

@@ -1,0 +1,156 @@
+/*
+This file is part of Telegram Desktop,
+the official desktop application for the Telegram messaging service.
+
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
+*/
+#include "calls/group/ui/calls_group_stars_coloring.h"
+
+#include "base/object_ptr.h"
+#include "lang/lang_keys.h"
+#include "ui/widgets/labels.h"
+#include "ui/painter.h"
+#include "ui/rp_widget.h"
+#include "styles/style_credits.h"
+#include "styles/style_layers.h"
+#include "styles/style_premium.h"
+
+namespace Calls::Group::Ui {
+namespace {
+
+[[nodiscard]] not_null<Ui::RpWidget*> MakeInfoBlock(
+		not_null<Ui::RpWidget*> parent,
+		rpl::producer<QString> title,
+		rpl::producer<QString> subtext) {
+	const auto result = CreateChild<Ui::RpWidget>(parent);
+
+	const auto titleHeight = st::videoStreamInfoTitle.style.font->height;
+	const auto subtextHeight = st::videoStreamInfoSubtext.style.font->height;
+	const auto height = titleHeight + subtextHeight;
+
+	result->paintRequest() | rpl::start_with_next([=] {
+		auto p = QPainter(result);
+		auto hq = PainterHighQualityEnabler(p);
+		p.setPen(Qt::NoPen);
+		p.setBrush(st::groupCallMembersBgOver);
+		const auto radius = st::boxRadius;
+		p.drawRoundedRect(result->rect(), radius, radius);
+	}, result->lifetime());
+
+	result->resize(
+		result ->width(),
+		QSize(height, height).grownBy(st::videoStreamInfoPadding).height());
+
+	const auto titleLabel = CreateChild<Ui::FlatLabel>(
+		result,
+		std::move(title),
+		st::videoStreamInfoTitle);
+	const auto subtextLabel = CreateChild<Ui::FlatLabel>(
+		result,
+		std::move(subtext),
+		st::videoStreamInfoSubtext);
+
+	rpl::combine(
+		result->widthValue(),
+		titleLabel->widthValue(),
+		subtextLabel->widthValue()
+	) | rpl::start_with_next([=](int width, int titlew, int subtextw) {
+		const auto padding = st::videoStreamInfoPadding;
+		titleLabel->moveToLeft((width - titlew) / 2, padding.top(), width);
+		subtextLabel->moveToLeft(
+			(width - subtextw) / 2,
+			padding.top() + titleHeight,
+			width);
+	}, result->lifetime());
+
+	return result;
+}
+
+} // namespace
+
+StarsColoring StarsColoringForCount(int stars) {
+	const auto list = std::vector<StarsColoring>{
+		{ st::creditsBg3->c, st::creditsBg2->c, 50, 1, 60, 1 },
+		{ st::creditsBg3->c, st::creditsBg2->c, 100, 1, 80, 2 },
+		{ st::creditsBg3->c, st::creditsBg2->c, 250, 5, 110, 3 },
+		{ st::creditsBg3->c, st::creditsBg2->c, 500, 10, 150, 4 },
+		{ st::creditsBg3->c, st::creditsBg2->c, 2000, 15, 200, 7 },
+		{ st::creditsBg3->c, st::creditsBg2->c, 7500, 30, 280, 10 },
+		{ st::creditsBg3->c, st::creditsBg2->c, 0, 60, 400, 20 },
+	};
+	for (const auto &entry : list) {
+		if (!entry.tillStars || stars < entry.tillStars) {
+			return entry;
+		}
+	}
+	Unexpected("StarsColoringForCount: should not reach here.");
+}
+
+object_ptr<Ui::RpWidget> VideoStreamStarsLevel(
+		not_null<Ui::RpWidget*> box,
+		rpl::producer<int> starsValue) {
+	auto result = object_ptr<Ui::RpWidget>(box.get());
+	const auto raw = result.data();
+
+	struct State {
+		rpl::variable<int> stars;
+		rpl::variable<StarsColoring> coloring;
+		std::vector<not_null<Ui::RpWidget*>> blocks;
+	};
+	const auto state = raw->lifetime().make_state<State>();
+	state->stars = std::move(starsValue);
+	state->coloring = state->stars.value(
+	) | rpl::map([](int stars) {
+		return StarsColoringForCount(stars);
+	});
+
+	state->blocks.push_back(MakeInfoBlock(raw, state->coloring.value(
+	) | rpl::map([=](const StarsColoring &value) {
+		const auto minutes = value.minutesPin;
+		return (minutes >= 60)
+			? tr::lng_hours_tiny(tr::now, lt_count, minutes / 60)
+			: tr::lng_minutes_tiny(tr::now, lt_count, minutes);
+	}), tr::lng_paid_comment_pin_about()));
+
+	state->blocks.push_back(MakeInfoBlock(raw, state->coloring.value(
+	) | rpl::map([=](const StarsColoring &value) {
+		return QString::number(value.charactersMax);
+	}), state->coloring.value() | rpl::map([=](const StarsColoring &value) {
+		return tr::lng_paid_comment_limit_about(
+			tr::now,
+			lt_count,
+			value.charactersMax);
+	})));
+
+	state->blocks.push_back(MakeInfoBlock(raw, state->coloring.value(
+	) | rpl::map([=](const StarsColoring &value) {
+		return QString::number(value.emojiLimit);
+	}), state->coloring.value() | rpl::map([=](const StarsColoring &value) {
+		return tr::lng_paid_comment_emoji_about(
+			tr::now,
+			lt_count,
+			value.emojiLimit);
+	})));
+
+	raw->resize(raw->width(), state->blocks.front()->height());
+	raw->widthValue() | rpl::start_with_next([=](int width) {
+		const auto count = int(state->blocks.size());
+		const auto skip = (st::boxRowPadding.left() / 2);
+		const auto single = (width - skip * (count - 1)) / float64(count);
+		if (single < 1.) {
+			return;
+		}
+		auto x = 0.;
+		const auto w = int(base::SafeRound(single));
+		for (const auto &block : state->blocks) {
+			block->resizeToWidth(w);
+			block->moveToLeft(int(base::SafeRound(x)), 0);
+			x += single + skip;
+		}
+	}, raw->lifetime());
+
+	return result;
+}
+
+} // namespace Calls::Group::Ui

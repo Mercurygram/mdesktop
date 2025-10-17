@@ -4659,10 +4659,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_paid_comment_about" = "Highlight and pin your message by adding Stars for {name}.";
 "lng_paid_comment_button" = "Add {stars}";
 "lng_paid_comment_pin_about" = "pin in chat";
-"lng_paid_comment_pin_minutes#one" = "{count}m";
-"lng_paid_comment_pin_minutes#other" = "{count}m";
-"lng_paid_comment_pin_hours#one" = "{count}h";
-"lng_paid_comment_pin_hours#other" = "{count}h";
 "lng_paid_comment_limit_about#one" = "character";
 "lng_paid_comment_limit_about#other" = "characters";
 "lng_paid_comment_emoji_about#one" = "emoji";

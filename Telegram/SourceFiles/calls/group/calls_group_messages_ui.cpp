@@ -779,7 +779,7 @@ void MessagesUi::setupMessagesWidget() {
 			entry.text.draw(p, {
 				.position = {
 					x + leftSkip,
-					y + padding.top()
+					y + padding.top(),
 				},
 				.availableWidth = entry.width - leftSkip - padding.right(),
 				.palette = &st::groupCallMessagePalette,

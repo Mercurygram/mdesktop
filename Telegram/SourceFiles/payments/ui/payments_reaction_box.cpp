@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "payments/ui/payments_reaction_box.h"
 
 #include "base/qt/qt_compare.h"
+#include "calls/group/ui/calls_group_stars_coloring.h"
 #include "lang/lang_keys.h"
 #include "ui/boxes/boost_box.h" // MakeBoostFeaturesBadge.
 #include "ui/controls/who_reacted_context_action.h"
@@ -545,6 +546,13 @@ void PaidReactionsBox(
 	box->addTopButton(
 		dark ? st::darkEditStarsClose : st::boxTitleClose,
 		[=] { box->closeBox(); });
+
+	if (args.videoStreamChoosing) {
+		using namespace Calls::Group::Ui;
+		box->addRow(
+			VideoStreamStarsLevel(box, state->chosen.value()),
+			st::boxRowPadding + QMargins(0, st::paidReactTitleSkip, 0, 0));
+	}
 
 	box->addRow(
 		object_ptr<FlatLabel>(
