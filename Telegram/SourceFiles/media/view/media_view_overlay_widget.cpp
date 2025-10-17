@@ -5924,12 +5924,15 @@ void OverlayWidget::setStoriesPeer(PeerData *peer) {
 	const auto session = peer ? &peer->session() : nullptr;
 	if (!session && !_storiesSession) {
 		Assert(!_stories);
+		Assert(!_videoStream);
 	} else if (!peer) {
+		_videoStream = nullptr;
 		_stories = nullptr;
 		_storiesSession = nullptr;
 		_storiesChanged.fire({});
 		updateNavigationControlsGeometry();
 	} else if (_storiesSession != session) {
+		_videoStream = nullptr;
 		_stories = nullptr;
 		_storiesSession = session;
 		const auto delegate = static_cast<Stories::Delegate*>(this);

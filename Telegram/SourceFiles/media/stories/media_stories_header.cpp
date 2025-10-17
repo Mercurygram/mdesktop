@@ -450,7 +450,7 @@ void Header::show(HeaderData data) {
 		}, _privacy->lifetime());
 	}
 
-	if (data.video || data.stream) {
+	if (data.video || data.videoStream) {
 		if (data.video) {
 			createPlayPause();
 		}

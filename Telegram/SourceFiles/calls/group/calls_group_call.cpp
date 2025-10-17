@@ -959,8 +959,7 @@ void GroupCall::setScheduledDate(TimeId date) {
 }
 
 void GroupCall::setMessagesEnabled(bool enabled) {
-	_messagesEnabled = enabled
-		&& (!_rtmp || origin() == Data::GroupCallOrigin::VideoStream);
+	_messagesEnabled = enabled && (!_rtmp || videoStream());
 }
 
 void GroupCall::subscribeToReal(not_null<Data::GroupCall*> real) {
@@ -1205,6 +1204,7 @@ not_null<PeerData*> GroupCall::messagesFrom() const {
 
 bool GroupCall::showChooseJoinAs() const {
 	return !_rtmp
+		&& !videoStream()
 		&& ((_possibleJoinAs.size() > 1)
 			|| (_possibleJoinAs.size() == 1
 				&& !_possibleJoinAs.front()->isSelf()));
@@ -2416,6 +2416,7 @@ void GroupCall::handlePossibleCreateOrJoinResponse(
 				_instance->setJoinResponsePayload(json.toStdString());
 			}
 			updateInstanceVolumes();
+			fillActiveVideoEndpoints();
 			updateRequestedVideoChannels();
 			checkMediaChannelDescriptions();
 		});

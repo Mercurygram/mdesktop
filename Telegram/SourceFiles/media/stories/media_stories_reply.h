@@ -61,7 +61,7 @@ class Controller;
 struct ReplyAreaData {
 	PeerData *peer = nullptr;
 	StoryId id = 0;
-	base::weak_ptr<Calls::GroupCall> videoStream;
+	bool videoStream = false;
 
 	friend inline auto operator<=>(ReplyAreaData, ReplyAreaData) = default;
 	friend inline bool operator==(ReplyAreaData, ReplyAreaData) = default;
@@ -85,7 +85,7 @@ public:
 	[[nodiscard]] bool ignoreWindowMove(QPoint position) const;
 	void tryProcessKeyInput(not_null<QKeyEvent*> e);
 
-	[[nodiscard]] not_null<Ui::RpWidget*> likeAnimationTarget() const;
+	[[nodiscard]] Ui::RpWidget *likeAnimationTarget() const;
 
 	void updateVideoStream(not_null<Calls::GroupCall*> videoStream);
 

@@ -125,6 +125,7 @@ public:
 	[[nodiscard]] bool closeByClickAt(QPoint position) const;
 	[[nodiscard]] Data::FileOrigin fileOrigin() const;
 	[[nodiscard]] TextWithEntities captionText() const;
+	[[nodiscard]] bool videoStream() const;
 	[[nodiscard]] bool skipCaption() const;
 	[[nodiscard]] bool repost() const;
 	void toggleLiked();
@@ -285,6 +286,8 @@ private:
 	std::unique_ptr<CaptionFullView> _captionFullView;
 	std::unique_ptr<RepostView> _repostView;
 
+	base::weak_ptr<Calls::GroupCall> _videoStreamCall;
+
 	Ui::Animations::Simple _contentFadeAnimation;
 	bool _contentFaded = false;
 
@@ -293,6 +296,7 @@ private:
 	bool _layerShown = false;
 	bool _menuShown = false;
 	bool _tooltipShown = false;
+	bool _videoStream = false;
 	bool _paused = false;
 
 	FullStoryId _shown;

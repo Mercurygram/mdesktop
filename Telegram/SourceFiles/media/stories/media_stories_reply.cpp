@@ -97,6 +97,24 @@ namespace {
 	}) | rpl::flatten_latest();
 }
 
+[[nodiscard]] ChatHelpers::ComposeFeatures Features(bool videoStream) {
+	return {
+		.likes = !videoStream,
+		.sendAs = false,
+		.ttlInfo = false,
+		.botCommandSend = false,
+		.silentBroadcastToggle = false,
+		.attachBotsMenu = false,
+		.inlineBots = false,
+		.megagroupSet = false,
+		.stickersSettings = false,
+		.openStickerSets = false,
+		.autocompleteHashtags = false,
+		.autocompleteMentions = false,
+		.autocompleteCommands = false,
+	};
+}
+
 } // namespace
 
 class ReplyArea::Cant final : public Ui::RpWidget {
@@ -147,21 +165,7 @@ ReplyArea::ReplyArea(not_null<Controller*> controller)
 			rpl::deferred([=] { return _starsForMessage.value(); })),
 		.voiceCustomCancelText = tr::lng_record_cancel_stories(tr::now),
 		.voiceLockFromBottom = true,
-		.features = {
-			.likes = true,
-			.sendAs = false,
-			.ttlInfo = false,
-			.botCommandSend = false,
-			.silentBroadcastToggle = false,
-			.attachBotsMenu = false,
-			.inlineBots = false,
-			.megagroupSet = false,
-			.stickersSettings = false,
-			.openStickerSets = false,
-			.autocompleteHashtags = false,
-			.autocompleteMentions = false,
-			.autocompleteCommands = false,
-		},
+		.features = Features(false),
 	}
 )) {
 	initGeometry();
@@ -824,7 +828,11 @@ void ReplyArea::show(
 		return;
 	}
 	const auto peerChanged = (_data.peer != data.peer);
+	const auto streamChanged = (_data.videoStream != data.videoStream);
 	_data = data;
+	if (streamChanged) {
+		_controls->updateFeatures(Features(_data.videoStream));
+	}
 	if (!peerChanged) {
 		if (_data.peer) {
 			_controls->clear();
@@ -970,7 +978,7 @@ void ReplyArea::tryProcessKeyInput(not_null<QKeyEvent*> e) {
 	_controls->tryProcessKeyInput(e);
 }
 
-not_null<Ui::RpWidget*> ReplyArea::likeAnimationTarget() const {
+Ui::RpWidget *ReplyArea::likeAnimationTarget() const {
 	return _controls->likeAnimationTarget();
 }
 

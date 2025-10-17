@@ -145,6 +145,7 @@ public:
 
 	[[nodiscard]] Main::Session &session() const;
 	void setHistory(SetHistoryArgs &&args);
+	void updateFeatures(ChatHelpers::ComposeFeatures features);
 	void updateTopicRootId(MsgId topicRootId);
 	void updateShortcutId(BusinessShortcutId shortcutId);
 	void setCurrentDialogsEntryState(Dialogs::EntryState state);
@@ -239,7 +240,7 @@ public:
 	[[nodiscard]] rpl::producer<bool> recordingActiveValue() const;
 	[[nodiscard]] rpl::producer<bool> hasSendTextValue() const;
 	[[nodiscard]] rpl::producer<bool> fieldMenuShownValue() const;
-	[[nodiscard]] not_null<Ui::RpWidget*> likeAnimationTarget() const;
+	[[nodiscard]] Ui::RpWidget *likeAnimationTarget() const;
 	[[nodiscard]] int fieldCharacterCount() const;
 
 	[[nodiscard]] TextWithEntities prepareTextForEditMsg() const;
@@ -279,6 +280,8 @@ private:
 	void initWriteRestriction();
 	void initVoiceRecordBar();
 	void initKeyHandler();
+	void initLikeButton();
+	void updateLikeParent();
 	void updateSubmitSettings();
 	void updateSendButtonType();
 	void updateMessagesTTLShown();
@@ -354,7 +357,7 @@ private:
 	void checkCharsLimitation();
 
 	const style::ComposeControls &_st;
-	const ChatHelpers::ComposeFeatures _features;
+	ChatHelpers::ComposeFeatures _features;
 	const not_null<QWidget*> _parent;
 	const not_null<QWidget*> _panelsParent;
 	const std::shared_ptr<ChatHelpers::Show> _show;
@@ -385,7 +388,7 @@ private:
 	std::optional<Ui::RoundRect> _backgroundRect;
 
 	const std::shared_ptr<Ui::SendButton> _send;
-	Ui::IconButton * const _like = nullptr;
+	Ui::IconButton * _like = nullptr;
 	const not_null<Ui::IconButton*> _attachToggle;
 	std::unique_ptr<Ui::IconButton> _replaceMedia;
 	const not_null<Ui::EmojiButton*> _tabbedSelectorToggle;

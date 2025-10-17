@@ -1063,6 +1063,52 @@ void ComposeControls::setHistory(SetHistoryArgs &&args) {
 	orderControls();
 }
 
+void ComposeControls::initLikeButton() {
+	if (_like) {
+		_like->setClickedCallback([=] { _likeToggled.fire({}); });
+		_liked.value(
+		) | rpl::start_with_next([=](bool liked) {
+			const auto icon = liked ? &_st.liked : nullptr;
+			_like->setIconOverride(icon, icon);
+		}, _like->lifetime());
+	}
+}
+
+void ComposeControls::updateLikeParent() {
+	if (_like) {
+		using namespace Controls;
+		const auto hidden = _like->isHidden();
+		const auto &restriction = _writeRestriction.current();
+		if (_writeRestricted
+			&& restriction.type == WriteRestrictionType::PremiumRequired) {
+			_like->setParent(_writeRestricted.get());
+		} else {
+			_like->setParent(_wrap.get());
+		}
+		if (!hidden) {
+			_like->show();
+			updateControlsGeometry(_wrap->size());
+		}
+	}
+}
+
+void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
+	const auto was = std::exchange(_features, features);
+	if (was.likes != features.likes) {
+		if (!features.likes) {
+			delete base::take(_like);
+		} else {
+			_like = Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.like);
+			initLikeButton();
+			updateLikeParent();
+			if (updateLikeShown()) {
+				updateControlsVisibility();
+			}
+		}
+		updateControlsGeometry(_wrap->size());
+	}
+}
+
 void ComposeControls::setCurrentDialogsEntryState(
 		Dialogs::EntryState state) {
 	unregisterDraftSources();
@@ -1441,14 +1487,7 @@ void ComposeControls::init() {
 		_botCommandStart->setClickedCallback([=] { setText({ "/" }); });
 	}
 
-	if (_like) {
-		_like->setClickedCallback([=] { _likeToggled.fire({}); });
-		_liked.value(
-		) | rpl::start_with_next([=](bool liked) {
-			const auto icon = liked ? &_st.liked : nullptr;
-			_like->setIconOverride(icon, icon);
-		}, _like->lifetime());
-	}
+	initLikeButton();
 
 	_wrap->sizeValue(
 	) | rpl::start_with_next([=](QSize size) {
@@ -2639,20 +2678,7 @@ void ComposeControls::updateWrappingVisibility() {
 		_writeRestricted->setVisible(!hidden && restricted);
 	}
 	_wrap->setVisible(!hidden && !restricted);
-	using namespace Controls;
-	if (_like) {
-		const auto hidden = _like->isHidden();
-		if (_writeRestricted
-			&& restriction.type == WriteRestrictionType::PremiumRequired) {
-			_like->setParent(_writeRestricted.get());
-		} else {
-			_like->setParent(_wrap.get());
-		}
-		if (!hidden) {
-			_like->show();
-			updateControlsGeometry(_wrap->size());
-		}
-	}
+	updateLikeParent();
 	if (!hidden && !restricted) {
 		_wrap->raise();
 	}
@@ -3400,9 +3426,7 @@ rpl::producer<bool> ComposeControls::fieldMenuShownValue() const {
 	return _field->menuShownValue();
 }
 
-not_null<Ui::RpWidget*> ComposeControls::likeAnimationTarget() const {
-	Expects(_like != nullptr);
-
+Ui::RpWidget *ComposeControls::likeAnimationTarget() const {
 	return _like;
 }
 

@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unixtime.h"
 #include "boxes/peers/prepare_short_info_box.h"
 #include "boxes/report_messages_box.h"
+#include "calls/group/calls_group_call.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "core/application.h"
 #include "core/click_handler_types.h"
@@ -877,6 +878,7 @@ void Controller::show(
 	_repostView = validateRepostView(story);
 	_captionText = story->caption();
 	_contentFaded = false;
+	_videoStream = (story->call() != nullptr);
 	_contentFadeAnimation.stop();
 	const auto document = story->document();
 	_header->show({
@@ -890,7 +892,7 @@ void Controller::show(
 		.privacy = story->privacy(),
 		.edited = story->edited(),
 		.video = (document != nullptr),
-		.stream = (story->call() != nullptr),
+		.videoStream = _videoStream,
 		.silent = (document && document->isSilentVideo()),
 	});
 	uiShow()->hideLayer(anim::type::instant);
@@ -901,6 +903,7 @@ void Controller::show(
 	_replyArea->show({
 		.peer = unsupported ? nullptr : peer.get(),
 		.id = story->id(),
+		.videoStream = _videoStream,
 	}, _reactions->likedValue());
 
 	const auto wasLikeButton = QPointer(_recentViews->likeButton());
@@ -1786,7 +1789,12 @@ auto Controller::attachReactionsToMenu(
 }
 
 void Controller::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
+	_videoStreamCall = videoStream;
 	_replyArea->updateVideoStream(videoStream);
+}
+
+bool Controller::videoStream() const {
+	return _videoStream;
 }
 
 rpl::lifetime &Controller::lifetime() {

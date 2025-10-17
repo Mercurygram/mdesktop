@@ -881,7 +881,9 @@ void Reactions::Panel::attachToReactionButton(
 void Reactions::Panel::create() {
 	auto reactions = Data::LookupPossibleReactions(
 		&_controller->uiShow()->session());
-	if (reactions.recent.empty() || _mode.current() == Mode::Message) {
+	if (reactions.recent.empty()
+		|| (_mode.current() == Mode::Message
+			&& _controller->videoStream())) {
 		AssertIsDebug();
 		return;
 	}

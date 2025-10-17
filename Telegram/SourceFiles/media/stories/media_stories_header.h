@@ -41,7 +41,7 @@ struct HeaderData {
 	Data::StoryPrivacy privacy = {};
 	bool edited = false;
 	bool video = false;
-	bool stream = false;
+	bool videoStream = false;
 	bool silent = false;
 
 	friend inline auto operator<=>(HeaderData, HeaderData) = default;
