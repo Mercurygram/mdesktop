@@ -493,6 +493,25 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 			user->updateFull();
 		}
 	}
+	if (const auto chat = channel ? channel->discussionLink() : nullptr) {
+		const auto navigation = controller->parentController();
+		const auto discuss = Ui::CreateChild<TopBarActionButton>(
+			this,
+			tr::lng_profile_action_short_discuss(tr::now),
+			st::infoProfileTopBarActionMessage);
+		discuss->setClickedCallback([=] {
+			if (channel->invitePeekExpires()) {
+				controller->showToast(
+					tr::lng_channel_invite_private(tr::now));
+				return;
+			}
+			navigation->showPeerHistory(
+				chat,
+				Window::SectionShow::Way::Forward);
+		});
+		_actions->add(discuss);
+		buttons.push_back(discuss);
+	}
 	_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
 			QColor c) {
 		for (const auto &button : buttons) {
