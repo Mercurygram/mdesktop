@@ -39,7 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Payments {
 namespace {
 
-constexpr auto kMaxPerReactionFallback = 2'500;
+constexpr auto kMaxPerReactionFallback = 10'000;
 constexpr auto kDefaultPerReaction = 50;
 
 void TryAddingPaidReaction(
@@ -247,7 +247,7 @@ void ShowPaidReactionDetails(
 		.max = max,
 		.top = std::move(top),
 		.session = &channel->session(),
-		.channel = channel->name(),
+		.name = channel->name(),
 		.submit = std::move(submitText),
 		.balanceValue = session->credits().balanceValue(),
 		.send = [=](int count, uint64 barePeerId) {

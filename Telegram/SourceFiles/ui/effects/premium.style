@@ -289,10 +289,16 @@ boostTitleBadgeSkip: 6px;
 boostCenteredTitle: FlatLabel(boostTitle) {
 	align: align(top);
 }
+darkEditStarsCenteredTitle: FlatLabel(boostCenteredTitle) {
+	textFg: groupCallMembersFg;
+}
 boostTextSkip: 5px;
 boostText: FlatLabel(defaultFlatLabel) {
 	minWidth: 40px;
 	align: align(top);
+}
+darkEditStarsText: FlatLabel(boostText) {
+	textFg: groupCallMembersFg;
 }
 boostTextPending: FlatLabel(boostText) {
 	textFg: windowSubTextFg;
@@ -313,6 +319,13 @@ boostBox: Box(premiumPreviewDoubledLimitsBox) {
 		height: 42px;
 		textTop: 12px;
 		style: semiboldTextStyle;
+	}
+}
+darkEditStarsClose: IconButton(boxTitleClose) {
+	icon: icon {{ "box_button_close", groupCallMemberInactiveIcon }};
+	iconOver: icon {{ "box_button_close", groupCallMemberInactiveIcon }};
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: groupCallMembersBgOver;
 	}
 }
 
@@ -400,6 +413,13 @@ paidReactBox: Box(boostBox) {
 }
 paidReactBoxCheckbox: Checkbox(defaultCheckbox) {
 	width: 0px;
+}
+darkEditStarsBox: Box(paidReactBox) {
+	bg: groupCallMembersBg;
+	title: FlatLabel(boxTitle) {
+		textFg: groupCallMembersFg;
+		align: align(top);
+	}
 }
 paidReactBubbleIcon: icon{{ "settings/premium/star", premiumButtonFg }};
 paidReactBubbleTop: 5px;

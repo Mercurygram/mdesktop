@@ -377,6 +377,8 @@ PRIVATE
     calls/group/calls_group_rtmp.h
     calls/group/calls_group_settings.cpp
     calls/group/calls_group_settings.h
+    calls/group/calls_group_stars_box.cpp
+    calls/group/calls_group_stars_box.h
     calls/group/calls_group_toasts.cpp
     calls/group/calls_group_toasts.h
     calls/group/calls_group_viewport.cpp

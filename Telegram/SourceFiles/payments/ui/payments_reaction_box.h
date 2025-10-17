@@ -39,10 +39,12 @@ struct PaidReactionBoxArgs {
 	std::vector<PaidReactionTop> top;
 
 	not_null<Main::Session*> session;
-	QString channel;
+	QString name;
 	Fn<rpl::producer<TextWithEntities>(rpl::producer<int> amount)> submit;
 	rpl::producer<CreditsAmount> balanceValue;
 	Fn<void(int, uint64)> send;
+	bool videoStreamChoosing = false;
+	bool dark = false;
 };
 
 void PaidReactionsBox(

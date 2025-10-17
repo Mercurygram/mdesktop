@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer_rpl.h"
 #include "base/unixtime.h"
 #include "boxes/edit_caption_box.h"
+#include "calls/group/calls_group_stars_box.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "chat_helpers/emoji_suggestions_widget.h"
 #include "chat_helpers/message_field.h"
@@ -1080,12 +1081,15 @@ void ComposeControls::initLikeButton() {
 void ComposeControls::initEditStarsButton() {
 	if (_editStars) {
 		_editStars->setClickedCallback([=] {
-			if (!_chosenStarsCount) {
-				_chosenStarsCount = 1;
-			} else {
-				++*_chosenStarsCount;
-			}
-			updateSendButtonType();
+			_show->show(Calls::Group::MakeVideoStreamStarsBox({
+				.show = _show,
+				.current = _chosenStarsCount.value_or(0),
+				.save = crl::guard(_editStars, [=](int count) {
+					_chosenStarsCount = count;
+					updateSendButtonType();
+				}),
+				.name = _history ? _history->peer->name() : QString(),
+			}));
 		});
 	}
 }

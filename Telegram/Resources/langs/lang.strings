@@ -4655,6 +4655,19 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_paid_react_show_in_top" = "Show me in Top Senders";
 "lng_paid_react_anonymous" = "Anonymous";
 
+"lng_paid_comment_title" = "Highlight and Pin";
+"lng_paid_comment_about" = "Highlight and pin your message by adding Stars for {name}.";
+"lng_paid_comment_button" = "Add {stars}";
+"lng_paid_comment_pin_about" = "pin in chat";
+"lng_paid_comment_pin_minutes#one" = "{count}m";
+"lng_paid_comment_pin_minutes#other" = "{count}m";
+"lng_paid_comment_pin_hours#one" = "{count}h";
+"lng_paid_comment_pin_hours#other" = "{count}h";
+"lng_paid_comment_limit_about#one" = "character";
+"lng_paid_comment_limit_about#other" = "characters";
+"lng_paid_comment_emoji_about#one" = "emoji";
+"lng_paid_comment_emoji_about#other" = "emoji";
+
 "lng_sensitive_tag" = "18+";
 "lng_sensitive_title" = "18+";
 "lng_sensitive_text" = "This media may contain sensitive content suitable only for adults. Do you still want to view it?";

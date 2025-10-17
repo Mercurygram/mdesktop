@@ -64,7 +64,10 @@ private:
 	void handleIdUpdates(rpl::producer<MessageIdUpdate> idUpdates);
 	void toggleMessage(MessageView &entry, bool shown);
 	void setContentFailed(MessageView &entry);
-	void setContent(MessageView &entry, const TextWithEntities &text);
+	void setContent(
+		MessageView &entry,
+		const TextWithEntities &text,
+		int stars);
 	void updateMessageSize(MessageView &entry);
 	bool updateMessageHeight(MessageView &entry);
 	void animateMessageSent(MessageView &entry);
@@ -94,6 +97,8 @@ private:
 	std::vector<MessageView> _views;
 	style::complex_color _messageBg;
 	Ui::RoundRect _messageBgRect;
+
+	Ui::RoundRect _payedBgRect;
 
 	QPoint _reactionBasePosition;
 	rpl::lifetime _effectsLifetime;

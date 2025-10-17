@@ -477,11 +477,12 @@ void PaidReactionsBox(
 		PaidReactionBoxArgs &&args) {
 	Expects(!args.top.empty());
 
+	const auto dark = args.dark;
 	args.max = std::max(args.max, 2);
 	args.chosen = std::clamp(args.chosen, 1, args.max);
 
 	box->setWidth(st::boxWideWidth);
-	box->setStyle(st::paidReactBox);
+	box->setStyle(dark ? st::darkEditStarsBox : st::paidReactBox);
 	box->setNoContentMargin(true);
 
 	struct State {
@@ -496,6 +497,7 @@ void PaidReactionsBox(
 		state->chosen = count;
 	};
 
+	const auto videoStream = args.videoStreamChoosing;
 	const auto initialShownPeer = ranges::find(
 		args.top,
 		true,
@@ -540,13 +542,17 @@ void PaidReactionsBox(
 		&PaidReactionTop::my)->count;
 	PaidReactionSlider(content, args.chosen, args.max, changed);
 
-	box->addTopButton(st::boxTitleClose, [=] { box->closeBox(); });
+	box->addTopButton(
+		dark ? st::darkEditStarsClose : st::boxTitleClose,
+		[=] { box->closeBox(); });
 
 	box->addRow(
 		object_ptr<FlatLabel>(
 			box,
-			tr::lng_paid_react_title(),
-			st::boostCenteredTitle),
+			(videoStream
+				? tr::lng_paid_comment_title()
+				: tr::lng_paid_react_title()),
+			dark ? st::darkEditStarsCenteredTitle : st::boostCenteredTitle),
 		st::boxRowPadding + QMargins(0, st::paidReactTitleSkip, 0, 0),
 		style::al_top);
 	const auto labelWrap = box->addRow(
@@ -555,16 +561,21 @@ void PaidReactionsBox(
 			+ QMargins(0, st::lineWidth, 0, st::boostBottomSkip)));
 	const auto label = CreateChild<FlatLabel>(
 		labelWrap,
-		(already
+		(videoStream
+			? tr::lng_paid_comment_about(
+				lt_name,
+				rpl::single(Text::Bold(args.name)),
+				Text::RichLangValue)
+			: already
 			? tr::lng_paid_react_already(
 				lt_count,
 				rpl::single(already) | tr::to_count(),
 				Text::RichLangValue)
 			: tr::lng_paid_react_about(
 				lt_channel,
-				rpl::single(Text::Bold(args.channel)),
+				rpl::single(Text::Bold(args.name)),
 				Text::RichLangValue)),
-		st::boostText);
+		dark ? st::darkEditStarsText : st::boostText);
 	labelWrap->widthValue() | rpl::start_with_next([=](int width) {
 		label->resizeToWidth(width);
 	}, label->lifetime());
@@ -575,26 +586,27 @@ void PaidReactionsBox(
 		label->moveToLeft(0, skip);
 	}, label->lifetime());
 
-	FillTopReactors(
-		content,
-		std::move(args.top),
-		state->chosen.value(),
-		state->shownPeer.value(),
-		[=](uint64 barePeerId) {
-			state->shownPeer = state->savedShownPeer = barePeerId;
-		});
-
-	const auto named = box->addRow(
-		object_ptr<Checkbox>(
-			box,
-			tr::lng_paid_react_show_in_top(tr::now),
-			state->shownPeer.current() != 0,
-			st::paidReactBoxCheckbox),
-		style::al_top);
-	named->checkedValue(
-	) | rpl::start_with_next([=](bool show) {
-		state->shownPeer = show ? state->savedShownPeer : 0;
-	}, named->lifetime());
+	if (!args.videoStreamChoosing) {
+		FillTopReactors(
+			content,
+			std::move(args.top),
+			state->chosen.value(),
+			state->shownPeer.value(),
+			[=](uint64 barePeerId) {
+				state->shownPeer = state->savedShownPeer = barePeerId;
+			});
+		const auto named = box->addRow(
+			object_ptr<Checkbox>(
+				box,
+				tr::lng_paid_react_show_in_top(tr::now),
+				state->shownPeer.current() != 0,
+				st::paidReactBoxCheckbox),
+			style::al_top);
+		named->checkedValue(
+		) | rpl::start_with_next([=](bool show) {
+			state->shownPeer = show ? state->savedShownPeer : 0;
+		}, named->lifetime());
+	}
 
 	AddSkip(content);
 	AddSkip(content);
@@ -656,7 +668,9 @@ void PaidReactionsBox(
 			content,
 			args.session,
 			std::move(args.balanceValue),
-			false);
+			false,
+			nullptr,
+			dark);
 		rpl::combine(
 			balance->sizeValue(),
 			box->widthValue()

@@ -39,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_calls.h"
 #include "styles/style_chat_helpers.h"
 #include "styles/style_chat.h"
+#include "styles/style_credits.h"
 #include "styles/style_media_view.h"
 
 #include <QtGui/QGuiApplication>
@@ -152,6 +153,8 @@ struct MessagesUi::MessageView {
 	QPoint reactionShift;
 	Ui::PeerUserpicView view;
 	Ui::Text::String text;
+	Ui::Text::String price;
+	int stars = 0;
 	int top = 0;
 	int width = 0;
 	int left = 0;
@@ -178,6 +181,7 @@ MessagesUi::MessagesUi(
 	return result;
 })
 , _messageBgRect(CountMessageRadius(), _messageBg.color())
+, _payedBgRect(CountMessageRadius(), st::creditsBg3)
 , _fadeHeight(st::normalFont->height)
 , _streamMode(_mode == MessagesMode::VideoStream) {
 	setupList(std::move(messages), std::move(shown));
@@ -323,11 +327,23 @@ void MessagesUi::setContentFailed(MessageView &entry) {
 			Ui::Text::Italic(u"Failed to send the message."_q)),
 		kMarkupTextOptions,
 		st::groupCallWidth / 4);
+	entry.price = Ui::Text::String();
 }
 
 void MessagesUi::setContent(
 		MessageView &entry,
-		const TextWithEntities &text) {
+		const TextWithEntities &text,
+		int stars) {
+	if (stars) {
+		entry.price = Ui::Text::String(
+			st::messageTextStyle,
+			Ui::Text::IconEmoji(
+				&st::starIconEmojiSmall
+			).append(Lang::FormatCountDecimal(stars)),
+			kMarkupTextOptions);
+	} else {
+		entry.price = Ui::Text::String();
+	}
 	entry.text = Ui::Text::String(
 		st::messageTextStyle,
 		text,
@@ -337,6 +353,11 @@ void MessagesUi::setContent(
 			.session = &_show->session(),
 			.repaint = [this, id = entry.id] { repaintMessage(id); },
 		}));
+	if (!entry.price.isEmpty()) {
+		entry.text.updateSkipBlock(
+			entry.price.maxWidth(),
+			st::normalFont->height);
+	}
 	entry.text.setLink(1, entry.fromLink);
 	if (entry.text.hasSpoilers()) {
 		const auto id = entry.id;
@@ -424,6 +445,7 @@ void MessagesUi::appendMessage(const Message &data) {
 
 	auto &entry = _views.emplace_back();
 	const auto id = entry.id = data.id;
+	entry.stars = data.stars;
 	const auto repaint = [=] {
 		repaintMessage(id);
 	};
@@ -438,11 +460,7 @@ void MessagesUi::appendMessage(const Message &data) {
 	} else {
 		auto text = Ui::Text::Link(Ui::Text::Bold(data.peer->shortName()), 1)
 			.append(' ').append(data.text);
-		if (data.stars) {
-			text.append(" (").append(
-				QString::number(data.stars)).append(" stars)");
-		}
-		setContent(entry, text);
+		setContent(entry, text, data.stars);
 	}
 	entry.top = top;
 	updateMessageSize(entry);
@@ -713,9 +731,12 @@ void MessagesUi::setupMessagesWidget() {
 			}
 			if (!_streamMode) {
 				_messageBgRect.paint(p, { x, y, width, use });
+			} else if (entry.stars) {
+				_payedBgRect.paint(p, { x, y, width, use });
 			}
 
 			auto leftSkip = padding.left();
+			const auto priceSkip = padding.right() / 2;
 			const auto hasUserpic = !entry.failed;
 			if (hasUserpic) {
 				const auto userpicSize = st::groupCallUserpic;
@@ -766,6 +787,15 @@ void MessagesUi::setupMessagesWidget() {
 				.now = now,
 				.paused = !_messages->window()->isActiveWindow(),
 			});
+			if (!entry.price.isEmpty()) {
+				entry.price.draw(p, {
+					.position = {
+						x + entry.width - entry.price.maxWidth() - priceSkip,
+						y + use - st::normalFont->height,
+					},
+					.availableWidth = entry.price.maxWidth(),
+				});
+			}
 			if (!scaled && entry.reactionId && !entry.reactionAnimation) {
 				startReactionAnimation(entry);
 			}
