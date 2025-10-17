@@ -410,6 +410,17 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		buttons.push_back(message);
 		_actions->add(message);
 	}
+	if (!topic && channel && !channel->amIn()) {
+		const auto join = Ui::CreateChild<TopBarActionButton>(
+			this,
+			tr::lng_profile_action_short_join(tr::now),
+			st::infoProfileTopBarActionJoin);
+		join->setClickedCallback([=] {
+			channel->owner().session().api().joinChannel(channel);
+		});
+		buttons.push_back(join);
+		_actions->add(join);
+	}
 	{
 		const auto notifications = Ui::CreateChild<TopBarActionButton>(
 			this,
