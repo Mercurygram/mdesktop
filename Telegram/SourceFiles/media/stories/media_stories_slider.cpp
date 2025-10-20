@@ -55,7 +55,8 @@ void Slider::show(SliderData data) {
 
 	raw->paintRequest(
 	) | rpl::filter([=] {
-		return (raw->width() >= st::storiesSliderWidth);
+		return !_data.videoStream
+			&& (raw->width() >= st::storiesSliderWidth);
 	}) | rpl::start_with_next([=](QRect clip) {
 		paint(QRectF(clip));
 	}, raw->lifetime());
@@ -127,7 +128,7 @@ void Slider::paint(QRectF clip) {
 			const auto progress = _progress->value();
 			const auto full = _rects[i].width();
 			const auto height = _rects[i].height();
-			const auto min = _data.videoStream ? 0. : height;
+			const auto min = height;
 			const auto activeWidth = std::max(full * progress, min);
 			const auto inactiveWidth = full - activeWidth + min;
 			const auto activeLeft = _rects[i].left();

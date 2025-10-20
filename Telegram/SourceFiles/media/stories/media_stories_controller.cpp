@@ -831,6 +831,7 @@ void Controller::show(
 	_context = context;
 	_waitingForId = {};
 	_waitingForDelta = 0;
+	_videoStream = (story->call() != nullptr);
 
 	rebuildFromContext(peer, storyId);
 	_contextLifetime.destroy();
@@ -879,7 +880,6 @@ void Controller::show(
 	_repostView = validateRepostView(story);
 	_captionText = story->caption();
 	_contentFaded = false;
-	_videoStream = (story->call() != nullptr);
 	_contentFadeAnimation.stop();
 	const auto document = story->document();
 	_header->show({
