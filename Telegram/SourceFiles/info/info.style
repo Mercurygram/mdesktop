@@ -379,13 +379,48 @@ infoLayerTopBarColoredEdit: IconButton(infoLayerTopBarEdit) {
 	iconOver: icon {{ "menu/edit", groupCallMembersFg }};
 	ripple: universalRippleAnimation;
 }
+infoTopBarBlackBack: IconButton(infoTopBarBack) {
+	icon: icon {{ "info/info_back", windowBoldFg }};
+	iconOver: icon {{ "info/info_back", windowBoldFg }};
+	ripple: universalRippleAnimation;
+}
+infoLayerTopBarBlackBack: IconButton(infoLayerTopBarBack) {
+	icon: icon {{ "info/info_back", windowBoldFg }};
+	iconOver: icon {{ "info/info_back", windowBoldFg }};
+	ripple: universalRippleAnimation;
+}
+infoTopBarBlackClose: IconButton(infoTopBarClose) {
+	icon: icon {{ "info/info_close", windowBoldFg }};
+	iconOver: icon {{ "info/info_close", windowBoldFg }};
+	ripple: universalRippleAnimation;
+}
+infoTopBarBlackMenu: IconButton(infoTopBarMenu) {
+	icon: icon {{ "title_menu_dots", windowBoldFg }};
+	iconOver: icon {{ "title_menu_dots", windowBoldFg }};
+	ripple: universalRippleAnimation;
+}
+infoLayerTopBarBlackMenu: IconButton(infoLayerTopBarMenu) {
+	icon: icon {{ "title_menu_dots", windowBoldFg }};
+	iconOver: icon {{ "title_menu_dots", windowBoldFg }};
+	ripple: universalRippleAnimation;
+}
+infoTopBarBlackEdit: IconButton(infoTopBarEdit) {
+	icon: icon {{ "menu/edit", windowBoldFg }};
+	iconOver: icon {{ "menu/edit", windowBoldFg }};
+	ripple: universalRippleAnimation;
+}
+infoLayerTopBarBlackEdit: IconButton(infoLayerTopBarEdit) {
+	icon: icon {{ "menu/edit", windowBoldFg }};
+	iconOver: icon {{ "menu/edit", windowBoldFg }};
+	ripple: universalRippleAnimation;
+}
 
-infoProfileTopBarHeightMax: 224px + infoLayerTopBarHeight;
-infoProfileTopBarTitleTop: 150px;
-infoProfileTopBarStatusTop: 170px;
-infoProfileTopBarPhotoTop: 30px;
+infoProfileTopBarHeightMax: 180px + infoLayerTopBarHeight;
+infoProfileTopBarTitleTop: 113px;
+infoProfileTopBarStatusTop: 134px;
+infoProfileTopBarPhotoTop: 24px;
 infoProfileTopBarPhotoBgShift: 60px;
-infoProfileTopBarPhotoSize: 104px;
+infoProfileTopBarPhotoSize: 80px;
 infoProfileTopBarLastSeenSkip: 8px;
 
 infoProfileTopBarGiftSize: 20px;
@@ -398,27 +433,29 @@ infoProfileTopBarGiftTopRight: point(30px, 4px);
 infoProfileTopBarGiftBottomRight: point(30px, 16px);
 
 infoProfileTopBarActionButtonBgOpacity: 0.16;
-infoProfileTopBarActionButtonSize: 56px;
+infoProfileTopBarActionButtonSize: 52px;
 infoProfileTopBarActionButtonIconSize: 24px;
 infoProfileTopBarActionButtonLottieSize: infoProfileTopBarActionButtonIconSize - 2px;
-infoProfileTopBarActionButtonIconTop: 8px;
+infoProfileTopBarActionButtonIconTop: 6px;
+infoProfileTopBarActionButtonTextTop: infoProfileTopBarActionButtonIconSize + infoProfileTopBarActionButtonIconTop + 1px;
 infoProfileTopBarActionButtonTextSkip: 4px;
+infoProfileTopBarActionButtonFont: font(11px);
 
-infoProfileTopBarActionButtonsPadding: margins(12px, 6px, 12px, 12px);
+infoProfileTopBarActionButtonsPadding: margins(18px, 0px, 18px, 16px);
 infoProfileTopBarActionButtonsHeight: infoProfileTopBarActionButtonSize + infoProfileTopBarActionButtonsPadding.topBottom;
 infoProfileTopBarActionButtonsSpace: 10px;
 
 infoProfileTopBarStep2: infoProfileTopBarHeightMax - infoLayerTopBarHeight;
 infoProfileTopBarStep1: infoProfileTopBarStep2 - infoProfileTopBarActionButtonsHeight;
 
-infoProfileTopBarActionMessage: icon{{ "profile/message-22x22", premiumButtonFg }};
-infoProfileTopBarActionMute: icon{{ "profile/mute-22x22", premiumButtonFg }};
-infoProfileTopBarActionUnmute: icon{{ "profile/unmute-22x22", premiumButtonFg }};
-infoProfileTopBarActionCall: icon{{ "profile/call-22x22", premiumButtonFg }};
-infoProfileTopBarActionGift: icon{{ "profile/gift-22x22", premiumButtonFg }};
-infoProfileTopBarActionJoin: icon{{ "profile/join-22x22", premiumButtonFg }};
-infoProfileTopBarActionReport: icon{{ "profile/report-22x22", premiumButtonFg }};
-infoProfileTopBarActionLeave: icon{{ "profile/leave-22x22", premiumButtonFg }};
+infoProfileTopBarActionMessage: icon{{ "profile/message-22x22", windowBoldFg }};
+infoProfileTopBarActionMute: icon{{ "profile/mute-22x22", windowBoldFg }};
+infoProfileTopBarActionUnmute: icon{{ "profile/unmute-22x22", windowBoldFg }};
+infoProfileTopBarActionCall: icon{{ "profile/call-22x22", windowBoldFg }};
+infoProfileTopBarActionGift: icon{{ "profile/gift-22x22", windowBoldFg }};
+infoProfileTopBarActionJoin: icon{{ "profile/join-22x22", windowBoldFg }};
+infoProfileTopBarActionReport: icon{{ "profile/report-22x22", windowBoldFg }};
+infoProfileTopBarActionLeave: icon{{ "profile/leave-22x22", windowBoldFg }};
 
 infoMinimalWidth: 324px;
 infoDesiredWidth: 392px;
@@ -1381,5 +1418,5 @@ collectionSubTabs: SubTabs(defaultSubTabs) {
 earnTonIconSize: 16px;
 earnTonIconMargin: margins(0px, 2px, 0px, 0px);
 
-infoMusicButtonRipple: defaultRippleAnimation;
+infoMusicButtonRipple: universalRippleAnimation;
 infoMusicButtonPadding: margins(16px, 6px, 13px, 6px);

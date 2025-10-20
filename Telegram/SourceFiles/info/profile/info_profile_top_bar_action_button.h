@@ -15,6 +15,12 @@ class Icon;
 
 namespace Info::Profile {
 
+struct TopBarActionButtonStyle {
+	QColor bgColor;
+	std::optional<QColor> fgColor;
+	std::optional<QColor> shadowColor;
+};
+
 class TopBarActionButton final : public Ui::RippleButton {
 public:
 	TopBarActionButton(
@@ -34,7 +40,7 @@ public:
 	void toggle(bool state);
 	void finishAnimating();
 	void setText(const QString &text);
-	void setBgColor(const QColor &color);
+	void setStyle(const TopBarActionButtonStyle &style);
 
 	~TopBarActionButton();
 
@@ -59,6 +65,8 @@ private:
 	QString _onLottie;
 
 	QColor _bgColor;
+	std::optional<QColor> _fgColor;
+	std::optional<QColor> _shadowColor;
 
 };
 

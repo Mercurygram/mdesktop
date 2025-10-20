@@ -389,13 +389,24 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 	const auto topic = controller->key().topic();
 	const auto sublist = controller->key().sublist();
 	const auto mapped = [=](std::optional<QColor> c) {
-		return !c
-			? anim::with_alpha(
-				st::activeButtonBg->c,
-				1. - st::infoProfileTopBarActionButtonBgOpacity)
-			: anim::with_alpha(
-				Qt::black,
-				st::infoProfileTopBarActionButtonBgOpacity);
+		if (c) {
+			return TopBarActionButtonStyle{
+				.bgColor = anim::with_alpha(
+					Qt::black,
+					st::infoProfileTopBarActionButtonBgOpacity),
+				.fgColor = std::make_optional(st::premiumButtonFg->c),
+				.shadowColor = std::nullopt,
+			};
+		} else {
+			return TopBarActionButtonStyle{
+				.bgColor = anim::with_alpha(
+					st::boxBg->c,
+					1. - st::infoProfileTopBarActionButtonBgOpacity),
+				.fgColor = std::nullopt,
+				.shadowColor = std::make_optional(
+					st::windowShadowFgFallback->c),
+			};
+		}
 	};
 	auto buttons = std::vector<not_null<TopBarActionButton*>>();
 	_actions = base::make_unique_q<Ui::HorizontalFitContainer>(
@@ -500,8 +511,8 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 				Core::App().calls().startOutgoingCall(user, false);
 			});
 			_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
-					QColor c) {
-				call->setBgColor(c);
+					TopBarActionButtonStyle st) {
+				call->setStyle(std::move(st));
 			}, call->lifetime());
 			_actions->add(call);
 		}, lifetime());
@@ -584,9 +595,9 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		buttons.push_back(leaveButton);
 	}
 	_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
-			QColor c) {
+			TopBarActionButtonStyle st) {
 		for (const auto &button : buttons) {
-			button->setBgColor(c);
+			button->setStyle(st);
 		}
 	}, _actions->lifetime());
 	const auto padding = st::infoProfileTopBarActionButtonsPadding;
@@ -766,7 +777,7 @@ void TopBar::paintEdges(QPainter &p, const QBrush &brush) const {
 }
 
 void TopBar::paintEdges(QPainter &p) const {
-	paintEdges(p, st::boxBg);
+	paintEdges(p, st::boxDividerBg);
 }
 
 int TopBar::titleMostLeft() const {
@@ -1073,10 +1084,10 @@ void TopBar::setupButtons(
 				(isLayer
 					? (shouldUseColored
 						? st::infoTopBarColoredBack
-						: st::infoTopBarBack)
+						: st::infoTopBarBlackBack)
 					: (shouldUseColored
 						? st::infoLayerTopBarColoredBack
-						: st::infoLayerTopBarBack))),
+						: st::infoLayerTopBarBlackBack))),
 			st::infoTopBarScale);
 		_back->QWidget::show();
 		_back->setDuration(0);
@@ -1095,7 +1106,7 @@ void TopBar::setupButtons(
 				this,
 				shouldUseColored
 					? st::infoTopBarColoredClose
-					: st::infoTopBarClose);
+					: st::infoTopBarBlackClose);
 			_close->show();
 			_close->addClickHandler([=] {
 				controller->parentController()->hideLayer();
@@ -1132,10 +1143,10 @@ void TopBar::addTopBarMenuButton(
 		((wrap == Wrap::Layer)
 			? (shouldUseColored
 				? st::infoLayerTopBarColoredMenu
-				: st::infoLayerTopBarMenu)
+				: st::infoLayerTopBarBlackMenu)
 			: (shouldUseColored
 				? st::infoTopBarColoredMenu
-				: st::infoTopBarMenu)));
+				: st::infoTopBarBlackMenu)));
 	_topBarMenuToggle->show();
 	_topBarMenuToggle->addClickHandler([=] {
 		showTopBarMenu(controller, false);
@@ -1172,10 +1183,10 @@ void TopBar::addTopBarEditButton(
 		((wrap == Wrap::Layer)
 			? (shouldUseColored
 				? st::infoLayerTopBarColoredEdit
-				: st::infoLayerTopBarEdit)
+				: st::infoLayerTopBarBlackEdit)
 			: (shouldUseColored
 				? st::infoTopBarColoredEdit
-				: st::infoTopBarEdit)));
+				: st::infoTopBarBlackEdit)));
 	_topBarMenuToggle->show();
 	_topBarMenuToggle->addClickHandler([=] {
 		controller->showSettings(::Settings::Information::Id());

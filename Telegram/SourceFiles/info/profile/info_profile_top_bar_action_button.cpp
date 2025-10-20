@@ -93,8 +93,10 @@ void TopBarActionButton::setText(const QString &text) {
 	update();
 }
 
-void TopBarActionButton::setBgColor(const QColor &color) {
-	_bgColor = color;
+void TopBarActionButton::setStyle(const TopBarActionButtonStyle &style) {
+	_bgColor = style.bgColor;
+	_fgColor = style.fgColor;
+	_shadowColor = style.shadowColor;
 	update();
 }
 
@@ -109,6 +111,7 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 	p.setBrush(_bgColor);
 	{
 		auto hq = PainterHighQualityEnabler(p);
+		// Todo shadows.
 		p.drawRoundedRect(rect(), st::boxRadius, st::boxRadius);
 	}
 
@@ -130,9 +133,13 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 		p.scale(iconScale, iconScale);
 		p.translate(-iconCenter);
 		if (_lottie) {
-			_lottie->paint(p, iconLeft, iconTop);
+			_lottie->paint(p, iconLeft, iconTop, _fgColor);
 		} else if (_icon) {
-			_icon->paint(p, iconLeft, iconTop, width());
+			if (_fgColor) {
+				_icon->paint(p, iconLeft, iconTop, width(), *_fgColor);
+			} else {
+				_icon->paint(p, iconLeft, iconTop, width());
+			}
 		}
 		p.restore();
 		p.setOpacity(progress);
@@ -141,11 +148,18 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 	const auto skip = st::infoProfileTopBarActionButtonTextSkip;
 
 	p.setClipRect(0, 0, width(), height() - skip);
-	p.setPen(st::premiumButtonFg);
-	p.setFont(st::normalFont);
+
+	if (_fgColor.has_value()) {
+		p.setPen(*_fgColor);
+	} else {
+		p.setPen(st::windowBoldFg);
+	}
+
+	p.setFont(st::infoProfileTopBarActionButtonFont);
 
 	const auto textScale = std::max(kIconFadeStart, progress);
-	const auto textRect = rect() - QMargins(0, iconTop + iconSize, 0, 0);
+	const auto textRect = rect()
+		- QMargins(0, st::infoProfileTopBarActionButtonTextTop, 0, 0);
 	const auto textCenter = rect::center(textRect);
 	p.translate(textCenter);
 	p.scale(textScale, textScale);

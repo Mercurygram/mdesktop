@@ -49,11 +49,10 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 			*_overrideBg,
 			Qt::black,
 			st::infoProfileTopBarActionButtonBgOpacity));
-		paintRipple(p, QPoint(), &st::universalRippleAnimation.color->c);
 	} else {
-		p.fillRect(e->rect(), st::windowBgOver);
-		paintRipple(p, QPoint());
+		p.fillRect(e->rect(), st::shadowFg);
 	}
+	paintRipple(p, QPoint());
 
 	const auto &icon = st::topicButtonArrow;
 	const auto iconWidth = icon.width();
