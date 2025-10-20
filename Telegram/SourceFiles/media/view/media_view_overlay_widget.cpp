@@ -2414,6 +2414,8 @@ void OverlayWidget::assignMediaPointer(
 	_videoStream = nullptr;
 	_videoStream = std::make_unique<VideoStream>(
 		_body,
+		_surface.get(),
+		_opengl,
 		_wrap->backend(),
 		uiShow(),
 		std::move(call),
@@ -5107,7 +5109,11 @@ void OverlayWidget::paint(not_null<Renderer*> renderer) {
 			}
 		}
 	} else if (_stories) {
-		// Unsupported story.
+		if (_videoStream) {
+			renderer->paintVideoStream();
+		} else {
+			// Unsupported story.
+		}
 	} else if (_themePreviewShown) {
 		renderer->paintThemePreview(_themePreviewRect);
 	} else if (documentBubbleShown() && !_docRect.isEmpty()) {

@@ -67,6 +67,8 @@ FnMut<void()> VideoStream::Delegate::groupCallAddAsyncWaiter() {
 
 VideoStream::VideoStream(
 	not_null<QWidget*> parent,
+	not_null<Ui::RpWidgetWrap*> borrowedRp,
+	bool borrowedOpenGL,
 	Ui::GL::Backend backend,
 	std::shared_ptr<ChatHelpers::Show> show,
 	std::shared_ptr<Data::GroupCall> call,
@@ -92,7 +94,9 @@ VideoStream::VideoStream(
 	std::make_unique<Calls::Group::Viewport>(
 		parent,
 		Calls::Group::PanelMode::VideoStream,
-		backend))
+		backend,
+		borrowedRp,
+		borrowedOpenGL))
 , _messages(
 	std::make_unique<Calls::Group::MessagesUi>(
 		parent,
@@ -117,6 +121,23 @@ not_null<Calls::GroupCall*> VideoStream::call() const {
 void VideoStream::updateGeometry(int x, int y, int width, int height) {
 	_viewport->setGeometry(false, { x, y, width, height });
 	_messages->move(x, y + height, width, height);
+}
+
+
+void VideoStream::ensureBorrowedRenderer(QOpenGLFunctions &f) {
+	_viewport->ensureBorrowedRenderer(f);
+}
+
+void VideoStream::ensureBorrowedCleared(QOpenGLFunctions *f) {
+	_viewport->ensureBorrowedCleared(f);
+}
+
+void VideoStream::borrowedPaint(QOpenGLFunctions &f) {
+	_viewport->borrowedPaint(f);
+}
+
+void VideoStream::borrowedPaint(Painter &p, const QRegion &clip) {
+	_viewport->borrowedPaint(p, clip);
 }
 
 void VideoStream::setupMembers() {

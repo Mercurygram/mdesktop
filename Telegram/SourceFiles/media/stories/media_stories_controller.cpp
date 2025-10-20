@@ -610,7 +610,8 @@ TextWithEntities Controller::captionText() const {
 }
 
 bool Controller::skipCaption() const {
-	return (_captionFullView != nullptr)
+	return _videoStream
+		|| (_captionFullView != nullptr)
 		|| (_captionText.empty() && !repost());
 }
 

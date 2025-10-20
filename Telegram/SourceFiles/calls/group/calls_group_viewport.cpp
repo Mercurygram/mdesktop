@@ -26,8 +26,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "styles/style_calls.h"
 
+#include <QtGui/QOpenGLShader>
 #include <QtGui/QtEvents>
-#include <QOpenGLShader>
+#include <QtWidgets/QOpenGLWidget>
 
 namespace Calls::Group {
 namespace {
@@ -51,23 +52,43 @@ namespace {
 Viewport::Viewport(
 	not_null<QWidget*> parent,
 	PanelMode mode,
-	Ui::GL::Backend backend)
+	Ui::GL::Backend backend,
+	Ui::RpWidgetWrap *borrowedRp,
+	bool borrowedOpenGL)
 : _mode(mode)
-, _content(Ui::GL::CreateSurface(parent, chooseRenderer(backend))) {
+, _opengl(borrowedOpenGL)
+, _content(borrowedRp
+	? nullptr
+	: Ui::GL::CreateSurface(parent, chooseRenderer(backend)))
+, _borrowed(borrowedRp) {
 	setup();
 }
 
-Viewport::~Viewport() = default;
+Viewport::~Viewport() {
+	if (_borrowed && _opengl) {
+		const auto w = static_cast<QOpenGLWidget*>(widget().get());
+		w->makeCurrent();
+		const auto context = w->context();
+		const auto valid = w->isValid()
+			&& context
+			&& (QOpenGLContext::currentContext() == context);
+		ensureBorrowedCleared(valid ? context->functions() : nullptr);
+	}
+}
 
 not_null<QWidget*> Viewport::widget() const {
-	return _content->rpWidget();
+	return _borrowed ? _borrowed->rpWidget() : _content->rpWidget();
 }
 
 not_null<Ui::RpWidgetWrap*> Viewport::rp() const {
-	return _content.get();
+	return _borrowed ? _borrowed : _content.get();
 }
 
 void Viewport::setup() {
+	if (_borrowed) {
+		return;
+	}
+
 	const auto raw = widget();
 
 	raw->resize(0, 0);
@@ -108,15 +129,21 @@ void Viewport::setup() {
 void Viewport::setGeometry(bool fullscreen, QRect geometry) {
 	Expects(wide() || videoStream());
 
+	if (_borrowed) {
+		updateMyWidgetPart();
+		_borrowedGeometry = geometry;
+		updateMyWidgetPart();
+		updateTilesGeometry();
+		return;
+	}
+
 	const auto changed = (_fullscreen != fullscreen);
 	if (changed) {
 		_fullscreen = fullscreen;
 	}
 	if (widget()->geometry() != geometry) {
-		_geometryStaleAfterModeChange = false;
 		widget()->setGeometry(geometry);
-	} else if (_geometryStaleAfterModeChange || changed) {
-		_geometryStaleAfterModeChange = false;
+	} else if (changed) {
 		updateTilesGeometry();
 	}
 }
@@ -197,7 +224,7 @@ void Viewport::handleMouseMove(QPoint position) {
 }
 
 void Viewport::updateSelected(QPoint position) {
-	if (!widget()->rect().contains(position)) {
+	if (_borrowed || !widget()->rect().contains(position)) {
 		setSelected({});
 		return;
 	}
@@ -225,12 +252,23 @@ void Viewport::updateSelected(QPoint position) {
 }
 
 void Viewport::updateSelected() {
+	if (_borrowed) {
+		return;
+	}
 	updateSelected(widget()->mapFromGlobal(QCursor::pos()));
 }
 
 void Viewport::setControlsShown(float64 shown) {
 	_controlsShownRatio = shown;
-	widget()->update();
+	updateMyWidgetPart();
+}
+
+void Viewport::updateMyWidgetPart() {
+	if (!_borrowed) {
+		widget()->update();
+	} else if (!_borrowedGeometry.isEmpty()) {
+		widget()->update(_borrowedGeometry);
+	}
 }
 
 void Viewport::setCursorShown(bool shown) {
@@ -251,7 +289,7 @@ void Viewport::add(
 		track,
 		std::move(trackSize),
 		std::move(pinned),
-		[=] { widget()->update(); },
+		[=] { updateMyWidgetPart(); },
 		self));
 
 	_tiles.back()->trackSizeValue(
@@ -331,7 +369,8 @@ void Viewport::prepareLargeChangeAnimation() {
 void Viewport::startLargeChangeAnimation() {
 	Expects(!_largeChangeAnimation.animating());
 
-	if (!wide()
+	if (_borrowed
+		|| !wide()
 		|| anim::Disabled()
 		|| (_startTilesLayout.list.size() < 2)
 		|| !_opengl
@@ -421,7 +460,7 @@ Viewport::Layout Viewport::applyLarge(Layout layout) const {
 }
 
 void Viewport::updateTilesAnimated() {
-	if (!_largeChangeAnimation.animating()) {
+	if (_borrowed || !_largeChangeAnimation.animating()) {
 		updateTilesGeometry();
 		return;
 	}
@@ -545,7 +584,11 @@ Viewport::Layout Viewport::countWide(int outerWidth, int outerHeight) const {
 }
 
 void Viewport::showLarge(const VideoEndpoint &endpoint) {
-	// If a video get's switched off, GroupCall first unpins it,
+	if (_borrowed) {
+		return;
+	}
+
+	// If a video gets switched off, GroupCall first unpins it,
 	// then removes it from Large endpoint, then removes from active tracks.
 	//
 	// If we want to animate large video removal properly, we need to
@@ -572,7 +615,9 @@ void Viewport::showLarge(const VideoEndpoint &endpoint) {
 }
 
 void Viewport::updateTilesGeometry() {
-	updateTilesGeometry(widget()->width());
+	updateTilesGeometry(_borrowed
+		? _borrowedGeometry.width()
+		: widget()->width());
 }
 
 void Viewport::updateTilesGeometry(int outerWidth) {
@@ -581,10 +626,12 @@ void Viewport::updateTilesGeometry(int outerWidth) {
 		if (mouseInside) {
 			updateSelected();
 		}
-		widget()->update();
+		updateMyWidgetPart();
 	});
 
-	const auto outerHeight = widget()->height();
+	const auto outerHeight = _borrowed
+		? _borrowedGeometry.height()
+		: widget()->height();
 	if (_tiles.empty() || !outerWidth) {
 		_fullHeight = 0;
 		return;
@@ -815,6 +862,9 @@ void Viewport::setSelected(Selection value) {
 }
 
 void Viewport::updateCursor() {
+	if (_borrowed) {
+		return;
+	}
 	const auto pointer = _selected.tile && (!wide() || _hasTwoOrMore);
 	widget()->setCursor(_cursorHidden
 		? Qt::BlankCursor
@@ -833,12 +883,16 @@ void Viewport::setPressed(Selection value) {
 Ui::GL::ChosenRenderer Viewport::chooseRenderer(Ui::GL::Backend backend) {
 	_opengl = (backend == Ui::GL::Backend::OpenGL);
 	return {
-		.renderer = (_opengl
-			? std::unique_ptr<Ui::GL::Renderer>(
-				std::make_unique<RendererGL>(this))
-			: std::make_unique<RendererSW>(this)),
+		.renderer = makeRenderer(),
 		.backend = backend,
 	};
+}
+
+std::unique_ptr<Ui::GL::Renderer> Viewport::makeRenderer() {
+	return _opengl
+		? std::unique_ptr<Ui::GL::Renderer>(
+			std::make_unique<RendererGL>(this))
+		: std::make_unique<RendererSW>(this);
 }
 
 bool Viewport::requireARGB32() const {
@@ -869,8 +923,44 @@ rpl::producer<bool> Viewport::mouseInsideValue() const {
 	return _mouseInside.value();
 }
 
+void Viewport::ensureBorrowedRenderer(QOpenGLFunctions &f) {
+	Expects(_borrowed != nullptr);
+
+	if (_borrowedRenderer) {
+		return;
+	}
+	_borrowedRenderer = makeRenderer();
+	_borrowedRenderer->init(f);
+}
+
+void Viewport::ensureBorrowedCleared(QOpenGLFunctions *f) {
+	Expects(_borrowed != nullptr);
+
+	if (const auto renderer = base::take(_borrowedRenderer)) {
+		renderer->deinit(f);
+	}
+}
+
+void Viewport::borrowedPaint(QOpenGLFunctions &f) {
+	Expects(_borrowedRenderer != nullptr);
+	Expects(_opengl);
+
+	_borrowedRenderer->paint(static_cast<QOpenGLWidget*>(widget().get()), f);
+}
+
+void Viewport::borrowedPaint(Painter &p, const QRegion &clip) {
+	Expects(_borrowedRenderer != nullptr);
+	Expects(!_opengl);
+
+	_borrowedRenderer->paintFallback(p, clip, Ui::GL::Backend::Raster);
+}
+
+QPoint Viewport::borrowedOrigin() const {
+	return _borrowed ? _borrowedGeometry.topLeft() : QPoint();
+}
+
 rpl::lifetime &Viewport::lifetime() {
-	return _content->lifetime();
+	return _lifetime;
 }
 
 rpl::producer<QString> MuteButtonTooltip(not_null<GroupCall*> call) {

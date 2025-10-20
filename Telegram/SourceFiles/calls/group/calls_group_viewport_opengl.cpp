@@ -426,6 +426,9 @@ void Viewport::RendererGL::paint(
 	_viewport = widget->size();
 
 	const auto defaultFramebufferObject = widget->defaultFramebufferObject();
+	if (_owner->_tiles.empty() && _owner->videoStream()) {
+
+	}
 
 	validateDatas();
 	auto index = 0;
@@ -485,7 +488,8 @@ void Viewport::RendererGL::paintTile(
 
 	_rgbaFrame = (data.format == Webrtc::FrameFormat::ARGB32)
 		|| _userpicFrame;
-	const auto geometry = tile->geometry();
+	const auto geometry = tile->geometry().translated(
+		_owner->borrowedOrigin());
 	const auto x = geometry.x();
 	const auto y = geometry.y();
 	const auto width = geometry.width();

@@ -7,6 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+class Painter;
+class QOpenGLFunctions;
+
 namespace Calls {
 class GroupCall;
 } // namespace Calls
@@ -25,6 +28,10 @@ namespace Data {
 class GroupCall;
 } // namespace Data
 
+namespace Ui {
+class RpWidgetWrap;
+} // namespace Ui
+
 namespace Ui::GL {
 enum class Backend;
 } // namespace Ui::GL
@@ -35,6 +42,8 @@ class VideoStream final {
 public:
 	VideoStream(
 		not_null<QWidget*> parent,
+		not_null<Ui::RpWidgetWrap*> borrowedRp,
+		bool borrowedOpenGL,
 		Ui::GL::Backend backend,
 		std::shared_ptr<ChatHelpers::Show> show,
 		std::shared_ptr<Data::GroupCall> call,
@@ -46,6 +55,11 @@ public:
 
 	void setVolume(float64 volume);
 	void updateGeometry(int x, int y, int width, int height);
+
+	void ensureBorrowedRenderer(QOpenGLFunctions &f);
+	void ensureBorrowedCleared(QOpenGLFunctions *f);
+	void borrowedPaint(QOpenGLFunctions &f);
+	void borrowedPaint(Painter &p, const QRegion &clip);
 
 private:
 	class Delegate;
