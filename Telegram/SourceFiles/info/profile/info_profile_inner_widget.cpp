@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "api/api_peer_photo.h"
 #include "lang/lang_keys.h"
+#include "ui/text/format_song_document_name.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/scroll_area.h"
@@ -48,18 +49,7 @@ namespace Profile {
 
 [[nodiscard]] MusicButtonData DocumentMusicButtonData(
 		not_null<DocumentData*> document) {
-	if (const auto song = document->song()) {
-		if (!song->performer.isEmpty() || !song->title.isEmpty()) {
-			return {
-				.performer = song->performer,
-				.title = song->title,
-			};
-		}
-	}
-	const auto name = document->filename();
-	return {
-		.title = !name.isEmpty() ? name : tr::lng_all_music(tr::now),
-	};
+	return { Ui::Text::FormatSongNameFor(document) };
 }
 
 InnerWidget::InnerWidget(

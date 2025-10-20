@@ -29,10 +29,16 @@ MusicButton::MusicButton(
 MusicButton::~MusicButton() = default;
 
 void MusicButton::updateData(MusicButtonData data) {
-	_performer.setText(st::semiboldTextStyle, data.performer);
+	const auto result = data.name.textWithEntities();
+	const auto performerLength = result.entities.empty()
+		? 0
+		: int(result.entities.front().length());
+	_performer.setText(
+		st::semiboldTextStyle,
+		result.text.mid(0, performerLength));
 	_title.setText(
 		st::defaultTextStyle,
-		data.performer.isEmpty() ? data.title : (u"- "_q + data.title));
+		result.text.mid(performerLength, result.text.size()));
 	update();
 }
 
@@ -108,7 +114,7 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 	p.setPen(_overrideBg ? st::groupCallVideoSubTextFg : st::windowSubTextFg);
 	_title.draw(p, {
 		.position = QPoint(
-			contentStartX + noteWidth + actualPerformerWidth,
+			contentStartX + noteWidth + actualPerformerWidth + skip,
 			textTop),
 		.availableWidth = actualTitleWidth,
 		.now = crl::now(),
@@ -120,6 +126,7 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 		+ noteWidth
 		+ actualPerformerWidth
 		+ actualTitleWidth
+		+ skip
 		+ skip;
 	const auto iconTop = (height() - iconHeight) / 2;
 	icon.paint(p, iconLeft, iconTop, iconWidth, p.pen().color());

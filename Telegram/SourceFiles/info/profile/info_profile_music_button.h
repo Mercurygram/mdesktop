@@ -8,13 +8,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "ui/widgets/buttons.h"
+#include "ui/text/format_song_name.h"
 #include "ui/text/text.h"
 
 namespace Info::Profile {
 
 struct MusicButtonData {
-	QString performer;
-	QString title;
+	Ui::Text::FormatSongName name;
 };
 
 class MusicButton final : public Ui::RippleButton {
