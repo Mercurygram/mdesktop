@@ -395,7 +395,7 @@ private:
 	Ui::IconButton *_like = nullptr;
 	Ui::IconButton *_editStars = nullptr;
 	std::optional<int> _chosenStarsCount;
-	const not_null<Ui::IconButton*> _attachToggle;
+	Ui::IconButton *_attachToggle = nullptr;
 	std::unique_ptr<Ui::IconButton> _replaceMedia;
 	const not_null<Ui::EmojiButton*> _tabbedSelectorToggle;
 	rpl::producer<QString> _fieldCustomPlaceholder;

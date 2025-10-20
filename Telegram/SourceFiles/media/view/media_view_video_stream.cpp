@@ -17,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/compose/compose_show.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "styles/style_calls.h"
 
 namespace Media::View {
 
@@ -119,10 +120,10 @@ not_null<Calls::GroupCall*> VideoStream::call() const {
 }
 
 void VideoStream::updateGeometry(int x, int y, int width, int height) {
+	const auto skip = st::groupCallMessageSkip;
 	_viewport->setGeometry(false, { x, y, width, height });
-	_messages->move(x, y + height, width, height);
+	_messages->move(x + skip, y + height, width - 2 * skip, height);
 }
-
 
 void VideoStream::ensureBorrowedRenderer(QOpenGLFunctions &f) {
 	_viewport->ensureBorrowedRenderer(f);

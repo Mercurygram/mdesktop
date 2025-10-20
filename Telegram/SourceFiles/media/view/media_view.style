@@ -457,7 +457,7 @@ storiesHeaderRepostWidthMin: 40px;
 storiesShadowTop: icon{{ "mediaview/shadow_bottom-flip_vertical", windowShadowFg }};
 storiesShadowBottom: mediaviewShadowBottom;
 storiesControlsMinWidth: 280px;
-storiesFieldMargin: margins(0px, 14px, 0px, 16px);
+storiesFieldMargin: margins(0px, 18px, 0px, 12px);
 storiesSideSkip: 145px;
 storiesCaptionFull: FlatLabel(defaultFlatLabel) {
 	style: mediaviewCaptionStyle;
@@ -479,8 +479,10 @@ storiesComposeRipple: RippleAnimation(defaultRippleAnimation) {
 	color: groupCallMembersBgRipple;
 }
 storiesAttach: IconButton(historyAttach) {
+	height: 42px;
 	icon: icon {{ "chat/input_attach", storiesComposeGrayIcon }};
 	iconOver: icon {{ "chat/input_attach", storiesComposeGrayIcon }};
+	rippleAreaPosition: point(2px, 1px);
 	ripple: storiesComposeRippleLight;
 }
 storiesLike: IconButton(storiesAttach) {
@@ -686,7 +688,8 @@ storiesBoxInputField: InputField(defaultComposeFilesField) {
 }
 storiesComposeControls: ComposeControls(defaultComposeControls) {
 	bg: storiesComposeBg;
-	radius: storiesRadius;
+	radius: 21px;
+	padding: margins(10px, 8px, 2px, 6px);
 	field: InputField(historyComposeField) {
 		textFg: storiesComposeWhiteText;
 		textBg: storiesComposeBg;
@@ -696,6 +699,7 @@ storiesComposeControls: ComposeControls(defaultComposeControls) {
 		menu: storiesPopupMenu;
 	}
 	send: SendButton(historySend) {
+		sendIconPosition: point(10px, 10px);
 		inner: IconButton(storiesAttach) {
 			icon: icon {{ "chat/input_send", storiesComposeBlue }};
 			iconOver: icon {{ "chat/input_send", storiesComposeBlue }};

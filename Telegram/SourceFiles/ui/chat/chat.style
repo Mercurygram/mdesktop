@@ -322,8 +322,6 @@ historyPinOutIcon: icon {{ "history_pin", historyOutIconFg }};
 historyPinOutSelectedIcon: icon {{ "history_pin", historyOutIconFgSelected }};
 historyPinInvertedIcon: icon {{ "history_pin", historySendingInvertedIconFg }};
 
-historySendPadding: 9px;
-historySendRight: 2px;
 historyBotMenuSkip: 8px;
 historyBotMenuMaxWidth: 160px;
 historyBotMenuButton: RoundButton(defaultActiveButton) {

@@ -913,7 +913,9 @@ ComposeControls::ComposeControls(
 , _editStars(_features.editMessageStars
 	? Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.editStars)
 	: nullptr)
-, _attachToggle(Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.attach))
+, _attachToggle(_features.attachments
+	? Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.attach)
+	: nullptr)
 , _tabbedSelectorToggle(Ui::CreateChild<Ui::EmojiButton>(
 	_wrap.get(),
 	_st.emoji))
@@ -1113,6 +1115,7 @@ void ComposeControls::updateLikeParent() {
 }
 
 void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
+	auto changed = false;
 	const auto was = std::exchange(_features, features);
 	if (was.likes != features.likes) {
 		if (!features.likes) {
@@ -1126,7 +1129,7 @@ void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
 				updateControlsVisibility();
 			}
 		}
-		updateControlsGeometry(_wrap->size());
+		changed = true;
 	}
 	if (was.editMessageStars != features.editMessageStars) {
 		if (!features.editMessageStars) {
@@ -1137,11 +1140,26 @@ void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
 				_wrap.get(),
 				_st.editStars);
 			initEditStarsButton();
-			updateControlsGeometry(_wrap->size());
 		}
+		changed = true;
 	}
 	if (was.recordMediaMessage != features.recordMediaMessage) {
 		updateSendButtonType();
+	}
+	if (was.attachments != features.attachments) {
+		if (!features.attachments) {
+			delete base::take(_attachToggle);
+		} else {
+			_attachToggle = Ui::CreateChild<Ui::IconButton>(
+				_wrap.get(),
+				_st.attach);
+			updateControlsVisibility();
+		}
+		updateAttachBotsMenu();
+		changed = true;
+	}
+	if (changed) {
+		updateControlsGeometry(_wrap->size());
 	}
 }
 
@@ -2798,9 +2816,10 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 	// (_attachDocument|_attachPhoto) _field (_ttlInfo) (_scheduled) (_silent|_botCommandStart) _tabbedSelectorToggle _send
 
 	const auto fieldWidth = size.width()
-		- _attachToggle->width()
+		- _st.padding.left()
+		- (_attachToggle ? _attachToggle->width() : 0)
 		- (_sendAs ? _sendAs->width() : 0)
-		- st::historySendRight
+		- _st.padding.right()
 		- _send->width()
 		- _tabbedSelectorToggle->width()
 		- (_likeShown ? _like->width() : 0)
@@ -2819,28 +2838,30 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 		}
 	}
 
-	const auto buttonsTop = size.height() - _attachToggle->height();
+	const auto buttonsTop = size.height() - _st.attach.height;
 
-	auto left = st::historySendRight;
+	auto left = _st.padding.left();
 	if (_replaceMedia) {
 		_replaceMedia->moveToLeft(left, buttonsTop);
 	}
-	_attachToggle->moveToLeft(left, buttonsTop);
-	left += _attachToggle->width();
+	if (_attachToggle) {
+		_attachToggle->moveToLeft(left, buttonsTop);
+		left += _attachToggle->width();
+	}
 	if (_sendAs) {
 		_sendAs->moveToLeft(left, buttonsTop);
 		left += _sendAs->width();
 	}
 	_field->moveToLeft(
 		left,
-		size.height() - _field->height() - st::historySendPadding);
+		size.height() - _st.padding.bottom() - _field->height());
 
 	_header->resizeToWidth(size.width());
 	_header->moveToLeft(
 		0,
-		_field->y() - _header->height() - st::historySendPadding);
+		_field->y() - _st.padding.top() - _header->height());
 
-	auto right = st::historySendRight;
+	auto right = _st.padding.right();
 	_send->moveToRight(right, buttonsTop);
 	right += _send->width();
 	_tabbedSelectorToggle->moveToRight(right, buttonsTop);
@@ -2902,9 +2923,9 @@ void ComposeControls::updateControlsVisibility() {
 	}
 	if (_replaceMedia) {
 		_replaceMedia->show();
-		_attachToggle->hide();
-	} else {
-		_attachToggle->show();
+	}
+	if (_attachToggle) {
+		_attachToggle->setVisible(!_replaceMedia);
 	}
 	if (_scheduled) {
 		_scheduled->setVisible(!isEditingMessage());
@@ -2943,7 +2964,7 @@ void ComposeControls::updateOuterGeometry(QRect rect) {
 	if (_inlineResults) {
 		_inlineResults->moveBottom(rect.y());
 	}
-	const auto bottom = rect.y() + rect.height() - _attachToggle->height();
+	const auto bottom = rect.y() + rect.height() - _st.attach.height;
 	if (_tabbedPanel) {
 		_tabbedPanel->moveBottomRight(bottom, rect.x() + rect.width());
 	}
@@ -3000,6 +3021,7 @@ bool ComposeControls::updateSendAsButton() {
 void ComposeControls::updateAttachBotsMenu() {
 	_attachBotsMenu = nullptr;
 	if (!_features.attachBotsMenu
+		|| !_features.attachments
 		|| !_history
 		|| !_sendActionFactory
 		|| !_regularWindow) {
@@ -3130,9 +3152,10 @@ void ComposeControls::toggleTabbedSelectorMode() {
 }
 
 void ComposeControls::updateHeight() {
-	const auto height = _field->height()
-		+ (_header->isDisplayed() ? _header->height() : 0)
-		+ 2 * st::historySendPadding;
+	const auto height = (_header->isDisplayed() ? _header->height() : 0)
+		+ _st.padding.top()
+		+ _field->height()
+		+ _st.padding.bottom();
 	if (height != _wrap->height()) {
 		_wrap->resize(_wrap->width(), height);
 	}

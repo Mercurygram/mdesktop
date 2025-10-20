@@ -102,6 +102,7 @@ namespace {
 		.likes = !videoStream,
 		.sendAs = false,
 		.ttlInfo = false,
+		.attachments = !videoStream,
 		.botCommandSend = false,
 		.silentBroadcastToggle = false,
 		.attachBotsMenu = false,

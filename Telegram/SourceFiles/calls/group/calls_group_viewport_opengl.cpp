@@ -17,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "data/data_peer.h"
 #include "styles/style_calls.h"
+#include "styles/style_media_view.h"
 
 #include <QOpenGLShader>
 
@@ -789,8 +790,11 @@ void Viewport::RendererGL::paintTile(
 	program->setUniformValue(
 		"frameBg",
 		fullscreen ? QColor(0, 0, 0) : *clearColor());
+	const auto radius = _owner->videoStream()
+		? st::storiesRadius
+		: st::roundRadiusLarge;
 	program->setUniformValue("radiusOutline", QVector2D(
-		GLfloat(st::roundRadiusLarge * _factor * (fullscreen ? 0. : 1.)),
+		GLfloat(radius * _factor * (fullscreen ? 0. : 1.)),
 		(outline > 0) ? (st::groupCallOutline * _factor) : 0.f));
 	program->setUniformValue("roundRect", Uniform(rect));
 	program->setUniformValue("roundBg", *clearColor());

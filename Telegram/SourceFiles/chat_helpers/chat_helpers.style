@@ -148,6 +148,7 @@ EmojiButton {
 }
 
 SendButton {
+	sendIconPosition: point;
 	inner: IconButton;
 	stars: RoundButton;
 	record: icon;
@@ -201,6 +202,7 @@ ComposeFiles {
 ComposeControls {
 	bg: color;
 	radius: pixels;
+	padding: margins;
 
 	field: InputField;
 	send: SendButton;
@@ -1105,6 +1107,8 @@ historyComposeField: InputField(defaultInputField) {
 }
 historyComposeFieldMaxHeight: 224px;
 historyComposeFieldFadeHeight: 6px;
+historySendRight: 2px;
+historySendPadding: 9px;
 // historyMinHeight: 56px;
 
 historyAttach: IconButton(defaultIconButton) {
@@ -1224,7 +1228,6 @@ boxAttachEmojiTop: 20px;
 
 historySendIcon: icon {{ "chat/input_send", historySendIconFg }};
 historySendIconOver: icon {{ "chat/input_send", historySendIconFgOver }};
-historySendIconPosition: point(10px, 11px);
 historySendSize: size(44px, 46px);
 historyScheduleIcon: icon {{ "chat/input_schedule", historyComposeAreaBg }};
 historyScheduleIconPosition: point(7px, 8px);
@@ -1366,6 +1369,7 @@ defaultRecordBar: RecordBar {
 }
 
 historySend: SendButton {
+	sendIconPosition: point(10px, 11px);
 	inner: IconButton(historyAttach) {
 		icon: historySendIcon;
 		iconOver: historySendIconOver;
@@ -1424,6 +1428,7 @@ defaultRestrictionLabel: FlatLabel(defaultFlatLabel) {
 defaultComposeControls: ComposeControls {
 	bg: historyComposeAreaBg;
 	radius: 0px;
+	padding: margins(historySendRight, historySendPadding, historySendRight, historySendPadding);
 
 	field: historyComposeField;
 	send: historySend;

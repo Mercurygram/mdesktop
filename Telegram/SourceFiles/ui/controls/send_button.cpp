@@ -196,9 +196,9 @@ void SendButton::paintSend(QPainter &p, bool over) {
 	const auto &sendIcon = over ? _st.inner.iconOver : _st.inner.icon;
 	if (isDisabled()) {
 		const auto color = st::historyRecordVoiceFg->c;
-		sendIcon.paint(p, st::historySendIconPosition, width(), color);
+		sendIcon.paint(p, _st.sendIconPosition, width(), color);
 	} else {
-		sendIcon.paint(p, st::historySendIconPosition, width());
+		sendIcon.paint(p, _st.sendIconPosition, width());
 	}
 }
 
