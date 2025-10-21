@@ -33,6 +33,9 @@ private:
 	Ui::Text::String _title;
 	std::optional<QColor> _overrideBg;
 
+	const QString _noteSymbol;
+	const int _noteWidth;
+
 };
 
 } // namespace Info::Profile

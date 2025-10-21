@@ -21,7 +21,9 @@ MusicButton::MusicButton(
 	QWidget *parent,
 	MusicButtonData data,
 	Fn<void()> handler)
-: RippleButton(parent, st::infoMusicButtonRipple) {
+: RippleButton(parent, st::infoMusicButtonRipple)
+, _noteSymbol(u"\u266B"_q + QChar(' '))
+, _noteWidth(st::normalFont->width(_noteSymbol)) {
 	updateData(std::move(data));
 	setClickedCallback(std::move(handler));
 }
@@ -65,8 +67,6 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 	const auto iconHeight = icon.height();
 
 	const auto padding = st::infoMusicButtonPadding;
-	const auto noteSymbol = u"\u266B"_q + QChar(' ');
-	const auto noteWidth = st::normalFont->width(noteSymbol);
 	const auto skip = st::normalFont->spacew;
 
 	const auto titleWidth = _title.maxWidth();
@@ -76,7 +76,7 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 		- rect::m::sum::h(padding)
 		- iconWidth
 		- skip
-		- noteWidth;
+		- _noteWidth;
 
 	auto actualTitleWidth = 0;
 	auto actualPerformerWidth = 0;
@@ -89,7 +89,7 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 		actualTitleWidth = availableWidth - actualPerformerWidth;
 	}
 
-	const auto totalContentWidth = noteWidth
+	const auto totalContentWidth = _noteWidth
 		+ actualPerformerWidth
 		+ skip
 		+ actualTitleWidth
@@ -101,10 +101,10 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 
 	p.setPen(_overrideBg ? st::groupCallMembersFg : st::windowBoldFg);
 	p.setFont(st::normalFont);
-	p.drawText(contentStartX, textTop + st::normalFont->ascent, noteSymbol);
+	p.drawText(contentStartX, textTop + st::normalFont->ascent, _noteSymbol);
 
 	_performer.draw(p, {
-		.position = { contentStartX + noteWidth, textTop },
+		.position = { contentStartX + _noteWidth, textTop },
 		.availableWidth = actualPerformerWidth,
 		.now = crl::now(),
 		.elisionLines = 1,
@@ -114,7 +114,7 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 	p.setPen(_overrideBg ? st::groupCallVideoSubTextFg : st::windowSubTextFg);
 	_title.draw(p, {
 		.position = QPoint(
-			contentStartX + noteWidth + actualPerformerWidth + skip,
+			contentStartX + _noteWidth + actualPerformerWidth + skip,
 			textTop),
 		.availableWidth = actualTitleWidth,
 		.now = crl::now(),
@@ -123,7 +123,7 @@ void MusicButton::paintEvent(QPaintEvent *e) {
 	});
 
 	const auto iconLeft = contentStartX
-		+ noteWidth
+		+ _noteWidth
 		+ actualPerformerWidth
 		+ actualTitleWidth
 		+ skip
