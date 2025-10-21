@@ -76,6 +76,7 @@ using UpdateFlag = StoryUpdate::Flag;
 		}
 		return {};
 	}, [&](const MTPDmessageMediaVideoStream &data) {
+		const auto rtmp = data.is_rtmp_stream();
 		return std::make_optional(data.vcall().match([&](
 				const MTPDinputGroupCall &data) {
 			auto call = (existingCall
@@ -87,7 +88,7 @@ using UpdateFlag = StoryUpdate::Flag;
 					data.vid().v,
 					data.vaccess_hash().v,
 					TimeId(),
-					false, // rtmp
+					rtmp,
 					GroupCallOrigin::VideoStream);
 			return StoryMedia{ std::move(call) };
 		}, [](const auto &) {
