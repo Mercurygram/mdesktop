@@ -368,8 +368,10 @@ void SendStarButton::paintEvent(QPaintEvent *e) {
 	} else {
 		p.setPen(_st.textFg);
 	}
-	const auto left = -_st.width / 2;
 	const auto &icon = st::starIconEmoji.icon;
+	const auto left = _starsText.isEmpty()
+		? ((_st.height - icon.width()) / 2)
+		: (-_st.width / 2);
 	icon.paint(
 		p,
 		left,
@@ -388,10 +390,12 @@ void SendStarButton::paintEvent(QPaintEvent *e) {
 
 void SendStarButton::updateSize() {
 	const auto &icon = st::starIconEmoji.icon;
-	const auto text = _starsText.isEmpty() ? 0 : _starsText.maxWidth();
-	resize(
-		(text ? (text + _st.numbersSkip) : 0) + icon.width() - _st.width,
-		_st.height);
+	if (_starsText.isEmpty()) {
+		resize(_st.height, _st.height);
+	} else {
+		const auto width = icon.width() - _st.width;
+		resize(width + _st.numbersSkip + _starsText.maxWidth(), _st.height);
+	}
 	update();
 }
 

@@ -217,6 +217,9 @@ ComposeControls {
 	commentsShow: IconButton;
 	commentsShown: icon;
 	commentsSkip: pixels;
+	commentsUnreadSize: pixels;
+	commentsUnreadMargin: pixels;
+	commentsUnreadPosition: point;
 	starsReaction: RoundButton;
 	starsSkip: pixels;
 	suggestions: EmojiSuggestions;

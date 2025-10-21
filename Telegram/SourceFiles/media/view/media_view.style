@@ -733,6 +733,9 @@ storiesComposeControls: ComposeControls(defaultComposeControls) {
 	}
 	commentsShown: icon {{ "chat/input_comments_hide", storiesComposeGrayIcon }};
 	commentsSkip: 8px;
+	commentsUnreadSize: 6px;
+	commentsUnreadMargin: 2px;
+	commentsUnreadPosition: point(24px, 8px);
 	starsReaction: RoundButton(defaultActiveButton) {
 		style: TextStyle(semiboldTextStyle) {
 			font: font(14px semibold);

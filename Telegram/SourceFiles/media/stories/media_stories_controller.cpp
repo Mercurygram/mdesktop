@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/peers/prepare_short_info_box.h"
 #include "boxes/report_messages_box.h"
 #include "calls/group/calls_group_call.h"
+#include "calls/group/calls_group_messages.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "core/application.h"
 #include "core/click_handler_types.h"
@@ -1708,13 +1709,29 @@ rpl::producer<CommentsState> Controller::commentsStateValue() const {
 }
 
 void Controller::setCommentsShownToggles(rpl::producer<> toggles) {
-	_commentsState = std::move(
+	auto fromButton = std::move(
 		toggles
 	) | rpl::map([=] {
+		if (_commentsState.current() != CommentsState::Shown) {
+			_commentsLastReadId = _commentsLastId;
+			_commentsHasUnread = false;
+		}
 		return (_commentsState.current() == CommentsState::Shown)
 			? CommentsState::Hidden
 			: CommentsState::Shown;
 	});
+	auto fromUnread = _commentsHasUnread.value(
+	) | rpl::map([=](bool hasUnread) {
+		const auto now = _commentsState.current();
+		return hasUnread
+			? CommentsState::WithNew
+			: (now == CommentsState::Shown)
+			? CommentsState::Shown
+			: CommentsState::Hidden;
+	});
+	_commentsState = rpl::merge(
+		std::move(fromButton),
+		std::move(fromUnread));
 }
 
 auto Controller::starsReactionsValue() const
@@ -1822,6 +1839,34 @@ auto Controller::attachReactionsToMenu(
 
 void Controller::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
 	_videoStreamCall = videoStream;
+
+	using namespace Calls::Group;
+	videoStream->messages()->listValue(
+	) | rpl::start_with_next([=](const std::vector<Message> &messages) {
+		if (_commentsState.current() == CommentsState::Shown) {
+			for (const auto &message : messages | ranges::views::reverse) {
+				if (message.id > 0) {
+					_commentsLastId = _commentsLastReadId = message.id;
+					break;
+				}
+			}
+			_commentsHasUnread = false;
+			return;
+		}
+		auto has = false;
+		const auto from = videoStream->messagesFrom();
+		for (const auto &message : messages | ranges::views::reverse) {
+			if (message.peer != from) {
+				_commentsLastId = message.id;
+				if (message.id > _commentsLastReadId) {
+					has = true;
+				}
+				break;
+			}
+		}
+		_commentsHasUnread = has;
+	}, _lifetime);
+
 	_replyArea->updateVideoStream(videoStream);
 }
 

@@ -334,6 +334,9 @@ private:
 	mutable rpl::variable<bool> _weatherInCelsius;
 
 	rpl::variable<CommentsState> _commentsState;
+	rpl::variable<bool> _commentsHasUnread;
+	MsgId _commentsLastReadId = 0;
+	MsgId _commentsLastId = 0;
 	rpl::variable<int> _starsReactions;
 	bool _mineStarReaction = false;
 

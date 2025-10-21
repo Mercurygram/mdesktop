@@ -1200,6 +1200,31 @@ const HistoryItemsList &ComposeControls::forwardItems() const {
 	return _header->forwardItems();
 }
 
+void ComposeControls::setupCommentsShownNewDot() {
+	if (_commentsShownNewDot) {
+		return;
+	}
+	_commentsShownNewDot = Ui::CreateChild<Ui::RpWidget>(
+		_commentsShown);
+	_commentsShownNewDot->setAttribute(Qt::WA_TransparentForMouseEvents);
+
+	const auto size = _st.commentsUnreadSize;
+	const auto add = _st.commentsUnreadMargin;
+	const auto full = size + 2 * add;
+	_commentsShownNewDot->setGeometry(
+		QRect(_st.commentsUnreadPosition, QSize(full, full)));
+	_commentsShownNewDot->show();
+	_commentsShownNewDot->paintRequest() | rpl::start_with_next([=] {
+		auto p = QPainter(_commentsShownNewDot);
+		auto hq = PainterHighQualityEnabler(p);
+
+		p.setPen(Qt::NoPen);
+		p.setBrush(st::groupCallMembersBg);
+		p.drawEllipse(_commentsShownNewDot->rect());
+		p.setBrush(st::attentionButtonFg);
+		p.drawEllipse(add, add, size, size);
+	}, _commentsShownNewDot->lifetime());
+}
 
 void ComposeControls::setToggleCommentsButton(
 		rpl::producer<ToggleCommentsState> state) {
@@ -1219,6 +1244,11 @@ void ComposeControls::setToggleCommentsButton(
 				? &_st.commentsShown
 				: nullptr;
 			_commentsShown->setIconOverride(icon, icon);
+			if (value == ToggleCommentsState::WithNew) {
+				setupCommentsShownNewDot();
+			} else {
+				delete base::take(_commentsShownNewDot);
+			}
 		}, _commentsShown->lifetime());
 	}
 	updateControlsVisibility();
@@ -2930,11 +2960,12 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 		0,
 		_field->y() - _st.padding.top() - _header->height());
 
-	auto right = _st.padding.right();
+	auto right = 0;
 	if (_starsReaction) {
 		_starsReaction->moveToRight(right, buttonsTop);
 		right += _starsReaction->width() + _st.starsSkip;
 	}
+	right += _st.padding.right();
 	_send->moveToRight(right, buttonsTop);
 	right += _send->width();
 	_tabbedSelectorToggle->moveToRight(right, buttonsTop);
@@ -3124,21 +3155,18 @@ void ComposeControls::paintBackground(QPainter &p, QRect full, QRect clip) {
 		p.setPen(Qt::NoPen);
 		const auto r = _st.radius;
 		if (_commentsShown) {
-			p.drawRoundedRect(_commentsShown->geometry().marginsAdded(
-				{ _st.padding.left(), 0, _st.padding.right(), 0 }), r, r);
+			p.drawRoundedRect(_commentsShown->geometry(), r, r);
 			full.setLeft(full.left()
 				+ _commentsShown->width()
 				+ _st.commentsSkip);
 		}
 		if (_starsReaction) {
-			p.drawRoundedRect(_starsReaction->geometry().marginsAdded(
-				{ _st.padding.left(), 0, _st.padding.right(), 0 }), r, r);
+			p.drawRoundedRect(_starsReaction->geometry(), r, r);
 			full.setWidth(full.width()
 				- _starsReaction->width()
 				- _st.starsSkip);
 		}
 		p.drawRoundedRect(full, _st.radius, _st.radius);
-
 	} else {
 		p.fillRect(clip, _st.bg);
 	}

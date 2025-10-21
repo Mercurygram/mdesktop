@@ -162,6 +162,7 @@ public:
 	[[nodiscard]] rpl::producer<int> height() const;
 	[[nodiscard]] int heightCurrent() const;
 
+	void setupCommentsShownNewDot();
 	void setToggleCommentsButton(rpl::producer<ToggleCommentsState> state);
 	[[nodiscard]] rpl::producer<> commentsShownToggles() const;
 	void setStarsReactionCounter(
@@ -405,6 +406,7 @@ private:
 	Ui::IconButton *_like = nullptr;
 	std::optional<int> _chosenStarsCount;
 	Ui::IconButton *_commentsShown = nullptr;
+	Ui::RpWidget *_commentsShownNewDot = nullptr;
 	Ui::IconButton *_attachToggle = nullptr;
 	Ui::AbstractButton *_starsReaction = nullptr;
 	std::unique_ptr<Ui::IconButton> _replaceMedia;
