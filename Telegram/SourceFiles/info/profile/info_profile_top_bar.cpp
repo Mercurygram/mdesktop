@@ -39,7 +39,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/notify/data_peer_notify_settings.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "history/history.h"
-#include "info_profile_actions.h"
 #include "info/info_controller.h"
 #include "info/info_memento.h"
 #include "info/profile/info_profile_badge_tooltip.h"
@@ -192,6 +191,17 @@ TopBar::TopBar(
 	VerifiedContentForPeer(_peer),
 	nullptr,
 	_gifPausedChecker))
+, _hasActions(descriptor.source != Source::Stories)
+, _minForProgress([&] {
+	QWidget::setMinimumHeight(st::infoLayerTopBarHeight);
+	QWidget::setMaximumHeight(_hasActions
+		? st::infoProfileTopBarHeightMax
+		: st::infoProfileTopBarNoActionsHeightMax);
+	return QWidget::minimumHeight()
+		+ (!_hasActions
+			? 0
+			: st::infoProfileTopBarActionButtonsHeight);
+}())
 , _title(this, Info::Profile::NameValue(_peer), _st.title)
 , _starsRating(_peer->isUser()
 	? std::make_unique<Ui::StarsRating>(
@@ -214,9 +224,6 @@ TopBar::TopBar(
 		this,
 		tr::lng_status_lastseen_when(),
 		st::infoProfileCover.showLastSeen) {
-	QWidget::setMinimumHeight(st::infoLayerTopBarHeight);
-	QWidget::setMaximumHeight(st::infoProfileTopBarHeightMax);
-
 	const auto controller = descriptor.controller;
 
 	if (_peer->isMegagroup() || _peer->isChat()) {
@@ -282,7 +289,9 @@ TopBar::TopBar(
 		descriptor.backToggles.value(),
 		descriptor.source);
 	setupUserpicButton(controller);
-	setupActions(controller);
+	if (_hasActions) {
+		setupActions(controller);
+	}
 	setupStoryOutline();
 	if (_topic) {
 		_topicIconView = std::make_unique<TopicIconView>(
@@ -795,8 +804,7 @@ int TopBar::statusMostLeft() const {
 void TopBar::updateLabelsPosition() {
 	_progress = [&] {
 		const auto max = QWidget::maximumHeight();
-		const auto min = QWidget::minimumHeight()
-			+ st::infoProfileTopBarActionButtonsHeight;
+		const auto min = _minForProgress;
 		const auto p = (max > min)
 			? ((height() - min) / float64(max - min))
 			: 1.;
@@ -1023,7 +1031,11 @@ void TopBar::paintEvent(QPaintEvent *e) {
 		_cachedGradient = Ui::CreateTopBgGradient(
 			QSize(width(), maximumHeight()),
 			_peer,
-			QPoint(0, -st::infoProfileTopBarPhotoBgShift));
+			QPoint(
+				0,
+				_hasActions
+					? -st::infoProfileTopBarPhotoBgShift
+					: -st::infoProfileTopBarPhotoBgNoActionsShift));
 	}
 	if (!_hasBackground) {
 		paintEdges(p);

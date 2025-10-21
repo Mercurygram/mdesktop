@@ -419,7 +419,8 @@ infoProfileTopBarHeightMax: 180px + infoLayerTopBarHeight;
 infoProfileTopBarTitleTop: 113px;
 infoProfileTopBarStatusTop: 134px;
 infoProfileTopBarPhotoTop: 24px;
-infoProfileTopBarPhotoBgShift: 60px;
+infoProfileTopBarPhotoBgShift: 55px;
+infoProfileTopBarPhotoBgNoActionsShift: 30px;
 infoProfileTopBarPhotoSize: 80px;
 infoProfileTopBarLastSeenSkip: 8px;
 
@@ -447,6 +448,8 @@ infoProfileTopBarActionButtonsSpace: 10px;
 
 infoProfileTopBarStep2: infoProfileTopBarHeightMax - infoLayerTopBarHeight;
 infoProfileTopBarStep1: infoProfileTopBarStep2 - infoProfileTopBarActionButtonsHeight;
+
+infoProfileTopBarNoActionsHeightMax: infoProfileTopBarHeightMax - infoProfileTopBarActionButtonSize;
 
 infoProfileTopBarActionMessage: icon{{ "profile/message-22x22", windowBoldFg }};
 infoProfileTopBarActionMute: icon{{ "profile/mute-22x22", windowBoldFg }};

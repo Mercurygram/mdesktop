@@ -294,7 +294,6 @@ void InnerWidget::createProfileTop() {
 	startTop();
 
 	using namespace Profile;
-	AddCover(_top, _controller, _peer, nullptr, nullptr);
 	AddDetails(_top, _controller, _peer, nullptr, nullptr, { v::null });
 
 	auto tracker = Ui::MultiSlideTracker();

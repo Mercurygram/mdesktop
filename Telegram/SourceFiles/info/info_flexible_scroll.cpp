@@ -75,7 +75,10 @@ void FlexibleScrollHelper::setupScrollHandling() {
 
 	const auto singleStep = _scroll->verticalScrollBar()->singleStep()
 		* QApplication::wheelScrollLines();
-	const auto step1 = st::infoProfileTopBarStep1;
+	const auto step1 = (_pinnedToTop->maximumHeight()
+			< st::infoProfileTopBarHeightMax)
+		? (st::infoProfileTopBarStep2 + st::lineWidth)
+		: st::infoProfileTopBarStep1;
 	const auto step2 = st::infoProfileTopBarStep2;
 	// const auto stepDepreciation = singleStep
 	// 	- st::infoProfileTopBarActionButtonsHeight;

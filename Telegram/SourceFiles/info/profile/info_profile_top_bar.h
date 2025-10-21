@@ -181,6 +181,9 @@ private:
 	const std::unique_ptr<Badge> _badge;
 	const std::unique_ptr<Badge> _verified;
 
+	const bool _hasActions;
+	const int _minForProgress;
+
 	std::unique_ptr<BadgeTooltip> _badgeTooltip;
 	std::vector<std::unique_ptr<BadgeTooltip>> _badgeOldTooltips;
 	uint64 _badgeCollectibleId = 0;
