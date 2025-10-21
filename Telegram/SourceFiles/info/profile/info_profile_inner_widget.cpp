@@ -91,7 +91,7 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 	}
 
 	auto result = object_ptr<Ui::VerticalLayout>(parent);
-	setupSavedMusicOrDivider(result);
+	setupSavedMusic(result);
 	if (_topic && _topic->creating()) {
 		return result;
 	}
@@ -152,8 +152,7 @@ void InnerWidget::setupMembers(not_null<Ui::VerticalLayout*> container) {
 		anim::type::instant);
 }
 
-void InnerWidget::setupSavedMusicOrDivider(
-		not_null<Ui::VerticalLayout*> container) {
+void InnerWidget::setupSavedMusic(not_null<Ui::VerticalLayout*> container) {
 	auto musicValue = Data::SavedMusic::Supported(_peer->id)
 		? Data::SavedMusicList(
 			_peer,
@@ -191,10 +190,6 @@ void InnerWidget::setupSavedMusicOrDivider(
 						}));
 				music->setOverrideBg(color);
 			}
-			divider->toggle(true, anim::type::normal);
-		} else if (!color) {
-			Ui::AddDivider(divider->entity());
-			Ui::AddSkip(divider->entity());
 			divider->toggle(true, anim::type::normal);
 		}
 	}, lifetime());

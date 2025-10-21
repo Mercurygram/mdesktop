@@ -73,7 +73,7 @@ private:
 		Origin origin);
 	object_ptr<RpWidget> setupSharedMedia(not_null<RpWidget*> parent);
 	void setupMembers(not_null<Ui::VerticalLayout*> container);
-	void setupSavedMusicOrDivider(not_null<Ui::VerticalLayout*> container);
+	void setupSavedMusic(not_null<Ui::VerticalLayout*> container);
 
 	int countDesiredHeight() const;
 	void updateDesiredHeight() {
