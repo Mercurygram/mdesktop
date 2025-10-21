@@ -58,19 +58,19 @@ namespace {
 
 [[nodiscard]] rpl::producer<QString> PlaceholderText(
 		const std::shared_ptr<ChatHelpers::Show> &show,
-		rpl::producer<bool> isComment,
+		rpl::producer<ReplyAreaType> type,
 		rpl::producer<int> starsPerMessage) {
 	return rpl::combine(
 		show->session().data().stories().stealthModeValue(),
-		std::move(isComment),
+		std::move(type),
 		std::move(starsPerMessage)
 	) | rpl::map([](
 			Data::StealthMode value,
-			bool isComment,
+			ReplyAreaType type,
 			int starsPerMessage) {
-		return std::tuple(value.enabledTill, isComment, starsPerMessage);
+		return std::tuple(value.enabledTill, type, starsPerMessage);
 	}) | rpl::distinct_until_changed(
-	) | rpl::map([](TimeId till, bool isComment, int starsPerMessage) {
+	) | rpl::map([](TimeId till, ReplyAreaType type, int starsPerMessage) {
 		return rpl::single(
 			rpl::empty
 		) | rpl::then(
@@ -82,7 +82,9 @@ namespace {
 		}) | rpl::then(
 			rpl::single(0)
 		) | rpl::map([=](TimeId left) {
-			return starsPerMessage
+			return (type == ReplyAreaType::VideoStreamComment)
+				? tr::lng_video_stream_comment_ph()
+				: starsPerMessage
 				? tr::lng_message_stars_ph(
 					lt_count,
 					rpl::single(starsPerMessage * 1.))
@@ -90,7 +92,7 @@ namespace {
 				? tr::lng_stealth_mode_countdown(
 					lt_left,
 					rpl::single(TimeLeftText(left)))
-				: isComment
+				: (type == ReplyAreaType::Comment)
 				? tr::lng_story_comment_ph()
 				: tr::lng_story_reply_ph();
 		}) | rpl::flatten_latest();
@@ -165,7 +167,7 @@ ReplyArea::ReplyArea(not_null<Controller*> controller)
 		.stickerOrEmojiChosen = _controller->stickerOrEmojiChosen(),
 		.customPlaceholder = PlaceholderText(
 			_controller->uiShow(),
-			rpl::deferred([=] { return _isComment.value(); }),
+			rpl::deferred([=] { return _type.value(); }),
 			rpl::deferred([=] { return _starsForMessage.value(); })),
 		.voiceCustomCancelText = tr::lng_record_cancel_stories(tr::now),
 		.voiceLockFromBottom = true,
@@ -868,7 +870,9 @@ void ReplyArea::show(
 	const auto peer = data.peer;
 	const auto history = peer ? peer->owner().history(peer).get() : nullptr;
 	const auto user = peer->asUser();
-	_isComment = peer->isMegagroup();
+	_type = peer->isMegagroup()
+		? ReplyAreaType::Comment
+		: ReplyAreaType::Reply;
 	auto writeRestriction = Data::CanSendAnythingValue(
 		peer
 	) | rpl::map([=](bool can) {
@@ -925,7 +929,7 @@ void ReplyArea::show(
 }
 
 void ReplyArea::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
-	_isComment = true;
+	_type = ReplyAreaType::VideoStreamComment;
 	_videoStream = videoStream;
 }
 

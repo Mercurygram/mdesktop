@@ -912,6 +912,7 @@ ComposeControls::ComposeControls(
 , _like(_features.likes
 	? Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.like)
 	: nullptr)
+, _chosenStarsCount(_features.editMessageStars ? 0 : std::optional<int>())
 , _attachToggle(_features.attachments
 	? Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.attach)
 	: nullptr)
@@ -1116,6 +1117,9 @@ void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
 	}
 	if (was.editMessageStars != features.editMessageStars
 		|| was.recordMediaMessage != features.recordMediaMessage) {
+		_chosenStarsCount = features.editMessageStars
+			? 0
+			: std::optional<int>();
 		updateSendButtonType();
 	}
 	if (was.attachments != features.attachments) {
@@ -1771,8 +1775,9 @@ void ComposeControls::clearListenState() {
 }
 
 void ComposeControls::clearChosenStarsForMessage() {
-	if (_chosenStarsCount.has_value()) {
-		_chosenStarsCount = std::nullopt;
+	const auto empty = _features.editMessageStars ? 0 : std::optional<int>();
+	if (_chosenStarsCount != empty) {
+		_chosenStarsCount = empty;
 		updateSendButtonType();
 	}
 }

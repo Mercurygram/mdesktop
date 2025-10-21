@@ -67,6 +67,12 @@ struct ReplyAreaData {
 	friend inline bool operator==(ReplyAreaData, ReplyAreaData) = default;
 };
 
+enum class ReplyAreaType {
+	Reply,
+	Comment,
+	VideoStreamComment,
+};
+
 class ReplyArea final : public base::has_weak_ptr {
 public:
 	explicit ReplyArea(not_null<Controller*> controller);
@@ -166,7 +172,7 @@ private:
 	[[nodiscard]] bool showSlowmodeError();
 
 	const not_null<Controller*> _controller;
-	rpl::variable<bool> _isComment;
+	rpl::variable<ReplyAreaType> _type;
 	rpl::variable<int> _starsForMessage;
 	base::weak_ptr<Calls::GroupCall> _videoStream;
 
