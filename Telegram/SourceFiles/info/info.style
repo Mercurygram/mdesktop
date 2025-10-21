@@ -699,9 +699,6 @@ infoProfileButton: SettingsButton(defaultSettingsButton) {
 	toggleOver: infoProfileToggleOver;
 	toggleSkip: 20px;
 }
-infoNotificationsButton: SettingsButton(infoProfileButton) {
-	padding: margins(79px, 13px, 8px, 9px);
-}
 infoMainButton: SettingsButton(infoProfileButton) {
 	textFg: lightButtonFg;
 	textFgOver: lightButtonFgOver;
