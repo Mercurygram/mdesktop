@@ -810,21 +810,21 @@ void DeleteContactNote(
 	}, notesLine.wrap->lifetime());
 
 	const auto subtextLabel = Ui::CreateChild<Ui::FlatLabel>(
-		notesLine.subtext->parentWidget(),
+		notesLine.wrap->entity(),
 		tr::lng_info_notes_private(tr::now),
 		st::infoLabel);
 	subtextLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
 
 	rpl::combine(
-		notesLine.subtext->geometryValue(),
-		notesContainer->widthValue()
+		notesLine.wrap->entity()->widthValue(),
+		notesLine.subtext->geometryValue()
 	) | rpl::start_with_next([=, skip = st::lineWidth * 5](
-			const QRect &subtextGeometry,
-			int parentWidth) {
+			int width,
+			const QRect &subtextGeometry) {
 		subtextLabel->moveToRight(
-			subtextLabel->width(),
+			0,
 			subtextGeometry.y() + skip,
-			parentWidth);
+			width);
 	}, subtextLabel->lifetime());
 
 	notesContainer->add(std::move(notesLine.wrap));
