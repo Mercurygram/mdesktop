@@ -47,10 +47,35 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Info {
 namespace Profile {
 
+namespace {
+
 [[nodiscard]] MusicButtonData DocumentMusicButtonData(
 		not_null<DocumentData*> document) {
 	return { Ui::Text::FormatSongNameFor(document) };
 }
+
+void AddAboutVerification(
+		not_null<Ui::VerticalLayout*> layout,
+		not_null<PeerData*> peer) {
+	const auto inner = layout->add(object_ptr<Ui::VerticalLayout>(layout));
+	peer->session().changes().peerFlagsValue(
+		peer,
+		Data::PeerUpdate::Flag::VerifyInfo
+	) | rpl::start_with_next([=] {
+		const auto info = peer->botVerifyDetails();
+		while (inner->count()) {
+			delete inner->widgetAt(0);
+		}
+		if (!info) {
+			Ui::AddDivider(inner);
+		} else if (!info->description.empty()) {
+			Ui::AddDividerText(inner, rpl::single(info->description));
+		}
+		inner->resizeToWidth(inner->width());
+	}, inner->lifetime());
+}
+
+} // namespace
 
 InnerWidget::InnerWidget(
 	QWidget *parent,
@@ -111,7 +136,7 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 		}
 	}
 	if (auto actions = SetupActions(_controller, result.data(), _peer)) {
-		result->add(object_ptr<Ui::BoxContentDivider>(result));
+		addAboutVerificationOrDivider(result);
 		result->add(std::move(actions));
 	}
 	if (_peer->isChat() || _peer->isMegagroup()) {
@@ -127,7 +152,7 @@ void InnerWidget::setupMembers(not_null<Ui::VerticalLayout*> container) {
 		container,
 		object_ptr<Ui::VerticalLayout>(container)));
 	const auto inner = wrap->entity();
-	inner->add(object_ptr<Ui::BoxContentDivider>(inner));
+	addAboutVerificationOrDivider(inner);
 	_members = inner->add(object_ptr<Members>(inner, _controller));
 	_members->scrollToRequests(
 	) | rpl::start_with_next([this](Ui::ScrollToRequest request) {
@@ -194,6 +219,16 @@ void InnerWidget::setupSavedMusic(not_null<Ui::VerticalLayout*> container) {
 		}
 	}, lifetime());
 	divider->finishAnimating();
+}
+
+void InnerWidget::addAboutVerificationOrDivider(
+		not_null<Ui::VerticalLayout*> content) {
+	if (_aboutVerificationAdded) {
+		Ui::AddDivider(content);
+	} else {
+		AddAboutVerification(content, _peer);
+		_aboutVerificationAdded = true;
+	}
 }
 
 object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
@@ -323,16 +358,10 @@ object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
 
 	auto layout = result->entity();
 
-	layout->add(object_ptr<Ui::BoxContentDivider>(layout));
-	layout->add(object_ptr<Ui::FixedHeightWidget>(
-		layout,
-		st::infoSharedMediaBottomSkip)
-	)->setAttribute(Qt::WA_TransparentForMouseEvents);
+	addAboutVerificationOrDivider(layout);
+	Ui::AddSkip(layout, st::infoSharedMediaBottomSkip);
 	layout->add(std::move(content));
-	layout->add(object_ptr<Ui::FixedHeightWidget>(
-		layout,
-		st::infoSharedMediaBottomSkip)
-	)->setAttribute(Qt::WA_TransparentForMouseEvents);
+	Ui::AddSkip(layout, st::infoSharedMediaBottomSkip);
 
 	_sharedMediaWrap = result;
 	return result;

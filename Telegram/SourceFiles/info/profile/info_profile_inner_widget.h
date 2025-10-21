@@ -80,6 +80,8 @@ private:
 		_desiredHeight.fire(countDesiredHeight());
 	}
 
+	void addAboutVerificationOrDivider(not_null<Ui::VerticalLayout*> content);
+
 	const not_null<Controller*> _controller;
 	const not_null<PeerData*> _peer;
 	PeerData * const _migrated = nullptr;
@@ -95,6 +97,8 @@ private:
 	Members *_members = nullptr;
 	Ui::SlideWrap<RpWidget> *_sharedMediaWrap = nullptr;
 	object_ptr<RpWidget> _content;
+
+	bool _aboutVerificationAdded = false;
 
 	bool _inResize = false;
 	rpl::event_stream<Ui::ScrollToRequest> _scrollToRequests;

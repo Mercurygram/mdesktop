@@ -1163,7 +1163,6 @@ private:
 	object_ptr<Ui::RpWidget> setupPersonalChannel(not_null<UserData*> user);
 	object_ptr<Ui::RpWidget> setupInfo();
 	object_ptr<Ui::RpWidget> setupMuteToggle();
-	void setupAboutVerification();
 	void setupMainApp();
 	void setupBotPermissions();
 	void setupMainButtons();
@@ -2090,26 +2089,6 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupMuteToggle() {
 	return result;
 }
 
-void DetailsFiller::setupAboutVerification() {
-	const auto peer = _peer;
-	const auto inner = _wrap->add(object_ptr<Ui::VerticalLayout>(_wrap));
-	peer->session().changes().peerFlagsValue(
-		peer,
-		Data::PeerUpdate::Flag::VerifyInfo
-	) | rpl::start_with_next([=] {
-		const auto info = peer->botVerifyDetails();
-		while (inner->count()) {
-			delete inner->widgetAt(0);
-		}
-		if (!info) {
-			// Ui::AddDivider(inner);
-		} else if (!info->description.empty()) {
-			Ui::AddDividerText(inner, rpl::single(info->description));
-		}
-		inner->resizeToWidth(inner->width());
-	}, inner->lifetime());
-}
-
 void DetailsFiller::setupMainApp() {
 	const auto button = _wrap->add(
 		object_ptr<Ui::RoundButton>(
@@ -2413,7 +2392,6 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill() {
 	Expects(!_topic || !_topic->creating());
 
 	if (!_topic) {
-		setupAboutVerification();
 	} else {
 		add(object_ptr<Ui::BoxContentDivider>(_wrap));
 	}
