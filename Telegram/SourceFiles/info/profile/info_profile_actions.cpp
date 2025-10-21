@@ -1164,20 +1164,6 @@ private:
 	object_ptr<Ui::RpWidget> setupInfo();
 	void setupMainApp();
 	void setupBotPermissions();
-	void setupMainButtons();
-	Ui::MultiSlideTracker fillTopicButtons();
-	Ui::MultiSlideTracker fillUserButtons(
-		not_null<UserData*> user);
-	Ui::MultiSlideTracker fillChannelButtons(
-		not_null<ChannelData*> channel);
-	Ui::MultiSlideTracker fillDiscussionButtons(
-		not_null<ChannelData*> channel);
-	void addShowTopicsListButton(
-		Ui::MultiSlideTracker &tracker,
-		not_null<Data::Forum*> forum);
-	void addViewChannelButton(
-		Ui::MultiSlideTracker &tracker,
-		not_null<ChannelData*> channel);
 
 	void addReportReaction(Ui::MultiSlideTracker &tracker);
 	void addReportReaction(
@@ -2078,33 +2064,6 @@ void DetailsFiller::setupBotPermissions() {
 	AddSkip(_wrap);
 }
 
-void DetailsFiller::setupMainButtons() {
-	auto wrapButtons = [=](auto &&callback) {
-		auto topSkip = _wrap->add(CreateSlideSkipWidget(_wrap));
-		auto tracker = callback();
-		topSkip->toggleOn(std::move(tracker).atLeastOneShownValue());
-	};
-	if (_topic) {
-		wrapButtons([=] {
-			return fillTopicButtons();
-		});
-	} else if (const auto user = _peer->asUser()) {
-		wrapButtons([=] {
-			return fillUserButtons(user);
-		});
-	} else if (const auto channel = _peer->asChannel()) {
-		if (channel->isMegagroup()) {
-			wrapButtons([=] {
-				return fillDiscussionButtons(channel);
-			});
-		} else {
-			wrapButtons([=] {
-				return fillChannelButtons(channel);
-			});
-		}
-	}
-}
-
 void DetailsFiller::addReportReaction(Ui::MultiSlideTracker &tracker) {
 	v::match(_origin.data, [&](GroupReactionOrigin data) {
 		const auto user = _peer->asUser();
@@ -2161,154 +2120,6 @@ void DetailsFiller::addReportReaction(
 		st::infoMainButtonAttention);
 }
 
-Ui::MultiSlideTracker DetailsFiller::fillTopicButtons() {
-	Ui::MultiSlideTracker tracker;
-	addShowTopicsListButton(tracker, _topic->forum());
-	return tracker;
-}
-
-void DetailsFiller::addShowTopicsListButton(
-		Ui::MultiSlideTracker &tracker,
-		not_null<Data::Forum*> forum) {
-	using namespace rpl::mappers;
-
-	const auto window = _controller->parentController();
-	const auto peer = forum->peer();
-	auto showTopicsVisible = rpl::combine(
-		window->adaptive().oneColumnValue(),
-		window->shownForum().value(),
-		_1 || (_2 != forum));
-	const auto callback = [=] {
-		if (const auto forum = peer->forum()) {
-			if (peer->useSubsectionTabs()) {
-				window->searchInChat(forum->history());
-			} else {
-				window->showForum(forum);
-			}
-		}
-	};
-	AddMainButton(
-		_wrap,
-		(forum->peer()->isBot()
-			? tr::lng_bot_show_threads_list()
-			: tr::lng_forum_show_topics_list()),
-		std::move(showTopicsVisible),
-		callback,
-		tracker);
-}
-
-Ui::MultiSlideTracker DetailsFiller::fillUserButtons(
-		not_null<UserData*> user) {
-	using namespace rpl::mappers;
-
-	Ui::MultiSlideTracker tracker;
-	if (user->isSelf()) {
-		return tracker;
-	}
-	auto window = _controller->parentController();
-
-	auto addSendMessageButton = [&] {
-		auto activePeerValue = window->activeChatValue(
-		) | rpl::map([](Dialogs::Key key) {
-			return key.peer();
-		});
-		auto sendMessageVisible = rpl::combine(
-			_controller->wrapValue(),
-			std::move(activePeerValue),
-			(_1 != Wrap::Side) || (_2 != user));
-		auto sendMessage = [window, user] {
-			window->showPeerHistory(
-				user,
-				Window::SectionShow::Way::Forward);
-		};
-		AddMainButton(
-			_wrap,
-			tr::lng_profile_send_message(),
-			std::move(sendMessageVisible),
-			std::move(sendMessage),
-			tracker);
-	};
-
-	if (!user->isVerifyCodes()) {
-		addSendMessageButton();
-	}
-	if (!_sublist) {
-		addReportReaction(tracker);
-	}
-
-	return tracker;
-}
-
-Ui::MultiSlideTracker DetailsFiller::fillChannelButtons(
-		not_null<ChannelData*> channel) {
-	Ui::MultiSlideTracker tracker;
-	addViewChannelButton(tracker, channel);
-	return tracker;
-}
-
-void DetailsFiller::addViewChannelButton(
-		Ui::MultiSlideTracker &tracker,
-		not_null<ChannelData*> channel) {
-	using namespace rpl::mappers;
-
-	auto window = _controller->parentController();
-	auto activePeerValue = window->activeChatValue(
-	) | rpl::map([](Dialogs::Key key) {
-		return key.peer();
-	});
-	auto viewChannelVisible = rpl::combine(
-		_controller->wrapValue(),
-		std::move(activePeerValue),
-		(_1 != Wrap::Side) || (_2 != channel));
-	auto viewChannel = [=] {
-		window->showPeerHistory(
-			channel,
-			Window::SectionShow::Way::Forward);
-	};
-	AddMainButton(
-		_wrap,
-		tr::lng_profile_view_channel(),
-		std::move(viewChannelVisible),
-		std::move(viewChannel),
-		tracker);
-}
-
-Ui::MultiSlideTracker DetailsFiller::fillDiscussionButtons(
-		not_null<ChannelData*> channel) {
-	using namespace rpl::mappers;
-
-	Ui::MultiSlideTracker tracker;
-	auto window = _controller->parentController();
-	auto viewDiscussionVisible = window->dialogsEntryStateValue(
-	) | rpl::map([=](const Dialogs::EntryState &state) {
-		const auto history = state.key.history();
-		return (state.section == Dialogs::EntryState::Section::Replies)
-			&& history
-			&& (history->peer == channel);
-	});
-	auto viewDiscussion = [=] {
-		window->showPeerHistory(
-			channel,
-			Window::SectionShow::Way::Forward);
-	};
-	AddMainButton(
-		_wrap,
-		tr::lng_profile_view_discussion(),
-		std::move(viewDiscussionVisible),
-		std::move(viewDiscussion),
-		tracker);
-
-	if (const auto forum = channel->forum()) {
-		if (channel->useSubsectionTabs()) {
-			addShowTopicsListButton(tracker, forum);
-		}
-	} else if (const auto broadcast = channel->monoforumBroadcast()) {
-		addViewChannelButton(tracker, broadcast);
-	}
-
-	return tracker;
-}
-
 object_ptr<Ui::RpWidget> DetailsFiller::fill() {
 	Expects(!_topic || !_topic->creating());
 
@@ -2331,7 +2142,6 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill() {
 			}
 		}
 	}
-	setupMainButtons();
 	add(CreateSkipWidget(_wrap));
 
 	return std::move(_wrap);
