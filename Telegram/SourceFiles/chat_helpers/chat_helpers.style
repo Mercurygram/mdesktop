@@ -217,7 +217,7 @@ ComposeControls {
 	commentsShow: IconButton;
 	commentsShown: icon;
 	commentsSkip: pixels;
-	starsInactiveFg: color;
+	starsReaction: RoundButton;
 	starsSkip: pixels;
 	suggestions: EmojiSuggestions;
 	tabbed: EmojiPan;

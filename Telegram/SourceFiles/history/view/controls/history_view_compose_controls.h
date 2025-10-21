@@ -59,6 +59,7 @@ struct ResultSelected;
 } // namespace InlineBots
 
 namespace Ui {
+class AbstractButton;
 class SendButton;
 class IconButton;
 class EmojiButton;
@@ -66,6 +67,7 @@ class SendAsButton;
 class SilentToggle;
 class DropdownMenu;
 struct PreparedList;
+struct SendStarButtonState;
 } // namespace Ui
 
 namespace Ui::Emoji {
@@ -162,6 +164,9 @@ public:
 
 	void setToggleCommentsButton(rpl::producer<ToggleCommentsState> state);
 	[[nodiscard]] rpl::producer<> commentsShownToggles() const;
+	void setStarsReactionCounter(
+		rpl::producer<Ui::SendStarButtonState> count);
+	[[nodiscard]] rpl::producer<> starsReactionIncrements() const;
 
 	bool focus();
 	[[nodiscard]] bool focused() const;
@@ -441,6 +446,7 @@ private:
 	rpl::event_stream<> _focusRequests;
 	rpl::event_stream<> _showScheduledRequests;
 	rpl::event_stream<> _commentsShownToggles;
+	rpl::event_stream<> _starsReactionIncrements;
 	rpl::variable<bool> _recording;
 	rpl::variable<bool> _hasSendText;
 

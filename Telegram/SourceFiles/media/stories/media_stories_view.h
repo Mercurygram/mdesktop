@@ -136,6 +136,7 @@ public:
 	[[nodiscard]] std::shared_ptr<ChatHelpers::Show> uiShow() const;
 
 	void updateVideoStream(not_null<Calls::GroupCall*> videoStream);
+	[[nodiscard]] rpl::producer<bool> commentsShownValue() const;
 
 	[[nodiscard]] rpl::lifetime &lifetime();
 

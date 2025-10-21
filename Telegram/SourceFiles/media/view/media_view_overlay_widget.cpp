@@ -2423,6 +2423,7 @@ void OverlayWidget::assignMediaPointer(
 		_callJoinMessageId);
 	if (const auto stories = _stories.get()) {
 		stories->updateVideoStream(_videoStream->call());
+		_videoStream->toggleCommentsOn(stories->commentsShownValue());
 	}
 	_widget->lower();
 }

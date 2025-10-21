@@ -733,7 +733,22 @@ storiesComposeControls: ComposeControls(defaultComposeControls) {
 	}
 	commentsShown: icon {{ "chat/input_comments_hide", storiesComposeGrayIcon }};
 	commentsSkip: 8px;
-	starsInactiveFg: storiesComposeGrayIcon;
+	starsReaction: RoundButton(defaultActiveButton) {
+		style: TextStyle(semiboldTextStyle) {
+			font: font(14px semibold);
+		}
+		textFg: storiesComposeGrayIcon;
+		textFgOver: storiesComposeGrayIcon;
+		textBg: storiesComposeBg;
+		textBgOver: storiesComposeBg;
+		radius: 21px;
+		width: -20px;
+		height: 42px;
+		numbersSkip: 3px;
+		padding: margins(0px, 0px, 0px, 0px);
+		textTop: 11px;
+		ripple: storiesComposeRippleLight;
+	}
 	starsSkip: 8px;
 	suggestions: EmojiSuggestions(defaultEmojiSuggestions) {
 		dropdown: InnerDropdown(emojiSuggestionsDropdown) {

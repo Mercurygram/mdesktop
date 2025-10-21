@@ -1225,6 +1225,33 @@ rpl::producer<> ComposeControls::commentsShownToggles() const {
 	return _commentsShownToggles.events();
 }
 
+void ComposeControls::setStarsReactionCounter(
+		rpl::producer<Ui::SendStarButtonState> count) {
+	if (!count) {
+		delete base::take(_starsReaction);
+		updateControlsGeometry(_wrap->size());
+	} else {
+		_starsReaction = Ui::CreateChild<Ui::SendStarButton>(
+			_wrap.get(),
+			_st.starsReaction,
+			std::move(count));
+		updateControlsVisibility();
+
+		_starsReaction->widthValue(
+		) | rpl::start_with_next([=](int width) {
+			updateControlsGeometry(_wrap->size());
+		}, _starsReaction->lifetime());
+
+		_starsReaction->setClickedCallback([=] {
+			_starsReactionIncrements.fire({});
+		});
+	}
+}
+
+rpl::producer<> ComposeControls::starsReactionIncrements() const {
+	return _starsReactionIncrements.events();
+}
+
 bool ComposeControls::focus() {
 	if (_wrap->isHidden() || _field->isHidden()) {
 		return false;
@@ -2839,17 +2866,14 @@ void ComposeControls::finishAnimating() {
 }
 
 void ComposeControls::updateControlsGeometry(QSize size) {
-	// (_commentsShown) (_attachToggle|_replaceMedia) (_sendAs) -- _inlineResults ------ _tabbedPanel -- _fieldBarCancel
+	// (_commentsShown) (_attachToggle|_replaceMedia) (_sendAs) -- _inlineResults ------ _tabbedPanel -- _fieldBarCancel (_starsReaction)
 	// (_attachDocument|_attachPhoto) _field (_ttlInfo) (_scheduled) (_silent|_botCommandStart) _tabbedSelectorToggle _send
 
 	const auto fieldWidth = size.width()
 		- (_commentsShown
-			? (_st.padding.left()
-				+ _commentsShown->width()
-				+ _st.padding.right()
-				+ _st.commentsSkip)
+			? (_commentsShown->width() + _st.commentsSkip)
 			: 0)
-		- _st.padding.left()
+		- ((_attachToggle || _sendAs) ? _st.padding.left() : _st.fieldLeft)
 		- (_attachToggle ? _attachToggle->width() : 0)
 		- (_sendAs ? _sendAs->width() : 0)
 		- _st.padding.right()
@@ -2859,7 +2883,10 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 		- (_botCommandShown ? _botCommandStart->width() : 0)
 		- (_silent ? _silent->width() : 0)
 		- (_scheduled ? _scheduled->width() : 0)
-		- (_ttlInfo ? _ttlInfo->width() : 0);
+		- (_ttlInfo ? _ttlInfo->width() : 0)
+		- (_starsReaction
+			? (_st.starsSkip + _starsReaction->width())
+			: 0);
 	{
 		const auto oldFieldHeight = _field->height();
 		_field->resizeToWidth(fieldWidth);
@@ -2872,14 +2899,12 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 
 	const auto buttonsTop = size.height() - _st.attach.height;
 
-	auto left = _st.padding.left();
+	auto left = 0;
 	if (_commentsShown) {
 		_commentsShown->moveToLeft(left, buttonsTop);
-		left += _commentsShown->width()
-			+ _st.padding.right()
-			+ _st.commentsSkip
-			+ _st.padding.left();
+		left += _commentsShown->width() + _st.commentsSkip;
 	}
+	left += (_attachToggle || _sendAs) ? _st.padding.left() : _st.fieldLeft;
 	if (_replaceMedia) {
 		_replaceMedia->moveToLeft(left, buttonsTop);
 	}
@@ -2901,6 +2926,10 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 		_field->y() - _st.padding.top() - _header->height());
 
 	auto right = _st.padding.right();
+	if (_starsReaction) {
+		_starsReaction->moveToRight(right, buttonsTop);
+		right += _starsReaction->width() + _st.starsSkip;
+	}
 	_send->moveToRight(right, buttonsTop);
 	right += _send->width();
 	_tabbedSelectorToggle->moveToRight(right, buttonsTop);
@@ -2964,6 +2993,9 @@ void ComposeControls::updateControlsVisibility() {
 	}
 	if (_commentsShown) {
 		_commentsShown->show();
+	}
+	if (_starsReaction) {
+		_starsReaction->show();
 	}
 }
 
@@ -3091,11 +3123,17 @@ void ComposeControls::paintBackground(QPainter &p, QRect full, QRect clip) {
 				{ _st.padding.left(), 0, _st.padding.right(), 0 }), r, r);
 			full.setLeft(full.left()
 				+ _commentsShown->width()
-				+ _st.padding.left()
-				+ _st.padding.right()
 				+ _st.commentsSkip);
 		}
+		if (_starsReaction) {
+			p.drawRoundedRect(_starsReaction->geometry().marginsAdded(
+				{ _st.padding.left(), 0, _st.padding.right(), 0 }), r, r);
+			full.setWidth(full.width()
+				- _starsReaction->width()
+				- _st.starsSkip);
+		}
 		p.drawRoundedRect(full, _st.radius, _st.radius);
+
 	} else {
 		p.fillRect(clip, _st.bg);
 	}

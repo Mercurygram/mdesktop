@@ -46,6 +46,7 @@ namespace Ui {
 class RpWidget;
 class BoxContent;
 class PopupMenu;
+struct SendStarButtonState;
 } // namespace Ui
 
 namespace Ui::Toast {
@@ -178,6 +179,9 @@ public:
 
 	[[nodiscard]] rpl::producer<CommentsState> commentsStateValue() const;
 	void setCommentsShownToggles(rpl::producer<> toggles);
+	[[nodiscard]] auto starsReactionsValue() const
+		-> rpl::producer<Ui::SendStarButtonState>;
+	void setStarsReactionIncrements(rpl::producer<> increments);
 
 	void unfocusReply();
 	void shareRequested();
@@ -330,6 +334,8 @@ private:
 	mutable rpl::variable<bool> _weatherInCelsius;
 
 	rpl::variable<CommentsState> _commentsState;
+	rpl::variable<int> _starsReactions;
+	bool _mineStarReaction = false;
 
 	std::vector<CachedSource> _cachedSourcesList;
 	int _cachedSourceIndex = -1;

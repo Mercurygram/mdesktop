@@ -55,6 +55,7 @@ public:
 
 	void setVolume(float64 volume);
 	void updateGeometry(int x, int y, int width, int height);
+	void toggleCommentsOn(rpl::producer<bool> shown);
 
 	void ensureBorrowedRenderer(QOpenGLFunctions &f);
 	void ensureBorrowedCleared(QOpenGLFunctions *f);
@@ -67,6 +68,8 @@ private:
 	void setupVideo();
 	void setupMembers();
 	void setupMessages();
+
+	rpl::variable<bool> _commentsShown;
 
 	std::shared_ptr<ChatHelpers::Show> _show;
 	std::unique_ptr<Delegate> _delegate;

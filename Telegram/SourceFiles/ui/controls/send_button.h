@@ -88,4 +88,32 @@ private:
 
 };
 
+struct SendStarButtonState {
+	int count = 0;
+	bool mine = false;
+};
+
+class SendStarButton final : public RippleButton {
+public:
+	SendStarButton(
+		QWidget *parent,
+		const style::RoundButton &st,
+		rpl::producer<SendStarButtonState> state);
+
+protected:
+	void paintEvent(QPaintEvent *e) override;
+
+	QImage prepareRippleMask() const override;
+	QPoint prepareRippleStartPosition() const override;
+
+private:
+	void updateSize();
+
+	const style::RoundButton &_st;
+
+	Ui::Text::String _starsText;
+	bool _mine = false;
+
+};
+
 } // namespace Ui

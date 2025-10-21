@@ -842,6 +842,11 @@ void ReplyArea::show(
 			: nullptr);
 		_controller->setCommentsShownToggles(
 			_controls->commentsShownToggles());
+		_controls->setStarsReactionCounter(_data.videoStream
+			? _controller->starsReactionsValue()
+			: nullptr);
+		_controller->setStarsReactionIncrements(
+			_controls->starsReactionIncrements());
 	}
 	if (!peerChanged) {
 		if (_data.peer) {

@@ -105,7 +105,10 @@ VideoStream::VideoStream(
 		Calls::Group::MessagesMode::VideoStream,
 		_call->messages()->listValue(),
 		_call->messages()->idUpdates(),
-		_call->messagesEnabledValue())) {
+		rpl::combine(
+			_call->messagesEnabledValue(),
+			_commentsShown.value(),
+			rpl::mappers::_1 && rpl::mappers::_2))) {
 	Core::App().calls().registerVideoStream(_call.get());
 	setupMembers();
 	setupVideo();
@@ -123,6 +126,10 @@ void VideoStream::updateGeometry(int x, int y, int width, int height) {
 	const auto skip = st::groupCallMessageSkip;
 	_viewport->setGeometry(false, { x, y, width, height });
 	_messages->move(x + skip, y + height, width - 2 * skip, height);
+}
+
+void VideoStream::toggleCommentsOn(rpl::producer<bool> shown) {
+	_commentsShown = std::move(shown);
 }
 
 void VideoStream::ensureBorrowedRenderer(QOpenGLFunctions &f) {
@@ -187,24 +194,6 @@ void VideoStream::setupVideo() {
 		} else {
 			// Remove sync.
 			_viewport->remove(update.endpoint);
-		}
-	}, _viewport->lifetime());
-
-	_viewport->pinToggled(
-	) | rpl::start_with_next([=](bool pinned) {
-		_call->pinVideoEndpoint(pinned
-			? _call->videoEndpointLarge()
-			: Calls::VideoEndpoint{});
-	}, _viewport->lifetime());
-
-	_viewport->clicks(
-	) | rpl::start_with_next([=](Calls::VideoEndpoint &&endpoint) {
-		if (_call->videoEndpointLarge() == endpoint) {
-			_call->showVideoEndpointLarge({});
-		} else if (_call->videoEndpointPinned()) {
-			_call->pinVideoEndpoint(std::move(endpoint));
-		} else {
-			_call->showVideoEndpointLarge(std::move(endpoint));
 		}
 	}, _viewport->lifetime());
 

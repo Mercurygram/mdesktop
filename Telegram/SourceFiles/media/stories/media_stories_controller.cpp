@@ -47,6 +47,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_credits_graphics.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/boxes/report_box_graphics.h"
+#include "ui/controls/send_button.h"
 #include "ui/text/text_utilities.h"
 #include "ui/toast/toast.h"
 #include "ui/widgets/buttons.h"
@@ -1713,6 +1714,20 @@ void Controller::setCommentsShownToggles(rpl::producer<> toggles) {
 		return (_commentsState.current() == CommentsState::Shown)
 			? CommentsState::Hidden
 			: CommentsState::Shown;
+	});
+}
+
+auto Controller::starsReactionsValue() const
+-> rpl::producer<Ui::SendStarButtonState> {
+	return _starsReactions.value() | rpl::map([=](int stars) {
+		return Ui::SendStarButtonState{ stars, _mineStarReaction };
+	});
+}
+
+void Controller::setStarsReactionIncrements(rpl::producer<> increments) {
+	_starsReactions = std::move(increments) | rpl::map([=] {
+		_mineStarReaction = true;
+		return _starsReactions.current() + 1;
 	});
 }
 

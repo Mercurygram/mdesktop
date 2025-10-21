@@ -332,4 +332,75 @@ void SendButton::paintEditPrice(QPainter &p, bool over) {
 	icon.paintInCenter(p, rect());
 }
 
+SendStarButton::SendStarButton(
+	QWidget *parent,
+	const style::RoundButton &st,
+	rpl::producer<SendStarButtonState> state)
+: RippleButton(parent, st.ripple)
+, _st(st) {
+	std::move(state) | rpl::start_with_next([=](SendStarButtonState value) {
+		if (value.count) {
+			_starsText.setText(
+				_st.style,
+				Lang::FormatCountToShort(value.count).string);
+		} else {
+			_starsText = Text::String();
+		}
+		_mine = value.mine;
+		updateSize();
+	}, lifetime());
+}
+
+void SendStarButton::paintEvent(QPaintEvent *e) {
+	auto p = QPainter(this);
+
+	if (_mine) {
+		auto hq = PainterHighQualityEnabler(p);
+		p.setPen(Qt::NoPen);
+		p.setBrush(st::creditsBg3);
+		p.drawRoundedRect(rect(), _st.radius, _st.radius);
+	} else {
+		paintRipple(p, QPoint());
+	}
+
+	if (_mine) {
+		p.setPen(st::premiumButtonFg);
+	} else {
+		p.setPen(_st.textFg);
+	}
+	const auto left = -_st.width / 2;
+	const auto &icon = st::starIconEmoji.icon;
+	icon.paint(
+		p,
+		left,
+		(height() - icon.height()) / 2,
+		width(),
+		_mine ? st::premiumButtonFg->c : _st.textFg->c);
+
+	if (!_starsText.isEmpty()) {
+		_starsText.draw(p, {
+			.position = QPoint(
+				left + icon.width() + _st.numbersSkip,
+				_st.textTop),
+		});
+	}
+}
+
+void SendStarButton::updateSize() {
+	const auto &icon = st::starIconEmoji.icon;
+	const auto text = _starsText.isEmpty() ? 0 : _starsText.maxWidth();
+	resize(
+		(text ? (text + _st.numbersSkip) : 0) + icon.width() - _st.width,
+		_st.height);
+	update();
+}
+
+QImage SendStarButton::prepareRippleMask() const {
+	return RippleAnimation::RoundRectMask(size(), _st.radius);
+}
+
+QPoint SendStarButton::prepareRippleStartPosition() const {
+	return mapFromGlobal(QCursor::pos());
+}
+
 } // namespace Ui
