@@ -203,6 +203,13 @@ void Messages::sent(uint64 randomId, MsgId realId) {
 		return;
 	}
 	j->id = realId;
+	crl::on_main(this, [=] {
+		const auto i = ranges::find(_messages, realId, &Message::id);
+		if (i != end(_messages) && !i->date) {
+			i->date = base::unixtime::now();
+			checkDestroying(true);
+		}
+	});
 	_idUpdates.fire({ .localId = localId, .realId = realId });
 }
 
@@ -216,7 +223,10 @@ void Messages::received(
 	const auto peer = _call->peer();
 	const auto i = ranges::find(_messages, id, &Message::id);
 	if (i != end(_messages)) {
-		if (peerFromMTP(from) == peer->session().userPeerId() && !i->date) {
+		const auto fromId = peerFromMTP(from);
+		const auto me1 = peer->session().userPeerId();
+		const auto me2 = _call->messagesFrom()->id;
+		if (((fromId == me1) || (fromId == me2)) && !i->date) {
 			i->date = date;
 			checkDestroying(true);
 		}
