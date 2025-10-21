@@ -149,12 +149,15 @@ EmojiButton {
 
 SendButton {
 	sendIconPosition: point;
+	sendIconFillPadding: pixels;
 	inner: IconButton;
 	stars: RoundButton;
 	record: icon;
 	recordOver: icon;
 	round: icon;
 	roundOver: icon;
+	editPrice: icon;
+	editPriceOver: icon;
 	sendDisabledFg: color;
 }
 
@@ -205,12 +208,17 @@ ComposeControls {
 	padding: margins;
 
 	field: InputField;
+	fieldLeft: pixels;
 	send: SendButton;
 	attach: IconButton;
 	emoji: EmojiButton;
 	like: IconButton;
 	liked: icon;
-	editStars: IconButton;
+	commentsShow: IconButton;
+	commentsShown: icon;
+	commentsSkip: pixels;
+	starsInactiveFg: color;
+	starsSkip: pixels;
 	suggestions: EmojiSuggestions;
 	tabbed: EmojiPan;
 	tabbedHeightMin: pixels;

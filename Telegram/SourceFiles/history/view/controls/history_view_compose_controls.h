@@ -137,6 +137,7 @@ public:
 	using ReplyNextRequest = Controls::ReplyNextRequest;
 	using FieldHistoryAction = Ui::InputField::HistoryAction;
 	using Mode = ComposeControlsMode;
+	using ToggleCommentsState = Controls::ToggleCommentsState;
 
 	ComposeControls(
 		not_null<Ui::RpWidget*> parent,
@@ -158,6 +159,9 @@ public:
 	void setAutocompleteBoundingRect(QRect rect);
 	[[nodiscard]] rpl::producer<int> height() const;
 	[[nodiscard]] int heightCurrent() const;
+
+	void setToggleCommentsButton(rpl::producer<ToggleCommentsState> state);
+	[[nodiscard]] rpl::producer<> commentsShownToggles() const;
 
 	bool focus();
 	[[nodiscard]] bool focused() const;
@@ -284,7 +288,6 @@ private:
 	void initVoiceRecordBar();
 	void initKeyHandler();
 	void initLikeButton();
-	void initEditStarsButton();
 	void updateLikeParent();
 	void updateSubmitSettings();
 	void updateSendButtonType();
@@ -318,7 +321,9 @@ private:
 	void createTabbedPanel();
 	void setTabbedPanel(std::unique_ptr<ChatHelpers::TabbedPanel> panel);
 
-	bool showRecordButton() const;
+	[[nodiscard]] bool showRecordButton() const;
+	[[nodiscard]] bool showEditStarsButton() const;
+	[[nodiscard]] int shownStarsPerMessage() const;
 	bool updateBotCommandShown();
 	bool updateLikeShown();
 
@@ -393,9 +398,10 @@ private:
 
 	const std::shared_ptr<Ui::SendButton> _send;
 	Ui::IconButton *_like = nullptr;
-	Ui::IconButton *_editStars = nullptr;
 	std::optional<int> _chosenStarsCount;
+	Ui::IconButton *_commentsShown = nullptr;
 	Ui::IconButton *_attachToggle = nullptr;
+	Ui::AbstractButton *_starsReaction = nullptr;
 	std::unique_ptr<Ui::IconButton> _replaceMedia;
 	const not_null<Ui::EmojiButton*> _tabbedSelectorToggle;
 	rpl::producer<QString> _fieldCustomPlaceholder;
@@ -434,6 +440,7 @@ private:
 	rpl::event_stream<ReplyNextRequest> _replyNextRequests;
 	rpl::event_stream<> _focusRequests;
 	rpl::event_stream<> _showScheduledRequests;
+	rpl::event_stream<> _commentsShownToggles;
 	rpl::variable<bool> _recording;
 	rpl::variable<bool> _hasSendText;
 

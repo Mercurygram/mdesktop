@@ -115,6 +115,7 @@ namespace {
 		.autocompleteCommands = false,
 		.recordMediaMessage = !videoStream,
 		.editMessageStars = videoStream,
+		.emojiOnlyPanel = videoStream,
 	};
 }
 
@@ -836,6 +837,11 @@ void ReplyArea::show(
 	_data = data;
 	if (streamChanged) {
 		_controls->updateFeatures(Features(_data.videoStream));
+		_controls->setToggleCommentsButton(_data.videoStream
+			? _controller->commentsStateValue()
+			: nullptr);
+		_controller->setCommentsShownToggles(
+			_controls->commentsShownToggles());
 	}
 	if (!peerChanged) {
 		if (_data.peer) {

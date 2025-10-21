@@ -33,6 +33,10 @@ struct FileOrigin;
 class DocumentMedia;
 } // namespace Data
 
+namespace HistoryView::Controls {
+enum class ToggleCommentsState;
+} // namespace HistoryView::Controls
+
 namespace HistoryView::Reactions {
 struct ChosenReaction;
 enum class AttachSelectorResult;
@@ -74,6 +78,8 @@ class RepostView;
 enum class ReactionsMode;
 class StoryAreaView;
 struct RepostClickHandler;
+
+using CommentsState = HistoryView::Controls::ToggleCommentsState;
 
 enum class HeaderLayout {
 	Normal,
@@ -169,6 +175,9 @@ public:
 
 	[[nodiscard]] const Data::StoryViews &views(int limit, bool initial);
 	[[nodiscard]] rpl::producer<> moreViewsLoaded() const;
+
+	[[nodiscard]] rpl::producer<CommentsState> commentsStateValue() const;
+	void setCommentsShownToggles(rpl::producer<> toggles);
 
 	void unfocusReply();
 	void shareRequested();
@@ -319,6 +328,8 @@ private:
 	std::vector<Data::WeatherArea> _weatherAreas;
 	mutable std::vector<ActiveArea> _areas;
 	mutable rpl::variable<bool> _weatherInCelsius;
+
+	rpl::variable<CommentsState> _commentsState;
 
 	std::vector<CachedSource> _cachedSourcesList;
 	int _cachedSourceIndex = -1;

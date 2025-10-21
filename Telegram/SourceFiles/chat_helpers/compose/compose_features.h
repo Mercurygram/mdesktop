@@ -29,6 +29,7 @@ struct ComposeFeatures {
 	bool commonTabbedPanel : 1 = true;
 	bool recordMediaMessage : 1 = true;
 	bool editMessageStars : 1 = false;
+	bool emojiOnlyPanel : 1 = false;
 };
 
 } // namespace ChatHelpers

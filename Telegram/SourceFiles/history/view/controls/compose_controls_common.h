@@ -7,9 +7,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "api/api_common.h"
+
 namespace Api {
 enum class SendProgressType;
-struct SendOptions;
 struct SendAction;
 } // namespace Api
 
@@ -82,6 +83,12 @@ struct ReplyNextRequest {
 	};
 	const FullMsgId replyId;
 	const Direction direction;
+};
+
+enum class ToggleCommentsState {
+	Shown,
+	Hidden,
+	WithNew,
 };
 
 } // namespace HistoryView::Controls

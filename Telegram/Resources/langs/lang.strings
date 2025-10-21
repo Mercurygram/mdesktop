@@ -4155,6 +4155,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_send_anonymous_ph" = "Send anonymously...";
 "lng_story_reply_ph" = "Reply privately...";
 "lng_story_comment_ph" = "Comment story...";
+"lng_video_stream_comment_ph" = "Comment";
+"lng_video_stream_stars" = "Add Stars to highlight your comment";
+"lng_video_stream_live" = "LIVE";
+"lng_video_stream_watched#one" = "{count} watching";
+"lng_video_stream_watched#other" = "{count} watching";
 "lng_message_stars_ph#one" = "Message for {count} Star";
 "lng_message_stars_ph#other" = "Message for {count} Stars";
 "lng_send_text_no" = "Text not allowed.";

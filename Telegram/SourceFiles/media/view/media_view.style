@@ -457,6 +457,7 @@ storiesHeaderRepostWidthMin: 40px;
 storiesShadowTop: icon{{ "mediaview/shadow_bottom-flip_vertical", windowShadowFg }};
 storiesShadowBottom: mediaviewShadowBottom;
 storiesControlsMinWidth: 280px;
+storiesControlsExtend: 4px;
 storiesFieldMargin: margins(0px, 18px, 0px, 12px);
 storiesSideSkip: 145px;
 storiesCaptionFull: FlatLabel(defaultFlatLabel) {
@@ -479,24 +480,27 @@ storiesComposeRipple: RippleAnimation(defaultRippleAnimation) {
 	color: groupCallMembersBgRipple;
 }
 storiesAttach: IconButton(historyAttach) {
+	width: 42px;
 	height: 42px;
 	icon: icon {{ "chat/input_attach", storiesComposeGrayIcon }};
 	iconOver: icon {{ "chat/input_attach", storiesComposeGrayIcon }};
-	rippleAreaPosition: point(2px, 1px);
+	rippleAreaPosition: point(1px, 1px);
 	ripple: storiesComposeRippleLight;
 }
 storiesLike: IconButton(storiesAttach) {
 	icon: icon {{ "chat/input_like", storiesComposeGrayIcon }};
 	iconOver: icon {{ "chat/input_like", storiesComposeGrayIcon }};
 }
-storiesEditStars: IconButton(storiesAttach) {
-	icon: icon{{ "chat/input_paid", storiesComposeGrayIcon }};
-	iconOver: icon{{ "chat/input_paid", storiesComposeGrayIcon }};
-}
 storiesRecordVoice: icon {{ "chat/input_record", storiesComposeGrayIcon }};
 storiesRecordVoiceOver: icon {{ "chat/input_record", storiesComposeGrayIcon }};
 storiesRecordRound: icon {{ "chat/input_video", storiesComposeGrayIcon }};
 storiesRecordRoundOver: icon {{ "chat/input_video", storiesComposeGrayIcon }};
+storiesEditPrice: icon{{ "chat/input_paid", storiesComposeGrayIcon }};
+storiesEditPriceOver: icon{{ "chat/input_paid", storiesComposeGrayIcon }};
+//storiesEditStars: IconButton(storiesAttach) {
+//	icon: storiesEditPrice;
+//	iconOver: storiesEditPriceOver;
+//}
 storiesRemoveSet: IconButton(stickerPanRemoveSet) {
 	icon: icon {{ "simple_close", storiesComposeGrayIcon }};
 	iconOver: icon {{ "simple_close", storiesComposeGrayIcon }};
@@ -689,8 +693,9 @@ storiesBoxInputField: InputField(defaultComposeFilesField) {
 storiesComposeControls: ComposeControls(defaultComposeControls) {
 	bg: storiesComposeBg;
 	radius: 21px;
-	padding: margins(10px, 8px, 2px, 6px);
+	padding: margins(1px, 8px, 1px, 6px);
 	field: InputField(historyComposeField) {
+		textMargins: margins(2px, 0px, 2px, 0px);
 		textFg: storiesComposeWhiteText;
 		textBg: storiesComposeBg;
 		placeholderFg: storiesComposeGrayText;
@@ -698,23 +703,38 @@ storiesComposeControls: ComposeControls(defaultComposeControls) {
 		placeholderFgError: storiesComposeGrayText;
 		menu: storiesPopupMenu;
 	}
+	fieldLeft: 10px;
 	send: SendButton(historySend) {
-		sendIconPosition: point(10px, 10px);
+		sendIconPosition: point(9px, 9px);
+		sendIconFillPadding: 5px;
 		inner: IconButton(storiesAttach) {
-			icon: icon {{ "chat/input_send", storiesComposeBlue }};
-			iconOver: icon {{ "chat/input_send", storiesComposeBlue }};
+			width: 42px;
+			height: 42px;
+			icon: icon {{ "chat/input_send_round", windowFgActive }};
+			iconOver: icon {{ "chat/input_send_round", windowFgActive }};
+			rippleAreaSize: 40px;
+			rippleAreaPosition: point(1px, 1px);
 		}
 		record: storiesRecordVoice;
 		recordOver: storiesRecordVoiceOver;
 		round: storiesRecordRound;
 		roundOver: storiesRecordRoundOver;
+		editPrice: storiesEditPrice;
+		editPriceOver: storiesEditPriceOver;
 		sendDisabledFg: storiesComposeGrayText;
 	}
 	attach: storiesAttach;
 	emoji: storiesAttachEmoji;
 	like: storiesLike;
 	liked: icon{};
-	editStars: storiesEditStars;
+	commentsShow: IconButton(storiesAttach) {
+		icon: icon {{ "chat/input_comments_expand", storiesComposeGrayIcon }};
+		iconOver: icon {{ "chat/input_comments_expand", storiesComposeGrayIcon }};
+	}
+	commentsShown: icon {{ "chat/input_comments_hide", storiesComposeGrayIcon }};
+	commentsSkip: 8px;
+	starsInactiveFg: storiesComposeGrayIcon;
+	starsSkip: 8px;
 	suggestions: EmojiSuggestions(defaultEmojiSuggestions) {
 		dropdown: InnerDropdown(emojiSuggestionsDropdown) {
 			animation: PanelAnimation(defaultPanelAnimation) {

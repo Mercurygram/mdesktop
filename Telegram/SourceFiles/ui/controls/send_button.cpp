@@ -142,6 +142,7 @@ void SendButton::paintEvent(QPaintEvent *e) {
 		break;
 	case Type::Schedule: paintSchedule(p, over); break;
 	case Type::Slowmode: paintSlowmode(p); break;
+	case Type::EditPrice: paintEditPrice(p, over); break;
 	}
 }
 
@@ -194,6 +195,14 @@ void SendButton::paintCancel(QPainter &p, bool over) {
 
 void SendButton::paintSend(QPainter &p, bool over) {
 	const auto &sendIcon = over ? _st.inner.iconOver : _st.inner.icon;
+	if (const auto padding = _st.sendIconFillPadding; padding > 0) {
+		auto hq = PainterHighQualityEnabler(p);
+		p.setPen(Qt::NoPen);
+		p.setBrush(st::windowBgActive);
+		p.drawEllipse(
+			QRect(_st.sendIconPosition, sendIcon.size()).marginsAdded(
+				{ padding, padding, padding, padding }));
+	}
 	if (isDisabled()) {
 		const auto color = st::historyRecordVoiceFg->c;
 		sendIcon.paint(p, _st.sendIconPosition, width(), color);
@@ -307,6 +316,20 @@ QPoint SendButton::prepareRippleStartPosition() const {
 	const auto size = _st.inner.rippleAreaSize;
 	const auto y = (height() - _st.inner.rippleAreaSize) / 2;
 	return real - QPoint((width() - size) / 2, y);
+}
+
+void SendButton::paintEditPrice(QPainter &p, bool over) {
+	if (!isDisabled()) {
+		paintRipple(
+			p,
+			(width() - _st.inner.rippleAreaSize) / 2,
+			_st.inner.rippleAreaPosition.y());
+	}
+
+	const auto &icon = (isDisabled() || !over)
+		? _st.editPrice
+		: _st.editPriceOver;
+	icon.paintInCenter(p, rect());
 }
 
 } // namespace Ui

@@ -27,6 +27,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "data/data_stories.h"
 #include "history/view/reactions/history_view_reactions_strip.h"
+#include "history/view/controls/compose_controls_common.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "media/stories/media_stories_caption_full_view.h"
@@ -452,7 +453,7 @@ void Controller::initLayout() {
 				QSize(contentWidth, headerHeight));
 		}
 		layout.controlsWidth = std::max(
-			layout.content.width(),
+			layout.content.width() + st::storiesControlsExtend * 2,
 			st::storiesControlsMinWidth);
 		layout.controlsBottomPosition = QPoint(
 			(size.width() - layout.controlsWidth) / 2,
@@ -1699,6 +1700,20 @@ void Controller::refreshViewsFromData() {
 
 void Controller::unfocusReply() {
 	_wrap->setFocus();
+}
+
+rpl::producer<CommentsState> Controller::commentsStateValue() const {
+	return _commentsState.value();
+}
+
+void Controller::setCommentsShownToggles(rpl::producer<> toggles) {
+	_commentsState = std::move(
+		toggles
+	) | rpl::map([=] {
+		return (_commentsState.current() == CommentsState::Shown)
+			? CommentsState::Hidden
+			: CommentsState::Shown;
+	});
 }
 
 void Controller::shareRequested() {
