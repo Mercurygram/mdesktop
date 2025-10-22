@@ -21,20 +21,20 @@ constexpr auto kFireworkHeight = 320;
 
 QBrush Brush(int color) {
 	return QBrush{ QColor(
-		color & 0xFF,
+		(color >> 16) & 0xFF,
 		(color >> 8) & 0xFF,
-		(color >> 16) & 0xFF)
+		color & 0xFF)
 	};
 }
 
 std::vector<QBrush> PrepareBrushes() {
 	return {
-		Brush(0xff2CBCE8),
-		Brush(0xff9E04D0),
-		Brush(0xffFECB02),
-		Brush(0xffFD2357),
-		Brush(0xff278CFE),
-		Brush(0xff59B86C),
+		Brush(0xE8BC2C),
+		Brush(0xD0049E),
+		Brush(0x02CBFE),
+		Brush(0x5723FD),
+		Brush(0xFE8C27),
+		Brush(0x6CB859),
 	};
 }
 
