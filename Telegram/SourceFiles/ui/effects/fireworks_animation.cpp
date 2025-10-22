@@ -19,22 +19,14 @@ constexpr auto kFirstUpdateTime = crl::time(16);
 constexpr auto kFireworkWidth = 480;
 constexpr auto kFireworkHeight = 320;
 
-QBrush Brush(int color) {
-	return QBrush{ QColor(
-		(color >> 16) & 0xFF,
-		(color >> 8) & 0xFF,
-		color & 0xFF)
-	};
-}
-
 std::vector<QBrush> PrepareBrushes() {
 	return {
-		Brush(0xE8BC2C),
-		Brush(0xD0049E),
-		Brush(0x02CBFE),
-		Brush(0x5723FD),
-		Brush(0xFE8C27),
-		Brush(0x6CB859),
+		QBrush{ Ui::ColorFromSerialized(0xE8BC2C) },
+		QBrush{ Ui::ColorFromSerialized(0xD0049E) },
+		QBrush{ Ui::ColorFromSerialized(0x02CBFE) },
+		QBrush{ Ui::ColorFromSerialized(0x5723FD) },
+		QBrush{ Ui::ColorFromSerialized(0xFE8C27) },
+		QBrush{ Ui::ColorFromSerialized(0x6CB859) },
 	};
 }
 
