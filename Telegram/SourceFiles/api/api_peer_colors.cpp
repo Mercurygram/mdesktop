@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "data/data_peer.h"
 #include "ui/chat/chat_style.h"
+#include "ui/color_int_conversion.h"
 
 namespace Api {
 namespace {
@@ -20,8 +21,9 @@ constexpr auto kRequestEach = 3600 * crl::time(1000);
 
 PeerColors::PeerColors(not_null<ApiWrap*> api)
 : _api(&api->instance())
-, _timer([=] { request(); }) {
+, _timer([=] { request(); requestProfile(); }) {
 	request();
+	requestProfile();
 	_timer.callEach(kRequestEach);
 }
 
@@ -42,6 +44,24 @@ void PeerColors::request() {
 		});
 	}).fail([=] {
 		_requestId = 0;
+	}).send();
+}
+
+void PeerColors::requestProfile() {
+	if (_profileRequestId) {
+		return;
+	}
+	_profileRequestId = _api.request(MTPhelp_GetPeerProfileColors(
+		MTP_int(_profileHash)
+	)).done([=](const MTPhelp_PeerColors &result) {
+		_profileRequestId = 0;
+		result.match([&](const MTPDhelp_peerColors &data) {
+			_profileHash = data.vhash().v;
+			applyProfile(data);
+		}, [](const MTPDhelp_peerColorsNotModified &) {
+		});
+	}).fail([=] {
+		_profileRequestId = 0;
 	}).send();
 }
 
@@ -163,6 +183,61 @@ void PeerColors::apply(const MTPDhelp_peerColors &data) {
 		_colorIndicesChanged.fire({});
 	}
 	_suggested = std::move(suggested);
+}
+
+void PeerColors::applyProfile(const MTPDhelp_peerColors &data) {
+	const auto parseColors = [](const MTPhelp_PeerColorSet &set) {
+		const auto toUint = [](const MTPint &c) {
+			return (uint32(1) << 24) | uint32(c.v);
+		};
+		return set.match([&](const MTPDhelp_peerColorSet &) {
+			LOG(("API Error: peerColorSet in profile colors result!"));
+			return Data::ColorProfileSet();
+		}, [&](const MTPDhelp_peerColorProfileSet &data) {
+			auto set = Data::ColorProfileSet();
+			set.palette.reserve(data.vpalette_colors().v.size());
+			set.bg.reserve(data.vbg_colors().v.size());
+			set.story.reserve(data.vstory_colors().v.size());
+			for (const auto &c : data.vpalette_colors().v) {
+				set.palette.push_back(Ui::ColorFromSerialized(toUint(c)));
+			}
+			for (const auto &c : data.vbg_colors().v) {
+				set.bg.push_back(Ui::ColorFromSerialized(toUint(c)));
+			}
+			for (const auto &c : data.vstory_colors().v) {
+				set.story.push_back(Ui::ColorFromSerialized(toUint(c)));
+			}
+			return set;
+		});
+	};
+
+	auto suggested = std::vector<Data::ColorProfileData>();
+	const auto &list = data.vcolors().v;
+	suggested.reserve(list.size());
+	for (const auto &color : list) {
+		const auto &data = color.data();
+		const auto colorIndexBare = data.vcolor_id().v;
+		if (colorIndexBare < 0 || colorIndexBare >= Ui::kColorIndexCount) {
+			LOG(("API Error: Bad color index: %1").arg(colorIndexBare));
+			continue;
+		}
+		const auto colorIndex = uint8(colorIndexBare);
+		auto result = ProfileColorOption();
+		result.isHidden = data.is_hidden();
+		if (const auto min = data.vgroup_min_level()) {
+			result.requiredLevelsGroup = min->v;
+		}
+		if (const auto min = data.vchannel_min_level()) {
+			result.requiredLevelsChannel = min->v;
+		}
+		if (const auto light = data.vcolors()) {
+			result.data.light = parseColors(*light);
+		}
+		if (const auto dark = data.vdark_colors()) {
+			result.data.dark = parseColors(*dark);
+		}
+		_profileColors[colorIndex] = std::move(result);
+	}
 }
 
 } // namespace Api
