@@ -342,13 +342,19 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 	const auto shouldOverrideBadges = shouldOverride(
 		st::infoBotVerifyBadge.premiumFg);
 	_botVerify->setOverrideStyle(shouldOverrideBadges
-		? &st::infoColoredBotVerifyBadge
+		? _botVerifySt
+		? _botVerifySt.get()
+		: &st::infoColoredBotVerifyBadge
 		: nullptr);
 	_badge->setOverrideStyle(shouldOverrideBadges
-		? &st::infoColoredPeerBadge
+		? _badgeSt
+		? _badgeSt.get()
+		: &st::infoColoredPeerBadge
 		: nullptr);
 	_verified->setOverrideStyle(shouldOverrideBadges
-		? &st::infoColoredPeerBadge
+		? _verifiedSt
+		? _verifiedSt.get()
+		: &st::infoColoredPeerBadge
 		: nullptr);
 
 	if (_starsRating) {
@@ -391,6 +397,28 @@ void TopBar::updateCollectibleStatus() {
 		_patternEmoji = nullptr;
 		_animatedPoints.clear();
 		_pinnedToTopGifts.clear();
+	}
+	if (colorProfile && !colorProfile->palette.empty()) {
+		const auto copySt = [&](const style::InfoPeerBadge &st) {
+			auto result = std::make_unique<style::InfoPeerBadge>(
+				base::duplicate(st));
+			auto fg = std::make_shared<style::owned_color>(
+				Ui::BlendColors(
+					colorProfile->palette.back(),
+					Qt::white,
+					kStoryOutlineFadeRange));
+			result->premiumFg = fg->color();
+			return std::shared_ptr<style::InfoPeerBadge>(
+				result.release(),
+				[fg](style::InfoPeerBadge *ptr) { delete ptr; });
+		};
+		_botVerifySt = copySt(st::infoColoredBotVerifyBadge);
+		_badgeSt = copySt(st::infoColoredPeerBadge);
+		_verifiedSt = copySt(st::infoColoredPeerBadge);
+	} else {
+		_botVerifySt = nullptr;
+		_badgeSt = nullptr;
+		_verifiedSt = nullptr;
 	}
 	update();
 	adjustColors(collectible

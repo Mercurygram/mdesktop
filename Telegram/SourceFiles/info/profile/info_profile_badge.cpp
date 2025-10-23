@@ -127,8 +127,17 @@ void Badge::setContent(Content content) {
 				}
 			}
 			if (icon) {
-				Painter p(check);
-				icon->paint(p, emoji, 0, check->width());
+				auto p = Painter(check);
+				if (_overrideSt) {
+					icon->paint(
+						p,
+						emoji,
+						0,
+						check->width(),
+						_overrideSt->premiumFg->c);
+				} else {
+					icon->paint(p, emoji, 0, check->width());
+				}
 			}
 		}, _view->lifetime());
 	} break;

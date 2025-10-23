@@ -44,6 +44,7 @@ class Timer;
 
 namespace style {
 struct InfoTopBar;
+struct InfoPeerBadge;
 } //namespace style
 
 class QGraphicsOpacityEffect;
@@ -195,6 +196,10 @@ private:
 	rpl::variable<int> _statusShift = 0;
 	object_ptr<Ui::RoundButton> _showLastSeen = { nullptr };
 	QGraphicsOpacityEffect *_showLastSeenOpacity = nullptr;
+
+	std::shared_ptr<style::InfoPeerBadge> _botVerifySt;
+	std::shared_ptr<style::InfoPeerBadge> _badgeSt;
+	std::shared_ptr<style::InfoPeerBadge> _verifiedSt;
 
 	rpl::variable<float64> _progress = 0.;
 	bool _roundEdges = true;
