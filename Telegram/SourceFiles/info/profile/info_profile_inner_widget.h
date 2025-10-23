@@ -88,6 +88,14 @@ private:
 	Data::ForumTopic * const _topic = nullptr;
 	Data::SavedSublist * const _sublist = nullptr;
 
+	bool _inResize = false;
+	rpl::event_stream<Ui::ScrollToRequest> _scrollToRequests;
+	rpl::event_stream<int> _desiredHeight;
+
+	rpl::variable<bool> _backToggles;
+	rpl::event_stream<int> _onlineCount;
+	rpl::event_stream<> _showFinished;
+
 	PeerData *_reactionGroup = nullptr;
 
 	std::shared_ptr<Data::PhotoMedia> _nonPersonalView;
@@ -99,14 +107,6 @@ private:
 	object_ptr<RpWidget> _content;
 
 	bool _aboutVerificationAdded = false;
-
-	bool _inResize = false;
-	rpl::event_stream<Ui::ScrollToRequest> _scrollToRequests;
-	rpl::event_stream<int> _desiredHeight;
-
-	rpl::variable<bool> _backToggles;
-	rpl::event_stream<int> _onlineCount;
-	rpl::event_stream<> _showFinished;
 
 };
 
