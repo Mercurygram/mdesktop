@@ -750,6 +750,7 @@ GroupCall::~GroupCall() {
 	if (!_rtmp) {
 		Core::App().mediaDevices().setCaptureMuteTracker(this, false);
 	}
+	_messages->undoScheduledPaidOnDestroy();
 }
 
 void GroupCall::initConferenceE2E() {

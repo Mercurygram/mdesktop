@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "calls/group/calls_group_call.h"
 #include "calls/group/calls_group_message_encryption.h"
 #include "data/data_group_call.h"
+#include "data/data_message_reactions.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
@@ -47,13 +48,20 @@ namespace {
 	return result;
 }
 
+[[nodiscard]] std::optional<PeerId> MaybeShownPeer(
+		uint32 privacySet,
+		PeerId shownPeer) {
+	return privacySet ? shownPeer : std::optional<PeerId>();
+}
+
 } // namespace
 
 Messages::Messages(not_null<GroupCall*> call, not_null<MTP::Sender*> api)
 : _call(call)
+, _session(&call->peer()->session())
 , _api(api)
 , _destroyTimer([=] { checkDestroying(); })
-, _ttl(_call->peer()->session().appConfig().groupCallMessageTTL()) {
+, _ttl(_session->appConfig().groupCallMessageTTL()) {
 	Ui::PostponeCall(_call, [=] {
 		_call->real(
 		) | rpl::start_with_next([=](not_null<Data::GroupCall*> call) {
@@ -74,14 +82,28 @@ Messages::Messages(not_null<GroupCall*> call, not_null<MTP::Sender*> api)
 			)).done([=](const MTPphone_GroupCallStars &result) {
 				const auto &data = result.data();
 
-				const auto owner = &_call->peer()->owner();
+				const auto owner = &_session->data();
 				owner->processUsers(data.vusers());
 				owner->processChats(data.vchats());
 
-				_starsTop = ParseStarsTop(owner, result);
+				_paid.top = ParseStarsTop(owner, result);
+				_paidChanges.fire({});
 			}).send();
 		}, _lifetime);
 	});
+}
+
+Messages::~Messages() {
+	if (_paid.sending > 0) {
+		finishPaidSending({
+			.count = int(_paid.sending),
+			.valid = true,
+			.shownPeer = MaybeShownPeer(
+				_paid.sendingPrivacySet,
+				_paid.sendingShownPeer),
+		}, false);
+	}
+
 }
 
 bool Messages::ready() const {
@@ -128,7 +150,7 @@ void Messages::send(TextWithTags text, int stars) {
 		)).done([=](
 				const MTPUpdates &result,
 				const MTP::Response &response) {
-			_call->peer()->session().api().applyUpdates(result, randomId);
+			_session->api().applyUpdates(result, randomId);
 		}).fail([=](const MTP::Error &, const MTP::Response &response) {
 			failed(randomId, response);
 		}).send();
@@ -350,6 +372,9 @@ void Messages::sendPending() {
 	for (auto &pending : base::take(_pending)) {
 		send(std::move(pending.text), pending.stars);
 	}
+	if (_paidSendingPending) {
+		reactionsPaidSend();
+	}
 }
 
 void Messages::pushChanges() {
@@ -377,6 +402,172 @@ void Messages::failed(uint64 randomId, const MTP::Response &response) {
 		j->failed = true;
 		checkDestroying(true);
 	}
+}
+
+int Messages::reactionsPaidScheduled() const {
+	return _paid.scheduled;
+}
+
+PeerId Messages::reactionsLocalShownPeer() const {
+	const auto minePaidShownPeer = [&] {
+		for (const auto &entry : _paid.top.topDonors) {
+			if (entry.my) {
+				return entry.peer ? entry.peer->id : PeerId();
+			}
+		}
+		return _session->userPeerId();
+		//const auto api = &_session->api();
+		//return api->globalPrivacy().paidReactionShownPeerCurrent();
+	};
+	return (_paid.scheduledFlag && _paid.scheduledPrivacySet)
+		? _paid.scheduledShownPeer
+		: (_paid.sendingFlag && _paid.sendingPrivacySet)
+		? _paid.sendingShownPeer
+		: minePaidShownPeer();
+}
+
+void Messages::reactionsPaidAdd(int count, std::optional<PeerId> shownPeer) {
+	Expects(count >= 0);
+
+	_paid.scheduled += count;
+	_paid.scheduledFlag = 1;
+	if (shownPeer.has_value()) {
+		_paid.scheduledShownPeer = *shownPeer;
+		_paid.scheduledPrivacySet = true;
+	}
+	if (count > 0) {
+		_session->credits().lock(CreditsAmount(count));
+	}
+	_call->peer()->owner().reactions().schedulePaid(_call);
+	_paidChanges.fire({});
+}
+
+void Messages::reactionsPaidScheduledCancel() {
+	if (!_paid.scheduledFlag) {
+		return;
+	}
+	if (const auto amount = int(_paid.scheduled)) {
+		_session->credits().unlock(
+			CreditsAmount(amount));
+	}
+	_paid.scheduled = 0;
+	_paid.scheduledFlag = 0;
+	_paid.scheduledShownPeer = 0;
+	_paid.scheduledPrivacySet = 0;
+	_paidChanges.fire({});
+}
+
+Data::PaidReactionSend Messages::startPaidReactionSending() {
+	_paidSendingPending = false;
+	if (!_paid.scheduledFlag || !_paid.scheduled) {
+		return {};
+	} else if (_paid.sendingFlag || !ready()) {
+		_paidSendingPending = true;
+		return {};
+	}
+	_paid.sending = _paid.scheduled;
+	_paid.sendingFlag = _paid.scheduledFlag;
+	_paid.sendingShownPeer = _paid.scheduledShownPeer;
+	_paid.sendingPrivacySet = _paid.scheduledPrivacySet;
+	_paid.scheduled = 0;
+	_paid.scheduledFlag = 0;
+	_paid.scheduledShownPeer = 0;
+	_paid.scheduledPrivacySet = 0;
+	return {
+		.count = int(_paid.sending),
+		.valid = true,
+		.shownPeer = MaybeShownPeer(
+			_paid.sendingPrivacySet,
+			_paid.sendingShownPeer),
+	};
+}
+
+void Messages::finishPaidSending(
+		Data::PaidReactionSend send,
+		bool success) {
+	Expects(send.count == _paid.sending);
+	Expects(send.valid == (_paid.sendingFlag == 1));
+	Expects(send.shownPeer == MaybeShownPeer(
+		_paid.sendingPrivacySet,
+		_paid.sendingShownPeer));
+
+	_paid.sending = 0;
+	_paid.sendingFlag = 0;
+	_paid.sendingShownPeer = 0;
+	_paid.sendingPrivacySet = 0;
+	if (const auto amount = send.count) {
+		if (success) {
+			_session->credits().withdrawLocked(CreditsAmount(amount));
+
+			auto &donors = _paid.top.topDonors;
+			const auto i = ranges::find(donors, true, &StarsTopDonor::my);
+			if (i != end(donors)) {
+				i->stars += amount;
+			} else {
+				donors.push_back({
+					.peer = _session->user(),
+					.stars = amount,
+					.my = true,
+				});
+			}
+		} else {
+			_session->credits().unlock(CreditsAmount(amount));
+			_paidChanges.fire({});
+		}
+	}
+	if (_paidSendingPending) {
+		reactionsPaidSend();
+	}
+}
+
+void Messages::reactionsPaidSend() {
+	const auto send = startPaidReactionSending();
+	if (!send.valid || !send.count) {
+		return;
+	}
+
+	const auto localId = _call->peer()->owner().nextLocalMessageId();
+	const auto randomId = base::RandomValue<uint64>();
+	_sendingIdByRandomId.emplace(randomId, localId);
+
+	const auto from = _call->messagesFrom(); // send.shownPeer?
+	_messages.push_back({
+		.id = localId,
+		.peer = from,
+		.stars = int(send.count),
+	});
+
+	using Flag = MTPphone_SendGroupCallMessage::Flag;
+	_api->request(MTPphone_SendGroupCallMessage(
+		MTP_flags(Flag::f_allow_paid_stars),
+		_call->inputCall(),
+		MTP_long(randomId),
+		MTP_textWithEntities(MTP_string(), MTP_vector<MTPMessageEntity>()),
+		MTP_long(send.count)
+	)).done([=](
+			const MTPUpdates &result,
+			const MTP::Response &response) {
+		finishPaidSending(send, true);
+		_session->api().applyUpdates(result, randomId);
+	}).fail([=](const MTP::Error &, const MTP::Response &response) {
+		finishPaidSending(send, false);
+		failed(randomId, response);
+	}).send();
+
+	checkDestroying(true);
+}
+
+void Messages::undoScheduledPaidOnDestroy() {
+	_call->peer()->owner().reactions().undoScheduledPaid(_call);
+}
+
+Messages::PaidLocalState Messages::starsLocalState() const {
+	const auto &donors = _paid.top.topDonors;
+	const auto i = ranges::find(donors, true, &StarsTopDonor::my);
+	const auto local = int(_paid.scheduled + _paid.sending);
+	const auto my = (i != end(donors) ? i->stars : 0) + local;
+	const auto total = _paid.top.total + local;
+	return { .total = total, .my = my };
 }
 
 } // namespace Calls::Group

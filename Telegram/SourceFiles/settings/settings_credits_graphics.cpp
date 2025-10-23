@@ -2892,6 +2892,9 @@ void SmallBalanceBox(
 			: QString();
 	}, [&](SmallBalanceReaction value) {
 		return owner->peer(peerFromChannel(value.channelId))->name();
+	}, [&](SmallBalanceVideoStream value) {
+		dark = true;
+		return owner->peer(value.streamerId)->name();
 	}, [](SmallBalanceSubscription value) {
 		return value.name;
 	}, [](SmallBalanceDeepLink) {
@@ -2938,6 +2941,11 @@ void SmallBalanceBox(
 					: v::is<SmallBalanceReaction>(source)
 					? tr::lng_credits_small_balance_reaction(
 						lt_channel,
+						rpl::single(Ui::Text::Bold(name)),
+						Ui::Text::RichLangValue)
+					: v::is<SmallBalanceVideoStream>(source)
+					? tr::lng_credits_small_balance_video_stream(
+						lt_name,
 						rpl::single(Ui::Text::Bold(name)),
 						Ui::Text::RichLangValue)
 					: v::is<SmallBalanceDeepLink>(source)

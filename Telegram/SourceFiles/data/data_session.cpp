@@ -2138,6 +2138,14 @@ rpl::producer<not_null<const ViewElement*>> Session::viewPaidReactionSent() cons
 	return _viewPaidReactionSent.events();
 }
 
+void Session::notifyCallPaidReactionSent(not_null<Calls::GroupCall*> call) {
+	_callPaidReactionSent.fire_copy(call);
+}
+
+rpl::producer<not_null<Calls::GroupCall*>> Session::callPaidReactionSent() const {
+	return _callPaidReactionSent.events();
+}
+
 void Session::notifyHistoryUnloaded(not_null<const History*> history) {
 	_historyUnloaded.fire_copy(history);
 }

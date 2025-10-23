@@ -16,7 +16,12 @@ class GroupCall;
 
 namespace Data {
 class GroupCall;
+struct PaidReactionSend;
 } // namespace Data
+
+namespace Main {
+class Session;
+} // namespace Main
 
 namespace MTP {
 class Sender;
@@ -61,6 +66,7 @@ struct StarsTop {
 class Messages final : public base::has_weak_ptr {
 public:
 	Messages(not_null<GroupCall*> call, not_null<MTP::Sender*> api);
+	~Messages();
 
 	void send(TextWithTags text, int stars);
 
@@ -72,8 +78,23 @@ public:
 	[[nodiscard]] rpl::producer<std::vector<Message>> listValue() const;
 	[[nodiscard]] rpl::producer<MessageIdUpdate> idUpdates() const;
 
-	[[nodiscard]] rpl::producer<StarsTop> starsTopValue() const {
-		return _starsTop.value();
+	[[nodiscard]] int reactionsPaidScheduled() const;
+	[[nodiscard]] PeerId reactionsLocalShownPeer() const;
+	void reactionsPaidAdd(int count, std::optional<PeerId> shownPeer = {});
+	void reactionsPaidScheduledCancel();
+	void reactionsPaidSend();
+	void undoScheduledPaidOnDestroy();
+
+	struct PaidLocalState {
+		int total = 0;
+		int my = 0;
+	};
+	[[nodiscard]] PaidLocalState starsLocalState() const;
+	[[nodiscard]] rpl::producer<> starsValueChanges() const {
+		return _paidChanges.events();
+	}
+	[[nodiscard]] const StarsTop &starsTop() const {
+		return _paid.top;
 	}
 
 private:
@@ -81,6 +102,18 @@ private:
 		TextWithTags text;
 		int stars = 0;
 	};
+	struct Paid {
+		StarsTop top;
+		PeerId scheduledShownPeer = 0;
+		PeerId sendingShownPeer = 0;
+		uint32 scheduled : 30 = 0;
+		uint32 scheduledFlag : 1 = 0;
+		uint32 scheduledPrivacySet : 1 = 0;
+		uint32 sending : 30 = 0;
+		uint32 sendingFlag : 1 = 0;
+		uint32 sendingPrivacySet : 1 = 0;
+	};
+
 	[[nodiscard]] bool ready() const;
 	void sendPending();
 	void pushChanges();
@@ -97,7 +130,11 @@ private:
 	void sent(uint64 randomId, MsgId realId);
 	void failed(uint64 randomId, const MTP::Response &response);
 
+	[[nodiscard]] Data::PaidReactionSend startPaidReactionSending();
+	void finishPaidSending(Data::PaidReactionSend send, bool success);
+
 	const not_null<GroupCall*> _call;
+	const not_null<Main::Session*> _session;
 	const not_null<MTP::Sender*> _api;
 
 	MsgId _conferenceIdAutoIncrement = 0;
@@ -115,7 +152,9 @@ private:
 	rpl::event_stream<MessageIdUpdate> _idUpdates;
 
 	mtpRequestId _starsTopRequestId = 0;
-	rpl::variable<StarsTop> _starsTop;
+	Paid _paid;
+	rpl::event_stream<> _paidChanges;
+	bool _paidSendingPending = false;
 
 	TimeId _ttl = 0;
 	bool _changesScheduled = false;

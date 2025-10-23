@@ -906,7 +906,8 @@ void ReplyArea::show(
 	});
 	_controls->clear();
 	const auto hidden = peer
-		&& (peer->isBroadcast() || peer->isSelf() || peer->isServiceUser());
+		&& (peer->isBroadcast() || peer->isSelf() || peer->isServiceUser())
+		&& !_data.videoStream;
 	const auto cant = !peer;
 	if (!hidden && !cant) {
 		_controls->show();

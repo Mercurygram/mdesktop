@@ -42,6 +42,10 @@ struct ChosenReaction;
 enum class AttachSelectorResult;
 } // namespace HistoryView::Reactions
 
+namespace HistoryView {
+class PaidReactionToast;
+} // namespace HistoryView
+
 namespace Ui {
 class RpWidget;
 class BoxContent;
@@ -81,6 +85,7 @@ class StoryAreaView;
 struct RepostClickHandler;
 
 using CommentsState = HistoryView::Controls::ToggleCommentsState;
+using PaidReactionToast = HistoryView::PaidReactionToast;
 
 enum class HeaderLayout {
 	Normal,
@@ -283,6 +288,8 @@ private:
 	[[nodiscard]] int repostSkipTop() const;
 	void updateAreas(Data::Story *story);
 	bool reactionChosen(ReactionsMode mode, ChosenReaction chosen);
+	[[nodiscard]] rpl::producer<int> paidReactionToastTopValue() const;
+	void clearVideoStreamCall();
 
 	const not_null<Delegate*> _delegate;
 
@@ -300,6 +307,8 @@ private:
 	std::unique_ptr<RepostView> _repostView;
 
 	base::weak_ptr<Calls::GroupCall> _videoStreamCall;
+	std::unique_ptr<PaidReactionToast> _paidReactionToast;
+	rpl::lifetime _videoStreamLifetime;
 
 	Ui::Animations::Simple _contentFadeAnimation;
 	bool _contentFaded = false;

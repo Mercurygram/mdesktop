@@ -27,8 +27,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_peer.h"
 #include "data/data_session.h"
 #include "data/data_stories.h"
-#include "history/view/reactions/history_view_reactions_strip.h"
 #include "history/view/controls/compose_controls_common.h"
+#include "history/view/reactions/history_view_reactions_strip.h"
+#include "history/view/history_view_paid_reaction_toast.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "media/stories/media_stories_caption_full_view.h"
@@ -45,6 +46,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "media/stories/media_stories_view.h"
 #include "media/audio/media_audio.h"
 #include "info/stories/info_stories_common.h"
+#include "payments/payments_reaction_process.h"
 #include "settings/settings_credits_graphics.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/boxes/report_box_graphics.h"
@@ -301,6 +303,13 @@ Controller::Controller(not_null<Delegate*> delegate)
 , _replyArea(std::make_unique<ReplyArea>(this))
 , _reactions(std::make_unique<Reactions>(this))
 , _recentViews(std::make_unique<RecentViews>(this))
+, _paidReactionToast(std::make_unique<PaidReactionToast>(
+	_wrap,
+	&delegate->storiesShow()->session().data(),
+	paidReactionToastTopValue(),
+	[=](not_null<Calls::GroupCall*> call) {
+		return _videoStreamCall.get() == call;
+	}))
 , _weatherInCelsius(ResolveWeatherInCelsius()){
 	initLayout();
 
@@ -664,6 +673,18 @@ bool Controller::reactionChosen(ReactionsMode mode, ChosenReaction chosen) {
 	return result;
 }
 
+rpl::producer<int> Controller::paidReactionToastTopValue() const {
+	return _layout.value(
+	) | rpl::map([](const std::optional<Layout> &layout) {
+		const auto base = !layout
+			? 0
+			: (layout->headerLayout == HeaderLayout::Normal)
+			? (layout->header.y() + layout->header.height())
+			: layout->content.y();
+		return base + st::storiesHeaderMargin.bottom();
+	});
+}
+
 void Controller::showFullCaption() {
 	if (_captionText.empty()) {
 		return;
@@ -836,6 +857,9 @@ void Controller::show(
 	_waitingForId = {};
 	_waitingForDelta = 0;
 	_videoStream = (story->call() != nullptr);
+	if (!_videoStream) {
+		clearVideoStreamCall();
+	}
 
 	rebuildFromContext(peer, storyId);
 	_contextLifetime.destroy();
@@ -905,6 +929,7 @@ void Controller::show(
 		return;
 	}
 
+	clearVideoStreamCall();
 	_replyArea->show({
 		.peer = unsupported ? nullptr : peer.get(),
 		.id = story->id(),
@@ -918,8 +943,10 @@ void Controller::show(
 		.forwards = story->forwards(),
 		.views = story->views(),
 		.total = story->interactions(),
-		.type = RecentViewsTypeFor(peer),
-		.canViewReactions = CanViewReactionsFor(peer) && !peer->isMegagroup(),
+		.type = RecentViewsTypeFor(peer, _videoStream),
+		.canViewReactions = (!_videoStream
+			&& CanViewReactionsFor(peer)
+			&& !peer->isMegagroup()),
 	}, _reactions->likedValue());
 	if (const auto nowLikeButton = _recentViews->likeButton()) {
 		if (wasLikeButton != nowLikeButton) {
@@ -1025,8 +1052,10 @@ void Controller::subscribeToSession() {
 				.forwards = update.story->forwards(),
 				.views = update.story->views(),
 				.total = update.story->interactions(),
-				.type = RecentViewsTypeFor(peer),
-				.canViewReactions = CanViewReactionsFor(peer) && !peer->isMegagroup(),
+				.type = RecentViewsTypeFor(peer, _videoStream),
+				.canViewReactions = (!_videoStream
+					&& CanViewReactionsFor(peer)
+					&& !peer->isMegagroup()),
 			});
 			updateAreas(update.story);
 		}
@@ -1742,10 +1771,14 @@ auto Controller::starsReactionsValue() const
 }
 
 void Controller::setStarsReactionIncrements(rpl::producer<> increments) {
-	_starsReactions = std::move(increments) | rpl::map([=] {
-		_mineStarReaction = true;
-		return _starsReactions.current() + 1;
-	});
+	std::move(
+		increments
+	) | rpl::start_with_next([=] {
+		if (const auto call = _videoStreamCall.get()) {
+			const auto show = _delegate->storiesShow();
+			Payments::TryAddingPaidReaction(call, 1, std::nullopt, show);
+		}
+	}, _videoStreamLifetime);
 }
 
 void Controller::shareRequested() {
@@ -1867,7 +1900,23 @@ void Controller::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
 		_commentsHasUnread = has;
 	}, _lifetime);
 
+	_starsReactions = rpl::single(rpl::empty) | rpl::then(
+		videoStream->messages()->starsValueChanges()
+	) | rpl::map([=] {
+		const auto state = videoStream->messages()->starsLocalState();
+
+		_mineStarReaction = (state.my > 0);
+		return state.total;
+	});
+
 	_replyArea->updateVideoStream(videoStream);
+}
+
+void Controller::clearVideoStreamCall() {
+	_videoStreamCall = nullptr;
+	_mineStarReaction = false;
+	_starsReactions = 0;
+	_videoStreamLifetime.destroy();
 }
 
 bool Controller::videoStream() const {
