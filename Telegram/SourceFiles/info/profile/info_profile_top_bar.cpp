@@ -1780,19 +1780,27 @@ void TopBar::setupStoryOutline(const QRect &geometry) {
 			style::PaletteChanged(),
 			user->session().changes().peerUpdates(
 				Data::PeerUpdate::Flag::StoriesState
+					| Data::PeerUpdate::Flag::ColorProfile
 			) | rpl::filter([=](const Data::PeerUpdate &update) {
 				return update.peer == user;
 			}) | rpl::to_empty)
 	) | rpl::start_with_next([=](
 			std::optional<QColor> edgeColor,
 			rpl::empty_value) {
-		const auto geometry = userpicGeometry();
-		_storyOutlineBrush = Ui::UnreadStoryOutlineGradient(
-			QRectF(
-				geometry.x(),
-				geometry.y(),
-				geometry.width(),
-				geometry.height()));
+		const auto geometry = QRectF(userpicGeometry());
+		const auto colorProfile
+			= user->session().api().peerColors().colorProfileFor(user);
+		const auto hasProfileColor = colorProfile
+			&& colorProfile->story.size() > 1;
+		if (hasProfileColor) {
+			edgeColor = std::nullopt;
+		}
+		_storyOutlineBrush = hasProfileColor
+			? Ui::UnreadStoryOutlineGradient(
+				geometry,
+				colorProfile->story[0],
+				colorProfile->story[1])
+			: Ui::UnreadStoryOutlineGradient(geometry);
 		updateStoryOutline(edgeColor);
 	}, lifetime());
 }
