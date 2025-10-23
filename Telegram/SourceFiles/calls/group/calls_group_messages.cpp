@@ -25,6 +25,29 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/ui_utility.h"
 
 namespace Calls::Group {
+namespace {
+
+[[nodiscard]] StarsTop ParseStarsTop(
+		not_null<Data::Session*> owner,
+		const MTPphone_GroupCallStars &stars) {
+	const auto &data = stars.data();
+	const auto &list = data.vtop_donors().v;
+	auto result = StarsTop{ .total = int(data.vtotal_stars().v) };
+	result.topDonors.reserve(list.size());
+	for (const auto &entry : list) {
+		const auto &fields = entry.data();
+		result.topDonors.push_back({
+			.peer = (fields.vpeer_id()
+				? owner->peer(peerFromMTP(*fields.vpeer_id())).get()
+				: nullptr),
+			.stars = int(fields.vstars().v),
+			.my = fields.is_my(),
+		});
+	}
+	return result;
+}
+
+} // namespace
 
 Messages::Messages(not_null<GroupCall*> call, not_null<MTP::Sender*> api)
 : _call(call)
@@ -40,6 +63,23 @@ Messages::Messages(not_null<GroupCall*> call, not_null<MTP::Sender*> api)
 			} else {
 				Unexpected("Not ready call.");
 			}
+		}, _lifetime);
+
+		_call->stateValue() | rpl::filter([=](GroupCall::State state) {
+			return (state == GroupCall::State::Joined);
+		}) | rpl::start_with_next([=] {
+			_api->request(base::take(_starsTopRequestId)).cancel();
+			_starsTopRequestId = _api->request(MTPphone_GetGroupCallStars(
+				_call->inputCall()
+			)).done([=](const MTPphone_GroupCallStars &result) {
+				const auto &data = result.data();
+
+				const auto owner = &_call->peer()->owner();
+				owner->processUsers(data.vusers());
+				owner->processChats(data.vchats());
+
+				_starsTop = ParseStarsTop(owner, result);
+			}).send();
 		}, _lifetime);
 	});
 }

@@ -39,6 +39,25 @@ struct MessageIdUpdate {
 	MsgId realId = 0;
 };
 
+struct StarsTopDonor {
+	PeerData *peer = nullptr;
+	int stars = 0;
+	bool my = false;
+
+	friend inline bool operator==(
+		const StarsTopDonor &,
+		const StarsTopDonor &) = default;
+};
+
+struct StarsTop {
+	std::vector<StarsTopDonor> topDonors;
+	int total = 0;
+
+	friend inline bool operator==(
+		const StarsTop &,
+		const StarsTop &) = default;
+};
+
 class Messages final : public base::has_weak_ptr {
 public:
 	Messages(not_null<GroupCall*> call, not_null<MTP::Sender*> api);
@@ -52,6 +71,10 @@ public:
 
 	[[nodiscard]] rpl::producer<std::vector<Message>> listValue() const;
 	[[nodiscard]] rpl::producer<MessageIdUpdate> idUpdates() const;
+
+	[[nodiscard]] rpl::producer<StarsTop> starsTopValue() const {
+		return _starsTop.value();
+	}
 
 private:
 	struct Pending {
@@ -90,6 +113,9 @@ private:
 	std::vector<Message> _messages;
 	rpl::event_stream<std::vector<Message>> _changes;
 	rpl::event_stream<MessageIdUpdate> _idUpdates;
+
+	mtpRequestId _starsTopRequestId = 0;
+	rpl::variable<StarsTop> _starsTop;
 
 	TimeId _ttl = 0;
 	bool _changesScheduled = false;
