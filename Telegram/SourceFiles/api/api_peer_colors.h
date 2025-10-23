@@ -42,6 +42,9 @@ public:
 		PeerId channel,
 		uint8 index) const;
 
+	[[nodiscard]] std::optional<Data::ColorProfileSet> colorProfileFor(
+		not_null<PeerData*> peer) const;
+
 private:
 	struct ProfileColorOption {
 		Data::ColorProfileData data;

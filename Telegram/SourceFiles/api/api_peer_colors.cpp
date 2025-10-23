@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "apiwrap.h"
 #include "data/data_peer.h"
+#include "window/themes/window_theme.h"
 #include "ui/chat/chat_style.h"
 #include "ui/color_int_conversion.h"
 
@@ -238,6 +239,19 @@ void PeerColors::applyProfile(const MTPDhelp_peerColors &data) {
 		}
 		_profileColors[colorIndex] = std::move(result);
 	}
+}
+
+std::optional<Data::ColorProfileSet> PeerColors::colorProfileFor(
+		not_null<PeerData*> peer) const {
+	if (const auto colorProfileIndex = peer->colorProfileIndex()) {
+		const auto i = _profileColors.find(*colorProfileIndex);
+		if (i != end(_profileColors)) {
+			return Window::Theme::IsNightMode()
+				? i->second.data.dark
+				: i->second.data.light;
+		}
+	}
+	return std::nullopt;
 }
 
 } // namespace Api
