@@ -542,6 +542,12 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 				controller->uiShow());
 		buttons.push_back(notifications);
 		_actions->add(notifications);
+		_edgeColor.value() | rpl::start_with_next([=](
+				std::optional<QColor> c) {
+			notifications->setLottieColor(c
+				? (const style::color*)(nullptr)
+				: &st::windowBoldFg);
+		}, notifications->lifetime());
 	}
 	if (user && !user->sharedMediaInfo() && !user->isInaccessible()) {
 		user->session().changes().peerFlagsValue(
