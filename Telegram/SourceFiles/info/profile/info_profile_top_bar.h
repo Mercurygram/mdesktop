@@ -200,8 +200,7 @@ private:
 	bool _roundEdges = true;
 
 	rpl::variable<std::optional<QColor>> _edgeColor;
-	bool _hasBackground = false;
-	bool _hasCollectible = false;
+	bool _hasGradientBg = false;
 	std::optional<QColor> _solidBg;
 	QImage _cachedGradient;
 	QPainterPath _cachedClipPath;

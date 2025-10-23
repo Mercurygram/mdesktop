@@ -369,7 +369,8 @@ void TopBar::updateCollectibleStatus() {
 	const auto collectible = _peer->emojiStatusId().collectible;
 	const auto colorProfile
 		= _peer->session().api().peerColors().colorProfileFor(_peer);
-	_hasCollectible = collectible != nullptr;
+	_hasGradientBg = (collectible != nullptr)
+		|| (colorProfile && colorProfile->bg.size() > 1);
 	_solidBg = (colorProfile && colorProfile->bg.size() == 1)
 		? std::make_optional(colorProfile->bg.front())
 		: std::nullopt;
@@ -394,7 +395,7 @@ void TopBar::updateCollectibleStatus() {
 	update();
 	adjustColors(collectible
 		? std::optional<QColor>(collectible->edgeColor)
-		: colorProfile
+		: (colorProfile && !colorProfile->bg.empty())
 		? std::optional<QColor>(colorProfile->bg.front())
 		: std::nullopt);
 }
@@ -941,10 +942,10 @@ void TopBar::updateLabelsPosition() {
 
 void TopBar::resizeEvent(QResizeEvent *e) {
 	_cachedClipPath = QPainterPath();
-	if (_hasCollectible && !_animatedPoints.empty()) {
+	if (_peer->emojiStatusId().collectible && !_animatedPoints.empty()) {
 		setupAnimatedPattern();
 	}
-	if (_hasCollectible && e->oldSize().width() != e->size().width()) {
+	if (_hasGradientBg && e->oldSize().width() != e->size().width()) {
 		_cachedClipPath = QPainterPath();
 		_cachedGradient = QImage();
 	}
@@ -1040,7 +1041,7 @@ void TopBar::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 	const auto geometry = userpicGeometry();
 
-	if (_hasCollectible && _cachedGradient.isNull()) {
+	if (_hasGradientBg && _cachedGradient.isNull()) {
 		_cachedGradient = Ui::CreateTopBgGradient(
 			QSize(width(), maximumHeight()),
 			_peer,
@@ -1050,7 +1051,7 @@ void TopBar::paintEvent(QPaintEvent *e) {
 					? -st::infoProfileTopBarPhotoBgShift
 					: -st::infoProfileTopBarPhotoBgNoActionsShift));
 	}
-	if (!_hasCollectible) {
+	if (!_hasGradientBg) {
 		paintEdges(p);
 	} else {
 		const auto x = (width()
