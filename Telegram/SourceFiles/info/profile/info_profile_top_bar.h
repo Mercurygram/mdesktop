@@ -201,6 +201,8 @@ private:
 
 	rpl::variable<std::optional<QColor>> _edgeColor;
 	bool _hasBackground = false;
+	bool _hasCollectible = false;
+	std::optional<QColor> _solidBg;
 	QImage _cachedGradient;
 	QPainterPath _cachedClipPath;
 	std::unique_ptr<Ui::Text::CustomEmoji> _patternEmoji;

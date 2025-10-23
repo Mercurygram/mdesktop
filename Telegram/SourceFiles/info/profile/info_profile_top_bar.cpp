@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_top_bar.h"
 
+#include "api/api_peer_colors.h"
 #include "api/api_user_privacy.h"
 #include "apiwrap.h"
 #include "base/timer_rpl.h"
@@ -305,6 +306,7 @@ TopBar::TopBar(
 	_peer->session().changes().peerFlagsValue(
 		_peer,
 		Data::PeerUpdate::Flag::EmojiStatus
+			| Data::PeerUpdate::Flag::ColorProfile
 	) | rpl::start_with_next([=] {
 		if (_pinnedToTopGiftsFirstTimeShowed) {
 			_peer->session().recentSharedGifts().clearLastRequestTime(_peer);
@@ -365,7 +367,12 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 
 void TopBar::updateCollectibleStatus() {
 	const auto collectible = _peer->emojiStatusId().collectible;
-	_hasBackground = collectible != nullptr;
+	const auto colorProfile
+		= _peer->session().api().peerColors().colorProfileFor(_peer);
+	_hasCollectible = collectible != nullptr;
+	_solidBg = (colorProfile && colorProfile->bg.size() == 1)
+		? std::make_optional(colorProfile->bg.front())
+		: std::nullopt;
 	_cachedClipPath = QPainterPath();
 	_cachedGradient = QImage();
 	_basePatternImage = QImage();
@@ -387,6 +394,8 @@ void TopBar::updateCollectibleStatus() {
 	update();
 	adjustColors(collectible
 		? std::optional<QColor>(collectible->edgeColor)
+		: colorProfile
+		? std::optional<QColor>(colorProfile->bg.front())
 		: std::nullopt);
 }
 
@@ -786,7 +795,11 @@ void TopBar::paintEdges(QPainter &p, const QBrush &brush) const {
 }
 
 void TopBar::paintEdges(QPainter &p) const {
-	paintEdges(p, st::boxDividerBg);
+	if (!_solidBg) {
+		paintEdges(p, st::boxDividerBg);
+	} else {
+		paintEdges(p, *_solidBg);
+	}
 }
 
 int TopBar::titleMostLeft() const {
@@ -928,10 +941,10 @@ void TopBar::updateLabelsPosition() {
 
 void TopBar::resizeEvent(QResizeEvent *e) {
 	_cachedClipPath = QPainterPath();
-	if (_hasBackground && !_animatedPoints.empty()) {
+	if (_hasCollectible && !_animatedPoints.empty()) {
 		setupAnimatedPattern();
 	}
-	if (_hasBackground && e->oldSize().width() != e->size().width()) {
+	if (_hasCollectible && e->oldSize().width() != e->size().width()) {
 		_cachedClipPath = QPainterPath();
 		_cachedGradient = QImage();
 	}
@@ -1027,7 +1040,7 @@ void TopBar::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 	const auto geometry = userpicGeometry();
 
-	if (_hasBackground && _cachedGradient.isNull()) {
+	if (_hasCollectible && _cachedGradient.isNull()) {
 		_cachedGradient = Ui::CreateTopBgGradient(
 			QSize(width(), maximumHeight()),
 			_peer,
@@ -1037,7 +1050,7 @@ void TopBar::paintEvent(QPaintEvent *e) {
 					? -st::infoProfileTopBarPhotoBgShift
 					: -st::infoProfileTopBarPhotoBgNoActionsShift));
 	}
-	if (!_hasBackground) {
+	if (!_hasCollectible) {
 		paintEdges(p);
 	} else {
 		const auto x = (width()
