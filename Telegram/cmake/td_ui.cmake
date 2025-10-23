@@ -94,6 +94,7 @@ PRIVATE
     data/data_channel_earn.h
     data/data_credits.h
     data/data_credits_earn.h
+    data/data_peer_colors.h
     data/data_premium_subscription_option.h
     data/data_statistics_chart.cpp
     data/data_statistics_chart.h
