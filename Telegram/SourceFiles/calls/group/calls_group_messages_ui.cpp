@@ -51,7 +51,7 @@ namespace Calls::Group {
 namespace {
 
 constexpr auto kMessageBgOpacity = 0.8;
-constexpr auto kColoredMessageBgOpacity = 0.7;
+constexpr auto kColoredMessageBgOpacity = 0.8;
 
 [[nodiscard]] int CountMessageRadius() {
 	const auto minHeight = st::groupCallMessagePadding.top()
@@ -149,7 +149,7 @@ void ReceiveSomeMouseEvents(
 struct MessagesUi::MessageView {
 	MsgId id = 0;
 	MsgId sendingId = 0;
-	PeerData *from = nullptr;
+	not_null<PeerData*> from;
 	ClickHandlerPtr fromLink;
 	Ui::Animations::Simple toggleAnimation;
 	Ui::Animations::Simple sentAnimation;
@@ -170,6 +170,21 @@ struct MessagesUi::MessageView {
 	bool removed = false;
 	bool sending = false;
 	bool failed = false;
+};
+
+struct MessagesUi::PinnedView {
+	MsgId id = 0;
+	not_null<PeerData*> from;
+	Ui::Animations::Simple toggleAnimation;
+	Ui::PeerUserpicView view;
+	Ui::Text::String text;
+	int stars = 0;
+	int top = 0;
+	int width = 0;
+	int left = 0;
+	int height = 0;
+	int realWidth = 0;
+	bool removed = false;
 };
 
 MessagesUi::PayedBg::PayedBg(const Ui::StarsColoring &coloring)
@@ -193,7 +208,8 @@ MessagesUi::MessagesUi(
 	return result;
 })
 , _messageBgRect(CountMessageRadius(), _messageBg.color())
-, _fadeHeight(st::normalFont->height)
+, _fadeHeight(st::normalFont->height * 2)
+, _fadeWidth(st::normalFont->height * 2)
 , _streamMode(_mode == MessagesMode::VideoStream) {
 	setupList(std::move(messages), std::move(shown));
 	handleIdUpdates(std::move(idUpdates));
@@ -214,26 +230,35 @@ void MessagesUi::setupList(
 		auto from = begin(list);
 		auto till = end(list);
 		for (auto &entry : _views) {
-			if (!entry.removed) {
-				const auto id = entry.id;
-				const auto i = ranges::find(
-					from,
-					till,
-					id,
-					&Message::id);
-				if (i == till) {
-					toggleMessage(entry, false);
-					continue;
-				} else if (entry.failed != i->failed) {
-					setContentFailed(entry);
-					updateMessageSize(entry);
-					repaintMessage(entry.id);
-				} else if (entry.sending != (i->date == 0)) {
-					animateMessageSent(entry);
+			if (entry.removed) {
+				continue;
+			}
+			const auto id = entry.id;
+			const auto i = ranges::find(
+				from,
+				till,
+				id,
+				&Message::id);
+			if (i == till) {
+				toggleMessage(entry, false);
+				continue;
+			} else if (entry.failed != i->failed) {
+				setContentFailed(entry);
+				updateMessageSize(entry);
+				repaintMessage(entry.id);
+			} else if (entry.sending != (i->date == 0)) {
+				animateMessageSent(entry);
+			}
+			if (i == from) {
+				if (i->stars
+					&& i->date
+					&& !ranges::contains(
+						_pinnedViews,
+						i->id,
+						&PinnedView::id)) {
+					appendPinned(*i);
 				}
-				if (i == from) {
-					++from;
-				}
+				++from;
 			}
 		}
 		auto addedSendingToBottom = false;
@@ -243,14 +268,21 @@ void MessagesUi::setupList(
 					addedSendingToBottom = true;
 				}
 				appendMessage(*i);
+				if (i->stars && i->date) {
+					appendPinned(*i);
+				}
 			}
 		}
 		if (addedSendingToBottom) {
 			const auto from = _scroll->scrollTop();
 			const auto till = _scroll->scrollTopMax();
+			if (from >= till) {
+				return;
+			}
 			_scrollToBottomAnimation.start([=] {
-				_scroll->scrollToY(_scrollToBottomAnimation.value(till));
-			}, from, till, st::slideDuration, anim::easeOutCirc);
+				_scroll->scrollToY(_scroll->scrollTopMax()
+					- _scrollToBottomAnimation.value(0));
+			}, till - from, 0, st::slideDuration, anim::easeOutCirc);
 		}
 	}, _lifetime);
 }
@@ -325,6 +357,45 @@ bool MessagesUi::updateMessageHeight(MessageView &entry) {
 		return false;
 	}
 	entry.height = height;
+	return true;
+}
+
+void MessagesUi::updatePinnedSize(PinnedView &entry) {
+	const auto &padding = st::groupCallMessagePadding;
+
+	const auto userpicPadding = st::groupCallUserpicPadding;
+	const auto userpicSize = st::groupCallUserpic;
+	const auto leftSkip = userpicPadding.left()
+		+ userpicSize
+		+ userpicPadding.right();
+	const auto inner = std::min(
+		entry.text.maxWidth(),
+		st::groupCallPinnedMaxWidth);
+
+	const auto textHeight = st::messageTextStyle.font->height;
+	const auto userpicHeight = userpicPadding.top()
+		+ userpicSize
+		+ userpicPadding.bottom();
+	entry.height = std::max(
+		padding.top() + textHeight + padding.bottom(),
+		userpicHeight);
+	entry.top = 0;
+
+	const auto skip = st::groupCallMessageSkip;
+	entry.realWidth = skip + leftSkip + inner + padding.right();
+}
+
+bool MessagesUi::updatePinnedWidth(PinnedView &entry) {
+	const auto width = entry.toggleAnimation.animating()
+		? anim::interpolate(
+			0,
+			entry.realWidth,
+			entry.toggleAnimation.value(entry.removed ? 0. : 1.))
+		: entry.realWidth;
+	if (entry.width == width) {
+		return false;
+	}
+	entry.width = width;
 	return true;
 }
 
@@ -454,18 +525,22 @@ void MessagesUi::appendMessage(const Message &data) {
 		setupMessagesWidget();
 	}
 
-	auto &entry = _views.emplace_back();
-	const auto id = entry.id = data.id;
-	entry.stars = data.stars;
+	const auto id = data.id;
+	const auto peer = data.peer;
+	auto &entry = _views.emplace_back(MessageView{
+		.id = id,
+		.from = peer,
+		.stars = data.stars,
+		.top = top,
+		.sending = !data.date,
+	});
 	const auto repaint = [=] {
 		repaintMessage(id);
 	};
-	const auto peer = entry.from = data.peer;
 	entry.fromLink = std::make_shared<LambdaClickHandler>([=] {
 		_show->show(
 			PrepareShortInfoBox(peer, _show, &st::storiesShortInfoBox));
 	});
-	entry.sending = !data.date;
 	if (data.failed) {
 		setContentFailed(entry);
 	} else {
@@ -473,7 +548,6 @@ void MessagesUi::appendMessage(const Message &data) {
 			.append(' ').append(data.text);
 		setContent(entry, text, data.stars);
 	}
-	entry.top = top;
 	updateMessageSize(entry);
 	if (entry.sending) {
 		using namespace Ui;
@@ -486,6 +560,93 @@ void MessagesUi::appendMessage(const Message &data) {
 	entry.height = 0;
 	toggleMessage(entry, true);
 	checkReactionContent(entry, data.text);
+}
+
+void MessagesUi::togglePinned(PinnedView &entry, bool shown) {
+	const auto id = entry.id;
+	entry.removed = !shown;
+	entry.toggleAnimation.start(
+		[=] { repaintPinned(id); },
+		shown ? 0. : 1.,
+		shown ? 1. : 0.,
+		st::slideWrapDuration,
+		shown ? anim::easeOutCirc : anim::easeInCirc);
+	repaintPinned(id);
+}
+
+void MessagesUi::repaintPinned(MsgId id) {
+	auto i = ranges::find(_pinnedViews, id, &PinnedView::id);
+	if (i == end(_pinnedViews)) {
+		return;
+	} else if (i->removed && !i->toggleAnimation.animating()) {
+		const auto left = i->left;
+		i = _pinnedViews.erase(i);
+		recountWidths(i, left);
+		return;
+	}
+	if (i->toggleAnimation.animating() || i->width != i->realWidth) {
+		const auto was = i->width;
+		if (updatePinnedWidth(*i)) {
+			if (i->width > was) {
+				const auto larger = countPinnedScrollSkip(*i);
+				if (larger > _pinnedScrollSkip) {
+					setPinnedScrollSkip(larger);
+				}
+			} else {
+				applyGeometryToPinned();
+			}
+			recountWidths(i, i->left);
+			return;
+		}
+	}
+	_pinned->update(i->left, 0, i->width, _pinned->height());
+}
+
+void MessagesUi::recountWidths(
+		std::vector<PinnedView>::iterator i,
+		int left) {
+	auto from = left;
+	for (auto e = end(_pinnedViews); i != e; ++i) {
+		i->left = left;
+		left += i->width;
+	}
+	if (_pinnedViews.empty()) {
+		delete base::take(_pinned);
+		_pinnedScroll = nullptr;
+	} else {
+		updateGeometries();
+		_pinned->update(from, 0, left - from, _pinned->height());
+	}
+}
+
+void MessagesUi::appendPinned(const Message &data) {
+	if (!_pinnedScroll) {
+		setupPinnedWidget();
+	}
+
+	const auto id = data.id;
+	const auto peer = data.peer;
+	const auto i = ranges::lower_bound(
+		_pinnedViews,
+		data.stars,
+		ranges::greater(),
+		&PinnedView::stars);
+	const auto left = (i == end(_pinnedViews)) ? 0 : i->left;
+	auto &entry = *_pinnedViews.insert(i, PinnedView{
+		.id = data.id,
+		.from = peer,
+		.stars = data.stars,
+		.left = left,
+	});
+	const auto repaint = [=] {
+		repaintPinned(id);
+	};
+	entry.text.setMarkedText(
+		st::messageTextStyle,
+		Ui::Text::Bold(data.peer->shortName()));
+	updatePinnedSize(entry);
+	entry.width = 0;
+	togglePinned(entry, true);
 }
 
 void MessagesUi::checkReactionContent(
@@ -643,6 +804,41 @@ void MessagesUi::updateBottomFade() {
 	}
 }
 
+void MessagesUi::updateLeftFade() {
+	const auto leftFadeShown = (_pinnedScroll->scrollLeft() > 0);
+	if (_leftFadeShown != leftFadeShown) {
+		_leftFadeShown = leftFadeShown;
+		//const auto from = leftFadeShown ? 0. : 1.;
+		//const auto till = rightFadeShown ? 1. : 0.;
+		//_leftFadeAnimation.start([=] {
+			_pinned->update(
+				_pinnedScroll->scrollLeft(),
+				0,
+				_fadeWidth,
+				_pinned->height());
+		//}, from, till, st::slideWrapDuration);
+	}
+}
+
+void MessagesUi::updateRightFade() {
+	const auto max = _pinnedScroll->scrollLeftMax();
+	const auto rightFadeShown = (_pinnedScroll->scrollLeft() < max);
+	if (_rightFadeShown != rightFadeShown) {
+		_rightFadeShown = rightFadeShown;
+		//const auto from = rightFadeShown ? 0. : 1.;
+		//const auto till = rightFadeShown ? 1. : 0.;
+		//_rightFadeAnimation.start([=] {
+			_pinned->update(
+				(_pinnedScroll->scrollLeft()
+					+ _pinnedScroll->width()
+					- _fadeWidth),
+				0,
+				_fadeWidth,
+				_pinned->height());
+		//}, from, till, st::slideWrapDuration);
+	}
+}
+
 void MessagesUi::setupMessagesWidget() {
 	_scroll = std::make_unique<Ui::ElasticScroll>(
 		_parent,
@@ -650,6 +846,7 @@ void MessagesUi::setupMessagesWidget() {
 	const auto scroll = _scroll.get();
 
 	_messages = scroll->setOwnedWidget(object_ptr<Ui::RpWidget>(scroll));
+	_messages->move(0, 0);
 	rpl::combine(
 		scroll->scrollTopValue(),
 		scroll->heightValue(),
@@ -726,7 +923,6 @@ void MessagesUi::setupMessagesWidget() {
 			const auto y = entry.top;
 			const auto use = entry.realHeight - skip;
 			const auto width = entry.width;
-			p.setBrush(st::radialBg);
 			p.setPen(Qt::NoPen);
 			const auto scaled = (entry.height < entry.realHeight);
 			if (scaled) {
@@ -769,7 +965,7 @@ void MessagesUi::setupMessagesWidget() {
 					.position = position,
 					.size = userpicSize,
 					.shape = Ui::PeerUserpicShape::Circle,
-				});
+					});
 				if (const auto animation = entry.sendingAnimation.get()) {
 					auto hq = PainterHighQualityEnabler(p);
 					auto pen = st::groupCallBg->p;
@@ -793,7 +989,7 @@ void MessagesUi::setupMessagesWidget() {
 					+ userpicPadding.right();
 			}
 
-			p.setPen(st::radialFg);
+			p.setPen(st::white);
 			entry.text.draw(p, {
 				.position = {
 					x + leftSkip,
@@ -818,14 +1014,16 @@ void MessagesUi::setupMessagesWidget() {
 				startReactionAnimation(entry);
 			}
 
-			p.restore();
+			if (scaled) {
+				p.restore();
+			}
 		}
 		p.translate(0, start);
 
 		p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
 		p.setPen(Qt::NoPen);
 
-		const auto topFade = _topFadeAnimation.value(
+		const auto topFade = (//_topFadeAnimation.value(
 			_topFadeShown ? 1. : 0.);
 		if (topFade) {
 			auto gradientTop = QLinearGradient(0, 0, 0, _fadeHeight);
@@ -838,7 +1036,7 @@ void MessagesUi::setupMessagesWidget() {
 			p.drawRect(0, 0, scroll->width(), _fadeHeight);
 			p.setOpacity(1.);
 		}
-		const auto bottomFade = _bottomFadeAnimation.value(
+		const auto bottomFade = (//_bottomFadeAnimation.value(
 			_bottomFadeShown ? 1. : 0.);
 		if (bottomFade) {
 			const auto till = scroll->height();
@@ -858,39 +1056,241 @@ void MessagesUi::setupMessagesWidget() {
 	}, _lifetime);
 
 	scroll->show();
-	applyWidth();
+	applyGeometry();
 }
 
-void MessagesUi::applyWidth() {
-	if (!_scroll) {
-		return;
-	}
-	auto top = 0;
-	for (auto &entry : _views) {
-		entry.top = top;
+void MessagesUi::setupPinnedWidget() {
+	_pinnedScroll = std::make_unique<Ui::ElasticScroll>(
+		_parent,
+		st::groupCallMessagesScroll,
+		Qt::Horizontal);
+	const auto scroll = _pinnedScroll.get();
 
-		updateMessageSize(entry);
-		updateMessageHeight(entry);
+	_pinned = scroll->setOwnedWidget(object_ptr<Ui::RpWidget>(scroll));
+	_pinned->move(0, 0);
+	rpl::combine(
+		scroll->scrollLeftValue(),
+		scroll->widthValue(),
+		_pinned->widthValue()
+	) | rpl::start_with_next([=] {
+		updateLeftFade();
+		updateRightFade();
+	}, scroll->lifetime());
 
-		top += entry.height;
+	_pinned->paintRequest() | rpl::start_with_next([=](QRect clip) {
+		const auto start = scroll->scrollLeft();
+		const auto end = start + scroll->width();
+		const auto ratio = style::DevicePixelRatio();
+
+		if ((_pinnedCanvas.width() < scroll->width() * ratio)
+			|| (_pinnedCanvas.height() < scroll->height() * ratio)) {
+			_pinnedCanvas = QImage(
+				scroll->size() * ratio,
+				QImage::Format_ARGB32_Premultiplied);
+			_pinnedCanvas.setDevicePixelRatio(ratio);
+		}
+		auto p = Painter(&_pinnedCanvas);
+
+		p.setCompositionMode(QPainter::CompositionMode_Clear);
+		p.fillRect(QRect(QPoint(), scroll->size()), QColor(0, 0, 0, 0));
+
+		p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+		const auto now = crl::now();
+		const auto skip = st::groupCallMessageSkip;
+		const auto padding = st::groupCallMessagePadding;
+		p.translate(-start, 0);
+		for (auto &entry : _pinnedViews) {
+			if (entry.width <= skip || entry.left + entry.width <= start) {
+				continue;
+			} else if (entry.left >= end) {
+				break;
+			}
+			const auto x = entry.left;
+			const auto y = entry.top;
+			const auto use = entry.realWidth - skip;
+			const auto height = entry.height;
+			p.setPen(Qt::NoPen);
+			const auto scaled = (entry.width < entry.realWidth);
+			if (scaled) {
+				const auto used = entry.width - skip;
+				const auto mx = scaled ? (x + (used / 2)) : 0;
+				const auto my = scaled ? (y + (height / 2)) : 0;
+				const auto scale = used / float64(use);
+				p.save();
+				p.translate(mx, my);
+				p.scale(scale, scale);
+				p.setOpacity(scale);
+				p.translate(-mx, -my);
+			}
+			const auto coloring = Ui::StarsColoringForCount(entry.stars);
+			auto &bg = _bgs[ColoringKey(coloring)];
+			if (!bg) {
+				bg = std::make_unique<PayedBg>(coloring);
+			}
+			p.setOpacity(kColoredMessageBgOpacity);
+			bg->rounded.paint(p, { x, y, use, height });
+			p.setOpacity(1.);
+
+			const auto userpicSize = st::groupCallUserpic;
+			const auto userpicPadding = st::groupCallUserpicPadding;
+			const auto position = QPoint(
+				x + userpicPadding.left(),
+				y + userpicPadding.top());
+			const auto rect = QRect(
+				position,
+				QSize(userpicSize, userpicSize));
+			entry.from->paintUserpic(p, entry.view, {
+				.position = position,
+				.size = userpicSize,
+				.shape = Ui::PeerUserpicShape::Circle,
+			});
+			const auto leftSkip = userpicPadding.left()
+				+ userpicSize
+				+ userpicPadding.right();
+
+			p.setPen(st::white);
+			entry.text.draw(p, {
+				.position = {
+					x + leftSkip,
+					y + padding.top(),
+				},
+				.availableWidth = entry.width - leftSkip - padding.right(),
+				.palette = &st::groupCallMessagePalette,
+				.spoiler = Ui::Text::DefaultSpoilerCache(),
+				.now = now,
+				.paused = !_messages->window()->isActiveWindow(),
+			});
+			if (scaled) {
+				p.restore();
+			}
+		}
+		p.translate(start, 0);
+
+		p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+		p.setPen(Qt::NoPen);
+
+		const auto leftFade = (//_leftFadeAnimation.value(
+			_leftFadeShown ? 1. : 0.);
+		if (leftFade) {
+			auto gradientLeft = QLinearGradient(0, 0, _fadeWidth, 0);
+			gradientLeft.setStops({
+				{ 0., QColor(255, 255, 255, 0) },
+				{ 1., QColor(255, 255, 255, 255) },
+			});
+			p.setOpacity(leftFade);
+			p.setBrush(gradientLeft);
+			p.drawRect(0, 0, _fadeWidth, scroll->height());
+			p.setOpacity(1.);
+		}
+		const auto rightFade = (//_rightFadeAnimation.value(
+			_rightFadeShown ? 1. : 0.);
+		if (rightFade) {
+			const auto till = scroll->width();
+			const auto from = till - _fadeWidth;
+			auto gradientRight = QLinearGradient(from, 0, till, 0);
+			gradientRight.setStops({
+				{ 0., QColor(255, 255, 255, 255) },
+				{ 1., QColor(255, 255, 255, 0) },
+			});
+			p.setBrush(gradientRight);
+			p.drawRect(from, 0, _fadeWidth, scroll->height());
+		}
+		QPainter(_pinned).drawImage(
+			QRect(QPoint(start, 0), scroll->size()),
+			_pinnedCanvas,
+			QRect(QPoint(), scroll->size() * ratio));
+	}, _lifetime);
+
+	scroll->show();
+	applyGeometry();
+}
+
+void MessagesUi::applyGeometry() {
+	if (_scroll) {
+		auto top = 0;
+		for (auto &entry : _views) {
+			entry.top = top;
+
+			updateMessageSize(entry);
+			updateMessageHeight(entry);
+
+			top += entry.height;
+		}
 	}
+	applyGeometryToPinned();
 	updateGeometries();
 }
 
+void MessagesUi::applyGeometryToPinned() {
+	if (!_pinnedScroll) {
+		setPinnedScrollSkip(0);
+		return;
+	}
+	const auto skip = st::groupCallMessageSkip;
+	auto maxHeight = 0;
+	auto left = 0;
+	for (auto &entry : _pinnedViews) {
+		entry.left = left;
+		updatePinnedSize(entry);
+		updatePinnedWidth(entry);
+		left += entry.width;
+
+		if (maxHeight < entry.height + skip) {
+			const auto possible = countPinnedScrollSkip(entry);
+			maxHeight = std::max(possible, maxHeight);
+		}
+	}
+	setPinnedScrollSkip(maxHeight);
+}
+
+int MessagesUi::countPinnedScrollSkip(const PinnedView &entry) const {
+	const auto skip = st::groupCallMessageSkip;
+	if (!entry.toggleAnimation.animating()) {
+		return entry.height + skip;
+	}
+	const auto used = ((entry.height + skip) * entry.width)
+		/ float64(entry.realWidth);
+	return int(base::SafeRound(used));
+}
+
+void MessagesUi::setPinnedScrollSkip(int skip) {
+	if (_pinnedScrollSkip != skip) {
+		_pinnedScrollSkip = skip;
+		updateGeometries();
+	}
+}
+
 void MessagesUi::updateGeometries() {
-	const auto scrollBottom = (_scroll->scrollTop() + _scroll->height());
-	const auto atBottom = (scrollBottom >= _messages->height());
+	if (_pinnedScroll) {
+		const auto skip = st::groupCallMessageSkip;
+		const auto width = _pinnedViews.empty()
+			? 0
+			: (_pinnedViews.back().left + _pinnedViews.back().width - skip);
+		const auto height = _pinnedViews.empty()
+			? 0
+			: _pinnedViews.back().height;
+		const auto bottom = _bottom - st::groupCallMessageSkip;
+		_pinned->resize(width, height);
 
-	const auto height = _views.empty()
-		? 0
-		: (_views.back().top + _views.back().height);
-	_messages->setGeometry(0, 0, _width, height);
+		const auto min = std::min(width, _width);
+		_pinnedScroll->setGeometry(_left, bottom - height, min, height);
+	}
+	if (_scroll) {
+		const auto scrollBottom = (_scroll->scrollTop() + _scroll->height());
+		const auto atBottom = (scrollBottom >= _messages->height());
+		const auto bottom = _bottom - _pinnedScrollSkip;
 
-	const auto min = std::min(height, _availableHeight);
-	_scroll->setGeometry(_left, _bottom - min, _width, min);
+		const auto height = _views.empty()
+			? 0
+			: (_views.back().top + _views.back().height);
+		_messages->resize(_width, height);
 
-	if (atBottom) {
-		_scroll->scrollToY(std::max(height - _scroll->height(), 0));
+		const auto min = std::min(height, _availableHeight);
+		_scroll->setGeometry(_left, bottom - min, _width, min);
+
+		if (atBottom) {
+			_scroll->scrollToY(std::max(height - _scroll->height(), 0));
+		}
 	}
 }
 
@@ -909,7 +1309,7 @@ void MessagesUi::move(int left, int bottom, int width, int availableHeight) {
 		_bottom = bottom;
 		_width = width;
 		_availableHeight = availableHeight;
-		applyWidth();
+		applyGeometry();
 	}
 }
 

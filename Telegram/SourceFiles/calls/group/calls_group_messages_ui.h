@@ -62,6 +62,7 @@ public:
 
 private:
 	struct MessageView;
+	struct PinnedView;
 	struct PayedBg {
 		PayedBg(const Ui::StarsColoring &coloring);
 
@@ -81,6 +82,8 @@ private:
 		int stars);
 	void updateMessageSize(MessageView &entry);
 	bool updateMessageHeight(MessageView &entry);
+	void updatePinnedSize(PinnedView &entry);
+	bool updatePinnedWidth(PinnedView &entry);
 	void animateMessageSent(MessageView &entry);
 	void repaintMessage(MsgId id);
 	void recountHeights(std::vector<MessageView>::iterator i, int top);
@@ -92,10 +95,23 @@ private:
 	void updateReactionPosition(MessageView &entry);
 	void removeReaction(not_null<Ui::RpWidget*> widget);
 	void setupMessagesWidget();
-	void applyWidth();
+
+	void togglePinned(PinnedView &entry, bool shown);
+	void repaintPinned(MsgId id);
+	void recountWidths(std::vector<PinnedView>::iterator i, int left);
+	void appendPinned(const Message &data);
+	void setupPinnedWidget();
+
+	void applyGeometry();
+	void applyGeometryToPinned();
 	void updateGeometries();
+	[[nodiscard]] int countPinnedScrollSkip(const PinnedView &entry) const;
+	void setPinnedScrollSkip(int skip);
+
 	void updateTopFade();
 	void updateBottomFade();
+	void updateLeftFade();
+	void updateRightFade();
 
 	const not_null<QWidget*> _parent;
 	const std::shared_ptr<ChatHelpers::Show> _show;
@@ -105,20 +121,31 @@ private:
 	Ui::RpWidget *_messages = nullptr;
 	QImage _canvas;
 
+	std::unique_ptr<Ui::ElasticScroll> _pinnedScroll;
+	Ui::RpWidget *_pinned = nullptr;
+	QImage _pinnedCanvas;
+	int _pinnedScrollSkip = 0;
+
 	std::vector<MessageView> _views;
 	style::complex_color _messageBg;
 	Ui::RoundRect _messageBgRect;
 
+	std::vector<PinnedView> _pinnedViews;
 	base::flat_map<uint64, std::unique_ptr<PayedBg>> _bgs;
 
 	QPoint _reactionBasePosition;
 	rpl::lifetime _effectsLifetime;
 
-	Ui::Animations::Simple _topFadeAnimation;
-	Ui::Animations::Simple _bottomFadeAnimation;
+	//Ui::Animations::Simple _topFadeAnimation;
+	//Ui::Animations::Simple _bottomFadeAnimation;
+	//Ui::Animations::Simple _leftFadeAnimation;
+	//Ui::Animations::Simple _rightFadeAnimation;
 	int _fadeHeight = 0;
+	int _fadeWidth = 0;
 	bool _topFadeShown = false;
 	bool _bottomFadeShown = false;
+	bool _leftFadeShown = false;
+	bool _rightFadeShown = false;
 	bool _streamMode = false;
 
 	int _left = 0;

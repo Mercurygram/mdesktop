@@ -1719,6 +1719,7 @@ groupCallMessagePalette: TextPalette(defaultTextPalette) {
 	monoFg: radialFg;
 	spoilerFg: radialFg;
 }
+groupCallPinnedMaxWidth: 96px;
 groupCallUserpic: 20px;
 groupCallUserpicPadding: margins(2px, 2px, 4px, 2px);
 
