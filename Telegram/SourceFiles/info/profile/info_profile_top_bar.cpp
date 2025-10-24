@@ -844,6 +844,10 @@ void TopBar::setRoundEdges(bool value) {
 	update();
 }
 
+void TopBar::setLottieSingleLoop(bool value) {
+	_lottieSingleLoop = value;
+}
+
 void TopBar::paintEdges(QPainter &p, const QBrush &brush) const {
 	const auto r = rect();
 	if (_roundEdges) {
@@ -1144,9 +1148,8 @@ void TopBar::paintEvent(QPaintEvent *e) {
 		if (_patternEmoji && _patternEmoji->ready()) {
 			paintAnimatedPattern(p, rect(), geometry);
 		}
-
-		paintPinnedToTopGifts(p, rect(), geometry);
 	}
+	paintPinnedToTopGifts(p, rect(), geometry);
 	paintUserpic(p, geometry);
 	paintStoryOutline(p, geometry);
 }
@@ -1163,6 +1166,7 @@ void TopBar::setupButtons(
 			std::optional<QColor> edgeColor) mutable {
 		const auto isLayer = (wrap == Wrap::Layer);
 		setRoundEdges(isLayer);
+		setLottieSingleLoop(wrap == Wrap::Side);
 
 		const auto shouldUseColored = edgeColor
 			&& (kMinContrast > Ui::CountContrast(
@@ -1631,6 +1635,9 @@ void TopBar::setupNewGifts(
 	) | rpl::start_with_next([=] {
 		auto allLoaded = true;
 		for (auto &entry : _pinnedToTopGifts) {
+			if (!entry.animation && !entry.lastFrame.isNull()) {
+				continue;
+			}
 			if (!entry.animation && entry.media->loaded()) {
 				entry.animation = LottieAnimationFromDocument(
 					_lottiePlayer.get(),
@@ -1650,6 +1657,18 @@ void TopBar::setupNewGifts(
 				if (value >= 1.) {
 					_giftsAppearing = nullptr;
 					_pinnedToTopGiftsFirstTimeShowed = true;
+					if (_lottieSingleLoop) {
+						auto allFramesCaptured = true;
+						for (const auto &entry : _pinnedToTopGifts) {
+							if (entry.animation || entry.lastFrame.isNull()) {
+								allFramesCaptured = false;
+								break;
+							}
+						}
+						if (allFramesCaptured) {
+							_lottiePlayer = nullptr;
+						}
+					}
 				}
 			}, 0., 1., 400, anim::easeOutQuint);
 		}
@@ -1743,7 +1762,8 @@ void TopBar::paintPinnedToTopGifts(
 	const auto halfSz = sz / 2.;
 
 	for (auto &gift : _pinnedToTopGifts) {
-		if (!gift.animation) {
+		if (!gift.animation
+			&& (_lottieSingleLoop ? gift.lastFrame.isNull() : true)) {
 			continue;
 		}
 
@@ -1758,29 +1778,51 @@ void TopBar::paintPinnedToTopGifts(
 		}
 
 		p.setOpacity(alpha);
-		if (gift.animation && gift.animation->ready()) {
-			const auto frame = gift.animation->frame();
-			if (!frame.isNull()) {
-				const auto resultRect = QRect(
-					QPoint(giftPos.x() - halfSz, giftPos.y() - halfSz),
-					QSize(sz, sz));
-				if (!gift.bg.isNull()) {
-					const auto bgSize = gift.bg.size()
-						/ gift.bg.devicePixelRatio();
-					const auto bgRect = QRect(
-						resultRect.x()
-							+ (resultRect.width() - bgSize.width()) / 2,
-						resultRect.y()
-							+ (resultRect.height() - bgSize.height()) / 2,
-						bgSize.width(),
-						bgSize.height());
-					p.drawImage(bgRect, gift.bg);
-				}
-				p.drawImage(resultRect, frame);
-				if (_lottiePlayer) {
-					_lottiePlayer->markFrameShown();
+		auto frameToRender = QImage();
+		if (_lottieSingleLoop && !gift.lastFrame.isNull()) {
+			frameToRender = gift.lastFrame;
+		} else if (gift.animation && gift.animation->ready()) {
+			frameToRender = gift.animation->frame();
+			if (_lottiePlayer) {
+				_lottiePlayer->markFrameShown();
+			}
+			if (_lottieSingleLoop && gift.animation->framesCount() > 0) {
+				const auto currentFrame = gift.animation->frameIndex();
+				const auto totalFrames = gift.animation->framesCount();
+				if (currentFrame >= totalFrames - 1) {
+					gift.lastFrame = frameToRender;
+					gift.animation = nullptr;
+
+					auto allDone = true;
+					for (const auto &entry : _pinnedToTopGifts) {
+						if (entry.animation) {
+							allDone = false;
+							break;
+						}
+					}
+					if (allDone) {
+						_lottiePlayer = nullptr;
+					}
 				}
 			}
+		}
+		if (!frameToRender.isNull()) {
+			const auto resultRect = QRect(
+				QPoint(giftPos.x() - halfSz, giftPos.y() - halfSz),
+				QSize(sz, sz));
+			if (!gift.bg.isNull()) {
+				const auto bgSize = gift.bg.size()
+					/ gift.bg.devicePixelRatio();
+				const auto bgRect = QRect(
+					resultRect.x()
+						+ (resultRect.width() - bgSize.width()) / 2,
+					resultRect.y()
+						+ (resultRect.height() - bgSize.height()) / 2,
+					bgSize.width(),
+					bgSize.height());
+				p.drawImage(bgRect, gift.bg);
+			}
+			p.drawImage(resultRect, frameToRender);
 		}
 	}
 	p.setOpacity(1.);

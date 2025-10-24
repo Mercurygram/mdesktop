@@ -105,6 +105,7 @@ public:
 	void setOnlineCount(rpl::producer<int> &&count);
 
 	void setRoundEdges(bool value);
+	void setLottieSingleLoop(bool value);
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
 	void addTopBarMenuButton(
 		not_null<Controller*> controller,
@@ -236,10 +237,12 @@ private:
 	base::unique_qptr<Ui::HorizontalFitContainer> _actions;
 
 	std::unique_ptr<Lottie::MultiPlayer> _lottiePlayer;
+	bool _lottieSingleLoop = false;
 	struct PinnedToTopGiftEntry {
 		Lottie::Animation *animation = nullptr;
 		std::shared_ptr<Data::DocumentMedia> media;
 		QImage bg;
+		QImage lastFrame;
 		int position = 0;
 		base::unique_qptr<Ui::AbstractButton> button;
 	};
