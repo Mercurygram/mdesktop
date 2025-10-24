@@ -171,7 +171,12 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 	p.translate(textCenter);
 	p.scale(textScale, textScale);
 	p.translate(-textCenter);
-	p.drawText(textRect, _text, style::al_top);
+
+	const auto elidedText = st::infoProfileTopBarActionButtonFont->elided(
+		_text,
+		textRect.width(),
+		Qt::ElideMiddle);
+	p.drawText(textRect, elidedText, style::al_top);
 }
 
 QImage TopBarActionButton::prepareRippleMask() const {
