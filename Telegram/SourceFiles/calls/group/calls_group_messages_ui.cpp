@@ -1072,7 +1072,7 @@ void MessagesUi::setupMessagesWidget() {
 			QRect(QPoint(0, start), scroll->size()),
 			_canvas,
 			QRect(QPoint(), scroll->size() * ratio));
-	}, _lifetime);
+	}, _messages->lifetime());
 
 	scroll->show();
 	applyGeometry();
@@ -1256,7 +1256,7 @@ void MessagesUi::setupPinnedWidget() {
 			QRect(QPoint(start, 0), scroll->size()),
 			_pinnedCanvas,
 			QRect(QPoint(), scroll->size() * ratio));
-	}, _lifetime);
+	}, _pinned->lifetime());
 
 	scroll->show();
 	applyGeometry();
