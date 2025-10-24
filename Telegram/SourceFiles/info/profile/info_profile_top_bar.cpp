@@ -979,24 +979,37 @@ void TopBar::updateLabelsPosition() {
 		st::infoProfileTopBarTitleTop,
 		progressCurrent);
 
-	auto titleLeft = anim::interpolate(
-		titleMostLeft(),
-		(width() - _title->width()) / 2,
-		progressCurrent);
 	const auto badgeTop = titleTop;
 	const auto badgeBottom = titleTop + _title->height();
 	const auto margins = LargeCustomEmojiMargins();
 
+	auto totalElementsWidth = _title->width();
+	const auto botVerifyWidget = _botVerify ? _botVerify->widget() : nullptr;
+	const auto botVerifySkip = botVerifyWidget
+		? botVerifyWidget->width() + st::infoVerifiedCheckPosition.x()
+		: 0;
+	if (verifiedWidget) {
+		totalElementsWidth += verifiedWidget->width();
+	}
+	if (badgeWidget) {
+		totalElementsWidth += badgeWidget->width();
+	}
+	if (verifiedWidget || badgeWidget) {
+		totalElementsWidth += st::infoVerifiedCheckPosition.x();
+	}
+	totalElementsWidth += botVerifySkip;
+
+	auto titleLeft = anim::interpolate(
+		titleMostLeft(),
+		(width() - totalElementsWidth) / 2,
+		progressCurrent);
+
 	if (_botVerify) {
-		const auto widget = _botVerify->widget();
-		const auto skip = widget
-			? widget->width() + st::infoVerifiedCheckPosition.x()
-			: 0;
 		_botVerify->move(
-			titleLeft - margins.left() - skip * progressCurrent,
+			titleLeft,
 			badgeTop,
 			badgeBottom);
-		titleLeft += skip * (1. - progressCurrent);
+		titleLeft += margins.left() + botVerifySkip;
 	}
 
 	_title->moveToLeft(titleLeft, titleTop);
