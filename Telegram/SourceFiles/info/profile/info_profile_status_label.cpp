@@ -140,6 +140,10 @@ void StatusLabel::setMembersLinkCallback(Fn<void()> callback) {
 	_membersLinkCallback = std::move(callback);
 }
 
+Fn<void()> StatusLabel::membersLinkCallback() const {
+	return _membersLinkCallback;
+}
+
 void StatusLabel::setColorized(bool enabled) {
 	_colorized = enabled;
 	refresh();

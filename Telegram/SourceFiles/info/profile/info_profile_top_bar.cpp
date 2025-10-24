@@ -246,12 +246,7 @@ TopBar::TopBar(
 			? [=] { return _peer->owner().pendingStarsRating(); }
 			: Fn<Data::StarsRatingPending()>()))
 	: nullptr)
-, _status(
-	this,
-	QString(),
-	_peer->isMegagroup()
-		? st::infoProfileMegagroupCover.status
-		: st::infoProfileCover.status)
+, _status(this, QString(), statusStyle())
 , _statusLabel(std::make_unique<StatusLabel>(_status.data(), _peer))
 , _showLastSeen(
 		this,
@@ -371,10 +366,34 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 	_title->setTextColorOverride(shouldOverrideTitle
 		? std::optional<QColor>(st::groupCallMembersFg->c)
 		: std::nullopt);
-	_status->setTextColorOverride(shouldOverrideStatus
-		? std::optional<QColor>(st::groupCallVideoSubTextFg->c)
-		: std::nullopt);
-	_statusLabel->setColorized(!shouldOverrideStatus);
+	{
+		const auto statusPosition = _status->pos();
+		const auto membersLinkCallback = _statusLabel->membersLinkCallback();
+		{
+			_statusLabel = nullptr;
+			delete _status.release();
+		}
+		if (shouldOverrideStatus) {
+			const auto copySt = [&](const style::FlatLabel &st) {
+				auto result = std::make_unique<style::FlatLabel>(
+					base::duplicate(st));
+				result->palette.linkFg = st::groupCallVideoSubTextFg;
+				return result;
+			};
+			_statusSt = copySt(statusStyle());
+			_status.create(this, QString(), *(_statusSt.get()));
+		} else {
+			_status.create(this, QString(), statusStyle());
+		}
+		_status->moveToLeft(statusPosition.x(), statusPosition.y());
+		_status->show();
+		_statusLabel = std::make_unique<StatusLabel>(_status.data(), _peer);
+		_statusLabel->setMembersLinkCallback(membersLinkCallback);
+		_status->setTextColorOverride(shouldOverrideStatus
+			? std::optional<QColor>(st::groupCallVideoSubTextFg->c)
+			: std::nullopt);
+		_statusLabel->setColorized(!shouldOverrideStatus);
+	}
 
 	const auto shouldOverrideBadges = shouldOverride(
 		st::infoBotVerifyBadge.premiumFg);
@@ -1981,6 +2000,12 @@ void TopBar::paintStoryOutline(QPainter &p, const QRect &geometry) {
 
 rpl::producer<std::optional<QColor>> TopBar::edgeColor() const {
 	return _edgeColor.value();
+}
+
+const style::FlatLabel &TopBar::statusStyle() const {
+	return _peer->isMegagroup()
+		? st::infoProfileMegagroupCover.status
+		: st::infoProfileCover.status;
 }
 
 } // namespace Info::Profile

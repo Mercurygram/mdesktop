@@ -23,6 +23,7 @@ public:
 
 	void refresh();
 	void setMembersLinkCallback(Fn<void()> callback);
+	[[nodiscard]] Fn<void()> membersLinkCallback() const;
 	void setOnlineCount(int count);
 	void setColorized(bool enabled);
 

@@ -45,6 +45,7 @@ class Timer;
 namespace style {
 struct InfoTopBar;
 struct InfoPeerBadge;
+struct FlatLabel;
 } //namespace style
 
 class QGraphicsOpacityEffect;
@@ -171,6 +172,7 @@ private:
 	void setupStoryOutline(const QRect &geometry = QRect());
 	void updateStoryOutline(std::optional<QColor> edgeColor);
 	void paintStoryOutline(QPainter &p, const QRect &geometry);
+	[[nodiscard]] const style::FlatLabel &statusStyle() const;
 
 	const not_null<PeerData*> _peer;
 	Data::ForumTopic *_topic = nullptr;
@@ -198,6 +200,7 @@ private:
 	object_ptr<Ui::RoundButton> _showLastSeen = { nullptr };
 	QGraphicsOpacityEffect *_showLastSeenOpacity = nullptr;
 
+	std::shared_ptr<style::FlatLabel> _statusSt;
 	std::shared_ptr<style::InfoPeerBadge> _botVerifySt;
 	std::shared_ptr<style::InfoPeerBadge> _badgeSt;
 	std::shared_ptr<style::InfoPeerBadge> _verifiedSt;
