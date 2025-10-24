@@ -1258,6 +1258,34 @@ void MessagesUi::setupPinnedWidget() {
 			QRect(QPoint(), scroll->size() * ratio));
 	}, _pinned->lifetime());
 
+	_pinned->setMouseTracking(true);
+	const auto find = [=](QPoint position) {
+		if (position.y() < 0 || position.y() >= _pinned->height()) {
+			return MsgId();
+		} else for (const auto &entry : _pinnedViews) {
+			if (entry.left > position.x()) {
+				break;
+			} else if (entry.left + entry.width > position.x()) {
+				return entry.id;
+			}
+		}
+		return MsgId();
+	};
+	_pinned->events() | rpl::start_with_next([=](not_null<QEvent*> e) {
+		const auto type = e->type();
+		if (type == QEvent::MouseButtonPress) {
+			const auto pos = static_cast<QMouseEvent*>(e.get())->pos();
+			if (const auto id = find(pos)) {
+
+			}
+		} else if (type == QEvent::MouseMove) {
+			const auto pos = static_cast<QMouseEvent*>(e.get())->pos();
+			_pinned->setCursor(find(pos)
+				? style::cur_pointer
+				: style::cur_default);
+		}
+	}, _pinned->lifetime());
+
 	scroll->show();
 	applyGeometry();
 }
