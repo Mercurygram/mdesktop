@@ -226,8 +226,10 @@ private:
 	base::unique_qptr<Ui::IconButton> _close;
 	base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> _back;
 
-	base::unique_qptr<Ui::IconButton> _topBarMenuToggle;
-	base::unique_qptr<Ui::PopupMenu> _topBarMenu;
+	base::unique_qptr<Ui::IconButton> _topBarButton;
+	base::unique_qptr<Ui::PopupMenu> _peerMenu;
+
+	Ui::RpWidget *_actionMore = nullptr;
 
 	base::unique_qptr<Ui::AbstractButton> _userpicButton;
 

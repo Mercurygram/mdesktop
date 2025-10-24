@@ -647,6 +647,26 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		_actions->add(leaveButton);
 		buttons.push_back(leaveButton);
 	}
+	if ([&]() -> bool {
+		if (controller->wrap() == Wrap::Side) {
+			return false;
+		}
+		const auto guard = gsl::finally([&] { _peerMenu = nullptr; });
+		showTopBarMenu(controller, true);
+		return _peerMenu;
+	}()) {
+		const auto navigation = controller->parentController();
+		const auto moreButton = Ui::CreateChild<TopBarActionButton>(
+			this,
+			tr::lng_profile_action_short_more(tr::now),
+			st::infoProfileTopBarActionMore);
+		moreButton->setClickedCallback([=] {
+			showTopBarMenu(controller, false);
+		});
+		_actionMore = moreButton;
+		_actions->add(moreButton);
+		buttons.push_back(moreButton);
+	}
 	_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
 			TopBarActionButtonStyle st) {
 		for (const auto &button : buttons) {
@@ -864,8 +884,8 @@ void TopBar::updateLabelsPosition() {
 	if (_close) {
 		rightButtonsWidth += _close->width();
 	}
-	if (_topBarMenuToggle) {
-		rightButtonsWidth += _topBarMenuToggle->width();
+	if (_topBarButton) {
+		rightButtonsWidth += _topBarButton->width();
 	}
 
 	const auto reservedRight = anim::interpolate(
@@ -1178,67 +1198,18 @@ void TopBar::setupButtons(
 		}
 
 		if (wrap != Wrap::Side) {
-			if (source == Source::Profile) {
-				addTopBarMenuButton(controller, wrap, shouldUseColored);
-			} else if (source == Source::Stories) {
+			if (source == Source::Stories) {
 				addTopBarEditButton(controller, wrap, shouldUseColored);
 			}
 		}
 	}, lifetime());
 }
 
-void TopBar::addTopBarMenuButton(
-		not_null<Controller*> controller,
-		Wrap wrap,
-		bool shouldUseColored) {
-	{
-		const auto guard = gsl::finally([&] { _topBarMenu = nullptr; });
-		showTopBarMenu(controller, true);
-		if (!_topBarMenu) {
-			return;
-		}
-	}
-	_topBarMenuToggle = base::make_unique_q<Ui::IconButton>(
-		this,
-		((wrap == Wrap::Layer)
-			? (shouldUseColored
-				? st::infoLayerTopBarColoredMenu
-				: st::infoLayerTopBarBlackMenu)
-			: (shouldUseColored
-				? st::infoTopBarColoredMenu
-				: st::infoTopBarBlackMenu)));
-	_topBarMenuToggle->show();
-	_topBarMenuToggle->addClickHandler([=] {
-		showTopBarMenu(controller, false);
-	});
-
-	widthValue() | rpl::start_with_next([=] {
-		if (_close) {
-			_topBarMenuToggle->moveToRight(_close->width(), 0);
-		} else {
-			_topBarMenuToggle->moveToRight(0, 0);
-		}
-	}, _topBarMenuToggle->lifetime());
-
-	Shortcuts::Requests(
-	) | rpl::filter([=] {
-		return (controller->section().type() == Section::Type::Profile);
-	}) | rpl::start_with_next([=](not_null<Shortcuts::Request*> request) {
-		using Command = Shortcuts::Command;
-
-		request->check(Command::ShowChatMenu, 1) && request->handle([=] {
-			Window::ActivateWindow(controller->parentController());
-			showTopBarMenu(controller, false);
-			return true;
-		});
-	}, _topBarMenuToggle->lifetime());
-}
-
 void TopBar::addTopBarEditButton(
 		not_null<Controller*> controller,
 		Wrap wrap,
 		bool shouldUseColored) {
-	_topBarMenuToggle = base::make_unique_q<Ui::IconButton>(
+	_topBarButton = base::make_unique_q<Ui::IconButton>(
 		this,
 		((wrap == Wrap::Layer)
 			? (shouldUseColored
@@ -1247,51 +1218,54 @@ void TopBar::addTopBarEditButton(
 			: (shouldUseColored
 				? st::infoTopBarColoredEdit
 				: st::infoTopBarBlackEdit)));
-	_topBarMenuToggle->show();
-	_topBarMenuToggle->addClickHandler([=] {
+	_topBarButton->show();
+	_topBarButton->addClickHandler([=] {
 		controller->showSettings(::Settings::Information::Id());
 	});
 
 	widthValue() | rpl::start_with_next([=] {
 		if (_close) {
-			_topBarMenuToggle->moveToRight(_close->width(), 0);
+			_topBarButton->moveToRight(_close->width(), 0);
 		} else {
-			_topBarMenuToggle->moveToRight(0, 0);
+			_topBarButton->moveToRight(0, 0);
 		}
-	}, _topBarMenuToggle->lifetime());
+	}, _topBarButton->lifetime());
 }
 
 void TopBar::showTopBarMenu(
 		not_null<Controller*> controller,
 		bool check) {
-	if (_topBarMenu) {
-		_topBarMenu->hideMenu(true);
+	if (_peerMenu) {
+		_peerMenu->hideMenu(true);
 		return;
 	}
-	_topBarMenu = base::make_unique_q<Ui::PopupMenu>(
+	_peerMenu = base::make_unique_q<Ui::PopupMenu>(
 		QWidget::window(),
 		st::popupMenuExpandedSeparator);
 
-	_topBarMenu->setDestroyedCallback([this] {
-		InvokeQueued(this, [this] { _topBarMenu = nullptr; });
-		if (auto toggle = _topBarMenuToggle.get()) {
-			toggle->setForceRippled(false);
-		}
+	_peerMenu->setDestroyedCallback([this] {
+		InvokeQueued(this, [this] { _peerMenu = nullptr; });
+		// if (auto toggle = _topBarMenuToggle.get()) {
+		// 	toggle->setForceRippled(false);
+		// }
 	});
 
 	fillTopBarMenu(
 		controller,
-		Ui::Menu::CreateAddActionCallback(_topBarMenu));
-	if (_topBarMenu->empty()) {
-		_topBarMenu = nullptr;
+		Ui::Menu::CreateAddActionCallback(_peerMenu));
+	if (_peerMenu->empty()) {
+		_peerMenu = nullptr;
 		return;
 	} else if (check) {
 		return;
 	}
-	_topBarMenu->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
-	_topBarMenuToggle->setForceRippled(true);
-	_topBarMenu->popup(_topBarMenuToggle->mapToGlobal(
-		st::infoLayerTopBarMenuPosition));
+	_peerMenu->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
+	_peerMenu->popup(_actionMore
+		? _actionMore->mapToGlobal(
+			QPoint(
+				_actionMore->width(),
+				_actionMore->height() + st::infoProfileTopBarActionMenuSkip))
+		: QCursor::pos());
 }
 
 void TopBar::fillTopBarMenu(

@@ -394,16 +394,6 @@ infoTopBarBlackClose: IconButton(infoTopBarClose) {
 	iconOver: icon {{ "info/info_close", windowBoldFg }};
 	ripple: universalRippleAnimation;
 }
-infoTopBarBlackMenu: IconButton(infoTopBarMenu) {
-	icon: icon {{ "title_menu_dots", windowBoldFg }};
-	iconOver: icon {{ "title_menu_dots", windowBoldFg }};
-	ripple: universalRippleAnimation;
-}
-infoLayerTopBarBlackMenu: IconButton(infoLayerTopBarMenu) {
-	icon: icon {{ "title_menu_dots", windowBoldFg }};
-	iconOver: icon {{ "title_menu_dots", windowBoldFg }};
-	ripple: universalRippleAnimation;
-}
 infoTopBarBlackEdit: IconButton(infoTopBarEdit) {
 	icon: icon {{ "menu/edit", windowBoldFg }};
 	iconOver: icon {{ "menu/edit", windowBoldFg }};
@@ -451,6 +441,8 @@ infoProfileTopBarStep1: infoProfileTopBarStep2 - infoProfileTopBarActionButtonsH
 
 infoProfileTopBarNoActionsHeightMax: infoProfileTopBarHeightMax - infoProfileTopBarActionButtonSize;
 
+infoProfileTopBarActionMenuSkip: 10px;
+
 infoProfileTopBarActionMessage: icon{{ "profile/message-22x22", windowBoldFg }};
 infoProfileTopBarActionMute: icon{{ "profile/mute-22x22", windowBoldFg }};
 infoProfileTopBarActionUnmute: icon{{ "profile/unmute-22x22", windowBoldFg }};
@@ -459,6 +451,7 @@ infoProfileTopBarActionGift: icon{{ "profile/gift-22x22", windowBoldFg }};
 infoProfileTopBarActionJoin: icon{{ "profile/join-22x22", windowBoldFg }};
 infoProfileTopBarActionReport: icon{{ "profile/report-22x22", windowBoldFg }};
 infoProfileTopBarActionLeave: icon{{ "profile/leave-22x22", windowBoldFg }};
+infoProfileTopBarActionMore: icon{{ "profile/profile_more", windowBoldFg }};
 
 infoMinimalWidth: 324px;
 infoDesiredWidth: 392px;
