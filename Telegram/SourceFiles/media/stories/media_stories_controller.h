@@ -343,6 +343,7 @@ private:
 	mutable rpl::variable<bool> _weatherInCelsius;
 
 	rpl::variable<CommentsState> _commentsState;
+	rpl::event_stream<CommentsState> _commentsStateShowFromPinned;
 	rpl::variable<bool> _commentsHasUnread;
 	MsgId _commentsLastReadId = 0;
 	MsgId _commentsLastId = 0;

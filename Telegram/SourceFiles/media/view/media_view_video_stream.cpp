@@ -209,7 +209,9 @@ void VideoStream::setupVideo() {
 }
 
 void VideoStream::setupMessages() {
-
+	_messages->hiddenShowRequested() | rpl::start_with_next([=] {
+		_call->messages()->requestHiddenShow();
+	}, _messages->lifetime());
 }
 
 void VideoStream::setVolume(float64 volume) {

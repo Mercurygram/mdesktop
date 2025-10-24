@@ -58,6 +58,8 @@ public:
 	void move(int left, int bottom, int width, int availableHeight);
 	void raise();
 
+	[[nodiscard]] rpl::producer<> hiddenShowRequested() const;
+
 	[[nodiscard]] rpl::lifetime &lifetime();
 
 private:
@@ -76,6 +78,7 @@ private:
 	void setupList(
 		rpl::producer<std::vector<Message>> messages,
 		rpl::producer<bool> shown);
+	void showList(const std::vector<Message> &list);
 	void handleIdUpdates(rpl::producer<MessageIdUpdate> idUpdates);
 	void toggleMessage(MessageView &entry, bool shown);
 	void setContentFailed(MessageView &entry);
@@ -89,6 +92,8 @@ private:
 	bool updatePinnedWidth(PinnedView &entry);
 	void animateMessageSent(MessageView &entry);
 	void repaintMessage(MsgId id);
+	void highlightMessage(MsgId id);
+	void startHighlight(MsgId id);
 	void recountHeights(std::vector<MessageView>::iterator i, int top);
 	void appendMessage(const Message &data);
 	void checkReactionContent(
@@ -120,7 +125,7 @@ private:
 	const std::shared_ptr<ChatHelpers::Show> _show;
 	const MessagesMode _mode;
 	std::unique_ptr<Ui::ElasticScroll> _scroll;
-	Ui::Animations::Simple _scrollToBottomAnimation;
+	Ui::Animations::Simple _scrollToAnimation;
 	Ui::RpWidget *_messages = nullptr;
 	QImage _canvas;
 
@@ -129,9 +134,14 @@ private:
 	QImage _pinnedCanvas;
 	int _pinnedScrollSkip = 0;
 
+	rpl::event_stream<> _hiddenShowRequested;
+	std::optional<std::vector<Message>> _hidden;
 	std::vector<MessageView> _views;
 	style::complex_color _messageBg;
 	Ui::RoundRect _messageBgRect;
+	MsgId _delayedHighlightId = 0;
+	MsgId _highlightId = 0;
+	Ui::Animations::Simple _highlightAnimation;
 
 	std::vector<PinnedView> _pinnedViews;
 	base::flat_map<uint64, std::unique_ptr<PayedBg>> _bgs;

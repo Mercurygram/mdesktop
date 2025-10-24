@@ -1760,7 +1760,8 @@ void Controller::setCommentsShownToggles(rpl::producer<> toggles) {
 	});
 	_commentsState = rpl::merge(
 		std::move(fromButton),
-		std::move(fromUnread));
+		std::move(fromUnread),
+		_commentsStateShowFromPinned.events());
 }
 
 auto Controller::starsReactionsValue() const
@@ -1898,7 +1899,14 @@ void Controller::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
 			}
 		}
 		_commentsHasUnread = has;
-	}, _lifetime);
+	}, _videoStreamLifetime);
+
+	videoStream->messages()->hiddenShowRequested(
+	) | rpl::map_to(
+		CommentsState::Shown
+	) | rpl::start_to_stream(
+		_commentsStateShowFromPinned,
+		_videoStreamLifetime);
 
 	_starsReactions = rpl::single(rpl::empty) | rpl::then(
 		videoStream->messages()->starsValueChanges()

@@ -52,7 +52,7 @@ namespace Calls::Group {
 namespace {
 
 constexpr auto kMessageBgOpacity = 0.8;
-constexpr auto kColoredMessageBgOpacity = 0.8;
+constexpr auto kColoredMessageBgOpacity = 0.65;
 
 [[nodiscard]] int CountMessageRadius() {
 	const auto minHeight = st::groupCallMessagePadding.top()
@@ -238,59 +238,79 @@ void MessagesUi::setupList(
 		std::move(messages),
 		std::move(shown)
 	) | rpl::start_with_next([=](std::vector<Message> &&list, bool shown) {
-		if (!shown) {
-			list.clear();
+		if (shown) {
+			_hidden = std::nullopt;
+		} else {
+			_hidden = base::take(list);
 		}
-		const auto now = base::unixtime::now();
-		auto from = begin(list);
-		auto till = end(list);
-		for (auto &entry : _views) {
-			if (entry.removed) {
-				continue;
-			}
-			const auto id = entry.id;
-			const auto i = ranges::find(
-				from,
-				till,
-				id,
-				&Message::id);
-			if (i == till) {
-				toggleMessage(entry, false);
-				continue;
-			} else if (entry.failed != i->failed) {
-				setContentFailed(entry);
-				updateMessageSize(entry);
-				repaintMessage(entry.id);
-			} else if (entry.sending != (i->date == 0)) {
-				animateMessageSent(entry);
-			}
-			if (i == from) {
-				appendPinned(*i, now);
-				++from;
-			}
-		}
-		auto addedSendingToBottom = false;
-		for (auto i = from; i != till; ++i) {
-			if (!ranges::contains(_views, i->id, &MessageView::id)) {
-				if (i + 1 == till && !i->date) {
-					addedSendingToBottom = true;
-				}
-				appendMessage(*i);
-				appendPinned(*i, now);
-			}
-		}
-		if (addedSendingToBottom) {
-			const auto from = _scroll->scrollTop();
-			const auto till = _scroll->scrollTopMax();
-			if (from >= till) {
-				return;
-			}
-			_scrollToBottomAnimation.start([=] {
-				_scroll->scrollToY(_scroll->scrollTopMax()
-					- _scrollToBottomAnimation.value(0));
-			}, till - from, 0, st::slideDuration, anim::easeOutCirc);
-		}
+		showList(list);
 	}, _lifetime);
+}
+
+void MessagesUi::showList(const std::vector<Message> &list) {
+	const auto now = base::unixtime::now();
+	auto from = begin(list);
+	auto till = end(list);
+	for (auto &entry : _views) {
+		if (entry.removed) {
+			continue;
+		}
+		const auto id = entry.id;
+		const auto i = ranges::find(
+			from,
+			till,
+			id,
+			&Message::id);
+		if (i == till) {
+			toggleMessage(entry, false);
+			continue;
+		} else if (entry.failed != i->failed) {
+			setContentFailed(entry);
+			updateMessageSize(entry);
+			repaintMessage(entry.id);
+		} else if (entry.sending != (i->date == 0)) {
+			animateMessageSent(entry);
+		}
+		if (i == from) {
+			appendPinned(*i, now);
+			++from;
+		}
+	}
+	auto addedSendingToBottom = false;
+	for (auto i = from; i != till; ++i) {
+		const auto j = ranges::find(_views, i->id, &MessageView::id);
+		if (j != end(_views)) {
+			if (!j->removed) {
+				continue;
+			}
+			if (j->failed != i->failed) {
+				setContentFailed(*j);
+				updateMessageSize(*j);
+				repaintMessage(j->id);
+			} else if (j->sending != (i->date == 0)) {
+				animateMessageSent(*j);
+			}
+			toggleMessage(*j, true);
+		} else {
+			if (i + 1 == till && !i->date) {
+				addedSendingToBottom = true;
+			}
+			appendMessage(*i);
+			appendPinned(*i, now);
+		}
+	}
+	if (addedSendingToBottom) {
+		const auto from = _scroll->scrollTop();
+		const auto till = _scroll->scrollTopMax();
+		if (from >= till) {
+			return;
+		}
+		_scrollToAnimation.stop();
+		_scrollToAnimation.start([=] {
+			_scroll->scrollToY(_scroll->scrollTopMax()
+				- _scrollToAnimation.value(0));
+		}, till - from, 0, st::slideDuration, anim::easeOutCirc);
+	}
 }
 
 void MessagesUi::handleIdUpdates(rpl::producer<MessageIdUpdate> idUpdates) {
@@ -494,6 +514,9 @@ void MessagesUi::repaintMessage(MsgId id) {
 	if (!i->sending && !i->sentAnimation.animating()) {
 		i->sendingAnimation = nullptr;
 	}
+	if (!i->toggleAnimation.animating() && id == _delayedHighlightId) {
+		highlightMessage(base::take(_delayedHighlightId));
+	}
 	if (i->toggleAnimation.animating() || i->height != i->realHeight) {
 		if (updateMessageHeight(*i)) {
 			recountHeights(i, i->top);
@@ -513,6 +536,7 @@ void MessagesUi::recountHeights(
 		updateReactionPosition(*i);
 	}
 	if (_views.empty()) {
+		_scrollToAnimation.stop();
 		delete base::take(_messages);
 		_scroll = nullptr;
 	} else {
@@ -966,6 +990,17 @@ void MessagesUi::setupMessagesWidget() {
 				p.setOpacity(kColoredMessageBgOpacity);
 				bg->rounded.paint(p, { x, y, width, use });
 				p.setOpacity(1.);
+				if (_highlightAnimation.animating()
+					&& entry.id == _highlightId) {
+					const auto radius = CountMessageRadius();
+					const auto progress = _highlightAnimation.value(3.);
+					p.setBrush(st::white);
+					p.setOpacity(
+						std::min((1.5 - std::abs(1.5 - progress)), 1.));
+					auto hq = PainterHighQualityEnabler(p);
+					p.drawRoundedRect(x, y, width, use, radius, radius);
+					p.setOpacity(1.);
+				}
 			}
 
 			auto leftSkip = padding.left();
@@ -1276,7 +1311,11 @@ void MessagesUi::setupPinnedWidget() {
 		if (type == QEvent::MouseButtonPress) {
 			const auto pos = static_cast<QMouseEvent*>(e.get())->pos();
 			if (const auto id = find(pos)) {
-
+				if (_hidden) {
+					showList(*base::take(_hidden));
+					_hiddenShowRequested.fire({});
+				}
+				highlightMessage(id);
 			}
 		} else if (type == QEvent::MouseMove) {
 			const auto pos = static_cast<QMouseEvent*>(e.get())->pos();
@@ -1288,6 +1327,49 @@ void MessagesUi::setupPinnedWidget() {
 
 	scroll->show();
 	applyGeometry();
+}
+
+void MessagesUi::highlightMessage(MsgId id) {
+	if (!_scroll) {
+		return;
+	}
+	const auto i = ranges::find(_views, id, &MessageView::id);
+	if (i == end(_views) || i->top < 0) {
+		return;
+	} else if (i->toggleAnimation.animating()) {
+		_delayedHighlightId = id;
+		return;
+	}
+	_delayedHighlightId = 0;
+	const auto top = std::clamp(
+		i->top - ((_scroll->height() - i->realHeight) / 2),
+		0,
+		i->top);
+	const auto to = top - i->top;
+	const auto from = _scroll->scrollTop() - i->top;
+	if (from == to) {
+		startHighlight(id);
+		return;
+	}
+	_scrollToAnimation.stop();
+	_scrollToAnimation.start([=] {
+		const auto i = ranges::find(_views, id, &MessageView::id);
+		if (i == end(_views)) {
+			_scrollToAnimation.stop();
+			return;
+		}
+		_scroll->scrollToY(i->top + _scrollToAnimation.value(to));
+		if (!_scrollToAnimation.animating()) {
+			startHighlight(id);
+		}
+	}, from, to, st::slideDuration, anim::easeOutCirc);
+}
+
+void MessagesUi::startHighlight(MsgId id) {
+	_highlightId = id;
+	_highlightAnimation.start([=] {
+		repaintMessage(id);
+	}, 0., 3., 1000);
 }
 
 void MessagesUi::applyGeometry() {
@@ -1406,6 +1488,10 @@ void MessagesUi::raise() {
 			widget->raise();
 		}
 	}
+}
+
+rpl::producer<> MessagesUi::hiddenShowRequested() const {
+	return _hiddenShowRequested.events();
 }
 
 rpl::lifetime &MessagesUi::lifetime() {

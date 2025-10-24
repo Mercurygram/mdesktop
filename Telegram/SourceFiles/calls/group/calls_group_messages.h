@@ -98,6 +98,13 @@ public:
 		return _paid.top;
 	}
 
+	void requestHiddenShow() {
+		_hiddenShowRequests.fire({});
+	}
+	[[nodiscard]] rpl::producer<> hiddenShowRequested() const {
+		return _hiddenShowRequests.events();
+	}
+
 private:
 	struct Pending {
 		TextWithTags text;
@@ -159,6 +166,8 @@ private:
 
 	TimeId _ttl = 0;
 	bool _changesScheduled = false;
+
+	rpl::event_stream<> _hiddenShowRequests;
 
 	rpl::lifetime _lifetime;
 
