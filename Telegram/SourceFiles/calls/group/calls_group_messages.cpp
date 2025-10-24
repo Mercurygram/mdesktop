@@ -344,7 +344,17 @@ void Messages::checkDestroying(bool afterChanges) {
 	if (_call->videoStream()) {
 		if (initial > kMaxShownVideoStreamMessages) {
 			const auto remove = initial - kMaxShownVideoStreamMessages;
-			_messages.erase(begin(_messages), begin(_messages) + remove);
+			auto i = begin(_messages);
+			for (auto k = 0; k != remove; ++k) {
+				if (i->date && i->pinFinishDate <= now) {
+					i = _messages.erase(i);
+				} else if (!next || next > i->pinFinishDate - now) {
+					next = i->pinFinishDate - now;
+					++i;
+				} else {
+					++i;
+				}
+			}
 		}
 	} else for (auto i = begin(_messages); i != end(_messages);) {
 		const auto date = i->date;
