@@ -61,6 +61,13 @@ constexpr auto kColoredMessageBgOpacity = 0.8;
 	return minHeight / 2;
 }
 
+[[nodiscard]] int CountPinnedRadius() {
+	const auto height = st::groupCallUserpicPadding.top()
+		+ st::groupCallPinnedUserpic
+		+ st::groupCallUserpicPadding.bottom();
+	return height / 2;
+}
+
 [[nodiscard]] uint64 ColoringKey(const Ui::StarsColoring &value) {
 	return (uint64(uint32(value.bg1)) << 32) | uint64(uint32(value.bg2));
 }
@@ -194,8 +201,9 @@ struct MessagesUi::PinnedView {
 MessagesUi::PayedBg::PayedBg(const Ui::StarsColoring &coloring)
 : color1(Ui::ColorFromSerialized(coloring.bg1))
 , color2(Ui::ColorFromSerialized(coloring.bg2))
-, rounded1(CountMessageRadius(), color1.color())
-, rounded2(CountMessageRadius(), color2.color()) {
+, rounded1(CountPinnedRadius(), color1.color())
+, rounded2(CountPinnedRadius(), color2.color())
+, rounded(CountMessageRadius(), color2.color()) {
 }
 
 MessagesUi::MessagesUi(
@@ -359,10 +367,10 @@ bool MessagesUi::updateMessageHeight(MessageView &entry) {
 }
 
 void MessagesUi::updatePinnedSize(PinnedView &entry) {
-	const auto &padding = st::groupCallMessagePadding;
+	const auto &padding = st::groupCallPinnedPadding;
 
 	const auto userpicPadding = st::groupCallUserpicPadding;
-	const auto userpicSize = st::groupCallUserpic;
+	const auto userpicSize = st::groupCallPinnedUserpic;
 	const auto leftSkip = userpicPadding.left()
 		+ userpicSize
 		+ userpicPadding.right();
@@ -370,13 +378,9 @@ void MessagesUi::updatePinnedSize(PinnedView &entry) {
 		entry.text.maxWidth(),
 		st::groupCallPinnedMaxWidth);
 
-	const auto textHeight = st::messageTextStyle.font->height;
-	const auto userpicHeight = userpicPadding.top()
+	entry.height = userpicPadding.top()
 		+ userpicSize
 		+ userpicPadding.bottom();
-	entry.height = std::max(
-		padding.top() + textHeight + padding.bottom(),
-		userpicHeight);
 	entry.top = 0;
 
 	const auto skip = st::groupCallMessageSkip;
@@ -960,7 +964,7 @@ void MessagesUi::setupMessagesWidget() {
 					bg = std::make_unique<PayedBg>(coloring);
 				}
 				p.setOpacity(kColoredMessageBgOpacity);
-				bg->rounded2.paint(p, { x, y, width, use });
+				bg->rounded.paint(p, { x, y, width, use });
 				p.setOpacity(1.);
 			}
 
@@ -1148,7 +1152,7 @@ void MessagesUi::setupPinnedWidget() {
 		p.setCompositionMode(QPainter::CompositionMode_SourceOver);
 		const auto now = crl::now();
 		const auto skip = st::groupCallMessageSkip;
-		const auto padding = st::groupCallMessagePadding;
+		const auto padding = st::groupCallPinnedPadding;
 		p.translate(-start, 0);
 		for (auto &entry : _pinnedViews) {
 			if (entry.width <= skip || entry.left + entry.width <= start) {
@@ -1191,7 +1195,7 @@ void MessagesUi::setupPinnedWidget() {
 			}
 			p.setClipping(false);
 
-			const auto userpicSize = st::groupCallUserpic;
+			const auto userpicSize = st::groupCallPinnedUserpic;
 			const auto userpicPadding = st::groupCallUserpicPadding;
 			const auto position = QPoint(
 				x + userpicPadding.left(),

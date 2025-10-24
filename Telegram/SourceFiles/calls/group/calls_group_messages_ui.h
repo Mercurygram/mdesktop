@@ -70,6 +70,7 @@ private:
 		style::owned_color color2;
 		Ui::RoundRect rounded1;
 		Ui::RoundRect rounded2;
+		Ui::RoundRect rounded;
 	};
 
 	void setupList(
