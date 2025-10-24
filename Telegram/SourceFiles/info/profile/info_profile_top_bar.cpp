@@ -98,6 +98,36 @@ constexpr auto kStoryOutlineFadeRange = 1. - kStoryOutlineFadeEnd;
 
 using AnimatedPatternPoint = TopBar::AnimatedPatternPoint;
 
+[[nodiscard]] QColor AdaptProfilePatternColor(const QColor &color) {
+	const auto adaptHSV = [](
+			const QColor &color,
+			float hueShift,
+			float saturationShift) {
+		const auto hsv = color.toHsv();
+
+		auto h = hsv.hueF() + hueShift;
+		const auto s = qBound(0.0, hsv.saturationF() + saturationShift, 1.0);
+
+		if (h >= 1.0) {
+			h -= 1.0;
+		}
+		if (h < 0.0) {
+			h += 1.0;
+		}
+
+		return QColor::fromHsvF(h, s, hsv.valueF(), hsv.alphaF());
+	};
+	const auto computePerceivedBrightness = [](
+			const QColor &color) {
+		const auto r = color.redF();
+		const auto g = color.greenF();
+		const auto b = color.blueF();
+		return 0.299 * r + 0.587 * g + 0.114 * b;
+	};
+	const bool isDark = computePerceivedBrightness(color) < 0.2;
+	return adaptHSV(color, 0.5, isDark ? 0.28 : -0.28);
+}
+
 [[nodiscard]] std::vector<AnimatedPatternPoint> GenerateAnimatedPattern(
 		const QRect &userpicRect) {
 	auto points = std::vector<TopBar::AnimatedPatternPoint>();
@@ -391,17 +421,21 @@ void TopBar::updateCollectibleStatus() {
 	_cachedGradient = QImage();
 	_basePatternImage = QImage();
 	_lastUserpicRect = QRect();
-	_patternEmojis.clear();
-	if (collectible && collectible->patternDocumentId) {
-		const auto document = _peer->owner().document(
-			collectible->patternDocumentId);
+	const auto patternEmojiId = collectible && collectible->patternDocumentId
+		? collectible->patternDocumentId
+		: _peer->profileBackgroundEmojiId();
+	if (patternEmojiId) {
+		const auto document = _peer->owner().document(patternEmojiId);
 		_patternEmoji = document->owner().customEmojiManager().create(
 			document,
 			[=] { update(); },
 			Data::CustomEmojiSizeTag::Large);
-		setupAnimatedPattern();
 	} else {
 		_patternEmoji = nullptr;
+	}
+	if (collectible) {
+		setupAnimatedPattern();
+	} else {
 		_animatedPoints.clear();
 		_pinnedToTopGifts.clear();
 	}
@@ -1144,10 +1178,9 @@ void TopBar::paintEvent(QPaintEvent *e) {
 		} else {
 			p.drawImage(x, y, _cachedGradient);
 		}
-
-		if (_patternEmoji && _patternEmoji->ready()) {
-			paintAnimatedPattern(p, rect(), geometry);
-		}
+	}
+	if (_patternEmoji && _patternEmoji->ready()) {
+		paintAnimatedPattern(p, rect(), geometry);
 	}
 	paintPinnedToTopGifts(p, rect(), geometry);
 	paintUserpic(p, geometry);
@@ -1422,9 +1455,8 @@ void TopBar::paintAnimatedPattern(
 
 	if (_basePatternImage.isNull()) {
 		const auto collectible = _peer->emojiStatusId().collectible;
-		if (!collectible) {
-			return;
-		}
+		const auto colorProfile
+			= _peer->session().api().peerColors().colorProfileFor(_peer);
 		const auto ratio = style::DevicePixelRatio();
 		const auto scale = 0.75;
 		const auto size = Ui::Emoji::GetSizeNormal() * scale;
@@ -1437,7 +1469,14 @@ void TopBar::paintAnimatedPattern(
 		auto hq = PainterHighQualityEnabler(painter);
 		painter.scale(scale, scale);
 		_patternEmoji->paint(painter, {
-			.textColor = collectible->patternColor,
+			.textColor = collectible
+				? collectible->patternColor
+				// : colorProfile && !colorProfile->palette.empty()
+				// ? AdaptProfilePatternColor(colorProfile->palette.front())
+				: Ui::BlendColors(
+					_edgeColor.current().value_or(QColor()),
+					Qt::white,
+					0.5),
 		});
 	}
 

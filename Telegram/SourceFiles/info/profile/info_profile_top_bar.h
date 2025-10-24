@@ -212,7 +212,6 @@ private:
 	QPainterPath _cachedClipPath;
 	std::unique_ptr<Ui::Text::CustomEmoji> _patternEmoji;
 	QImage _basePatternImage;
-	base::flat_map<float64, QImage> _patternEmojis;
 
 	std::vector<AnimatedPatternPoint> _animatedPoints;
 	QRect _lastUserpicRect;
