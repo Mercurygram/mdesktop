@@ -64,10 +64,12 @@ private:
 	struct MessageView;
 	struct PinnedView;
 	struct PayedBg {
-		PayedBg(const Ui::StarsColoring &coloring);
+		explicit PayedBg(const Ui::StarsColoring &coloring);
 
-		style::owned_color color;
-		Ui::RoundRect rounded;
+		style::owned_color color1;
+		style::owned_color color2;
+		Ui::RoundRect rounded1;
+		Ui::RoundRect rounded2;
 	};
 
 	void setupList(
@@ -99,7 +101,7 @@ private:
 	void togglePinned(PinnedView &entry, bool shown);
 	void repaintPinned(MsgId id);
 	void recountWidths(std::vector<PinnedView>::iterator i, int left);
-	void appendPinned(const Message &data);
+	void appendPinned(const Message &data, TimeId now);
 	void setupPinnedWidget();
 
 	void applyGeometry();

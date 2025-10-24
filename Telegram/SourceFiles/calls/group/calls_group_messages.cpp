@@ -50,6 +50,17 @@ constexpr auto kMaxShownVideoStreamMessages = 100;
 	return result;
 }
 
+[[nodiscard]] TimeId PinFinishDate(TimeId date, int stars) {
+	if (!date || !stars) {
+		return 0;
+	}
+	return date + (Ui::StarsColoringForCount(stars).minutesPin * TimeId(60));
+}
+
+[[nodiscard]] TimeId PinFinishDate(const Message &message) {
+	return PinFinishDate(message.date, message.stars);
+}
+
 [[nodiscard]] std::optional<PeerId> MaybeShownPeer(
 		uint32 privacySet,
 		PeerId shownPeer) {
@@ -250,6 +261,7 @@ void Messages::sent(uint64 randomId, const MTP::Response &response) {
 	const auto i = ranges::find(_messages, realId, &Message::id);
 	if (i != end(_messages) && !i->date) {
 		i->date = Api::UnixtimeFromMsgId(response.outerMsgId);
+		i->pinFinishDate = PinFinishDate(*i);
 		checkDestroying(true);
 	}
 }
@@ -271,6 +283,7 @@ void Messages::sent(uint64 randomId, MsgId realId) {
 		const auto i = ranges::find(_messages, realId, &Message::id);
 		if (i != end(_messages) && !i->date) {
 			i->date = base::unixtime::now();
+			i->pinFinishDate = PinFinishDate(*i);
 			checkDestroying(true);
 		}
 	});
@@ -292,6 +305,7 @@ void Messages::received(
 		const auto me2 = _call->messagesFrom()->id;
 		if (((fromId == me1) || (fromId == me2)) && !i->date) {
 			i->date = date;
+			i->pinFinishDate = PinFinishDate(*i);
 			checkDestroying(true);
 		}
 		return;
@@ -312,6 +326,7 @@ void Messages::received(
 	_messages.push_back({
 		.id = id,
 		.date = date,
+		.pinFinishDate = PinFinishDate(date, stars),
 		.peer = peer->owner().peer(peerFromMTP(from)),
 		.text = Ui::Text::Filtered(
 			Api::ParseTextWithEntities(&peer->session(), message),
@@ -407,6 +422,7 @@ void Messages::failed(uint64 randomId, const MTP::Response &response) {
 	const auto j = ranges::find(_messages, localId, &Message::id);
 	if (j != end(_messages) && !j->date) {
 		j->date = Api::UnixtimeFromMsgId(response.outerMsgId);
+		j->stars = 0;
 		j->failed = true;
 		checkDestroying(true);
 	}

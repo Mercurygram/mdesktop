@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "calls/group/calls_group_messages_ui.h"
 
+#include "base/unixtime.h"
 #include "boxes/peers/prepare_short_info_box.h"
 #include "boxes/premium_preview_box.h"
 #include "calls/group/ui/calls_group_stars_coloring.h"
@@ -178,6 +179,8 @@ struct MessagesUi::PinnedView {
 	Ui::Animations::Simple toggleAnimation;
 	Ui::PeerUserpicView view;
 	Ui::Text::String text;
+	crl::time duration = 0;
+	crl::time end = 0;
 	int stars = 0;
 	int top = 0;
 	int width = 0;
@@ -185,11 +188,14 @@ struct MessagesUi::PinnedView {
 	int height = 0;
 	int realWidth = 0;
 	bool removed = false;
+	bool requiresSmooth = false;
 };
 
 MessagesUi::PayedBg::PayedBg(const Ui::StarsColoring &coloring)
-: color(Ui::ColorFromSerialized(coloring.bg2))
-, rounded(CountMessageRadius(), color.color()) {
+: color1(Ui::ColorFromSerialized(coloring.bg1))
+, color2(Ui::ColorFromSerialized(coloring.bg2))
+, rounded1(CountMessageRadius(), color1.color())
+, rounded2(CountMessageRadius(), color2.color()) {
 }
 
 MessagesUi::MessagesUi(
@@ -227,6 +233,7 @@ void MessagesUi::setupList(
 		if (!shown) {
 			list.clear();
 		}
+		const auto now = base::unixtime::now();
 		auto from = begin(list);
 		auto till = end(list);
 		for (auto &entry : _views) {
@@ -250,14 +257,7 @@ void MessagesUi::setupList(
 				animateMessageSent(entry);
 			}
 			if (i == from) {
-				if (i->stars
-					&& i->date
-					&& !ranges::contains(
-						_pinnedViews,
-						i->id,
-						&PinnedView::id)) {
-					appendPinned(*i);
-				}
+				appendPinned(*i, now);
 				++from;
 			}
 		}
@@ -268,9 +268,7 @@ void MessagesUi::setupList(
 					addedSendingToBottom = true;
 				}
 				appendMessage(*i);
-				if (i->stars && i->date) {
-					appendPinned(*i);
-				}
+				appendPinned(*i, now);
 			}
 		}
 		if (addedSendingToBottom) {
@@ -383,6 +381,9 @@ void MessagesUi::updatePinnedSize(PinnedView &entry) {
 
 	const auto skip = st::groupCallMessageSkip;
 	entry.realWidth = skip + leftSkip + inner + padding.right();
+
+	const auto ratio = style::DevicePixelRatio();
+	entry.requiresSmooth = (entry.realWidth * ratio * 1000 > entry.duration);
 }
 
 bool MessagesUi::updatePinnedWidth(PinnedView &entry) {
@@ -619,8 +620,16 @@ void MessagesUi::recountWidths(
 	}
 }
 
-void MessagesUi::appendPinned(const Message &data) {
-	if (!_pinnedScroll) {
+void MessagesUi::appendPinned(const Message &data, TimeId now) {
+	if (!data.date
+		|| data.pinFinishDate <= data.date
+		|| data.pinFinishDate <= now
+		|| ranges::contains(
+			_pinnedViews,
+			data.id,
+			&PinnedView::id)) {
+		return;
+	} else if (!_pinnedScroll) {
 		setupPinnedWidget();
 	}
 
@@ -631,10 +640,16 @@ void MessagesUi::appendPinned(const Message &data) {
 		data.stars,
 		ranges::greater(),
 		&PinnedView::stars);
-	const auto left = (i == end(_pinnedViews)) ? 0 : i->left;
+	const auto left = (i != end(_pinnedViews))
+		? i->left
+		: _pinnedViews.empty()
+		? 0
+		: (_pinnedViews.back().left + _pinnedViews.back().width);
 	auto &entry = *_pinnedViews.insert(i, PinnedView{
 		.id = data.id,
 		.from = peer,
+		.duration = (data.pinFinishDate - data.date) * crl::time(1000),
+		.end = crl::now() + (data.pinFinishDate - now) * crl::time(1000),
 		.stars = data.stars,
 		.left = left,
 	});
@@ -945,7 +960,7 @@ void MessagesUi::setupMessagesWidget() {
 					bg = std::make_unique<PayedBg>(coloring);
 				}
 				p.setOpacity(kColoredMessageBgOpacity);
-				bg->rounded.paint(p, { x, y, width, use });
+				bg->rounded2.paint(p, { x, y, width, use });
 				p.setOpacity(1.);
 			}
 
@@ -1077,6 +1092,42 @@ void MessagesUi::setupPinnedWidget() {
 		updateRightFade();
 	}, scroll->lifetime());
 
+	struct Animation {
+		base::Timer seconds;
+		Ui::Animations::Simple smooth;
+		bool requiresSmooth = false;
+	};
+	const auto animation = _pinned->lifetime().make_state<Animation>();
+	animation->seconds.setCallback([=] {
+		const auto now = crl::now();
+		auto smooth = false;
+		auto off = base::flat_set<MsgId>();
+		for (auto &entry : _pinnedViews) {
+			if (entry.removed) {
+				continue;
+			} else if (entry.end <= now) {
+				off.emplace(entry.id);
+				entry.requiresSmooth = false;
+			} else if (entry.requiresSmooth) {
+				smooth = true;
+			}
+		}
+		if (smooth && !anim::Disabled()) {
+			animation->smooth.start([=] {
+				_pinned->update();
+			}, 0., 1., 900.);
+		} else {
+			_pinned->update();
+		}
+		for (const auto &id : off) {
+			const auto i = ranges::find(_pinnedViews, id, &PinnedView::id);
+			if (i != end(_pinnedViews)) {
+				togglePinned(*i, false);
+			}
+		}
+	});
+	animation->seconds.callEach(crl::time(1000));
+
 	_pinned->paintRequest() | rpl::start_with_next([=](QRect clip) {
 		const auto start = scroll->scrollLeft();
 		const auto end = start + scroll->width();
@@ -1127,9 +1178,18 @@ void MessagesUi::setupPinnedWidget() {
 			if (!bg) {
 				bg = std::make_unique<PayedBg>(coloring);
 			}
-			p.setOpacity(kColoredMessageBgOpacity);
-			bg->rounded.paint(p, { x, y, use, height });
-			p.setOpacity(1.);
+			const auto still = (entry.end - now) / float64(entry.duration);
+			const auto part = int(base::SafeRound(still * use));
+			const auto line = st::lineWidth;
+			if (part > 0) {
+				p.setClipRect(x - line, y, part + line, height);
+				bg->rounded1.paint(p, { x, y, use, height });
+			}
+			if (part < use) {
+				p.setClipRect(x + part, y, use - part + line, height);
+				bg->rounded2.paint(p, { x, y, use, height });
+			}
+			p.setClipping(false);
 
 			const auto userpicSize = st::groupCallUserpic;
 			const auto userpicPadding = st::groupCallUserpicPadding;
@@ -1150,15 +1210,8 @@ void MessagesUi::setupPinnedWidget() {
 
 			p.setPen(st::white);
 			entry.text.draw(p, {
-				.position = {
-					x + leftSkip,
-					y + padding.top(),
-				},
+				.position = { x + leftSkip, y + padding.top() },
 				.availableWidth = entry.width - leftSkip - padding.right(),
-				.palette = &st::groupCallMessagePalette,
-				.spoiler = Ui::Text::DefaultSpoilerCache(),
-				.now = now,
-				.paused = !_messages->window()->isActiveWindow(),
 			});
 			if (scaled) {
 				p.restore();
@@ -1231,7 +1284,6 @@ void MessagesUi::applyGeometryToPinned() {
 	auto left = 0;
 	for (auto &entry : _pinnedViews) {
 		entry.left = left;
-		updatePinnedSize(entry);
 		updatePinnedWidth(entry);
 		left += entry.width;
 

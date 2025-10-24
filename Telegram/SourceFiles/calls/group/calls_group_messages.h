@@ -33,6 +33,7 @@ namespace Calls::Group {
 struct Message {
 	MsgId id = 0;
 	TimeId date = 0;
+	TimeId pinFinishDate = 0;
 	not_null<PeerData*> peer;
 	TextWithEntities text;
 	int stars = 0;
