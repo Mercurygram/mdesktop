@@ -125,7 +125,7 @@ not_null<Calls::GroupCall*> VideoStream::call() const {
 void VideoStream::updateGeometry(int x, int y, int width, int height) {
 	const auto skip = st::groupCallMessageSkip;
 	_viewport->setGeometry(false, { x, y, width, height });
-	_messages->move(x + skip, y + height, width - 2 * skip, height);
+	_messages->move(x + skip, y + height, width - 2 * skip, height / 2);
 }
 
 void VideoStream::toggleCommentsOn(rpl::producer<bool> shown) {

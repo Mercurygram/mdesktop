@@ -51,7 +51,7 @@ namespace Calls::Group {
 namespace {
 
 constexpr auto kMessageBgOpacity = 0.8;
-constexpr auto kColoredMessageBgOpacity = 0.6;
+constexpr auto kColoredMessageBgOpacity = 0.7;
 
 [[nodiscard]] int CountMessageRadius() {
 	const auto minHeight = st::groupCallMessagePadding.top()
@@ -337,7 +337,7 @@ void MessagesUi::setContentFailed(MessageView &entry) {
 		).append(' ').append(
 			Ui::Text::Italic(u"Failed to send the message."_q)),
 		kMarkupTextOptions,
-		st::groupCallWidth / 4);
+		st::groupCallWidth / 8);
 	entry.price = Ui::Text::String();
 }
 
@@ -359,7 +359,7 @@ void MessagesUi::setContent(
 		st::messageTextStyle,
 		text,
 		kMarkupTextOptions,
-		st::groupCallWidth / 4,
+		st::groupCallWidth / 8,
 		Core::TextContext({
 			.session = &_show->session(),
 			.repaint = [this, id = entry.id] { repaintMessage(id); },
@@ -862,7 +862,7 @@ void MessagesUi::setupMessagesWidget() {
 }
 
 void MessagesUi::applyWidth() {
-	if (!_scroll || _width < st::groupCallWidth * 2 / 3) {
+	if (!_scroll) {
 		return;
 	}
 	auto top = 0;
@@ -895,6 +895,12 @@ void MessagesUi::updateGeometries() {
 }
 
 void MessagesUi::move(int left, int bottom, int width, int availableHeight) {
+	const auto min = st::groupCallWidth * 2 / 6;
+	if (width < min) {
+		const auto add = min - width;
+		width += add;
+		left -= add / 2;
+	}
 	if (_left != left
 		|| _bottom != bottom
 		|| _width != width
