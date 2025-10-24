@@ -268,14 +268,7 @@ TopBar::TopBar(
 		});
 	}
 	if (!_peer->isMegagroup()) {
-		_status->setAttribute(Qt::WA_TransparentForMouseEvents);
-		if (const auto rating = _starsRating.get()) {
-			_statusShift = rating->widthValue();
-			_statusShift.changes() | rpl::start_with_next([=] {
-				updateLabelsPosition();
-			}, _status->lifetime());
-			rating->raise();
-		}
+		setupStatusWithRating();
 	}
 
 	setupShowLastSeen(controller);
@@ -286,10 +279,6 @@ TopBar::TopBar(
 	) | rpl::start_with_next([=] {
 		_statusLabel->refresh();
 	}, lifetime());
-
-	_status->widthValue() | rpl::start_with_next([=] {
-		updateLabelsPosition();
-	}, _status->lifetime());
 
 	auto badgeUpdates = rpl::producer<rpl::empty_value>();
 	if (_badge) {
@@ -367,7 +356,6 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 		? std::optional<QColor>(st::groupCallMembersFg->c)
 		: std::nullopt);
 	{
-		const auto statusPosition = _status->pos();
 		const auto membersLinkCallback = _statusLabel->membersLinkCallback();
 		{
 			_statusLabel = nullptr;
@@ -385,8 +373,13 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 		} else {
 			_status.create(this, QString(), statusStyle());
 		}
-		_status->moveToLeft(statusPosition.x(), statusPosition.y());
 		_status->show();
+		if (!_peer->isMegagroup()) {
+			setupStatusWithRating();
+		}
+		_status->widthValue() | rpl::start_with_next([=] {
+			updateStatusPosition(_progress.current());
+		}, _status->lifetime());
 		_statusLabel = std::make_unique<StatusLabel>(_status.data(), _peer);
 		_statusLabel->setMembersLinkCallback(membersLinkCallback);
 		_status->setTextColorOverride(shouldOverrideStatus
@@ -985,10 +978,6 @@ void TopBar::updateLabelsPosition() {
 		_st.titleWithSubtitlePosition.y(),
 		st::infoProfileTopBarTitleTop,
 		progressCurrent);
-	const auto statusTop = anim::interpolate(
-		_st.subtitlePosition.y(),
-		st::infoProfileTopBarStatusTop,
-		progressCurrent);
 
 	auto titleLeft = anim::interpolate(
 		titleMostLeft(),
@@ -1010,16 +999,6 @@ void TopBar::updateLabelsPosition() {
 		titleLeft += skip * (1. - progressCurrent);
 	}
 
-	const auto statusLeft = anim::interpolate(
-		statusMostLeft(),
-		(width() - _status->width()) / 2,
-		progressCurrent);
-
-	if (const auto rating = _starsRating.get()) {
-		rating->moveTo(statusLeft - _statusShift.current(), statusTop);
-		rating->setOpacity(progressCurrent);
-	}
-
 	_title->moveToLeft(titleLeft, titleTop);
 	const auto badgeLeft = titleLeft + _title->width();
 	if (_badge) {
@@ -1030,6 +1009,37 @@ void TopBar::updateLabelsPosition() {
 			badgeLeft + (badgeWidget ? badgeWidget->width() : 0),
 			badgeTop,
 			badgeBottom);
+	}
+
+	updateStatusPosition(progressCurrent);
+
+	if (_badgeTooltip) {
+		_badgeTooltip->setOpacity(progressCurrent);
+	}
+
+	{
+		const auto userpicRect = userpicGeometry();
+		if (_userpicButton) {
+			_userpicButton->setGeometry(userpicGeometry());
+		}
+
+		updateGiftButtonsGeometry(progressCurrent, userpicRect);
+	}
+}
+
+void TopBar::updateStatusPosition(float64 progressCurrent) {
+	const auto statusTop = anim::interpolate(
+		_st.subtitlePosition.y(),
+		st::infoProfileTopBarStatusTop,
+		progressCurrent);
+	const auto statusLeft = anim::interpolate(
+		statusMostLeft(),
+		(width() - _status->width()) / 2,
+		progressCurrent);
+
+	if (const auto rating = _starsRating.get()) {
+		rating->moveTo(statusLeft - _statusShift.current(), statusTop);
+		rating->setOpacity(progressCurrent);
 	}
 
 	_status->moveToLeft(statusLeft, statusTop);
@@ -1046,19 +1056,6 @@ void TopBar::updateLabelsPosition() {
 		_showLastSeen->setAttribute(
 			Qt::WA_TransparentForMouseEvents,
 			!progressCurrent);
-	}
-
-	if (_badgeTooltip) {
-		_badgeTooltip->setOpacity(progressCurrent);
-	}
-
-	{
-		const auto userpicRect = userpicGeometry();
-		if (_userpicButton) {
-			_userpicButton->setGeometry(userpicGeometry());
-		}
-
-		updateGiftButtonsGeometry(progressCurrent, userpicRect);
 	}
 }
 
@@ -1996,6 +1993,17 @@ void TopBar::paintStoryOutline(QPainter &p, const QRect &geometry) {
 		padding + outlineWidth / 2);
 
 	Ui::PaintOutlineSegments(p, outlineRect, _storySegments);
+}
+
+void TopBar::setupStatusWithRating() {
+	_status->setAttribute(Qt::WA_TransparentForMouseEvents);
+	if (const auto rating = _starsRating.get()) {
+		_statusShift = rating->widthValue();
+		_statusShift.changes() | rpl::start_with_next([=] {
+			updateLabelsPosition();
+		}, _status->lifetime());
+		rating->raise();
+	}
 }
 
 rpl::producer<std::optional<QColor>> TopBar::edgeColor() const {

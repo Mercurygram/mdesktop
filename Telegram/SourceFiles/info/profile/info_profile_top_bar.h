@@ -172,7 +172,9 @@ private:
 	void setupStoryOutline(const QRect &geometry = QRect());
 	void updateStoryOutline(std::optional<QColor> edgeColor);
 	void paintStoryOutline(QPainter &p, const QRect &geometry);
+	void updateStatusPosition(float64 progressCurrent);
 	[[nodiscard]] const style::FlatLabel &statusStyle() const;
+	void setupStatusWithRating();
 
 	const not_null<PeerData*> _peer;
 	Data::ForumTopic *_topic = nullptr;
