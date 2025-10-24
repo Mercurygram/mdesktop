@@ -541,7 +541,11 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 					}
 				}) | rpl::to_empty,
 				makeThread,
-				controller->uiShow());
+				controller->uiShow(),
+				[=, skip = st::infoProfileTopBarActionMenuSkip] {
+					return notifications->mapToGlobal(
+						QPoint(0, notifications->height() + skip));
+				});
 		buttons.push_back(notifications);
 		_actions->add(notifications);
 		_edgeColor.value() | rpl::start_with_next([=](
