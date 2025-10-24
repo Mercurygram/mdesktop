@@ -28,6 +28,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Calls::Group {
 namespace {
 
+constexpr auto kMaxShownVideoStreamMessages = 100;
+
 [[nodiscard]] StarsTop ParseStarsTop(
 		not_null<Data::Session*> owner,
 		const MTPphone_GroupCallStars &stars) {
@@ -323,12 +325,18 @@ void Messages::received(
 void Messages::checkDestroying(bool afterChanges) {
 	auto next = TimeId();
 	const auto now = base::unixtime::now();
-	const auto initial = _messages.size();
-	for (auto i = begin(_messages); i != end(_messages);) {
+	const auto initial = int(_messages.size());
+	if (_call->videoStream()) {
+		if (initial > kMaxShownVideoStreamMessages) {
+			const auto remove = initial - kMaxShownVideoStreamMessages;
+			_messages.erase(begin(_messages), begin(_messages) + remove);
+		}
+	} else for (auto i = begin(_messages); i != end(_messages);) {
 		const auto date = i->date;
-		const auto ttl = i->stars
-			? (Ui::StarsColoringForCount(i->stars).minutesPin * 60)
-			: _ttl;
+		//const auto ttl = i->stars
+		//	? (Ui::StarsColoringForCount(i->stars).minutesPin * 60)
+		//	: _ttl;
+		const auto ttl = _ttl;
 		if (!date) {
 			if (i->id < 0) {
 				++i;
