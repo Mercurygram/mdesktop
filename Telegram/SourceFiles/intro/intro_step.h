@@ -94,6 +94,7 @@ public:
 	[[nodiscard]] virtual rpl::producer<QString> nextButtonText() const;
 	[[nodiscard]] virtual auto nextButtonStyle() const
 		-> rpl::producer<const style::RoundButton*>;
+	[[nodiscard]] virtual rpl::producer<> nextButtonFocusRequests() const;
 
 	[[nodiscard]] int contentLeft() const;
 	[[nodiscard]] int contentTop() const;
