@@ -293,7 +293,12 @@ TopBar::TopBar(
 		descriptor.source);
 	setupUserpicButton(controller);
 	if (_hasActions) {
-		setupActions(controller);
+		_peer->session().changes().peerFlagsValue(
+			_peer,
+			Data::PeerUpdate::Flag::FullInfo
+		) | rpl::start_with_next([=] {
+			setupActions(controller);
+		}, lifetime());
 	}
 	setupStoryOutline();
 	if (_topic) {
