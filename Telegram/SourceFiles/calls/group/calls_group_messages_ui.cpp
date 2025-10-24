@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "boxes/peers/prepare_short_info_box.h"
 #include "boxes/premium_preview_box.h"
+#include "calls/group/ui/calls_group_stars_coloring.h"
 #include "calls/group/calls_group_messages.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "chat_helpers/emoji_suggestions_widget.h"
@@ -33,6 +34,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/elastic_scroll.h"
+#include "ui/color_int_conversion.h"
 #include "ui/painter.h"
 #include "ui/ui_utility.h"
 #include "ui/userpic_view.h"
@@ -49,12 +51,17 @@ namespace Calls::Group {
 namespace {
 
 constexpr auto kMessageBgOpacity = 0.8;
+constexpr auto kColoredMessageBgOpacity = 0.6;
 
 [[nodiscard]] int CountMessageRadius() {
 	const auto minHeight = st::groupCallMessagePadding.top()
 		+ st::messageTextStyle.font->height
 		+ st::groupCallMessagePadding.bottom();
 	return minHeight / 2;
+}
+
+[[nodiscard]] uint64 ColoringKey(const Ui::StarsColoring &value) {
+	return (uint64(uint32(value.bg1)) << 32) | uint64(uint32(value.bg2));
 }
 
 void ReceiveSomeMouseEvents(
@@ -165,6 +172,11 @@ struct MessagesUi::MessageView {
 	bool failed = false;
 };
 
+MessagesUi::PayedBg::PayedBg(const Ui::StarsColoring &coloring)
+: color(Ui::ColorFromSerialized(coloring.bg2))
+, rounded(CountMessageRadius(), color.color()) {
+}
+
 MessagesUi::MessagesUi(
 	not_null<QWidget*> parent,
 	std::shared_ptr<ChatHelpers::Show> show,
@@ -181,7 +193,6 @@ MessagesUi::MessagesUi(
 	return result;
 })
 , _messageBgRect(CountMessageRadius(), _messageBg.color())
-, _payedBgRect(CountMessageRadius(), st::creditsBg3)
 , _fadeHeight(st::normalFont->height)
 , _streamMode(_mode == MessagesMode::VideoStream) {
 	setupList(std::move(messages), std::move(shown));
@@ -732,7 +743,14 @@ void MessagesUi::setupMessagesWidget() {
 			if (!_streamMode) {
 				_messageBgRect.paint(p, { x, y, width, use });
 			} else if (entry.stars) {
-				_payedBgRect.paint(p, { x, y, width, use });
+				const auto coloring = Ui::StarsColoringForCount(entry.stars);
+				auto &bg = _bgs[ColoringKey(coloring)];
+				if (!bg) {
+					bg = std::make_unique<PayedBg>(coloring);
+				}
+				p.setOpacity(kColoredMessageBgOpacity);
+				bg->rounded.paint(p, { x, y, width, use });
+				p.setOpacity(1.);
 			}
 
 			auto leftSkip = padding.left();

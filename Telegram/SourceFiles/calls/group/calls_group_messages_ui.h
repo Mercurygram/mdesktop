@@ -29,6 +29,11 @@ class SendButton;
 class RpWidget;
 } // namespace Ui
 
+namespace Calls::Group::Ui {
+using namespace ::Ui;
+struct StarsColoring;
+} // namespace Calls::Group::Ui
+
 namespace Calls::Group {
 
 struct Message;
@@ -57,6 +62,12 @@ public:
 
 private:
 	struct MessageView;
+	struct PayedBg {
+		PayedBg(const Ui::StarsColoring &coloring);
+
+		style::owned_color color;
+		Ui::RoundRect rounded;
+	};
 
 	void setupList(
 		rpl::producer<std::vector<Message>> messages,
@@ -98,7 +109,7 @@ private:
 	style::complex_color _messageBg;
 	Ui::RoundRect _messageBgRect;
 
-	Ui::RoundRect _payedBgRect;
+	base::flat_map<uint64, std::unique_ptr<PayedBg>> _bgs;
 
 	QPoint _reactionBasePosition;
 	rpl::lifetime _effectsLifetime;

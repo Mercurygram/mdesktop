@@ -70,14 +70,56 @@ namespace {
 } // namespace
 
 StarsColoring StarsColoringForCount(int stars) {
+    //name: "Purple" [STRING],
+    //center_color: 11431086 [INT],
+    //edge_color: 8669060 [INT],
+    //pattern_color: 4656199 [INT],
+    //text_color: 15977459 [INT],
+
+    //name: "Celtic Blue" [STRING],
+    //center_color: 4569325 [INT],
+    //edge_color: 3704537 [INT],
+    //pattern_color: 16005 [INT],
+    //text_color: 12773375 [INT],
+
+    //name: "Mint Green" [STRING],
+    //center_color: 8309634 [INT],
+    //edge_color: 4562522 [INT],
+    //pattern_color: 158498 [INT],
+    //text_color: 12451788 [INT],
+
+	//name: "Pure Gold" [STRING],
+	//center_color: 13413185 [INT],
+	//edge_color: 9993010 [INT],
+	//pattern_color: 7355392 [INT],
+	//text_color: 16770475 [INT],
+
+	//name: "Orange" [STRING],
+	//center_color: 13736506 [INT],
+	//edge_color: 12611399 [INT],
+	//pattern_color: 10303751 [INT],
+	//text_color: 16769475 [INT],
+
+	//name: "Strawberry" [STRING],
+	//center_color: 14519919 [INT],
+	//edge_color: 12016224 [INT],
+	//pattern_color: 11078668 [INT],
+	//text_color: 16765907 [INT],
+
+	//name: "Steel Grey" [STRING],
+	//center_color: 9937580 [INT],
+	//edge_color: 6517372 [INT],
+	//pattern_color: 3360082 [INT],
+	//text_color: 14673128 [INT],
+
 	const auto list = std::vector<StarsColoring>{
-		{ st::creditsBg3->c, st::creditsBg2->c, 50, 1, 60, 1 },
-		{ st::creditsBg3->c, st::creditsBg2->c, 100, 1, 80, 2 },
-		{ st::creditsBg3->c, st::creditsBg2->c, 250, 5, 110, 3 },
-		{ st::creditsBg3->c, st::creditsBg2->c, 500, 10, 150, 4 },
-		{ st::creditsBg3->c, st::creditsBg2->c, 2000, 15, 200, 7 },
-		{ st::creditsBg3->c, st::creditsBg2->c, 7500, 30, 280, 10 },
-		{ st::creditsBg3->c, st::creditsBg2->c, 0, 60, 400, 20 },
+		{ 11431086, 8669060, 50, 1, 60, 1 },
+		{ 4569325, 3704537, 100, 1, 80, 2 },
+		{ 8309634, 4562522, 250, 5, 110, 3 },
+		{ 13413185, 9993010, 500, 10, 150, 4 },
+		{ 13736506, 12611399, 2000, 15, 200, 7 },
+		{ 14519919, 12016224, 7500, 30, 280, 10 },
+		{ 9937580, 6517372, 0, 60, 400, 20 },
 	};
 	for (const auto &entry : list) {
 		if (!entry.tillStars || stars < entry.tillStars) {

@@ -22,6 +22,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/continuous_sliders.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/wrap/slide_wrap.h"
+#include "ui/color_int_conversion.h"
 #include "ui/dynamic_image.h"
 #include "ui/painter.h"
 #include "ui/vertical_list.h"
@@ -126,15 +127,23 @@ struct Discreter {
 
 void PaidReactionSlider(
 		not_null<VerticalLayout*> container,
+		const style::MediaSlider &st,
 		int current,
 		int max,
-		Fn<void(int)> changed) {
+		Fn<void(int)> changed,
+		Fn<QColor(int)> activeFgOverride = nullptr) {
 	Expects(current >= 1 && current <= max);
 
 	const auto slider = container->add(
-		object_ptr<MediaSlider>(container, st::paidReactSlider),
+		object_ptr<MediaSlider>(container, st),
 		st::boxRowPadding + QMargins(0, st::paidReactSliderTop, 0, 0));
 	slider->resize(slider->width(), st::paidReactSlider.seekSize.height());
+
+	const auto update = [=](int count) {
+		if (activeFgOverride) {
+			slider->setActiveFgOverride(activeFgOverride(count));
+		}
+	};
 
 	const auto discreter = DiscreterForMax(max);
 	slider->setAlwaysDisplayMarker(true);
@@ -144,12 +153,14 @@ void PaidReactionSlider(
 		return discreter.valueToRatio(discreter.ratioToValue(ratio));
 	});
 	const auto ratioToValue = discreter.ratioToValue;
-	slider->setChangeProgressCallback([=](float64 value) {
-		changed(ratioToValue(value));
-	});
-	slider->setChangeFinishedCallback([=](float64 value) {
-		changed(ratioToValue(value));
-	});
+	const auto callback = [=](float64 value) {
+		const auto count = ratioToValue(value);
+		update(count);
+		changed(count);
+	};
+	slider->setChangeProgressCallback(callback);
+	slider->setChangeFinishedCallback(callback);
+	update(current);
 
 	struct State {
 		StarParticles particles = StarParticles(
@@ -527,7 +538,12 @@ void PaidReactionsBox(
 			.ratio = correct / full,
 		};
 	});
-	Premium::AddBubbleRow(
+	const auto activeFgOverride = [=](int count) {
+		const auto coloring = Calls::Group::Ui::StarsColoringForCount(count);
+		return Ui::ColorFromSerialized(coloring.bg2);
+	};
+
+	const auto bubble = Premium::AddBubbleRow(
 		content,
 		st::boostBubble,
 		BoxShowFinishes(box),
@@ -536,12 +552,23 @@ void PaidReactionsBox(
 		nullptr,
 		&st::paidReactBubbleIcon,
 		st::boxRowPadding);
+	if (args.videoStreamChoosing) {
+		state->chosen.value() | rpl::start_with_next([=](int count) {
+			bubble->setBrushOverride(activeFgOverride(count));
+		}, bubble->lifetime());
+	}
 
 	const auto already = ranges::find(
 		args.top,
 		true,
 		&PaidReactionTop::my)->count;
-	PaidReactionSlider(content, args.chosen, args.max, changed);
+	PaidReactionSlider(
+		content,
+		(dark ? st::darkEditStarsSlider : st::paidReactSlider),
+		args.chosen,
+		args.max,
+		changed,
+		args.videoStreamChoosing ? activeFgOverride : Fn<QColor(int)>());
 
 	box->addTopButton(
 		dark ? st::darkEditStarsClose : st::boxTitleClose,

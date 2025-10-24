@@ -436,6 +436,11 @@ paidReactSlider: MediaSlider(defaultContinuousSlider) {
 	borderFg: creditsBg3;
 	borderWidth: 2px;
 }
+darkEditStarsSlider: MediaSlider(paidReactSlider) {
+	inactiveFg: groupCallMembersBgOver;
+	inactiveFgOver: groupCallMembersBgOver;
+	inactiveFgDisabled: groupCallMembersBgOver;
+}
 paidReactTitleSkip: 23px;
 paidReactTopTitleMargin: margins(10px, 26px, 10px, 12px);
 paidReactTopMargin: margins(0px, 12px, 0px, 11px);

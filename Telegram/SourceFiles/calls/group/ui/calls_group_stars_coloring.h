@@ -16,8 +16,8 @@ namespace Calls::Group::Ui {
 using namespace ::Ui;
 
 struct StarsColoring {
-	QColor bg1;
-	QColor bg2;
+	int bg1 = 0;
+	int bg2 = 0;
 	int tillStars = 0;
 	int minutesPin = 0;
 	int charactersMax = 0;
