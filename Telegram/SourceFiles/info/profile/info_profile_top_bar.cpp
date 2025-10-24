@@ -192,7 +192,9 @@ TopBar::TopBar(
 	VerifiedContentForPeer(_peer),
 	nullptr,
 	_gifPausedChecker))
-, _hasActions(descriptor.source != Source::Stories)
+, _hasActions(descriptor.source != Source::Stories
+	&& (descriptor.controller->wrap() != Wrap::Side
+		|| !_peer->isNotificationsUser()))
 , _minForProgress([&] {
 	QWidget::setMinimumHeight(st::infoLayerTopBarHeight);
 	QWidget::setMaximumHeight(_hasActions
