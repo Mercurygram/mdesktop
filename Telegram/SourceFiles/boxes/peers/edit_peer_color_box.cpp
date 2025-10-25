@@ -2000,18 +2000,42 @@ void EditPeerColorBox(
 	const auto button = box->addButton(tr::lng_settings_color_apply(), [] {});
 	const auto content = box->verticalLayout();
 
+	auto nameOwned = object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+		content,
+		object_ptr<Ui::VerticalLayout>(content));
+	auto profileOwned = object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+		content,
+		object_ptr<Ui::VerticalLayout>(content));
+	const auto nameWrap = nameOwned.get();
+	const auto profileWrap = profileOwned.get();
+	const auto name = nameWrap->entity();
+	const auto profile = profileWrap->entity();
+
 	CreateTabsWidget(
 		content,
 		{
 			tr::lng_settings_color_tab_profile(tr::now),
 			tr::lng_settings_color_tab_name(tr::now),
 		},
-		{ [] {}, [] {} });
+		{
+			[=] {
+				nameWrap->toggle(false, anim::type::instant);
+				profileWrap->toggle(true, anim::type::instant);
+			},
+			[=] {
+				nameWrap->toggle(true, anim::type::instant);
+				profileWrap->toggle(false, anim::type::instant);
+			},
+		});
 	Ui::AddSkip(content);
+	nameWrap->toggle(false, anim::type::instant);
+	profileWrap->toggle(true, anim::type::instant);
+	content->add(std::move(profileOwned));
+	content->add(std::move(nameOwned));
 
 	EditPeerColorSection(
 		box,
-		content,
+		name,
 		button,
 		show,
 		peer,
