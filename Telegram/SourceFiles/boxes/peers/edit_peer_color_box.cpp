@@ -1582,23 +1582,15 @@ void AddLevelBadge(
 	}, badge->lifetime());
 }
 
-void EditPeerColorBox(
+void EditPeerColorSection(
 		not_null<Ui::GenericBox*> box,
+		not_null<Ui::VerticalLayout*> container,
+		not_null<Ui::RoundButton*> button,
 		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<PeerData*> peer,
 		std::shared_ptr<Ui::ChatStyle> style,
 		std::shared_ptr<Ui::ChatTheme> theme) {
 	const auto group = peer->isMegagroup();
-	const auto container = box->verticalLayout();
-
-	box->setTitle(peer->isSelf()
-		? tr::lng_settings_color_title()
-		: tr::lng_edit_channel_color());
-	box->setWidth(st::boxWideWidth);
-	box->setStyle(st::giftBox);
-	box->addTopButton(st::boxTitleClose, [=] {
-		box->closeBox();
-	});
 
 	struct State {
 		rpl::variable<uint8> index;
@@ -1612,7 +1604,7 @@ void EditPeerColorBox(
 		bool changing = false;
 		bool applying = false;
 	};
-	const auto state = box->lifetime().make_state<State>();
+	const auto state = button->lifetime().make_state<State>();
 	state->index = peer->colorCollectible()
 		? kUnsetColorIndex
 		: peer->colorIndex();
@@ -1622,7 +1614,7 @@ void EditPeerColorBox(
 		? *peer->colorCollectible()
 		: std::optional<Ui::ColorCollectible>();
 	if (group) {
-		Settings::AddDividerTextWithLottie(box->verticalLayout(), {
+		Settings::AddDividerTextWithLottie(container, {
 			.lottie = u"palette"_q,
 			.lottieSize = st::settingsCloudPasswordIconSize,
 			.lottieMargins = st::peerAppearanceIconPadding,
@@ -1631,20 +1623,19 @@ void EditPeerColorBox(
 			.aboutMargins = st::peerAppearanceCoverLabelMargin,
 		});
 	} else {
-		box->addRow(object_ptr<PreviewWrap>(
+		container->add(object_ptr<PreviewWrap>(
 			box,
 			style,
 			theme,
 			peer,
 			state->index.value(),
 			state->emojiId.value(),
-			state->collectible.value()
-		), style::margins());
+			state->collectible.value()));
 
 		auto indices = peer->session().api().peerColors().suggestedValue();
 		const auto margin = st::settingsColorRadioMargin;
 		const auto skip = st::settingsColorRadioSkip;
-		box->addRow(
+		container->add(
 			object_ptr<ColorSelector>(
 				box,
 				style,
@@ -1807,7 +1798,7 @@ void EditPeerColorBox(
 		}, state->collectible.value());
 	}
 
-	const auto button = box->addButton(tr::lng_settings_color_apply(), [=] {
+	button->setClickedCallback([=] {
 		if (state->applying) {
 			return;
 		} else if (ShowPremiumToast(show, peer)) {
@@ -1883,6 +1874,32 @@ void EditPeerColorBox(
 				Ui::Text::WithEntities));
 		}
 	}, button->lifetime());
+}
+
+void EditPeerColorBox(
+		not_null<Ui::GenericBox*> box,
+		std::shared_ptr<ChatHelpers::Show> show,
+		not_null<PeerData*> peer,
+		std::shared_ptr<Ui::ChatStyle> style,
+		std::shared_ptr<Ui::ChatTheme> theme) {
+	box->setTitle(peer->isSelf()
+		? tr::lng_settings_color_title()
+		: tr::lng_edit_channel_color());
+	box->setWidth(st::boxWideWidth);
+	box->setStyle(st::giftBox);
+	box->addTopButton(st::boxTitleClose, [=] {
+		box->closeBox();
+	});
+	const auto button = box->addButton(tr::lng_settings_color_apply(), [] {});
+
+	EditPeerColorSection(
+		box,
+		box->verticalLayout(),
+		button,
+		show,
+		peer,
+		style,
+		theme);
 }
 
 void SetupPeerColorSample(
