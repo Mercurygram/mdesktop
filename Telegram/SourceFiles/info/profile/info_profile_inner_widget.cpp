@@ -429,7 +429,7 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 	const auto content = Ui::CreateChild<TopBar>(
 		parent,
 		TopBar::Descriptor{
-			.controller = _controller,
+			.controller = _controller->parentController(),
 			.key = _controller->key(),
 			.wrap = _controller->wrapValue(),
 			.backToggles = _backToggles.value(),

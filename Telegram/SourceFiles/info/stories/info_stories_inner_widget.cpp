@@ -496,7 +496,7 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 	const auto content = Ui::CreateChild<Profile::TopBar>(
 		parent,
 		Profile::TopBar::Descriptor{
-			.controller = _controller,
+			.controller = _controller->parentController(),
 			.key = _controller->key(),
 			.wrap = _controller->wrapValue(),
 			.source = Profile::TopBar::Source::Stories,

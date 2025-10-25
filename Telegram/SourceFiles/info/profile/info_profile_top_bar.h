@@ -88,7 +88,7 @@ public:
 	};
 
 	struct Descriptor {
-		not_null<Controller*> controller;
+		not_null<Window::SessionController*> controller;
 		Key key;
 		rpl::producer<Wrap> wrap;
 		Source source = Source::Profile;
@@ -113,11 +113,11 @@ public:
 	void setLottieSingleLoop(bool value);
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
 	void addTopBarMenuButton(
-		not_null<Controller*> controller,
+		not_null<Window::SessionController*> controller,
 		Wrap wrap,
 		bool shouldUseColored);
 	void addTopBarEditButton(
-		not_null<Controller*> controller,
+		not_null<Window::SessionController*> controller,
 		Wrap wrap,
 		bool shouldUseColored);
 
@@ -140,17 +140,17 @@ private:
 		const QRect &userpicRect);
 	void paintUserpic(QPainter &p, const QRect &geometry);
 	void updateVideoUserpic();
-	void showTopBarMenu(not_null<Controller*> controller, bool check);
+	void showTopBarMenu(not_null<Window::SessionController*> controller, bool check);
 	void fillTopBarMenu(
-		not_null<Controller*> controller,
+		not_null<Window::SessionController*> controller,
 		const Ui::Menu::MenuCallback &addAction);
-	void setupUserpicButton(not_null<Controller*> controller);
-	void setupActions(not_null<Controller*> controller);
+	void setupUserpicButton(not_null<Window::SessionController*> controller);
+	void setupActions(not_null<Window::SessionController*> controller);
 	void setupButtons(
-		not_null<Controller*> controller,
+		not_null<Window::SessionController*> controller,
 		rpl::producer<bool> backToggles,
 		Source source);
-	void setupShowLastSeen(not_null<Controller*> controller);
+	void setupShowLastSeen(not_null<Window::SessionController*> controller);
 	void setupUniqueBadgeTooltip();
 	void hideBadgeTooltip();
 	void setupAnimatedPattern(const QRect &userpicGeometry = QRect());
@@ -158,11 +158,11 @@ private:
 		QPainter &p,
 		const QRect &rect,
 		const QRect &userpicGeometry);
-	void setupPinnedToTopGifts(not_null<Controller*> controller);
+	void setupPinnedToTopGifts(not_null<Window::SessionController*> controller);
 	void setupNewGifts(
-		not_null<Controller*> controller,
+		not_null<Window::SessionController*> controller,
 		const std::vector<Data::SavedStarGift> &gifts);
-	void setupGiftButtons(not_null<Controller*> controller);
+	void setupGiftButtons(not_null<Window::SessionController*> controller);
 	void paintPinnedToTopGifts(
 		QPainter &p,
 		const QRect &rect,

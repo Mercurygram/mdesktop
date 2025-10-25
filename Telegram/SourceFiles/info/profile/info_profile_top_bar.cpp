@@ -199,15 +199,13 @@ TopBar::TopBar(
 	&_peer->session(),
 	BotVerifyBadgeForPeer(_peer),
 	nullptr,
-	Fn<bool()>([=, controller = descriptor.controller->parentController()] {
+	Fn<bool()>([=, controller = descriptor.controller] {
 		return controller->isGifPausedAtLeastFor(
 			Window::GifPauseReason::Layer);
 	})))
 , _badgeContent(BadgeContentForPeer(_peer))
-, _gifPausedChecker([=,
-		controller = descriptor.controller->parentController()] {
-	return controller->isGifPausedAtLeastFor(
-		Window::GifPauseReason::Layer);
+, _gifPausedChecker([=, controller = descriptor.controller] {
+	return controller->isGifPausedAtLeastFor(Window::GifPauseReason::Layer);
 })
 , _badge(std::make_unique<Badge>(
 	this,
@@ -481,7 +479,7 @@ void TopBar::updateCollectibleStatus() {
 		: std::nullopt);
 }
 
-void TopBar::setupActions(not_null<Controller*> controller) {
+void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 	const auto peer = _peer;
 	const auto user = peer->asUser();
 	const auto channel = peer->asChannel();
@@ -631,7 +629,6 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		}
 	}
 	if (const auto chat = channel ? channel->discussionLink() : nullptr) {
-		const auto navigation = controller->parentController();
 		const auto discuss = Ui::CreateChild<TopBarActionButton>(
 			this,
 			tr::lng_profile_action_short_discuss(tr::now),
@@ -642,7 +639,7 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 					tr::lng_channel_invite_private(tr::now));
 				return;
 			}
-			navigation->showPeerHistory(
+			controller->showPeerHistory(
 				chat,
 				Window::SectionShow::Way::Forward);
 		});
@@ -664,13 +661,12 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		} else if (channel
 			&& (channel->isForbidden() || !channel->stargiftsAvailable())) {
 		} else {
-			const auto navigation = controller->parentController();
 			const auto giftButton = Ui::CreateChild<TopBarActionButton>(
 				this,
 				tr::lng_profile_action_short_gift(tr::now),
 				st::infoProfileTopBarActionGift);
 			giftButton->setClickedCallback([=] {
-				Ui::ShowStarGiftBox(navigation, peer);
+				Ui::ShowStarGiftBox(controller, peer);
 			});
 			_actions->add(giftButton);
 			buttons.push_back(giftButton);
@@ -679,7 +675,7 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 	if (!topic
 		&& ((chat && !chat->amCreator())
 			|| (channel && !channel->amCreator()))) {
-		const auto show = controller->parentController()->uiShow();
+		const auto show = controller->uiShow();
 		const auto reportButton = Ui::CreateChild<TopBarActionButton>(
 			this,
 			tr::lng_profile_action_short_report(tr::now),
@@ -691,14 +687,13 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		buttons.push_back(reportButton);
 	}
 	if (!topic && !sublist && channel && channel->amIn()) {
-		const auto navigation = controller->parentController();
 		const auto leaveButton = Ui::CreateChild<TopBarActionButton>(
 			this,
 			tr::lng_profile_action_short_leave(tr::now),
 			st::infoProfileTopBarActionLeave);
 		leaveButton->setClickedCallback([=] {
-			if (!navigation->showFrozenError()) {
-				navigation->show(Box(DeleteChatBox, peer));
+			if (!controller->showFrozenError()) {
+				controller->show(Box(DeleteChatBox, peer));
 			}
 		});
 		_actions->add(leaveButton);
@@ -712,7 +707,6 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		showTopBarMenu(controller, true);
 		return _peerMenu;
 	}()) {
-		const auto navigation = controller->parentController();
 		const auto moreButton = Ui::CreateChild<TopBarActionButton>(
 			this,
 			tr::lng_profile_action_short_more(tr::now),
@@ -751,7 +745,8 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 	_actions->raise();
 }
 
-void TopBar::setupUserpicButton(not_null<Controller*> controller) {
+void TopBar::setupUserpicButton(
+		not_null<Window::SessionController*> controller) {
 	_userpicButton = base::make_unique_q<Ui::AbstractButton>(this);
 	rpl::single(
 		rpl::empty_value()
@@ -769,7 +764,7 @@ void TopBar::setupUserpicButton(not_null<Controller*> controller) {
 	const auto openPhoto = [=, peer = _peer] {
 		if (const auto id = peer->userpicPhotoId()) {
 			if (const auto photo = peer->owner().photo(id); photo->date()) {
-				controller->parentController()->openPhoto(photo, peer);
+				controller->openPhoto(photo, peer);
 			}
 		}
 	};
@@ -796,7 +791,7 @@ void TopBar::setupUserpicButton(not_null<Controller*> controller) {
 			(*menu)->popup(QCursor::pos());
 		} else if (button == Qt::LeftButton) {
 			if (_hasStories) {
-				controller->parentController()->openPeerStories(_peer->id);
+				controller->openPeerStories(_peer->id);
 			} else {
 				openPhoto();
 			}
@@ -1217,7 +1212,7 @@ void TopBar::paintEvent(QPaintEvent *e) {
 }
 
 void TopBar::setupButtons(
-		not_null<Controller*> controller,
+		not_null<Window::SessionController*> controller,
 		rpl::producer<bool> backToggles,
 		Source source) {
 	rpl::combine(
@@ -1266,8 +1261,8 @@ void TopBar::setupButtons(
 					: st::infoTopBarBlackClose);
 			_close->show();
 			_close->addClickHandler([=] {
-				controller->parentController()->hideLayer();
-				controller->parentController()->hideSpecialLayer();
+				controller->hideLayer();
+				controller->hideSpecialLayer();
 			});
 			widthValue() | rpl::start_with_next([=] {
 				_close->moveToRight(0, 0);
@@ -1283,7 +1278,7 @@ void TopBar::setupButtons(
 }
 
 void TopBar::addTopBarEditButton(
-		not_null<Controller*> controller,
+		not_null<Window::SessionController*> controller,
 		Wrap wrap,
 		bool shouldUseColored) {
 	_topBarButton = base::make_unique_q<Ui::IconButton>(
@@ -1310,7 +1305,7 @@ void TopBar::addTopBarEditButton(
 }
 
 void TopBar::showTopBarMenu(
-		not_null<Controller*> controller,
+		not_null<Window::SessionController*> controller,
 		bool check) {
 	if (_peerMenu) {
 		_peerMenu->hideMenu(true);
@@ -1346,7 +1341,7 @@ void TopBar::showTopBarMenu(
 }
 
 void TopBar::fillTopBarMenu(
-		not_null<Controller*> controller,
+		not_null<Window::SessionController*> controller,
 		const Ui::Menu::MenuCallback &addAction) {
 	const auto peer = _peer;
 	const auto topic = _key.topic();
@@ -1356,7 +1351,7 @@ void TopBar::fillTopBarMenu(
 	}
 
 	Window::FillDialogsEntryMenu(
-		controller->parentController(),
+		controller,
 		Dialogs::EntryState{
 			.key = (topic
 				? Dialogs::Key{ topic }
@@ -1385,7 +1380,8 @@ void TopBar::updateVideoUserpic() {
 	_videoUserpicPlayer->setup(_peer, photo);
 }
 
-void TopBar::setupShowLastSeen(not_null<Controller*> controller) {
+void TopBar::setupShowLastSeen(
+		not_null<Window::SessionController*> controller) {
 	const auto user = _peer->asUser();
 	if (!user
 		|| user->isSelf()
@@ -1443,7 +1439,7 @@ void TopBar::setupShowLastSeen(not_null<Controller*> controller) {
 
 	_showLastSeen->setClickedCallback([=] {
 		const auto type = Ui::ShowOrPremium::LastSeen;
-		controller->parentController()->show(Box(
+		controller->show(Box(
 			Ui::ShowOrPremiumBox,
 			type,
 			user->shortName(),
@@ -1453,9 +1449,7 @@ void TopBar::setupShowLastSeen(not_null<Controller*> controller) {
 					{});
 			},
 			[=] {
-				::Settings::ShowPremium(
-					controller->parentController(),
-					u"lastseen_hidden"_q);
+				::Settings::ShowPremium(controller, u"lastseen_hidden"_q);
 			}));
 	});
 }
@@ -1589,7 +1583,8 @@ void TopBar::paintAnimatedPattern(
 	p.setOpacity(1.);
 }
 
-void TopBar::setupPinnedToTopGifts(not_null<Controller*> controller) {
+void TopBar::setupPinnedToTopGifts(
+		not_null<Window::SessionController*> controller) {
 	const auto requestDone = crl::guard(this, [=](
 			std::vector<Data::SavedStarGift> gifts) {
 		const auto shouldHideFirst = _pinnedToTopGiftsFirstTimeShowed
@@ -1620,7 +1615,7 @@ void TopBar::setupPinnedToTopGifts(not_null<Controller*> controller) {
 }
 
 void TopBar::setupNewGifts(
-		not_null<Controller*> controller,
+		not_null<Window::SessionController*> controller,
 		const std::vector<Data::SavedStarGift> &gifts) {
 	const auto emojiStatusId = _peer->emojiStatusId().collectible
 		? _peer->emojiStatusId().collectible->id
@@ -1684,10 +1679,7 @@ void TopBar::setupNewGifts(
 		entry.button->show();
 
 		entry.button->setClickedCallback([=, giftData = gift, peer = _peer] {
-			::Settings::ShowSavedStarGiftBox(
-				controller->parentController(),
-				peer,
-				giftData);
+			::Settings::ShowSavedStarGiftBox(controller, peer, giftData);
 		});
 
 		_pinnedToTopGifts.push_back(std::move(entry));
