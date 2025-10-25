@@ -1971,7 +1971,9 @@ void TopBar::updateStoryOutline(std::optional<QColor> edgeColor) {
 		return;
 	}
 
-	const auto hasActiveStories = user->hasActiveStories();
+	const auto hasActiveStories = (_source == Source::Preview)
+		? true
+		: user->hasActiveStories();
 
 	if (_hasStories != hasActiveStories) {
 		_hasStories = hasActiveStories;
@@ -1982,8 +1984,27 @@ void TopBar::updateStoryOutline(std::optional<QColor> edgeColor) {
 		_storySegments.clear();
 		return;
 	}
+	const auto widthBig = style::ConvertFloatScale(3.0);
 
 	_storySegments.clear();
+
+	if (_source == Source::Preview) {
+		const auto colorProfile = effectiveColorProfile();
+		const auto hasProfileColor = colorProfile
+			&& colorProfile->story.size() > 1;
+		const auto previewBrush = hasProfileColor
+			? Ui::UnreadStoryOutlineGradient(
+				QRectF(userpicGeometry()),
+				colorProfile->story[0],
+				colorProfile->story[1])
+			: Ui::UnreadStoryOutlineGradient(QRectF(userpicGeometry()));
+		_storySegments.push_back({
+			.brush = QBrush(previewBrush),
+			.width = widthBig,
+		});
+		return;
+	}
+
 	const auto &stories = user->owner().stories();
 	const auto source = stories.source(user->id);
 	if (!source) {
@@ -2001,7 +2022,6 @@ void TopBar::updateStoryOutline(std::optional<QColor> edgeColor) {
 		: QBrush(st::dialogsUnreadBgMuted->b);
 
 	const auto readTill = source->readTill;
-	const auto widthBig = style::ConvertFloatScale(3.0);
 	const auto widthSmall = widthBig / 2.;
 	for (const auto &storyIdDates : source->ids) {
 		const auto isUnread = (storyIdDates.id > readTill);
