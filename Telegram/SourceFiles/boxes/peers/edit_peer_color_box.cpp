@@ -591,13 +591,18 @@ void Apply(
 		not_null<PeerData*> peer,
 		rpl::producer<uint8> colorIndexValue,
 		rpl::producer<DocumentId> emojiIdValue,
-		Fn<void(DocumentId)> emojiIdChosen) {
+		Fn<void(DocumentId)> emojiIdChosen,
+		bool profileIndices) {
 	const auto button = ButtonStyleWithRightEmoji(
 		parent,
 		tr::lng_settings_color_emoji_off(tr::now));
 	auto result = Settings::CreateButtonWithIcon(
 		parent,
-		tr::lng_settings_color_emoji(),
+		!profileIndices
+			? tr::lng_settings_color_emoji()
+			: peer->isChannel()
+			? tr::lng_settings_color_profile_emoji_channel()
+			: tr::lng_settings_color_profile_emoji(),
 		*button.st,
 		{ &st::menuBlueIconColorNames });
 	const auto raw = result.data();
@@ -657,9 +662,15 @@ void Apply(
 		auto p = QPainter(right);
 		const auto height = right->height();
 		if (state->emoji && state->index != kUnsetColorIndex) {
-			const auto colors = style->coloredValues(false, state->index);
+			const auto profileSet = profileIndices
+				? peer->session().api().peerColors().colorProfileFor(
+					state->index)
+				: std::nullopt;
+			const auto textColor = profileSet && !profileSet->palette.empty()
+				? profileSet->palette.front()
+				: style->coloredValues(false, state->index).name;
 			state->emoji->paint(p, {
-				.textColor = colors.name,
+				.textColor = textColor,
 				.position = QPoint(added, (height - button.emojiWidth) / 2),
 				.internal = {
 					.forceFirstFrame = true,
@@ -677,6 +688,17 @@ void Apply(
 
 	raw->setClickedCallback([=] {
 		const auto customTextColor = [=] {
+			if (state->index == kUnsetColorIndex) {
+				return style->windowActiveTextFg()->c;
+			}
+			if (profileIndices) {
+				const auto colorSet
+					= peer->session().api().peerColors().colorProfileFor(
+						state->index);
+				if (colorSet && !colorSet->palette.empty()) {
+					return colorSet->palette.front();
+				}
+			}
 			return style->coloredValues(false, state->index).name;
 		};
 		const auto controller = show->resolveWindow();
@@ -692,8 +714,11 @@ void Apply(
 	});
 
 	if (const auto channel = peer->asChannel()) {
+		const auto limits = Data::LevelLimits(&channel->session());
 		AddLevelBadge(
-			Data::LevelLimits(&channel->session()).channelBgIconLevelMin(),
+			profileIndices
+				? limits.channelProfileBgIconLevelMin()
+				: limits.channelBgIconLevelMin(),
 			raw,
 			right,
 			channel,
@@ -1392,7 +1417,8 @@ void EditPeerColorSection(
 			peer,
 			state->index.value(),
 			state->emojiId.value(),
-			[=](DocumentId id) { state->emojiId = id; }));
+			[=](DocumentId id) { state->emojiId = id; },
+			false));
 
 		Ui::AddSkip(iconInner, st::settingsColorSampleSkip);
 		Ui::AddDividerText(
@@ -1734,10 +1760,19 @@ void EditPeerProfileColorSection(
 
 	struct State {
 		rpl::variable<uint8> index = kUnsetColorIndex;
+		rpl::variable<DocumentId> patternEmojiId;
 		Ui::ColorSelector *selector = nullptr;
 	};
 	const auto state = button->lifetime().make_state<State>();
-	state->index = peer->colorProfileIndex().value_or(kUnsetColorIndex);
+	state->patternEmojiId = peer->profileBackgroundEmojiId();
+
+	const auto setIndex = [=](uint8 index) {
+		state->index = index;
+		preview->setColorProfileIndex(index == kUnsetColorIndex
+			? std::nullopt
+			: std::make_optional(index));
+	};
+	setIndex(peer->colorProfileIndex().value_or(kUnsetColorIndex));
 
 	const auto margin = st::settingsColorRadioMargin;
 	const auto skip = st::settingsColorRadioSkip;
@@ -1746,14 +1781,26 @@ void EditPeerProfileColorSection(
 			box,
 			indices,
 			state->index.current(),
-			[=](uint8 index) {
-				state->index = index;
-			},
+			setIndex,
 			[=](uint8 index) {
 				return peerColors->colorProfileFor(index).value_or(
 					Data::ColorProfileSet{});
 			}),
 		{ margin, skip, margin, skip });
+
+	Ui::AddSkip(container, st::settingsColorSampleSkip);
+	container->add(CreateEmojiIconButton(
+		container,
+		show,
+		style,
+		peer,
+		state->index.value(),
+		state->patternEmojiId.value(),
+		[=](DocumentId id) {
+			state->patternEmojiId = id;
+			preview->setPatternEmojiId(id);
+		},
+		true));
 
 	state->index.value(
 	) | rpl::start_with_next([=](uint8 index) {
