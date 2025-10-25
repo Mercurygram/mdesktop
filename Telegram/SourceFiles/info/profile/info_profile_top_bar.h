@@ -115,6 +115,7 @@ public:
 	void setLottieSingleLoop(bool value);
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
 	void setColorProfileIndex(std::optional<uint8> index);
+	void setPatternEmojiId(std::optional<DocumentId> patternEmojiId);
 	void addTopBarMenuButton(
 		not_null<Window::SessionController*> controller,
 		Wrap wrap,
@@ -274,6 +275,7 @@ private:
 	bool _hasStories = false;
 
 	std::optional<uint8> _localColorProfileIndex;
+	std::optional<DocumentId> _localPatternEmojiId;
 
 };
 

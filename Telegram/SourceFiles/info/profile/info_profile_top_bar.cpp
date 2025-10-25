@@ -432,7 +432,9 @@ void TopBar::updateCollectibleStatus() {
 	_cachedGradient = QImage();
 	_basePatternImage = QImage();
 	_lastUserpicRect = QRect();
-	const auto patternEmojiId = collectible && collectible->patternDocumentId
+	const auto patternEmojiId = _localPatternEmojiId
+		? *_localPatternEmojiId
+		: collectible && collectible->patternDocumentId
 		? collectible->patternDocumentId
 		: _peer->profileBackgroundEmojiId();
 	if (patternEmojiId) {
@@ -444,7 +446,7 @@ void TopBar::updateCollectibleStatus() {
 	} else {
 		_patternEmoji = nullptr;
 	}
-	if (collectible) {
+	if (collectible || _localPatternEmojiId) {
 		setupAnimatedPattern();
 	} else {
 		_animatedPoints.clear();
@@ -892,6 +894,11 @@ void TopBar::setLottieSingleLoop(bool value) {
 
 void TopBar::setColorProfileIndex(std::optional<uint8> index) {
 	_localColorProfileIndex = index;
+	updateCollectibleStatus();
+}
+
+void TopBar::setPatternEmojiId(std::optional<DocumentId> patternEmojiId) {
+	_localPatternEmojiId = patternEmojiId;
 	updateCollectibleStatus();
 }
 
@@ -1526,8 +1533,8 @@ void TopBar::paintAnimatedPattern(
 		_patternEmoji->paint(painter, {
 			.textColor = collectible
 				? collectible->patternColor
-				// : colorProfile && !colorProfile->palette.empty()
-				// ? AdaptProfilePatternColor(colorProfile->palette.front())
+				: colorProfile && !colorProfile->palette.empty()
+				? AdaptProfilePatternColor(colorProfile->palette.front())
 				: Ui::BlendColors(
 					_edgeColor.current().value_or(QColor()),
 					Qt::white,
