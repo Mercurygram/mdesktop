@@ -191,6 +191,7 @@ TopBar::TopBar(
 , _key(descriptor.key)
 , _wrap(std::move(descriptor.wrap))
 , _st(st::infoTopBar)
+, _source(descriptor.source)
 , _badgeTooltipHide(
 	std::make_unique<base::Timer>([=] { hideBadgeTooltip(); }))
 , _botVerify(std::make_unique<Badge>(
@@ -421,8 +422,7 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 
 void TopBar::updateCollectibleStatus() {
 	const auto collectible = _peer->emojiStatusId().collectible;
-	const auto colorProfile
-		= _peer->session().api().peerColors().colorProfileFor(_peer);
+	const auto colorProfile = effectiveColorProfile();
 	_hasGradientBg = (collectible != nullptr)
 		|| (colorProfile && colorProfile->bg.size() > 1);
 	_solidBg = (colorProfile && colorProfile->bg.size() == 1)
@@ -890,6 +890,20 @@ void TopBar::setLottieSingleLoop(bool value) {
 	_lottieSingleLoop = value;
 }
 
+void TopBar::setColorProfileIndex(std::optional<uint8> index) {
+	_localColorProfileIndex = index;
+	updateCollectibleStatus();
+}
+
+std::optional<Data::ColorProfileSet> TopBar::effectiveColorProfile() const {
+	return _localColorProfileIndex
+		? _peer->session().api().peerColors().colorProfileFor(
+			*_localColorProfileIndex)
+		: _source == Source::Preview
+		? std::nullopt
+		: _peer->session().api().peerColors().colorProfileFor(_peer);
+}
+
 void TopBar::paintEdges(QPainter &p, const QBrush &brush) const {
 	const auto r = rect();
 	if (_roundEdges) {
@@ -1170,14 +1184,28 @@ void TopBar::paintEvent(QPaintEvent *e) {
 	const auto geometry = userpicGeometry();
 
 	if (_hasGradientBg && _cachedGradient.isNull()) {
-		_cachedGradient = Ui::CreateTopBgGradient(
-			QSize(width(), maximumHeight()),
-			_peer,
-			QPoint(
-				0,
-				_hasActions
-					? -st::infoProfileTopBarPhotoBgShift
-					: -st::infoProfileTopBarPhotoBgNoActionsShift));
+		const auto collectible = _peer->emojiStatusId().collectible;
+		const auto colorProfile = effectiveColorProfile();
+		const auto offset = QPoint(
+			0,
+			_hasActions
+				? -st::infoProfileTopBarPhotoBgShift
+				: -st::infoProfileTopBarPhotoBgNoActionsShift);
+		if (collectible) {
+			_cachedGradient = Ui::CreateTopBgGradient(
+				QSize(width(), maximumHeight()),
+				collectible->centerColor,
+				collectible->edgeColor,
+				false,
+				offset);
+		} else if (colorProfile && colorProfile->bg.size() > 1) {
+			_cachedGradient = Ui::CreateTopBgGradient(
+				QSize(width(), maximumHeight()),
+				colorProfile->bg[1],
+				colorProfile->bg[0],
+				false,
+				offset);
+		}
 	}
 	if (!_hasGradientBg) {
 		paintEdges(p);
@@ -1483,8 +1511,7 @@ void TopBar::paintAnimatedPattern(
 
 	if (_basePatternImage.isNull()) {
 		const auto collectible = _peer->emojiStatusId().collectible;
-		const auto colorProfile
-			= _peer->session().api().peerColors().colorProfileFor(_peer);
+		const auto colorProfile = effectiveColorProfile();
 		const auto ratio = style::DevicePixelRatio();
 		const auto scale = 0.75;
 		const auto size = Ui::Emoji::GetSizeNormal() * scale;
@@ -1813,7 +1840,7 @@ void TopBar::paintPinnedToTopGifts(
 		QPainter &p,
 		const QRect &rect,
 		const QRect &userpicRect) {
-	if (_pinnedToTopGifts.empty()) {
+	if (_pinnedToTopGifts.empty() || _source == Source::Preview) {
 		return;
 	}
 
