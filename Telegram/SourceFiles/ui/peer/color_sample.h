@@ -67,16 +67,27 @@ public:
 		rpl::producer<std::vector<uint8>> indices,
 		rpl::producer<uint8> index,
 		Fn<void(uint8)> callback);
+	ColorSelector(
+		not_null<QWidget*> parent,
+		const std::vector<uint8> &indices,
+		uint8 index,
+		Fn<void(uint8)> callback,
+		Fn<Data::ColorProfileSet(uint8)> profileProvider);
+
+	void updateSelection(uint8 newIndex);
 
 private:
 	void fillFrom(std::vector<uint8> indices);
+	void setupSelectionTracking();
 
 	int resizeGetHeight(int newWidth) override;
 
-	const std::shared_ptr<ChatStyle> _style;
+	std::shared_ptr<ChatStyle> _style;
 	std::vector<std::unique_ptr<ColorSample>> _samples;
-	const Fn<void(uint8)> _callback;
+	Fn<void(uint8)> _callback;
 	rpl::variable<uint8> _index;
+	Fn<Data::ColorProfileSet(uint8)> _profileProvider;
+	bool _isProfileMode = false;
 
 };
 

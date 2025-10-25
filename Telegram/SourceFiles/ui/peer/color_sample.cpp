@@ -20,6 +20,7 @@ namespace {
 
 constexpr auto kSelectAnimationDuration = crl::time(150);
 constexpr auto kUnsetColorIndex = uint8(0xFF);
+constexpr auto kProfileColorIndexCount = uint8(8);
 
 } // namespace
 
@@ -229,12 +230,47 @@ ColorSelector::ColorSelector(
 : RpWidget(parent)
 , _style(style)
 , _callback(std::move(callback))
-, _index(std::move(index)) {
+, _index(std::move(index))
+, _isProfileMode(false) {
 	std::move(
 		indices
 	) | rpl::start_with_next([=](std::vector<uint8> indices) {
 		fillFrom(std::move(indices));
 	}, lifetime());
+	setupSelectionTracking();
+}
+
+ColorSelector::ColorSelector(
+	not_null<QWidget*> parent,
+	const std::vector<uint8> &indices,
+	uint8 index,
+	Fn<void(uint8)> callback,
+	Fn<Data::ColorProfileSet(uint8)> profileProvider)
+: RpWidget(parent)
+, _callback(std::move(callback))
+, _index(index)
+, _profileProvider(std::move(profileProvider))
+, _isProfileMode(true) {
+	fillFrom(indices);
+}
+
+void ColorSelector::updateSelection(uint8 newIndex) {
+	if (_index.current() == newIndex) {
+		return;
+	}
+	for (const auto &sample : _samples) {
+		if (sample->index() == _index.current()) {
+			sample->setSelected(false);
+			break;
+		}
+	}
+	for (const auto &sample : _samples) {
+		if (sample->index() == newIndex) {
+			sample->setSelected(true);
+			break;
+		}
+	}
+	_index = newIndex;
 }
 
 void ColorSelector::fillFrom(std::vector<uint8> indices) {
@@ -246,13 +282,24 @@ void ColorSelector::fillFrom(std::vector<uint8> indices) {
 			samples.push_back(std::move(*i));
 			_samples.erase(i);
 		} else {
-			samples.push_back(std::make_unique<ColorSample>(
-				this,
-				_style,
-				index,
-				index == initial));
+			if (_isProfileMode) {
+				samples.push_back(std::make_unique<ColorSample>(
+					this,
+					_profileProvider,
+					index,
+					index == initial));
+			} else {
+				samples.push_back(std::make_unique<ColorSample>(
+					this,
+					_style,
+					index,
+					index == initial));
+			}
 			samples.back()->show();
 			samples.back()->setClickedCallback([=] {
+				if (_isProfileMode) {
+					updateSelection(index);
+				}
 				_callback(index);
 			});
 		}
@@ -260,14 +307,21 @@ void ColorSelector::fillFrom(std::vector<uint8> indices) {
 	for (const auto index : indices) {
 		add(index);
 	}
-	if (initial != 0xFF && !ranges::contains(indices, initial)) {
+	if (!_isProfileMode
+			&& initial != 0xFF
+			&& !ranges::contains(indices, initial)) {
 		add(initial);
 	}
 	_samples = std::move(samples);
 	if (width() > 0) {
 		resizeToWidth(width());
 	}
+}
 
+void ColorSelector::setupSelectionTracking() {
+	if (_isProfileMode) {
+		return;
+	}
 	_index.value(
 	) | rpl::combine_previous(
 	) | rpl::start_with_next([=](uint8 was, uint8 now) {
@@ -287,7 +341,9 @@ int ColorSelector::resizeGetHeight(int newWidth) {
 		return 0;
 	}
 	const auto count = int(_samples.size());
-	const auto columns = 8; // kSimpleColorIndexCount
+	const auto columns = _isProfileMode
+		? kProfileColorIndexCount
+		: kSimpleColorIndexCount;
 	const auto skip = st::settingsColorRadioSkip;
 	const auto size = (newWidth - skip * (columns - 1)) / float64(columns);
 	const auto isize = int(base::SafeRound(size));
