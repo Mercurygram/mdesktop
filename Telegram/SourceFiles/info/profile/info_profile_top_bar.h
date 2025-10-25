@@ -90,6 +90,7 @@ public:
 	struct Descriptor {
 		not_null<Controller*> controller;
 		Key key;
+		rpl::producer<Wrap> wrap;
 		Source source = Source::Profile;
 		PeerData *peer = nullptr;
 		rpl::variable<bool> backToggles;
@@ -182,6 +183,7 @@ private:
 	const not_null<PeerData*> _peer;
 	Data::ForumTopic *_topic = nullptr;
 	const Key _key;
+	rpl::variable<Wrap> _wrap;
 	const style::InfoTopBar &_st;
 
 	std::unique_ptr<base::Timer> _badgeTooltipHide;

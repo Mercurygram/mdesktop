@@ -498,6 +498,7 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 		Profile::TopBar::Descriptor{
 			.controller = _controller,
 			.key = _controller->key(),
+			.wrap = _controller->wrapValue(),
 			.source = Profile::TopBar::Source::Stories,
 			.peer = _peer,
 			.backToggles = _backToggles.value(),

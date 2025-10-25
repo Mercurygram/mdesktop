@@ -189,6 +189,7 @@ TopBar::TopBar(
 	: descriptor.key.peer())
 , _topic(descriptor.key.topic())
 , _key(descriptor.key)
+, _wrap(std::move(descriptor.wrap))
 , _st(st::infoTopBar)
 , _badgeTooltipHide(
 	std::make_unique<base::Timer>([=] { hideBadgeTooltip(); }))
@@ -223,8 +224,7 @@ TopBar::TopBar(
 	nullptr,
 	_gifPausedChecker))
 , _hasActions(descriptor.source != Source::Stories
-	&& (descriptor.controller->wrap() != Wrap::Side
-		|| !_peer->isNotificationsUser()))
+	&& (_wrap.current() != Wrap::Side || !_peer->isNotificationsUser()))
 , _minForProgress([&] {
 	QWidget::setMinimumHeight(st::infoLayerTopBarHeight);
 	QWidget::setMaximumHeight(_hasActions
@@ -705,7 +705,7 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 		buttons.push_back(leaveButton);
 	}
 	if ([&]() -> bool {
-		if (controller->wrap() == Wrap::Side) {
+		if (_wrap.current() == Wrap::Side) {
 			return false;
 		}
 		const auto guard = gsl::finally([&] { _peerMenu = nullptr; });
@@ -1221,7 +1221,7 @@ void TopBar::setupButtons(
 		rpl::producer<bool> backToggles,
 		Source source) {
 	rpl::combine(
-		controller->wrapValue(),
+		_wrap.value(),
 		_edgeColor.value()
 	) | rpl::start_with_next([=, backToggles = std::move(backToggles)](
 			Wrap wrap,
