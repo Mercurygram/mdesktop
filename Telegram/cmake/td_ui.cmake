@@ -508,6 +508,8 @@ PRIVATE
     ui/grouped_layout.h
     ui/new_badges.cpp
     ui/new_badges.h
+    ui/peer/color_sample.cpp
+    ui/peer/color_sample.h
     ui/power_saving.cpp
     ui/power_saving.h
     ui/vertical_list.cpp
