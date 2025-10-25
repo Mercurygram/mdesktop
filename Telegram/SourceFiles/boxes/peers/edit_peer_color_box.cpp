@@ -965,7 +965,8 @@ void Apply(
 void AddColorGiftTabs(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Main::Session*> session,
-		Fn<void(uint64 giftId)> chosen) {
+		Fn<void(uint64 giftId)> chosen,
+		bool profile) {
 	using namespace Info::PeerGifts;
 
 	struct State {
@@ -980,7 +981,7 @@ void AddColorGiftTabs(
 	) | rpl::start_with_next([=](const std::vector<GiftTypeStars> &list) {
 		auto filtered = std::vector<Data::StarGift>();
 		for (const auto &gift : list) {
-			if (gift.info.peerColorAvailable && gift.resale) {
+			if ((profile || gift.info.peerColorAvailable) && gift.resale) {
 				filtered.push_back(gift.info);
 			}
 		}
@@ -1034,7 +1035,9 @@ void AddGiftSelector(
 		not_null<Main::Session*> session,
 		rpl::producer<uint64> showingGiftIdValue,
 		Fn<void(std::shared_ptr<Data::UniqueGift> selected)> chosen,
-		rpl::producer<std::optional<Ui::ColorCollectible>> selected) {
+		rpl::producer<std::optional<Ui::ColorCollectible>> selected,
+		bool profile,
+		rpl::producer<uint64> selectedGiftId = rpl::single(uint64(0))) {
 	using namespace Info::PeerGifts;
 
 	const auto raw = container->add(
@@ -1055,6 +1058,7 @@ void AddGiftSelector(
 		std::vector<std::unique_ptr<GiftButton>> buttons;
 		rpl::variable<Ui::VisibleRange> visibleRange;
 		rpl::variable<std::optional<Ui::ColorCollectible>> selected;
+		rpl::variable<uint64> selectedGiftId;
 		int perRow = 1;
 
 		Fn<void()> loadMore;
@@ -1065,6 +1069,7 @@ void AddGiftSelector(
 	state->delegate.emplace(session, GiftButtonMode::Full);
 	state->showingGiftId = std::move(showingGiftIdValue);
 	state->selected = std::move(selected);
+	state->selectedGiftId = std::move(selectedGiftId);
 	const auto shadow = st::defaultDropdownMenu.wrap.shadow;
 	const auto extend = shadow.extend;
 	state->loadMore = [=] {
@@ -1089,7 +1094,7 @@ void AddGiftSelector(
 
 				auto &list = state->current->list;
 				for (const auto &gift : slice.list) {
-					if (gift.unique && gift.unique->peerColor) {
+					if (gift.unique && (profile || gift.unique->peerColor)) {
 						list.push_back({
 							.info = gift,
 							.resale = true,
@@ -1115,7 +1120,8 @@ void AddGiftSelector(
 
 				auto &list = state->current->list;
 				for (const auto &gift : slice.list) {
-					if (gift.info.unique && gift.info.unique->peerColor) {
+					if (gift.info.unique
+						&& (profile || gift.info.unique->peerColor)) {
 						list.push_back({ .info = gift.info });
 					}
 				}
@@ -1151,7 +1157,8 @@ void AddGiftSelector(
 		const auto first = rowFrom * perRow;
 		const auto last = std::min(rowTill * perRow, count);
 		const auto current = state->selected.current();
-		const auto selectedId = current ? current->collectibleId : 0;
+		const auto selectedCollectibleId = current ? current->collectibleId : 0;
+		const auto selectedGiftId = state->selectedGiftId.current();
 		auto checkedFrom = 0;
 		auto checkedTill = int(buttons.size());
 		const auto ensureButton = [&](int index) {
@@ -1192,8 +1199,11 @@ void AddGiftSelector(
 				chosen(unique);
 			});
 			raw->setGeometry(QRect(QPoint(x, y), single), extend);
+			const auto isSelected = selectedCollectibleId
+				? (gift.info.unique->id == selectedCollectibleId)
+				: (gift.info.unique->id == selectedGiftId);
 			raw->toggleSelected(
-				gift.info.unique->id == selectedId,
+				isSelected,
 				GiftSelectionMode::Inset,
 				anim::type::instant);
 		};
@@ -1224,31 +1234,51 @@ void AddGiftSelector(
 			}
 		}
 
+		const auto find = [=](uint64 id) -> GiftButton* {
+			if (!id) {
+				return nullptr;
+			}
+			const auto count = int(state->current->list.size());
+			for (auto i = 0; i != count; ++i) {
+				const auto &gift = state->current->list[i];
+				if (gift.info.unique->id == id) {
+					return state->buttons[i].get();
+				}
+			}
+			return nullptr;
+		};
+
 		state->selected.value(
 		) | rpl::combine_previous() | rpl::start_with_next([=](
 				const std::optional<Ui::ColorCollectible> &was,
 				const std::optional<Ui::ColorCollectible> &now) {
-			const auto wasId = was ? was->collectibleId : 0;
-			const auto nowId = now ? now->collectibleId : 0;
-			const auto find = [&](uint64 id) -> GiftButton* {
-				if (!id) {
-					return nullptr;
+			const auto wasCollectibleId = was ? was->collectibleId : 0;
+			const auto nowCollectibleId = now ? now->collectibleId : 0;
+			if (wasCollectibleId) {
+				if (const auto button = find(wasCollectibleId)) {
+					button->toggleSelected(false, GiftSelectionMode::Inset);
 				}
-				for (auto i = 0, count = int(state->current->list.size())
-					; i != count
-					; ++i) {
-					const auto &gift = state->current->list[i];
-					if (gift.info.unique->id == id) {
-						return state->buttons[i].get();
-					}
-				}
-				return nullptr;
-			};
-			if (const auto button = find(wasId)) {
-				button->toggleSelected(false, GiftSelectionMode::Inset);
 			}
-			if (const auto button = find(nowId)) {
-				button->toggleSelected(true, GiftSelectionMode::Inset);
+			if (nowCollectibleId) {
+				if (const auto button = find(nowCollectibleId)) {
+					button->toggleSelected(true, GiftSelectionMode::Inset);
+				}
+			}
+		}, raw->lifetime());
+
+		state->selectedGiftId.value(
+		) | rpl::combine_previous() | rpl::start_with_next([=](
+				uint64 wasGiftId,
+				uint64 nowGiftId) {
+			if (wasGiftId) {
+				if (const auto button = find(wasGiftId)) {
+					button->toggleSelected(false, GiftSelectionMode::Inset);
+				}
+			}
+			if (nowGiftId) {
+				if (const auto button = find(nowGiftId)) {
+					button->toggleSelected(true, GiftSelectionMode::Inset);
+				}
 			}
 		}, raw->lifetime());
 
@@ -1524,7 +1554,7 @@ void EditPeerColorSection(
 		const auto session = &peer->session();
 		AddColorGiftTabs(container, session, [=](uint64 giftId) {
 			state->showingGiftId = giftId;
-		});
+		}, false);
 
 		auto showingGiftId = state->showingGiftId.value();
 		AddGiftSelector(container, session, std::move(showingGiftId), [=](
@@ -1541,7 +1571,7 @@ void EditPeerColorSection(
 			state->collectible = selected->peerColor
 				? *selected->peerColor
 				: std::optional<Ui::ColorCollectible>();
-		}, state->collectible.value());
+		}, state->collectible.value(), false, rpl::single(uint64(0)));
 	}
 
 	button->setClickedCallback([=] {
@@ -1761,16 +1791,25 @@ void EditPeerProfileColorSection(
 	struct State {
 		rpl::variable<uint8> index = kUnsetColorIndex;
 		rpl::variable<DocumentId> patternEmojiId;
+		rpl::variable<std::optional<Ui::ColorCollectible>> collectible;
+		rpl::variable<uint64> showingGiftId;
+		rpl::variable<uint64> selectedGiftId;
+		std::shared_ptr<Data::UniqueGift> buyCollectible;
 		Ui::ColorSelector *selector = nullptr;
 	};
 	const auto state = button->lifetime().make_state<State>();
 	state->patternEmojiId = peer->profileBackgroundEmojiId();
+	state->collectible = peer->colorCollectible()
+		? *peer->colorCollectible()
+		: std::optional<Ui::ColorCollectible>();
 
 	const auto setIndex = [=](uint8 index) {
 		state->index = index;
 		preview->setColorProfileIndex(index == kUnsetColorIndex
 			? std::nullopt
 			: std::make_optional(index));
+		preview->setPatternEmojiId(state->patternEmojiId.current());
+		preview->setLocalCollectible(nullptr);
 	};
 	setIndex(peer->colorProfileIndex().value_or(kUnsetColorIndex));
 
@@ -1799,6 +1838,7 @@ void EditPeerProfileColorSection(
 		[=](DocumentId id) {
 			state->patternEmojiId = id;
 			preview->setPatternEmojiId(id);
+			preview->setLocalCollectible(nullptr);
 		},
 		true));
 
@@ -1817,8 +1857,12 @@ void EditPeerProfileColorSection(
 	resetButton->setClickedCallback([=] {
 		state->index = kUnsetColorIndex;
 		state->patternEmojiId = 0;
+		state->collectible = std::nullopt;
+		state->buyCollectible = nullptr;
 		preview->setColorProfileIndex(std::nullopt);
 		preview->setPatternEmojiId(0);
+		preview->setLocalCollectible(nullptr);
+		resetWrap->toggle(false, anim::type::normal);
 	});
 
 	resetWrap->toggleOn(state->index.value(
@@ -1831,6 +1875,37 @@ void EditPeerProfileColorSection(
 			state->selector->updateSelection(index);
 		}
 	}, button->lifetime());
+
+	if (peer->isSelf()) {
+		Ui::AddSkip(container, st::settingsColorSampleSkip);
+
+		const auto session = &peer->session();
+		AddColorGiftTabs(container, session, [=](uint64 giftId) {
+			state->showingGiftId = giftId;
+		}, true);
+
+		auto showingGiftId = state->showingGiftId.value();
+		AddGiftSelector(container, session, std::move(showingGiftId), [=](
+				std::shared_ptr<Data::UniqueGift> selected) {
+			state->selectedGiftId = selected->id;
+			state->index = kUnsetColorIndex;
+			state->patternEmojiId = 0;
+			state->buyCollectible = (selected->peerColor
+				&& (selected->ownerId != session->userPeerId())
+				&& selected->starsForResale > 0)
+				? selected
+				: nullptr;
+			state->collectible = selected->peerColor
+				? *selected->peerColor
+				: std::optional<Ui::ColorCollectible>();
+			preview->setColorProfileIndex(std::nullopt);
+			preview->setPatternEmojiId(selected->pattern.document->id);
+			const auto emojiStatuses = &session->data().emojiStatuses();
+			const auto id = emojiStatuses->fromUniqueGift(*selected);
+			preview->setLocalCollectible(id.collectible);
+			resetWrap->toggle(true, anim::type::normal);
+		}, state->collectible.value(), true, state->selectedGiftId.value());
+	}
 }
 
 void EditPeerColorBox(
