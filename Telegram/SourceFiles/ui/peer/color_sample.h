@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "ui/text/text.h"
 #include "ui/effects/animations.h"
+#include "data/data_peer_colors.h"
 
 namespace Ui {
 namespace Text {
@@ -33,6 +34,11 @@ public:
 		std::shared_ptr<ChatStyle> style,
 		uint8 colorIndex,
 		bool selected);
+	ColorSample(
+		not_null<QWidget*> parent,
+		Fn<Data::ColorProfileSet(uint8)> profileProvider,
+		uint8 colorIndex,
+		bool selected);
 
 	[[nodiscard]] uint8 index() const;
 
@@ -48,6 +54,7 @@ private:
 	Animations::Simple _selectAnimation;
 	bool _selected = false;
 	bool _simple = false;
+	Fn<Data::ColorProfileSet(uint8)> _profileProvider;
 
 };
 

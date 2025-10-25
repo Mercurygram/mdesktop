@@ -75,6 +75,19 @@ ColorSample::ColorSample(
 	setNaturalWidth(st::settingsColorSampleSize);
 }
 
+ColorSample::ColorSample(
+	not_null<QWidget*> parent,
+	Fn<Data::ColorProfileSet(uint8)> profileProvider,
+	uint8 colorIndex,
+	bool selected)
+: AbstractButton(parent)
+, _index(colorIndex)
+, _selected(selected)
+, _simple(true)
+, _profileProvider(std::move(profileProvider)) {
+	setNaturalWidth(st::settingsColorSampleSize);
+}
+
 void ColorSample::setSelected(bool selected) {
 	if (_selected == selected) {
 		return;
@@ -90,6 +103,42 @@ void ColorSample::setSelected(bool selected) {
 void ColorSample::paintEvent(QPaintEvent *e) {
 	auto p = Painter(this);
 	auto hq = PainterHighQualityEnabler(p);
+
+	if (_profileProvider) {
+		const auto size = float64(width());
+		const auto half = size / 2.;
+		const auto full = QRectF(-half, -half, size, size);
+		p.translate(size / 2., size / 2.);
+		p.setPen(Qt::NoPen);
+
+		const auto profile = _profileProvider(_index);
+		if (!profile.palette.empty()) {
+			if (profile.palette.size() == 2) {
+				p.rotate(-45.);
+				p.setClipRect(-size, 0, 3 * size, size);
+				p.setBrush(profile.palette[1]);
+				p.drawEllipse(full);
+				p.setClipRect(-size, -size, 3 * size, size);
+			}
+			p.setBrush(profile.palette[0]);
+			p.drawEllipse(full);
+		}
+		p.setClipping(false);
+
+		const auto selected = _selectAnimation.value(_selected ? 1. : 0.);
+		if (selected > 0) {
+			const auto line = st::settingsColorRadioStroke * 1.;
+			const auto thickness = selected * line;
+			auto pen = st::boxBg->p;
+			pen.setWidthF(thickness);
+			p.setBrush(Qt::NoBrush);
+			p.setPen(pen);
+			const auto skip = 1.5 * line;
+			p.drawEllipse(full.marginsRemoved({ skip, skip, skip, skip }));
+		}
+		return;
+	}
+
 	const auto colors = _style->coloredValues(false, _index);
 	if (!_simple && !colors.outlines[1].alpha()) {
 		const auto radius = height() / 2;
