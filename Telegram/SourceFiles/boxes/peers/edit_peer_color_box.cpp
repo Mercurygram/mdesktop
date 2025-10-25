@@ -1701,6 +1701,48 @@ not_null<Ui::RpWidget*> CreateTabsWidget(
 	return tabsContainer;
 }
 
+void EditPeerProfileColorSection(
+		not_null<Ui::GenericBox*> box,
+		not_null<Ui::VerticalLayout*> container,
+		not_null<Ui::RoundButton*> button,
+		std::shared_ptr<ChatHelpers::Show> show,
+		not_null<PeerData*> peer,
+		std::shared_ptr<Ui::ChatStyle> style,
+		std::shared_ptr<Ui::ChatTheme> theme) {
+	const auto peerColors = &peer->session().api().peerColors();
+	const auto indices = peerColors->profileColorIndices();
+
+	struct State {
+		rpl::variable<uint8> index = kUnsetColorIndex;
+		Ui::ColorSelector *selector = nullptr;
+	};
+	const auto state = button->lifetime().make_state<State>();
+	state->index = peer->colorProfileIndex().value_or(kUnsetColorIndex);
+
+	const auto margin = st::settingsColorRadioMargin;
+	const auto skip = st::settingsColorRadioSkip;
+	state->selector = container->add(
+		object_ptr<Ui::ColorSelector>(
+			box,
+			indices,
+			state->index.current(),
+			[=](uint8 index) {
+				state->index = index;
+			},
+			[=](uint8 index) {
+				return peerColors->colorProfileFor(index).value_or(
+					Data::ColorProfileSet{});
+			}),
+		{ margin, skip, margin, skip });
+
+	state->index.value(
+	) | rpl::start_with_next([=](uint8 index) {
+		if (state->selector) {
+			state->selector->updateSelection(index);
+		}
+	}, button->lifetime());
+}
+
 void EditPeerColorBox(
 		not_null<Ui::GenericBox*> box,
 		std::shared_ptr<ChatHelpers::Show> show,
@@ -1750,6 +1792,15 @@ void EditPeerColorBox(
 	profileWrap->toggle(true, anim::type::instant);
 	content->add(std::move(profileOwned));
 	content->add(std::move(nameOwned));
+
+	EditPeerProfileColorSection(
+		box,
+		profile,
+		button,
+		show,
+		peer,
+		style,
+		theme);
 
 	EditPeerColorSection(
 		box,
