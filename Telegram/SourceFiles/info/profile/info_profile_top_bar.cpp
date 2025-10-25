@@ -222,6 +222,7 @@ TopBar::TopBar(
 	nullptr,
 	_gifPausedChecker))
 , _hasActions(descriptor.source != Source::Stories
+	&& descriptor.source != Source::Preview
 	&& (_wrap.current() != Wrap::Side || !_peer->isNotificationsUser()))
 , _minForProgress([&] {
 	QWidget::setMinimumHeight(st::infoLayerTopBarHeight);
@@ -1215,6 +1216,10 @@ void TopBar::setupButtons(
 		not_null<Window::SessionController*> controller,
 		rpl::producer<bool> backToggles,
 		Source source) {
+	if (source == Source::Preview) {
+		setRoundEdges(false);
+		return;
+	}
 	rpl::combine(
 		_wrap.value(),
 		_edgeColor.value()

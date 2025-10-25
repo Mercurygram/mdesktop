@@ -37,6 +37,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/channel_statistics/boosts/info_boosts_widget.h"
 #include "info/peer_gifts/info_peer_gifts_common.h"
 #include "info/profile/info_profile_emoji_status_panel.h"
+#include "info/profile/info_profile_top_bar.h"
+#include "info/info_controller.h" // Key
 #include "info/info_memento.h"
 #include "iv/iv_data.h"
 #include "lang/lang_keys.h"
@@ -1709,6 +1711,24 @@ void EditPeerProfileColorSection(
 		not_null<PeerData*> peer,
 		std::shared_ptr<Ui::ChatStyle> style,
 		std::shared_ptr<Ui::ChatTheme> theme) {
+
+	const auto preview = container->add(
+		object_ptr<Info::Profile::TopBar>(
+			container,
+			Info::Profile::TopBar::Descriptor {
+				.controller = show->resolveWindow(),
+				.key = Info::Key(peer),
+				.wrap = rpl::single(Info::Wrap::Side),
+				.source = Info::Profile::TopBar::Source::Preview,
+				.peer = peer,
+				.backToggles = rpl::single(false),
+				.showFinished = box->showFinishes(),
+			}
+		));
+	preview->resize(
+		container->width(),
+		st::infoProfileTopBarNoActionsHeightMax);
+
 	const auto peerColors = &peer->session().api().peerColors();
 	const auto indices = peerColors->profileColorIndices();
 

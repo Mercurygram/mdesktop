@@ -85,6 +85,7 @@ public:
 	enum class Source {
 		Profile,
 		Stories,
+		Preview,
 	};
 
 	struct Descriptor {
