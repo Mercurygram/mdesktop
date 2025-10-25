@@ -44,6 +44,10 @@ public:
 
 	[[nodiscard]] std::optional<Data::ColorProfileSet> colorProfileFor(
 		not_null<PeerData*> peer) const;
+	[[nodiscard]] std::optional<Data::ColorProfileSet> colorProfileFor(
+		uint8 index) const;
+
+	[[nodiscard]] std::vector<uint8> profileColorIndices() const;
 
 private:
 	struct ProfileColorOption {

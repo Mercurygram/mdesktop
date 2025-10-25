@@ -244,14 +244,29 @@ void PeerColors::applyProfile(const MTPDhelp_peerColors &data) {
 std::optional<Data::ColorProfileSet> PeerColors::colorProfileFor(
 		not_null<PeerData*> peer) const {
 	if (const auto colorProfileIndex = peer->colorProfileIndex()) {
-		const auto i = _profileColors.find(*colorProfileIndex);
-		if (i != end(_profileColors)) {
-			return Window::Theme::IsNightMode()
-				? i->second.data.dark
-				: i->second.data.light;
-		}
+		return colorProfileFor(*colorProfileIndex);
 	}
 	return std::nullopt;
+}
+
+std::optional<Data::ColorProfileSet> PeerColors::colorProfileFor(
+		uint8 index) const {
+	const auto i = _profileColors.find(index);
+	if (i != end(_profileColors)) {
+		return Window::Theme::IsNightMode()
+			? i->second.data.dark
+			: i->second.data.light;
+	}
+	return std::nullopt;
+}
+
+std::vector<uint8> PeerColors::profileColorIndices() const {
+	auto result = std::vector<uint8>();
+	result.reserve(_profileColors.size());
+	for (const auto &[index, option] : _profileColors) {
+		result.push_back(index);
+	}
+	return result;
 }
 
 } // namespace Api
