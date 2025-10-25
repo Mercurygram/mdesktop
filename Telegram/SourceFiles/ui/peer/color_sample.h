@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "ui/text/text.h"
 #include "ui/effects/animations.h"
+#include "ui/rp_widget.h"
 #include "data/data_peer_colors.h"
 
 namespace Ui {
@@ -55,6 +56,27 @@ private:
 	bool _selected = false;
 	bool _simple = false;
 	Fn<Data::ColorProfileSet(uint8)> _profileProvider;
+
+};
+
+class ColorSelector final : public RpWidget {
+public:
+	ColorSelector(
+		not_null<QWidget*> parent,
+		std::shared_ptr<ChatStyle> style,
+		rpl::producer<std::vector<uint8>> indices,
+		rpl::producer<uint8> index,
+		Fn<void(uint8)> callback);
+
+private:
+	void fillFrom(std::vector<uint8> indices);
+
+	int resizeGetHeight(int newWidth) override;
+
+	const std::shared_ptr<ChatStyle> _style;
+	std::vector<std::unique_ptr<ColorSample>> _samples;
+	const Fn<void(uint8)> _callback;
+	rpl::variable<uint8> _index;
 
 };
 

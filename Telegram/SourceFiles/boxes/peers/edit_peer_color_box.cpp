@@ -570,111 +570,7 @@ void Apply(
 	}
 }
 
-class ColorSelector final : public Ui::RpWidget {
-public:
-	ColorSelector(
-		not_null<Ui::GenericBox*> box,
-		std::shared_ptr<Ui::ChatStyle> style,
-		rpl::producer<std::vector<uint8>> indices,
-		rpl::producer<uint8> index,
-		Fn<void(uint8)> callback);
 
-private:
-	void fillFrom(std::vector<uint8> indices);
-
-	int resizeGetHeight(int newWidth) override;
-
-	const std::shared_ptr<Ui::ChatStyle> _style;
-	std::vector<std::unique_ptr<Ui::ColorSample>> _samples;
-	const Fn<void(uint8)> _callback;
-	rpl::variable<uint8> _index;
-
-};
-
-ColorSelector::ColorSelector(
-	not_null<Ui::GenericBox*> box,
-	std::shared_ptr<Ui::ChatStyle> style,
-	rpl::producer<std::vector<uint8>> indices,
-	rpl::producer<uint8> index,
-	Fn<void(uint8)> callback)
-: RpWidget(box)
-, _style(style)
-, _callback(std::move(callback))
-, _index(std::move(index)) {
-	std::move(
-		indices
-	) | rpl::start_with_next([=](std::vector<uint8> indices) {
-		fillFrom(std::move(indices));
-	}, lifetime());
-}
-
-void ColorSelector::fillFrom(std::vector<uint8> indices) {
-	auto samples = std::vector<std::unique_ptr<Ui::ColorSample>>();
-	const auto initial = _index.current();
-	const auto add = [&](uint8 index) {
-		auto i = ranges::find(_samples, index, &Ui::ColorSample::index);
-		if (i != end(_samples)) {
-			samples.push_back(std::move(*i));
-			_samples.erase(i);
-		} else {
-			samples.push_back(std::make_unique<Ui::ColorSample>(
-				this,
-				_style,
-				index,
-				index == initial));
-			samples.back()->show();
-			samples.back()->setClickedCallback([=] {
-				_callback(index);
-			});
-		}
-	};
-	for (const auto index : indices) {
-		add(index);
-	}
-	if (initial != kUnsetColorIndex && !ranges::contains(indices, initial)) {
-		add(initial);
-	}
-	_samples = std::move(samples);
-	if (width() > 0) {
-		resizeToWidth(width());
-	}
-
-	_index.value(
-	) | rpl::combine_previous(
-	) | rpl::start_with_next([=](uint8 was, uint8 now) {
-		const auto i = ranges::find(_samples, was, &Ui::ColorSample::index);
-		if (i != end(_samples)) {
-			i->get()->setSelected(false);
-		}
-		const auto j = ranges::find(_samples, now, &Ui::ColorSample::index);
-		if (j != end(_samples)) {
-			j->get()->setSelected(true);
-		}
-	}, lifetime());
-}
-
-int ColorSelector::resizeGetHeight(int newWidth) {
-	if (newWidth <= 0) {
-		return 0;
-	}
-	const auto count = int(_samples.size());
-	const auto columns = Ui::kSimpleColorIndexCount;
-	const auto skip = st::settingsColorRadioSkip;
-	const auto size = (newWidth - skip * (columns - 1)) / float64(columns);
-	const auto isize = int(base::SafeRound(size));
-	auto top = 0;
-	auto left = 0.;
-	for (auto i = 0; i != count; ++i) {
-		_samples[i]->resize(isize, isize);
-		_samples[i]->move(int(base::SafeRound(left)), top);
-		left += size + skip;
-		if (!((i + 1) % columns)) {
-			top += isize + skip;
-			left = 0.;
-		}
-	}
-	return (top - skip) + ((count % columns) ? (isize + skip) : 0);
-}
 
 [[nodiscard]] auto ButtonStyleWithAddedPadding(
 		not_null<Ui::RpWidget*> parent,
@@ -1458,8 +1354,8 @@ void EditPeerColorSection(
 		const auto margin = st::settingsColorRadioMargin;
 		const auto skip = st::settingsColorRadioSkip;
 		container->add(
-			object_ptr<ColorSelector>(
-				box,
+			object_ptr<Ui::ColorSelector>(
+				container,
 				style,
 				std::move(indices),
 				state->index.value(),

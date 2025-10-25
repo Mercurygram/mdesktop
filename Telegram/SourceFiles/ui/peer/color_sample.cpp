@@ -7,16 +7,19 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "ui/peer/color_sample.h"
 
+#include "base/algorithm.h"
 #include "ui/chat/chat_style.h"
 #include "ui/color_contrast.h"
 #include "ui/painter.h"
 #include "ui/text/text_utilities.h"
+#include "ui/widgets/buttons.h"
 #include "styles/style_settings.h"
 
 namespace Ui {
 namespace {
 
 constexpr auto kSelectAnimationDuration = crl::time(150);
+constexpr auto kUnsetColorIndex = uint8(0xFF);
 
 } // namespace
 
@@ -215,6 +218,91 @@ void ColorSample::paintEvent(QPaintEvent *e) {
 
 uint8 ColorSample::index() const {
 	return _index;
+}
+
+ColorSelector::ColorSelector(
+	not_null<QWidget*> parent,
+	std::shared_ptr<ChatStyle> style,
+	rpl::producer<std::vector<uint8>> indices,
+	rpl::producer<uint8> index,
+	Fn<void(uint8)> callback)
+: RpWidget(parent)
+, _style(style)
+, _callback(std::move(callback))
+, _index(std::move(index)) {
+	std::move(
+		indices
+	) | rpl::start_with_next([=](std::vector<uint8> indices) {
+		fillFrom(std::move(indices));
+	}, lifetime());
+}
+
+void ColorSelector::fillFrom(std::vector<uint8> indices) {
+	auto samples = std::vector<std::unique_ptr<ColorSample>>();
+	const auto initial = _index.current();
+	const auto add = [&](uint8 index) {
+		auto i = ranges::find(_samples, index, &ColorSample::index);
+		if (i != end(_samples)) {
+			samples.push_back(std::move(*i));
+			_samples.erase(i);
+		} else {
+			samples.push_back(std::make_unique<ColorSample>(
+				this,
+				_style,
+				index,
+				index == initial));
+			samples.back()->show();
+			samples.back()->setClickedCallback([=] {
+				_callback(index);
+			});
+		}
+	};
+	for (const auto index : indices) {
+		add(index);
+	}
+	if (initial != 0xFF && !ranges::contains(indices, initial)) {
+		add(initial);
+	}
+	_samples = std::move(samples);
+	if (width() > 0) {
+		resizeToWidth(width());
+	}
+
+	_index.value(
+	) | rpl::combine_previous(
+	) | rpl::start_with_next([=](uint8 was, uint8 now) {
+		const auto i = ranges::find(_samples, was, &ColorSample::index);
+		if (i != end(_samples)) {
+			i->get()->setSelected(false);
+		}
+		const auto j = ranges::find(_samples, now, &ColorSample::index);
+		if (j != end(_samples)) {
+			j->get()->setSelected(true);
+		}
+	}, lifetime());
+}
+
+int ColorSelector::resizeGetHeight(int newWidth) {
+	if (newWidth <= 0) {
+		return 0;
+	}
+	const auto count = int(_samples.size());
+	const auto columns = 8; // kSimpleColorIndexCount
+	const auto skip = st::settingsColorRadioSkip;
+	const auto size = (newWidth - skip * (columns - 1)) / float64(columns);
+	const auto isize = int(base::SafeRound(size));
+	auto top = 0;
+	auto left = 0.;
+	for (auto i = 0; i != count; ++i) {
+		_samples[i]->resize(isize, isize);
+		_samples[i]->move(int(base::SafeRound(left)), top);
+		left += size + skip;
+		if (!((i + 1) % columns)) {
+			top += isize + skip;
+			left = 0.;
+		}
+	}
+	return (top - skip) + ((count % columns) ? (isize + skip) : 0);
 }
 
 } // namespace Ui
