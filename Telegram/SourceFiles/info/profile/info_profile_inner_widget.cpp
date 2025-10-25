@@ -430,6 +430,7 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 		parent,
 		TopBar::Descriptor{
 			.controller = _controller,
+			.key = _controller->key(),
 			.backToggles = _backToggles.value(),
 			.showFinished = _showFinished.events(),
 		});

@@ -8,8 +8,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "base/object_ptr.h"
-#include "ui/rp_widget.h"
+#include "info/info_controller.h" // Key
 #include "info/profile/info_profile_badge.h"
+#include "ui/rp_widget.h"
 #include "ui/userpic_view.h"
 
 namespace Data {
@@ -66,6 +67,7 @@ class Simple;
 
 namespace Info {
 class Controller;
+class Key;
 enum class Wrap;
 } //namespace Info
 
@@ -87,6 +89,7 @@ public:
 
 	struct Descriptor {
 		not_null<Controller*> controller;
+		Key key;
 		Source source = Source::Profile;
 		PeerData *peer = nullptr;
 		rpl::variable<bool> backToggles;
@@ -178,6 +181,7 @@ private:
 
 	const not_null<PeerData*> _peer;
 	Data::ForumTopic *_topic = nullptr;
+	const Key _key;
 	const style::InfoTopBar &_st;
 
 	std::unique_ptr<base::Timer> _badgeTooltipHide;

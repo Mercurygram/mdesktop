@@ -40,7 +40,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/notify/data_peer_notify_settings.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "history/history.h"
-#include "info/info_controller.h"
 #include "info/info_memento.h"
 #include "info/profile/info_profile_badge_tooltip.h"
 #include "info/profile/info_profile_badge.h"
@@ -187,8 +186,9 @@ TopBar::TopBar(
 : RpWidget(parent)
 , _peer(descriptor.peer
 	? descriptor.peer
-	: descriptor.controller->key().peer())
-, _topic(descriptor.controller->key().topic())
+	: descriptor.key.peer())
+, _topic(descriptor.key.topic())
+, _key(descriptor.key)
 , _st(st::infoTopBar)
 , _badgeTooltipHide(
 	std::make_unique<base::Timer>([=] { hideBadgeTooltip(); }))
@@ -256,8 +256,8 @@ TopBar::TopBar(
 
 	if (_peer->isMegagroup() || _peer->isChat()) {
 		_statusLabel->setMembersLinkCallback([=, peer = _peer] {
-			const auto topic = controller->key().topic();
-			const auto sublist = controller->key().sublist();
+			const auto topic = _key.topic();
+			const auto sublist = _key.sublist();
 			const auto shown = sublist
 				? sublist->sublistPeer().get()
 				: peer.get();
@@ -486,8 +486,8 @@ void TopBar::setupActions(not_null<Controller*> controller) {
 	const auto user = peer->asUser();
 	const auto channel = peer->asChannel();
 	const auto chat = peer->asChat();
-	const auto topic = controller->key().topic();
-	const auto sublist = controller->key().sublist();
+	const auto topic = _key.topic();
+	const auto sublist = _key.sublist();
 	const auto mapped = [=](std::optional<QColor> c) {
 		if (c) {
 			return TopBarActionButtonStyle{
@@ -1349,8 +1349,8 @@ void TopBar::fillTopBarMenu(
 		not_null<Controller*> controller,
 		const Ui::Menu::MenuCallback &addAction) {
 	const auto peer = _peer;
-	const auto topic = controller->key().topic();
-	const auto sublist = controller->key().sublist();
+	const auto topic = _key.topic();
+	const auto sublist = _key.sublist();
 	if (!peer && !topic) {
 		return;
 	}
