@@ -976,6 +976,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_font_family" = "Font family";
 
 "lng_settings_color_title" = "Color preview";
+"lng_settings_color_tab_profile" = "Profile";
+"lng_settings_color_tab_name" = "Name";
 "lng_settings_color_reply" = "Reply to your message";
 "lng_settings_color_reply_channel" = "Reply to your channel message";
 "lng_settings_color_text" = "Your name and replies to your messages will be shown in the selected color.";
