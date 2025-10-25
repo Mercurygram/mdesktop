@@ -1802,6 +1802,29 @@ void EditPeerProfileColorSection(
 		},
 		true));
 
+	const auto resetWrap = container->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			container,
+			object_ptr<Ui::VerticalLayout>(container)));
+	const auto resetInner = resetWrap->entity();
+
+	Ui::AddSkip(resetInner, st::settingsColorSampleSkip);
+	const auto resetButton = resetInner->add(
+		object_ptr<Ui::SettingsButton>(
+			resetInner,
+			tr::lng_settings_color_reset(),
+			st::settingsButtonLightNoIcon));
+	resetButton->setClickedCallback([=] {
+		state->index = kUnsetColorIndex;
+		state->patternEmojiId = 0;
+		preview->setColorProfileIndex(std::nullopt);
+		preview->setPatternEmojiId(0);
+	});
+
+	resetWrap->toggleOn(state->index.value(
+	) | rpl::map([](uint8 index) { return index != kUnsetColorIndex; }));
+	resetWrap->finishAnimating();
+
 	state->index.value(
 	) | rpl::start_with_next([=](uint8 index) {
 		if (state->selector) {

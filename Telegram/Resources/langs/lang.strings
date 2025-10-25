@@ -998,6 +998,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_color_apply" = "Apply Style";
 "lng_settings_color_profile_emoji" = "Add icons to Profile";
 "lng_settings_color_profile_emoji_channel" = "Profile Logo";
+"lng_settings_color_reset" = "Reset Profile Color";
 
 "lng_suggest_hide_new_title" = "Hide new chats?";
 "lng_suggest_hide_new_about" = "You are receiving lots of new chats from users who are not in your Contact List.\n\nDo you want to have such chats **automatically muted** and **archived**?";
