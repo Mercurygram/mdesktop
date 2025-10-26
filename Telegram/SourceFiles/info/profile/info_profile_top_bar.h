@@ -116,6 +116,8 @@ public:
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
 	void setColorProfileIndex(std::optional<uint8> index);
 	void setPatternEmojiId(std::optional<DocumentId> patternEmojiId);
+	void setLocalCollectible(
+		std::shared_ptr<Data::EmojiStatusCollectible> collectible);
 	void addTopBarMenuButton(
 		not_null<Window::SessionController*> controller,
 		Wrap wrap,
@@ -177,6 +179,7 @@ private:
 		const QRect &userpicRect) const;
 	void adjustColors(const std::optional<QColor> &edgeColor);
 	void updateCollectibleStatus();
+	void updateBadgeContent();
 	void setupStoryOutline(const QRect &geometry = QRect());
 	void updateStoryOutline(std::optional<QColor> edgeColor);
 	void paintStoryOutline(QPainter &p, const QRect &geometry);
@@ -186,6 +189,8 @@ private:
 
 	[[nodiscard]] auto effectiveColorProfile()
 	const -> std::optional<Data::ColorProfileSet>;
+	[[nodiscard]] auto effectiveCollectible()
+	const -> std::shared_ptr<Data::EmojiStatusCollectible>;
 
 	const not_null<PeerData*> _peer;
 	Data::ForumTopic *_topic = nullptr;
@@ -276,6 +281,7 @@ private:
 
 	std::optional<uint8> _localColorProfileIndex;
 	std::optional<DocumentId> _localPatternEmojiId;
+	std::shared_ptr<Data::EmojiStatusCollectible> _localCollectible;
 
 };
 
