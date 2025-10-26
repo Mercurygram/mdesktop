@@ -1361,6 +1361,30 @@ void AddGiftSelector(
 	) | rpl::start_with_next(state->rebuild, raw->lifetime());
 }
 
+not_null<Info::Profile::TopBar*> CreateProfilePreview(
+		not_null<Ui::GenericBox*> box,
+		not_null<Ui::VerticalLayout*> container,
+		std::shared_ptr<ChatHelpers::Show> show,
+		not_null<PeerData*> peer) {
+	const auto preview = container->add(
+		object_ptr<Info::Profile::TopBar>(
+			container,
+			Info::Profile::TopBar::Descriptor {
+				.controller = show->resolveWindow(),
+				.key = Info::Key(peer),
+				.wrap = rpl::single(Info::Wrap::Side),
+				.source = Info::Profile::TopBar::Source::Preview,
+				.peer = peer,
+				.backToggles = rpl::single(false),
+				.showFinished = box->showFinishes(),
+			}
+		));
+	preview->resize(
+		container->width(),
+		st::infoProfileTopBarNoActionsHeightMax);
+	return preview;
+}
+
 } // namespace
 
 void AddLevelBadge(
@@ -1812,22 +1836,7 @@ void EditPeerProfileColorSection(
 		Fn<void()> aboutCallback) {
 	button->setTextTransform(Ui::RoundButton::TextTransform::NoTransform);
 
-	const auto preview = container->add(
-		object_ptr<Info::Profile::TopBar>(
-			container,
-			Info::Profile::TopBar::Descriptor {
-				.controller = show->resolveWindow(),
-				.key = Info::Key(peer),
-				.wrap = rpl::single(Info::Wrap::Side),
-				.source = Info::Profile::TopBar::Source::Preview,
-				.peer = peer,
-				.backToggles = rpl::single(false),
-				.showFinished = box->showFinishes(),
-			}
-		));
-	preview->resize(
-		container->width(),
-		st::infoProfileTopBarNoActionsHeightMax);
+	const auto preview = CreateProfilePreview(box, container, show, peer);
 
 	const auto peerColors = &peer->session().api().peerColors();
 	const auto indices = peerColors->profileColorIndices();
