@@ -1573,7 +1573,8 @@ void EditPeerColorSection(
 	state->profileEmojiId = peer->profileBackgroundEmojiId();
 
 	const auto appendProfileSettings = [=](
-			not_null<Ui::VerticalLayout*> container) {
+			not_null<Ui::VerticalLayout*> container,
+			not_null<ChannelData*> channel) {
 		state->preview = CreateProfilePreview(box, container, show, peer);
 		if (state->profileIndex.current() != kUnsetColorIndex) {
 			state->preview->setColorProfileIndex(
@@ -1638,7 +1639,6 @@ void EditPeerColorSection(
 				container,
 				object_ptr<Ui::VerticalLayout>(container)));
 		const auto resetInner = resetWrap->entity();
-		Ui::AddSkip(resetInner, st::settingsColorSampleSkip);
 		const auto resetButton = resetInner->add(
 			object_ptr<Ui::SettingsButton>(
 				resetInner,
@@ -1665,10 +1665,29 @@ void EditPeerColorSection(
 				? tr::lng_settings_color_choose_group()
 				: tr::lng_settings_color_choose_channel());
 		Ui::AddSkip(container, st::settingsColorSampleSkip);
+
+		container->add(CreateEmojiStatusButton(
+			container,
+			show,
+			channel,
+			state->statusId.value(),
+			[=](EmojiStatusId id, TimeId until) {
+				state->statusId = id;
+				state->statusUntil = until;
+				state->statusChanged = true;
+			},
+			group));
+		Ui::AddSkip(container, st::settingsColorSampleSkip);
+		Ui::AddDividerText(
+			container,
+			(group
+				? tr::lng_edit_channel_status_about_group()
+				: tr::lng_edit_channel_status_about()),
+			st::peerAppearanceDividerTextMargin);
 	};
 
 	if (group) {
-		appendProfileSettings(container);
+		appendProfileSettings(container, peer->asChannel());
 	} else {
 		container->add(object_ptr<PreviewWrap>(
 			box,
@@ -1802,29 +1821,8 @@ void EditPeerColorSection(
 
 		if (!state->preview) {
 			Ui::AddSkip(container);
-			appendProfileSettings(container);
+			appendProfileSettings(container, channel);
 		}
-
-		Ui::AddSkip(container, st::settingsColorSampleSkip);
-		container->add(CreateEmojiStatusButton(
-			container,
-			show,
-			channel,
-			state->statusId.value(),
-			[=](EmojiStatusId id, TimeId until) {
-				state->statusId = id;
-				state->statusUntil = until;
-				state->statusChanged = true;
-			},
-			group));
-
-		Ui::AddSkip(container, st::settingsColorSampleSkip);
-		Ui::AddDividerText(
-			container,
-			(group
-				? tr::lng_edit_channel_status_about_group()
-				: tr::lng_edit_channel_status_about()),
-			st::peerAppearanceDividerTextMargin);
 	} else if (peer->isSelf()) {
 		Ui::AddSkip(container, st::settingsColorSampleSkip);
 
