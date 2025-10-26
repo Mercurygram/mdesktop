@@ -35,12 +35,11 @@ public:
 	[[nodiscard]] auto requiredLevelsChannel() const
 		-> const base::flat_map<uint8, int> &;
 
-	[[nodiscard]] int requiredGroupLevelFor(
+	[[nodiscard]] int requiredLevelFor(
 		PeerId channel,
-		uint8 index) const;
-	[[nodiscard]] int requiredChannelLevelFor(
-		PeerId channel,
-		uint8 index) const;
+		uint8 index,
+		bool isMegagroup,
+		bool profile) const;
 
 	[[nodiscard]] std::optional<Data::ColorProfileSet> colorProfileFor(
 		not_null<PeerData*> peer) const;

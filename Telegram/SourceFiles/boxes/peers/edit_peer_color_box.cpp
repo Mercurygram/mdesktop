@@ -572,13 +572,11 @@ void Apply(
 	} else {
 		CheckBoostLevel(show, peer, [=](int level) {
 			const auto peerColors = &peer->session().api().peerColors();
-			const auto colorRequired = peer->isMegagroup()
-				? peerColors->requiredGroupLevelFor(
-					peer->id,
-					values.colorIndex)
-				: peerColors->requiredChannelLevelFor(
-					peer->id,
-					values.colorIndex);
+			const auto colorRequired = peerColors->requiredLevelFor(
+				peer->id,
+				values.colorIndex,
+				peer->isMegagroup(),
+				values.forProfile);
 			const auto limits = Data::LevelLimits(&peer->session());
 			const auto iconRequired = values.backgroundEmojiId
 				? limits.channelBgIconLevelMin()

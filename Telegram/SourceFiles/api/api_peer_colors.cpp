@@ -97,21 +97,27 @@ const base::flat_map<uint8, int> &PeerColors::requiredLevelsChannel() const {
 	return _requiredLevelsChannel;
 }
 
-int PeerColors::requiredGroupLevelFor(PeerId channel, uint8 index) const {
+int PeerColors::requiredLevelFor(
+		PeerId channel,
+		uint8 index,
+		bool isMegagroup,
+		bool profile) const {
 	if (Data::DecideColorIndex(channel) == index) {
 		return 0;
-	} else if (const auto i = _requiredLevelsGroup.find(index)
-		; i != end(_requiredLevelsGroup)) {
-		return i->second;
 	}
-	return 1;
-}
-
-int PeerColors::requiredChannelLevelFor(PeerId channel, uint8 index) const {
-	if (Data::DecideColorIndex(channel) == index) {
-		return 0;
-	} else if (const auto i = _requiredLevelsChannel.find(index)
-		; i != end(_requiredLevelsChannel)) {
+	if (profile) {
+		const auto it = _profileColors.find(index);
+		if (it != end(_profileColors)) {
+			return isMegagroup
+				? it->second.requiredLevelsGroup
+				: it->second.requiredLevelsChannel;
+		}
+		return 1;
+	}
+	const auto &levels = isMegagroup
+		? _requiredLevelsGroup
+		: _requiredLevelsChannel;
+	if (const auto i = levels.find(index); i != end(levels)) {
 		return i->second;
 	}
 	return 1;
