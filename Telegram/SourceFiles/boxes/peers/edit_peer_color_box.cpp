@@ -1611,7 +1611,6 @@ void EditPeerColorSection(
 				}),
 			{ profileMargin, profileSkip, profileMargin, profileSkip });
 
-		Ui::AddSkip(container, st::settingsColorSampleSkip);
 		container->add(CreateEmojiIconButton(
 			container,
 			show,
@@ -1631,6 +1630,8 @@ void EditPeerColorSection(
 		) | rpl::start_with_next([=](uint8 index) {
 			selector->updateSelection(index);
 		}, selector->lifetime());
+
+		Ui::AddSkip(container, st::settingsColorSampleSkip);
 
 		const auto resetWrap = container->add(
 			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
@@ -1657,6 +1658,13 @@ void EditPeerColorSection(
 		resetWrap->toggleOn(state->profileIndex.value(
 		) | rpl::map(rpl::mappers::_1 != kUnsetColorIndex));
 		resetWrap->finishAnimating();
+
+		Ui::AddDividerText(
+			container,
+			group
+				? tr::lng_settings_color_choose_group()
+				: tr::lng_settings_color_choose_channel());
+		Ui::AddSkip(container, st::settingsColorSampleSkip);
 	};
 
 	if (group) {
