@@ -1498,6 +1498,12 @@ not_null<Info::Profile::TopBar*> CreateProfilePreview(
 	return preview;
 }
 
+void ProcessButton(not_null<Ui::RoundButton*> button) {
+	button->setTextTransform(Ui::RoundButton::TextTransform::NoTransform);
+	// Raise to be above right emoji from buttons.
+	crl::on_main(button, [=] { button->raise(); });
+}
+
 } // namespace
 
 void AddLevelBadge(
@@ -1541,7 +1547,7 @@ void EditPeerColorSection(
 		not_null<PeerData*> peer,
 		std::shared_ptr<Ui::ChatStyle> style,
 		std::shared_ptr<Ui::ChatTheme> theme) {
-	button->setTextTransform(Ui::RoundButton::TextTransform::NoTransform);
+	ProcessButton(button);
 	const auto group = peer->isMegagroup();
 
 	struct State {
@@ -1959,7 +1965,7 @@ void EditPeerProfileColorSection(
 		std::shared_ptr<Ui::ChatStyle> style,
 		std::shared_ptr<Ui::ChatTheme> theme,
 		Fn<void()> aboutCallback) {
-	button->setTextTransform(Ui::RoundButton::TextTransform::NoTransform);
+	ProcessButton(button);
 
 	const auto preview = CreateProfilePreview(box, container, show, peer);
 
