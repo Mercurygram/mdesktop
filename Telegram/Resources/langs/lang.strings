@@ -995,6 +995,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_color_subscribe" = "Subscribe to {link} to choose a custom color for your name.";
 "lng_settings_color_changed" = "Your name color has been updated!";
 "lng_settings_color_changed_channel" = "Your channel color has been updated!";
+"lng_settings_color_changed_profile" = "Your profile style has been updated!";
+"lng_settings_color_changed_profile_channel" = "Your channel profile style has been updated!";
 "lng_settings_color_apply" = "Apply Style";
 "lng_settings_color_profile_emoji" = "Add icons to Profile";
 "lng_settings_color_profile_emoji_channel" = "Profile Logo";

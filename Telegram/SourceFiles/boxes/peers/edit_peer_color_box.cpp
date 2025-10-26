@@ -405,13 +405,18 @@ struct SetValues {
 	EmojiStatusId statusId;
 	TimeId statusUntil = 0;
 	bool statusChanged = false;
+	bool forProfile = false;
 };
 void Set(
 		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<PeerData*> peer,
 		SetValues values) {
-	const auto wasIndex = peer->colorIndex();
-	const auto wasEmojiId = peer->backgroundEmojiId();
+	const auto wasIndex = values.forProfile
+		? peer->colorProfileIndex().value_or(kUnsetColorIndex)
+		: peer->colorIndex();
+	const auto wasEmojiId = values.forProfile
+		? peer->profileBackgroundEmojiId()
+		: peer->backgroundEmojiId();
 	const auto &wasColorCollectible = peer->colorCollectible();
 
 	const auto setLocal = [=](
@@ -419,20 +424,35 @@ void Set(
 			DocumentId emojiId,
 			std::optional<Ui::ColorCollectible> colorCollectible) {
 		using UpdateFlag = Data::PeerUpdate::Flag;
-		if (index == kUnsetColorIndex) {
-			peer->clearColorIndex();
+		if (values.forProfile) {
+			if (index == kUnsetColorIndex) {
+				peer->clearColorProfileIndex();
+			} else {
+				peer->changeColorProfileIndex(index);
+			}
+			if (colorCollectible) {
+				peer->changeColorCollectible(*colorCollectible);
+			} else {
+				peer->clearColorCollectible();
+			}
+			peer->changeProfileBackgroundEmojiId(emojiId);
 		} else {
-			peer->changeColorIndex(index);
+			if (index == kUnsetColorIndex) {
+				peer->clearColorIndex();
+			} else {
+				peer->changeColorIndex(index);
+			}
+			if (colorCollectible) {
+				peer->changeColorCollectible(*colorCollectible);
+			} else {
+				peer->clearColorCollectible();
+			}
+			peer->changeBackgroundEmojiId(emojiId);
 		}
-		if (colorCollectible) {
-			peer->changeColorCollectible(*colorCollectible);
-		} else {
-			peer->clearColorCollectible();
-		}
-		peer->changeBackgroundEmojiId(emojiId);
 		peer->session().changes().peerUpdated(
 			peer,
-			UpdateFlag::Color | UpdateFlag::BackgroundEmoji);
+			(values.forProfile ? UpdateFlag::ColorProfile : UpdateFlag::Color)
+				| UpdateFlag::BackgroundEmoji);
 	};
 	setLocal(
 		values.colorIndex,
@@ -441,8 +461,12 @@ void Set(
 
 	const auto done = [=] {
 		show->showToast(peer->isSelf()
-			? tr::lng_settings_color_changed(tr::now)
-			: tr::lng_settings_color_changed_channel(tr::now));
+			? (values.forProfile
+				? tr::lng_settings_color_changed_profile(tr::now)
+				: tr::lng_settings_color_changed(tr::now))
+			: (values.forProfile
+				? tr::lng_settings_color_changed_profile_channel(tr::now)
+				: tr::lng_settings_color_changed_channel(tr::now)));
 	};
 	const auto fail = [=](const MTP::Error &error) {
 		const auto type = error.type();
@@ -462,21 +486,26 @@ void Set(
 		using Flag = MTPaccount_UpdateColor::Flag;
 		using ColorFlag = MTPDpeerColor::Flag;
 		send(MTPaccount_UpdateColor(
-			MTP_flags(Flag::f_color),
+			MTP_flags(Flag::f_color
+				| (values.forProfile ? Flag::f_for_profile : Flag(0))),
 			(values.colorCollectible
 				? MTP_inputPeerColorCollectible(
 					MTP_long(values.colorCollectible->collectibleId))
 				: MTP_peerColor(
 					MTP_flags(ColorFlag()
 						| ColorFlag::f_color
-						| ColorFlag::f_background_emoji_id),
+						| (values.backgroundEmojiId || !values.forProfile
+							? ColorFlag::f_background_emoji_id
+							: ColorFlag(0))),
 					MTP_int(values.colorIndex),
 					MTP_long(values.backgroundEmojiId)))));
 	} else if (const auto channel = peer->asChannel()) {
 		if (peer->isBroadcast()) {
 			using Flag = MTPchannels_UpdateColor::Flag;
 			send(MTPchannels_UpdateColor(
-				MTP_flags(Flag::f_color | Flag::f_background_emoji_id),
+				MTP_flags(Flag::f_color
+					| Flag::f_background_emoji_id
+					| (values.forProfile ? Flag::f_for_profile : Flag(0))),
 				channel->inputChannel,
 				MTP_int(values.colorIndex),
 				MTP_long(values.backgroundEmojiId)));
@@ -518,11 +547,23 @@ void Apply(
 		SetValues values,
 		Fn<void()> close,
 		Fn<void()> cancel) {
-	if (peer->colorIndex() == values.colorIndex
-		&& peer->backgroundEmojiId() == values.backgroundEmojiId
-		&& (!peer->colorCollectible() == !values.colorCollectible)
+	const auto currentColorIndex = values.forProfile
+		? peer->colorProfileIndex().value_or(kUnsetColorIndex)
+		: peer->colorIndex();
+	const auto currentEmojiId = values.forProfile
+		? peer->profileBackgroundEmojiId()
+		: peer->backgroundEmojiId();
+
+	const auto colorMatch = (currentColorIndex == values.colorIndex);
+	const auto emojiMatch = (currentEmojiId == values.backgroundEmojiId);
+	const auto collectibleMatch = (!peer->colorCollectible()
+			== !values.colorCollectible)
 		&& (!peer->colorCollectible()
-			|| (*peer->colorCollectible() == *values.colorCollectible))
+			|| (*peer->colorCollectible() == *values.colorCollectible));
+
+	if (colorMatch
+		&& emojiMatch
+		&& collectibleMatch
 		&& !values.statusChanged) {
 		close();
 	} else if (peer->isSelf()) {
@@ -1365,6 +1406,7 @@ void EditPeerColorSection(
 		not_null<PeerData*> peer,
 		std::shared_ptr<Ui::ChatStyle> style,
 		std::shared_ptr<Ui::ChatTheme> theme) {
+	button->setTextTransform(Ui::RoundButton::TextTransform::NoTransform);
 	const auto group = peer->isMegagroup();
 
 	struct State {
@@ -1767,6 +1809,7 @@ void EditPeerProfileColorSection(
 		not_null<PeerData*> peer,
 		std::shared_ptr<Ui::ChatStyle> style,
 		std::shared_ptr<Ui::ChatTheme> theme) {
+	button->setTextTransform(Ui::RoundButton::TextTransform::NoTransform);
 
 	const auto preview = container->add(
 		object_ptr<Info::Profile::TopBar>(
@@ -1803,13 +1846,19 @@ void EditPeerProfileColorSection(
 		? *peer->colorCollectible()
 		: std::optional<Ui::ColorCollectible>();
 
+	const auto resetUnique = [=] {
+		preview->setLocalCollectible(nullptr);
+		state->buyCollectible = nullptr;
+		state->collectible.force_assign(std::nullopt);
+	};
+
 	const auto setIndex = [=](uint8 index) {
 		state->index = index;
 		preview->setColorProfileIndex(index == kUnsetColorIndex
 			? std::nullopt
 			: std::make_optional(index));
 		preview->setPatternEmojiId(state->patternEmojiId.current());
-		preview->setLocalCollectible(nullptr);
+		resetUnique();
 	};
 	setIndex(peer->colorProfileIndex().value_or(kUnsetColorIndex));
 
@@ -1838,7 +1887,7 @@ void EditPeerProfileColorSection(
 		[=](DocumentId id) {
 			state->patternEmojiId = id;
 			preview->setPatternEmojiId(id);
-			preview->setLocalCollectible(nullptr);
+			resetUnique();
 		},
 		true));
 
@@ -1857,11 +1906,9 @@ void EditPeerProfileColorSection(
 	resetButton->setClickedCallback([=] {
 		state->index = kUnsetColorIndex;
 		state->patternEmojiId = 0;
-		state->collectible = std::nullopt;
-		state->buyCollectible = nullptr;
 		preview->setColorProfileIndex(std::nullopt);
 		preview->setPatternEmojiId(0);
-		preview->setLocalCollectible(nullptr);
+		resetUnique();
 		resetWrap->toggle(false, anim::type::normal);
 	});
 
@@ -1906,6 +1953,89 @@ void EditPeerProfileColorSection(
 			resetWrap->toggle(true, anim::type::normal);
 		}, state->collectible.value(), true, state->selectedGiftId.value());
 	}
+
+	struct ProfileState {
+		bool applying = false;
+	};
+	const auto profileState = button->lifetime().make_state<ProfileState>();
+
+	button->setClickedCallback([=] {
+		if (profileState->applying) {
+			return;
+		} else if (ShowPremiumToast(show, peer)) {
+			return;
+		}
+		const auto values = SetValues{
+			.colorIndex = state->index.current(),
+			.backgroundEmojiId = state->patternEmojiId.current(),
+			.colorCollectible = state->collectible.current(),
+			.statusId = {},
+			.statusUntil = 0,
+			.statusChanged = false,
+			.forProfile = true,
+		};
+		if (const auto buy = state->buyCollectible) {
+			const auto done = [=, weak = base::make_weak(box)](bool ok) {
+				if (ok) {
+					if (const auto strong = weak.get()) {
+						strong->closeBox();
+					}
+					Apply(show, peer, values, [] {}, [] {});
+				}
+			};
+			const auto to = peer->session().user();
+			ShowBuyResaleGiftBox(show, buy, false, to, done);
+			return;
+		}
+		profileState->applying = true;
+		Apply(show, peer, values, crl::guard(box, [=] {
+			box->closeBox();
+		}), crl::guard(box, [=] {
+			profileState->applying = false;
+		}));
+	});
+	state->collectible.value(
+	) | rpl::start_with_next([=] {
+		const auto buy = state->buyCollectible.get();
+		while (!button->children().isEmpty()) {
+			delete button->children().first();
+		}
+		if (!buy) {
+			button->setText(rpl::combine(
+				tr::lng_settings_color_apply(),
+				Data::AmPremiumValue(&peer->session())
+			) | rpl::map([=](const QString &text, bool premium) {
+				auto result = TextWithEntities();
+				if (!premium && peer->isSelf()) {
+					result.append(Ui::Text::IconEmoji(&st::giftBoxLock));
+				}
+				result.append(text);
+				return result;
+			}));
+		} else if (buy->onlyAcceptTon) {
+			button->setText(rpl::single(QString()));
+			Ui::SetButtonTwoLabels(
+				button,
+				tr::lng_gift_buy_resale_button(
+					lt_cost,
+					rpl::single(Data::FormatGiftResaleTon(*buy)),
+					Ui::Text::WithEntities),
+				tr::lng_gift_buy_resale_equals(
+					lt_cost,
+					rpl::single(Ui::Text::IconEmoji(
+						&st::starIconEmojiSmall
+					).append(Lang::FormatCountDecimal(buy->starsForResale))),
+					Ui::Text::WithEntities),
+				st::resaleButtonTitle,
+				st::resaleButtonSubtitle);
+		} else {
+			button->setText(tr::lng_gift_buy_resale_button(
+				lt_cost,
+				rpl::single(Ui::Text::IconEmoji(&st::starIconEmoji).append(
+					Lang::FormatCountDecimal(buy->starsForResale))),
+				Ui::Text::WithEntities));
+		}
+	}, button->lifetime());
 }
 
 void EditPeerColorBox(
@@ -1922,8 +2052,27 @@ void EditPeerColorBox(
 	box->addTopButton(st::boxTitleClose, [=] {
 		box->closeBox();
 	});
-	const auto button = box->addButton(tr::lng_settings_color_apply(), [] {});
+	const auto buttonContainer = box->addButton(
+		rpl::single(QString()),
+		[] {});
 	const auto content = box->verticalLayout();
+
+	const auto profileButton = Ui::CreateChild<Ui::RoundButton>(
+		buttonContainer,
+		tr::lng_settings_color_apply(),
+		box->getDelegate()->style().button);
+	const auto nameButton = Ui::CreateChild<Ui::RoundButton>(
+		buttonContainer,
+		tr::lng_settings_color_apply(),
+		box->getDelegate()->style().button);
+	rpl::combine(
+		buttonContainer->widthValue(),
+		profileButton->sizeValue(),
+		nameButton->sizeValue()
+	) | rpl::start_with_next([=](int w, QSize, QSize) {
+		profileButton->resizeToWidth(w);
+		nameButton->resizeToWidth(w);
+	}, buttonContainer->lifetime());
 
 	auto nameOwned = object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 		content,
@@ -1946,22 +2095,27 @@ void EditPeerColorBox(
 			[=] {
 				nameWrap->toggle(false, anim::type::instant);
 				profileWrap->toggle(true, anim::type::instant);
+				nameButton->hide();
+				profileButton->show();
 			},
 			[=] {
 				nameWrap->toggle(true, anim::type::instant);
 				profileWrap->toggle(false, anim::type::instant);
+				profileButton->hide();
+				nameButton->show();
 			},
 		});
 	Ui::AddSkip(content);
 	nameWrap->toggle(false, anim::type::instant);
 	profileWrap->toggle(true, anim::type::instant);
+	nameButton->hide();
 	content->add(std::move(profileOwned));
 	content->add(std::move(nameOwned));
 
 	EditPeerProfileColorSection(
 		box,
 		profile,
-		button,
+		profileButton,
 		show,
 		peer,
 		style,
@@ -1970,7 +2124,7 @@ void EditPeerColorBox(
 	EditPeerColorSection(
 		box,
 		name,
-		button,
+		nameButton,
 		show,
 		peer,
 		style,
