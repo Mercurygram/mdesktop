@@ -410,7 +410,8 @@ struct SetValues {
 void Set(
 		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<PeerData*> peer,
-		SetValues values) {
+		SetValues values,
+		bool showToast = true) {
 	const auto wasIndex = values.forProfile
 		? peer->colorProfileIndex().value_or(kUnsetColorIndex)
 		: peer->colorIndex();
@@ -460,13 +461,15 @@ void Set(
 		values.colorCollectible);
 
 	const auto done = [=] {
-		show->showToast(peer->isSelf()
-			? (values.forProfile
-				? tr::lng_settings_color_changed_profile(tr::now)
-				: tr::lng_settings_color_changed(tr::now))
-			: (values.forProfile
-				? tr::lng_settings_color_changed_profile_channel(tr::now)
-				: tr::lng_settings_color_changed_channel(tr::now)));
+		if (showToast) {
+			show->showToast(peer->isSelf()
+				? (values.forProfile
+					? tr::lng_settings_color_changed_profile(tr::now)
+					: tr::lng_settings_color_changed(tr::now))
+				: (values.forProfile
+					? tr::lng_settings_color_changed_profile_channel(tr::now)
+					: tr::lng_settings_color_changed_channel(tr::now)));
+		}
 	};
 	const auto fail = [=](const MTP::Error &error) {
 		const auto type = error.type();
@@ -546,7 +549,8 @@ void Apply(
 		not_null<PeerData*> peer,
 		SetValues values,
 		Fn<void()> close,
-		Fn<void()> cancel) {
+		Fn<void()> cancel,
+		bool showToast = true) {
 	const auto currentColorIndex = values.forProfile
 		? peer->colorProfileIndex().value_or(kUnsetColorIndex)
 		: peer->colorIndex();
@@ -567,7 +571,7 @@ void Apply(
 		&& !values.statusChanged) {
 		close();
 	} else if (peer->isSelf()) {
-		Set(show, peer, values);
+		Set(show, peer, values, showToast);
 		close();
 	} else {
 		CheckBoostLevel(show, peer, [=](int level) {
@@ -591,7 +595,7 @@ void Apply(
 				statusRequired,
 			});
 			if (level >= required) {
-				Set(show, peer, values);
+				Set(show, peer, values, showToast);
 				close();
 				return std::optional<Ui::AskBoostReason>();
 			}
@@ -1546,7 +1550,10 @@ void EditPeerColorSection(
 		rpl::variable<EmojiStatusId> statusId;
 		rpl::variable<std::optional<Ui::ColorCollectible>> collectible;
 		rpl::variable<uint64> showingGiftId;
+		rpl::variable<uint8> profileIndex;
+		rpl::variable<DocumentId> profileEmojiId;
 		std::shared_ptr<Data::UniqueGift> buyCollectible;
+		Info::Profile::TopBar *preview = nullptr;
 		TimeId statusUntil = 0;
 		bool statusChanged = false;
 		bool changing = false;
@@ -1561,15 +1568,99 @@ void EditPeerColorSection(
 	state->collectible = peer->colorCollectible()
 		? *peer->colorCollectible()
 		: std::optional<Ui::ColorCollectible>();
-	if (group) {
-		Settings::AddDividerTextWithLottie(container, {
-			.lottie = u"palette"_q,
-			.lottieSize = st::settingsCloudPasswordIconSize,
-			.lottieMargins = st::peerAppearanceIconPadding,
-			.showFinished = box->showFinishes(),
-			.about = tr::lng_boost_group_about(Ui::Text::WithEntities),
-			.aboutMargins = st::peerAppearanceCoverLabelMargin,
+	state->profileIndex = peer->colorProfileIndex().value_or(
+		kUnsetColorIndex);
+	state->profileEmojiId = peer->profileBackgroundEmojiId();
+
+	const auto appendProfileSettings = [=](
+			not_null<Ui::VerticalLayout*> container) {
+		state->preview = CreateProfilePreview(box, container, show, peer);
+		if (state->profileIndex.current() != kUnsetColorIndex) {
+			state->preview->setColorProfileIndex(
+				state->profileIndex.current());
+		}
+		if (state->profileEmojiId.current()) {
+			state->preview->setPatternEmojiId(
+				state->profileEmojiId.current());
+		}
+		state->statusId.value() | rpl::start_with_next([=](EmojiStatusId id) {
+			state->preview->setLocalEmojiStatusId(std::move(id));
+		}, state->preview->lifetime());
+		const auto peerColors = &peer->session().api().peerColors();
+		const auto profileIndices = peerColors->profileColorIndices();
+
+		const auto profileMargin = st::settingsColorRadioMargin;
+		const auto profileSkip = st::settingsColorRadioSkip;
+		const auto selector = container->add(
+			object_ptr<Ui::ColorSelector>(
+				container,
+				profileIndices,
+				state->profileIndex.current(),
+				[=](uint8 index) {
+					state->profileIndex = index;
+					if (state->preview) {
+						state->preview->setColorProfileIndex(
+							index == kUnsetColorIndex
+								? std::nullopt
+								: std::make_optional(index));
+					}
+				},
+				[=](uint8 index) {
+					return peerColors->colorProfileFor(index).value_or(
+						Data::ColorProfileSet{});
+				}),
+			{ profileMargin, profileSkip, profileMargin, profileSkip });
+
+		Ui::AddSkip(container, st::settingsColorSampleSkip);
+		container->add(CreateEmojiIconButton(
+			container,
+			show,
+			style,
+			peer,
+			state->profileIndex.value(),
+			state->profileEmojiId.value(),
+			[=](DocumentId id) {
+				state->profileEmojiId = id;
+				if (state->preview) {
+					state->preview->setPatternEmojiId(id);
+				}
+			},
+			true));
+
+		state->profileIndex.value(
+		) | rpl::start_with_next([=](uint8 index) {
+			selector->updateSelection(index);
+		}, selector->lifetime());
+
+		const auto resetWrap = container->add(
+			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+				container,
+				object_ptr<Ui::VerticalLayout>(container)));
+		const auto resetInner = resetWrap->entity();
+		Ui::AddSkip(resetInner, st::settingsColorSampleSkip);
+		const auto resetButton = resetInner->add(
+			object_ptr<Ui::SettingsButton>(
+				resetInner,
+				tr::lng_settings_color_reset(),
+				st::settingsButtonLightNoIcon));
+		Ui::AddSkip(resetInner, st::settingsColorSampleSkip);
+		resetButton->setClickedCallback([=] {
+			state->profileIndex = kUnsetColorIndex;
+			state->profileEmojiId = 0;
+			if (state->preview) {
+				state->preview->setColorProfileIndex(std::nullopt);
+				state->preview->setPatternEmojiId(0);
+			}
+			resetWrap->toggle(false, anim::type::normal);
 		});
+
+		resetWrap->toggleOn(state->profileIndex.value(
+		) | rpl::map(rpl::mappers::_1 != kUnsetColorIndex));
+		resetWrap->finishAnimating();
+	};
+
+	if (group) {
+		appendProfileSettings(container);
 	} else {
 		container->add(object_ptr<PreviewWrap>(
 			box,
@@ -1701,6 +1792,11 @@ void EditPeerColorSection(
 		statuses->refreshChannelDefault();
 		statuses->refreshChannelColored();
 
+		if (!state->preview) {
+			Ui::AddSkip(container);
+			appendProfileSettings(container);
+		}
+
 		Ui::AddSkip(container, st::settingsColorSampleSkip);
 		container->add(CreateEmojiStatusButton(
 			container,
@@ -1761,6 +1857,15 @@ void EditPeerColorSection(
 			state->statusUntil,
 			state->statusChanged,
 		};
+		const auto profileValues = SetValues{
+			.colorIndex = state->profileIndex.current(),
+			.backgroundEmojiId = state->profileEmojiId.current(),
+			.colorCollectible = state->collectible.current(),
+			.statusId = {},
+			.statusUntil = 0,
+			.statusChanged = false,
+			.forProfile = true,
+		};
 		if (const auto buy = state->buyCollectible) {
 			const auto done = [=, weak = base::make_weak(box)](bool ok) {
 				if (ok) {
@@ -1775,6 +1880,20 @@ void EditPeerColorSection(
 			return;
 		}
 		state->applying = true;
+		if (peer->isChannel()) {
+			// First request: regular color data (without toast)
+			Apply(show, peer, values, [=] {
+				// Second request: profile color data (with toast)
+				Apply(show, peer, profileValues, crl::guard(box, [=] {
+					box->closeBox();
+				}), crl::guard(box, [=] {
+					state->applying = false;
+				}), true);
+			}, crl::guard(box, [=] {
+				state->applying = false;
+			}), false);
+			return;
+		}
 		Apply(show, peer, values, crl::guard(box, [=] {
 			box->closeBox();
 		}), crl::guard(box, [=] {
@@ -2080,6 +2199,13 @@ void EditPeerColorBox(
 	box->addTopButton(st::boxTitleClose, [=] {
 		box->closeBox();
 	});
+	if (peer->isChannel()) {
+		const auto button = box->addButton(
+			tr::lng_settings_color_apply(),
+			[] {});
+		EditPeerColorSection(box, box->verticalLayout(), button, show, peer, style, theme);
+		return;
+	}
 	const auto buttonContainer = box->addButton(
 		rpl::single(QString()),
 		[] {});
@@ -2153,14 +2279,7 @@ void EditPeerColorBox(
 		theme,
 		[=] { switchTab(1); });
 
-	EditPeerColorSection(
-		box,
-		name,
-		nameButton,
-		show,
-		peer,
-		style,
-		theme);
+	EditPeerColorSection(box, name, nameButton, show, peer, style, theme);
 }
 
 void SetupPeerColorSample(
