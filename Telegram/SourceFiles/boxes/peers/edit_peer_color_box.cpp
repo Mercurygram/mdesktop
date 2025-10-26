@@ -1694,7 +1694,7 @@ void EditPeerColorSection(
 	}, button->lifetime());
 }
 
-not_null<Ui::RpWidget*> CreateTabsWidget(
+Fn<void(int)> CreateTabsWidget(
 		not_null<Ui::VerticalLayout*> container,
 		const std::vector<QString> &tabs,
 		const std::vector<Fn<void()>> &callbacks) {
@@ -1702,6 +1702,7 @@ not_null<Ui::RpWidget*> CreateTabsWidget(
 		int activeTab = 0;
 		Ui::Animations::Simple animation;
 		float64 animatedPosition = 0.;
+		std::vector<int> tabWidths;
 	};
 	const auto tabsContainer = container->add(
 		object_ptr<Ui::RpWidget>(container),
@@ -1711,45 +1712,46 @@ not_null<Ui::RpWidget*> CreateTabsWidget(
 	const auto height = st::semiboldFont->height * 1.5;
 
 	auto totalWidth = 0;
-	auto tabWidths = std::vector<int>();
-	tabWidths.reserve(tabs.size());
+	state->tabWidths.reserve(tabs.size());
 	for (const auto &text : tabs) {
 		const auto width = st::semiboldFont->width(text) + height * 2;
-		tabWidths.push_back(width);
+		state->tabWidths.push_back(width);
 		totalWidth += width;
 	}
 
 	tabsContainer->resize(totalWidth, height);
 	tabsContainer->setMaximumWidth(tabsContainer->width());
 
+	const auto switchTo = [=](int i) {
+		if (state->activeTab != i && i >= 0 && i < state->tabWidths.size()) {
+			auto targetPosition = 0.;
+			for (auto j = 0; j < i; ++j) {
+				targetPosition += state->tabWidths[j];
+			}
+			state->animation.stop();
+			state->animation.start(
+				[=](float64 v) {
+					state->animatedPosition = v;
+					tabsContainer->update();
+				},
+				state->animatedPosition,
+				targetPosition,
+				400,
+				anim::easeOutQuint);
+			state->activeTab = i;
+		}
+		if (i < callbacks.size() && callbacks[i]) {
+			callbacks[i]();
+		}
+	};
+
 	auto left = 0;
 	for (auto i = 0; i < tabs.size(); ++i) {
 		const auto tabButton = Ui::CreateChild<Ui::AbstractButton>(
 			tabsContainer);
-		tabButton->setGeometry(left, 0, tabWidths[i], height);
-		tabButton->setClickedCallback([=] {
-			if (state->activeTab != i) {
-				auto targetPosition = 0.;
-				for (auto j = 0; j < i; ++j) {
-					targetPosition += tabWidths[j];
-				}
-				state->animation.stop();
-				state->animation.start(
-					[=](float64 v) {
-						state->animatedPosition = v;
-						tabsContainer->update();
-					},
-					state->animatedPosition,
-					targetPosition,
-					400,
-					anim::easeOutQuint);
-				state->activeTab = i;
-			}
-			if (i < callbacks.size() && callbacks[i]) {
-				callbacks[i]();
-			}
-		});
-		left += tabWidths[i];
+		tabButton->setGeometry(left, 0, state->tabWidths[i], height);
+		tabButton->setClickedCallback([=] { switchTo(i); });
+		left += state->tabWidths[i];
 	}
 
 	const auto penWidth = st::lineWidth * 2;
@@ -1773,7 +1775,7 @@ not_null<Ui::RpWidget*> CreateTabsWidget(
 		p.setFont(st::semiboldFont);
 
 		const auto animatedLeft = state->animatedPosition;
-		const auto activeWidth = tabWidths[state->activeTab];
+		const auto activeWidth = state->tabWidths[state->activeTab];
 		p.setBrush(st::giftBoxTabBgActive);
 		p.setPen(Qt::NoPen);
 		p.drawRoundedRect(
@@ -1789,16 +1791,16 @@ not_null<Ui::RpWidget*> CreateTabsWidget(
 			textPen.setWidthF(penWidth);
 			p.setPen(textPen);
 			p.drawText(
-				QRect(left, 0, tabWidths[i], height),
+				QRect(left, 0, state->tabWidths[i], height),
 				tabs[i],
 				style::al_center);
-			left += tabWidths[i];
+			left += state->tabWidths[i];
 		}
 	}, tabsContainer->lifetime());
 
 	state->animatedPosition = 0.;
 
-	return tabsContainer;
+	return switchTo;
 }
 
 void EditPeerProfileColorSection(
@@ -1808,7 +1810,8 @@ void EditPeerProfileColorSection(
 		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<PeerData*> peer,
 		std::shared_ptr<Ui::ChatStyle> style,
-		std::shared_ptr<Ui::ChatTheme> theme) {
+		std::shared_ptr<Ui::ChatTheme> theme,
+		Fn<void()> aboutCallback) {
 	button->setTextTransform(Ui::RoundButton::TextTransform::NoTransform);
 
 	const auto preview = container->add(
@@ -1915,6 +1918,25 @@ void EditPeerProfileColorSection(
 	resetWrap->toggleOn(state->index.value(
 	) | rpl::map([](uint8 index) { return index != kUnsetColorIndex; }));
 	resetWrap->finishAnimating();
+
+	Ui::AddSkip(container, st::settingsColorSampleSkip);
+	const auto about = Ui::AddDividerText(
+		container,
+		tr::lng_settings_color_profile_about(
+			lt_link,
+			tr::lng_settings_color_profile_about_link(
+				lt_emoji,
+				rpl::single(Ui::Text::IconEmoji(&st::textMoreIconEmoji)),
+				Ui::Text::RichLangValue
+			) | rpl::map([=](TextWithEntities t) {
+				return Ui::Text::Link(std::move(t), u"internal:"_q);
+			}),
+			Ui::Text::RichLangValue));
+	Ui::AddSkip(container, st::settingsColorSampleSkip);
+	about->setClickHandlerFilter([=](auto...) {
+		aboutCallback();
+		return false;
+	});
 
 	state->index.value(
 	) | rpl::start_with_next([=](uint8 index) {
@@ -2085,7 +2107,14 @@ void EditPeerColorBox(
 	const auto name = nameWrap->entity();
 	const auto profile = profileWrap->entity();
 
-	CreateTabsWidget(
+	const auto showName = [=] {
+		nameWrap->toggle(true, anim::type::instant);
+		profileWrap->toggle(false, anim::type::instant);
+		profileButton->hide();
+		nameButton->show();
+	};
+
+	const auto switchTab = CreateTabsWidget(
 		content,
 		{
 			tr::lng_settings_color_tab_profile(tr::now),
@@ -2098,13 +2127,9 @@ void EditPeerColorBox(
 				nameButton->hide();
 				profileButton->show();
 			},
-			[=] {
-				nameWrap->toggle(true, anim::type::instant);
-				profileWrap->toggle(false, anim::type::instant);
-				profileButton->hide();
-				nameButton->show();
-			},
+			showName,
 		});
+
 	Ui::AddSkip(content);
 	nameWrap->toggle(false, anim::type::instant);
 	profileWrap->toggle(true, anim::type::instant);
@@ -2119,7 +2144,8 @@ void EditPeerColorBox(
 		show,
 		peer,
 		style,
-		theme);
+		theme,
+		[=] { switchTab(1); });
 
 	EditPeerColorSection(
 		box,
