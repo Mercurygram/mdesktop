@@ -1857,7 +1857,7 @@ void EditPeerProfileColorSection(
 		: std::optional<Ui::ColorCollectible>();
 
 	const auto resetUnique = [=] {
-		preview->setLocalCollectible(nullptr);
+		preview->setLocalEmojiStatusId({});
 		state->buyCollectible = nullptr;
 		state->collectible.force_assign(std::nullopt);
 	};
@@ -1976,9 +1976,8 @@ void EditPeerProfileColorSection(
 				: std::optional<Ui::ColorCollectible>();
 			preview->setColorProfileIndex(std::nullopt);
 			preview->setPatternEmojiId(selected->pattern.document->id);
-			const auto emojiStatuses = &session->data().emojiStatuses();
-			const auto id = emojiStatuses->fromUniqueGift(*selected);
-			preview->setLocalCollectible(id.collectible);
+			preview->setLocalEmojiStatusId(
+				session->data().emojiStatuses().fromUniqueGift(*selected));
 			resetWrap->toggle(true, anim::type::normal);
 		}, state->collectible.value(), true, state->selectedGiftId.value());
 	}

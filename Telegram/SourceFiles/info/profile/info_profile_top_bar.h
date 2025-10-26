@@ -116,8 +116,7 @@ public:
 	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
 	void setColorProfileIndex(std::optional<uint8> index);
 	void setPatternEmojiId(std::optional<DocumentId> patternEmojiId);
-	void setLocalCollectible(
-		std::shared_ptr<Data::EmojiStatusCollectible> collectible);
+	void setLocalEmojiStatusId(EmojiStatusId emojiStatusId);
 	void addTopBarMenuButton(
 		not_null<Window::SessionController*> controller,
 		Wrap wrap,
