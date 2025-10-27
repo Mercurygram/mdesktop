@@ -294,6 +294,7 @@ private:
 	void initVoiceRecordBar();
 	void initKeyHandler();
 	void initLikeButton();
+	void initEditStarsButton();
 	void updateLikeParent();
 	void updateSubmitSettings();
 	void updateSendButtonType();
@@ -403,6 +404,7 @@ private:
 	std::optional<Ui::RoundRect> _backgroundRect;
 
 	const std::shared_ptr<Ui::SendButton> _send;
+	Ui::IconButton *_editStars = nullptr;
 	Ui::IconButton *_like = nullptr;
 	std::optional<int> _chosenStarsCount;
 	Ui::IconButton *_commentsShown = nullptr;

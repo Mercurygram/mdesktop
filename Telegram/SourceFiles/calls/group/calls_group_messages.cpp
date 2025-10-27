@@ -54,7 +54,7 @@ constexpr auto kMaxShownVideoStreamMessages = 100;
 	if (!date || !stars) {
 		return 0;
 	}
-	return date + (Ui::StarsColoringForCount(stars).minutesPin * TimeId(60));
+	return date + Ui::StarsColoringForCount(stars).secondsPin;
 }
 
 [[nodiscard]] TimeId PinFinishDate(const Message &message) {

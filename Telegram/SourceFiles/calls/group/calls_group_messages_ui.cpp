@@ -52,6 +52,7 @@ namespace Calls::Group {
 namespace {
 
 constexpr auto kMessageBgOpacity = 0.8;
+constexpr auto kDarkOverOpacity = 0.25;
 constexpr auto kColoredMessageBgOpacity = 0.65;
 
 [[nodiscard]] int CountMessageRadius() {
@@ -69,7 +70,8 @@ constexpr auto kColoredMessageBgOpacity = 0.65;
 }
 
 [[nodiscard]] uint64 ColoringKey(const Ui::StarsColoring &value) {
-	return (uint64(uint32(value.bg1)) << 32) | uint64(uint32(value.bg2));
+	return uint64(uint32(value.bgLight))
+		| (uint64(uint32(value.bgDark)) << 32);
 }
 
 void ReceiveSomeMouseEvents(
@@ -199,11 +201,12 @@ struct MessagesUi::PinnedView {
 };
 
 MessagesUi::PayedBg::PayedBg(const Ui::StarsColoring &coloring)
-: color1(Ui::ColorFromSerialized(coloring.bg1))
-, color2(Ui::ColorFromSerialized(coloring.bg2))
-, rounded1(CountPinnedRadius(), color1.color())
-, rounded2(CountPinnedRadius(), color2.color())
-, rounded(CountMessageRadius(), color2.color()) {
+: light(Ui::ColorFromSerialized(coloring.bgLight))
+, dark(Ui::ColorFromSerialized(coloring.bgDark))
+, pinnedLight(CountPinnedRadius(), light.color())
+, pinnedDark(CountPinnedRadius(), dark.color())
+, messageLight(CountMessageRadius(), light.color())
+, badgeDark(st::roundRadiusLarge, dark.color()) {
 }
 
 MessagesUi::MessagesUi(
@@ -988,7 +991,7 @@ void MessagesUi::setupMessagesWidget() {
 					bg = std::make_unique<PayedBg>(coloring);
 				}
 				p.setOpacity(kColoredMessageBgOpacity);
-				bg->rounded.paint(p, { x, y, width, use });
+				bg->messageLight.paint(p, { x, y, width, use });
 				p.setOpacity(1.);
 				if (_highlightAnimation.animating()
 					&& entry.id == _highlightId) {
@@ -1221,14 +1224,16 @@ void MessagesUi::setupPinnedWidget() {
 			const auto part = int(base::SafeRound(still * use));
 			const auto line = st::lineWidth;
 			if (part > 0) {
-				p.setClipRect(x - line, y, part + line, height);
-				bg->rounded1.paint(p, { x, y, use, height });
+				p.setOpacity(kColoredMessageBgOpacity);
+				bg->pinnedLight.paint(p, { x, y, use, height });
 			}
 			if (part < use) {
 				p.setClipRect(x + part, y, use - part + line, height);
-				bg->rounded2.paint(p, { x, y, use, height });
+				p.setOpacity(kDarkOverOpacity);
+				bg->pinnedDark.paint(p, { x, y, use, height });
 			}
 			p.setClipping(false);
+			p.setOpacity(1.);
 
 			const auto userpicSize = st::groupCallPinnedUserpic;
 			const auto userpicPadding = st::groupCallUserpicPadding;

@@ -73,6 +73,7 @@ ComposeIcons {
 	menuBelow: icon;
 	menuAbove: icon;
 	menuPrice: icon;
+	menuEditStars: icon;
 
 	stripBubble: icon;
 	stripExpandPanel: icon;
@@ -156,8 +157,6 @@ SendButton {
 	recordOver: icon;
 	round: icon;
 	roundOver: icon;
-	editPrice: icon;
-	editPriceOver: icon;
 	sendDisabledFg: color;
 }
 
@@ -214,6 +213,7 @@ ComposeControls {
 	emoji: EmojiButton;
 	like: IconButton;
 	liked: icon;
+	editStars: IconButton;
 	commentsShow: IconButton;
 	commentsShown: icon;
 	commentsSkip: pixels;

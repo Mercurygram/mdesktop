@@ -16,10 +16,10 @@ namespace Calls::Group::Ui {
 using namespace ::Ui;
 
 struct StarsColoring {
-	int bg1 = 0;
-	int bg2 = 0;
-	int tillStars = 0;
-	int minutesPin = 0;
+	int bgLight = 0;
+	int bgDark = 0;
+	int fromStars = 0;
+	TimeId secondsPin = 0;
 	int charactersMax = 0;
 	int emojiLimit = 0;
 

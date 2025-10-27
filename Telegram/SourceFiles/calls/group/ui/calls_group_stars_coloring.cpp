@@ -70,63 +70,23 @@ namespace {
 } // namespace
 
 StarsColoring StarsColoringForCount(int stars) {
-    //name: "Purple" [STRING],
-    //center_color: 11431086 [INT],
-    //edge_color: 8669060 [INT],
-    //pattern_color: 4656199 [INT],
-    //text_color: 15977459 [INT],
-
-    //name: "Celtic Blue" [STRING],
-    //center_color: 4569325 [INT],
-    //edge_color: 3704537 [INT],
-    //pattern_color: 16005 [INT],
-    //text_color: 12773375 [INT],
-
-    //name: "Mint Green" [STRING],
-    //center_color: 8309634 [INT],
-    //edge_color: 4562522 [INT],
-    //pattern_color: 158498 [INT],
-    //text_color: 12451788 [INT],
-
-	//name: "Pure Gold" [STRING],
-	//center_color: 13413185 [INT],
-	//edge_color: 9993010 [INT],
-	//pattern_color: 7355392 [INT],
-	//text_color: 16770475 [INT],
-
-	//name: "Orange" [STRING],
-	//center_color: 13736506 [INT],
-	//edge_color: 12611399 [INT],
-	//pattern_color: 10303751 [INT],
-	//text_color: 16769475 [INT],
-
-	//name: "Strawberry" [STRING],
-	//center_color: 14519919 [INT],
-	//edge_color: 12016224 [INT],
-	//pattern_color: 11078668 [INT],
-	//text_color: 16765907 [INT],
-
-	//name: "Steel Grey" [STRING],
-	//center_color: 9937580 [INT],
-	//edge_color: 6517372 [INT],
-	//pattern_color: 3360082 [INT],
-	//text_color: 14673128 [INT],
-
 	const auto list = std::vector<StarsColoring>{
-		{ 11431086, 8669060, 50, 1, 60, 1 },
-		{ 4569325, 3704537, 100, 1, 80, 2 },
-		{ 8309634, 4562522, 250, 5, 110, 3 },
-		{ 13413185, 9993010, 500, 10, 150, 4 },
-		{ 13736506, 12611399, 2000, 15, 200, 7 },
-		{ 14519919, 12016224, 7500, 30, 280, 10 },
-		{ 9937580, 6517372, 0, 60, 400, 20 },
+		{ 0x955CDB, 0x49079B, 0, 30, 30, 0 }, // purple
+		{ 0x955CDB, 0x49079B, 10, 60, 60, 1 }, // still purple
+		{ 0x46A3EB, 0x00508E, 50, 120, 80, 2 }, // blue
+		{ 0x40A920, 0x176200, 100, 300, 110, 3 }, // green
+		{ 0xE29A09, 0x9A3E00, 250, 600, 150, 4 }, // yellow
+		{ 0xED771E, 0x9B3100, 500, 900, 200, 7 }, // orange
+		{ 0xE14542, 0x8B0503, 2'000, 1800, 280, 10 }, // red
+		{ 0x596473, 0x252C36, 10'000, 3600, 400, 20 }, // silver
 	};
-	for (const auto &entry : list) {
-		if (!entry.tillStars || stars < entry.tillStars) {
-			return entry;
+	for (auto i = begin(list), e = end(list); i != e; ++i) {
+		if (i->fromStars > stars) {
+			Assert(i != begin(list));
+			return *(std::prev(i));
 		}
 	}
-	Unexpected("StarsColoringForCount: should not reach here.");
+	return list.back();
 }
 
 object_ptr<Ui::RpWidget> VideoStreamStarsLevel(
@@ -149,10 +109,12 @@ object_ptr<Ui::RpWidget> VideoStreamStarsLevel(
 
 	state->blocks.push_back(MakeInfoBlock(raw, state->coloring.value(
 	) | rpl::map([=](const StarsColoring &value) {
-		const auto minutes = value.minutesPin;
-		return (minutes >= 60)
-			? tr::lng_hours_tiny(tr::now, lt_count, minutes / 60)
-			: tr::lng_minutes_tiny(tr::now, lt_count, minutes);
+		const auto seconds = value.secondsPin;
+		return (seconds >= 3600)
+			? tr::lng_hours_tiny(tr::now, lt_count, seconds / 3600)
+			: (seconds >= 60)
+			? tr::lng_minutes_tiny(tr::now, lt_count, seconds / 60)
+			: tr::lng_seconds_tiny(tr::now, lt_count, seconds);
 	}), tr::lng_paid_comment_pin_about()));
 
 	state->blocks.push_back(MakeInfoBlock(raw, state->coloring.value(

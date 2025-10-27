@@ -68,11 +68,12 @@ private:
 	struct PayedBg {
 		explicit PayedBg(const Ui::StarsColoring &coloring);
 
-		style::owned_color color1;
-		style::owned_color color2;
-		Ui::RoundRect rounded1;
-		Ui::RoundRect rounded2;
-		Ui::RoundRect rounded;
+		style::owned_color light;
+		style::owned_color dark;
+		Ui::RoundRect pinnedLight;
+		Ui::RoundRect pinnedDark;
+		Ui::RoundRect messageLight;
+		Ui::RoundRect badgeDark;
 	};
 
 	void setupList(

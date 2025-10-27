@@ -26,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_changes.h"
 #include "data/data_chat_participant_status.h"
 #include "data/data_document.h"
+#include "data/data_group_call.h"
 #include "data/data_message_reaction_id.h"
 #include "data/data_peer_values.h"
 #include "data/data_session.h"
@@ -599,9 +600,27 @@ void ReplyArea::chooseAttach(
 
 Fn<SendMenu::Details()> ReplyArea::sendMenuDetails() const {
 	return crl::guard(this, [=] {
+		const auto call = _videoStream
+			? _videoStream->lookupReal()
+			: nullptr;
 		return SendMenu::Details{
-			.type = SendMenu::Type::SilentOnly,
-			.effectAllowed = _data.peer && _data.peer->isUser(),
+			.type = (!_data.videoStream
+				? SendMenu::Type::SilentOnly
+				: !call
+				? SendMenu::Type::Disabled
+				: SendMenu::Type::EditCommentPrice),
+			.commentStreamerName = (call
+				? call->peer()->shortName()
+				: QString()),
+			.price = (_data.videoStream
+				? uint64(_controls->chosenStarsForMessage())
+				: std::optional<uint64>()),
+			.commentPriceMin = (call
+				? uint64(call->messagesMinPrice())
+				: std::optional<uint64>()),
+			.effectAllowed = (!_data.videoStream
+				&& _data.peer
+				&& _data.peer->isUser()),
 		};
 	});
 }

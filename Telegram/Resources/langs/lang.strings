@@ -4161,6 +4161,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_video_stream_live" = "LIVE";
 "lng_video_stream_watched#one" = "{count} watching";
 "lng_video_stream_watched#other" = "{count} watching";
+"lng_video_stream_edit_stars" = "Edit Stars";
+"lng_video_stream_remove_stars" = "Remove Stars";
 "lng_message_stars_ph#one" = "Message for {count} Star";
 "lng_message_stars_ph#other" = "Message for {count} Stars";
 "lng_send_text_no" = "Text not allowed.";

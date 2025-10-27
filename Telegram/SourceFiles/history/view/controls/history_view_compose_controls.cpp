@@ -909,6 +909,9 @@ ComposeControls::ComposeControls(
 , _mode(descriptor.mode)
 , _wrap(std::make_unique<Ui::RpWidget>(parent))
 , _send(std::make_shared<Ui::SendButton>(_wrap.get(), _st.send))
+, _editStars(_features.editMessageStars
+	? Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.editStars)
+	: nullptr)
 , _like(_features.likes
 	? Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.like)
 	: nullptr)
@@ -1080,6 +1083,22 @@ void ComposeControls::initLikeButton() {
 	}
 }
 
+void ComposeControls::initEditStarsButton() {
+	if (_editStars) {
+		_editStars->setClickedCallback([=] {
+			_show->show(Calls::Group::MakeVideoStreamStarsBox({
+				.show = _show,
+				.current = _chosenStarsCount.value_or(0),
+				.save = crl::guard(_editStars, [=](int count) {
+					_chosenStarsCount = count;
+					updateSendButtonType();
+				}),
+				.name = _history ? _history->peer->shortName() : QString(),
+			}));
+		});
+	}
+}
+
 void ComposeControls::updateLikeParent() {
 	if (_like) {
 		using namespace Controls;
@@ -1115,8 +1134,19 @@ void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
 		}
 		changed = true;
 	}
-	if (was.editMessageStars != features.editMessageStars
-		|| was.recordMediaMessage != features.recordMediaMessage) {
+	if (was.editMessageStars != features.editMessageStars) {
+		if (!features.editMessageStars) {
+			delete base::take(_editStars);
+			_chosenStarsCount = std::nullopt;
+		} else {
+			_editStars = Ui::CreateChild<Ui::IconButton>(
+				_wrap.get(),
+				_st.editStars);
+			initEditStarsButton();
+		}
+		changed = true;
+	}
+	if (was.recordMediaMessage != features.recordMediaMessage) {
 		_chosenStarsCount = features.editMessageStars
 			? 0
 			: std::optional<int>();
@@ -2457,7 +2487,10 @@ void ComposeControls::initSendButton() {
 
 	using namespace SendMenu;
 	const auto sendAction = [=](Action action, Details details) {
-		if (action.type == ActionType::CaptionUp
+		if (action.type == ActionType::ChangePrice) {
+			_chosenStarsCount = details.price.value_or(0);
+			updateSendButtonType();
+		} else if (action.type == ActionType::CaptionUp
 			|| action.type == ActionType::CaptionDown
 			|| action.type == ActionType::SpoilerOn
 			|| action.type == ActionType::SpoilerOff) {
@@ -2471,7 +2504,9 @@ void ComposeControls::initSendButton() {
 		_send.get(),
 		_show,
 		[=] { return sendButtonMenuDetails(); },
-		sendAction);
+		sendAction,
+		&_st.tabbed.menu,
+		&_st.tabbed.icons);
 
 	_send->widthValue() | rpl::skip(1) | rpl::start_with_next([=] {
 		updateControlsGeometry(_wrap->size());
@@ -2913,6 +2948,7 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 		- (_sendAs ? _sendAs->width() : 0)
 		- _st.padding.right()
 		- _send->width()
+		- (_editStars ? _editStars->width() : 0)
 		- _tabbedSelectorToggle->width()
 		- (_likeShown ? _like->width() : 0)
 		- (_botCommandShown ? _botCommandStart->width() : 0)
@@ -2968,6 +3004,10 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 	right += _st.padding.right();
 	_send->moveToRight(right, buttonsTop);
 	right += _send->width();
+	if (_editStars) {
+		_editStars->moveToRight(right, buttonsTop);
+		right += _editStars->width();
+	}
 	_tabbedSelectorToggle->moveToRight(right, buttonsTop);
 	right += _tabbedSelectorToggle->width();
 	if (_like) {
@@ -3011,6 +3051,9 @@ void ComposeControls::updateControlsVisibility() {
 	}
 	if (_like) {
 		_like->setVisible(_likeShown);
+	}
+	if (_editStars) {
+		_editStars->show();
 	}
 	if (_ttlInfo) {
 		_ttlInfo->show();

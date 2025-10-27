@@ -72,7 +72,6 @@ private:
 	void paintSend(QPainter &p, bool over);
 	void paintSchedule(QPainter &p, bool over);
 	void paintSlowmode(QPainter &p);
-	void paintEditPrice(QPainter &p, bool over);
 	void paintStarsToSend(QPainter &p, bool over);
 
 	const style::SendButton &_st;

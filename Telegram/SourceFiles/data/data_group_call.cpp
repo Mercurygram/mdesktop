@@ -533,6 +533,7 @@ void GroupCall::applyCallFields(const MTPDgroupCall &data) {
 		_canChangeMessagesEnabled = data.is_can_change_messages_enabled();
 		_messagesEnabled = data.is_messages_enabled();
 	}
+	_messagesMinPrice = data.vsend_paid_messages_stars().value_or_empty();
 	_joinedToTop = !data.is_join_date_asc();
 	setServerParticipantsCount(data.vparticipants_count().v);
 	changePeerEmptyCallFlag();

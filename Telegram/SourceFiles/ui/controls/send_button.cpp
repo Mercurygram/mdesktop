@@ -142,7 +142,7 @@ void SendButton::paintEvent(QPaintEvent *e) {
 		break;
 	case Type::Schedule: paintSchedule(p, over); break;
 	case Type::Slowmode: paintSlowmode(p); break;
-	case Type::EditPrice: paintEditPrice(p, over); break;
+	case Type::EditPrice: break;
 	}
 }
 
@@ -281,6 +281,10 @@ SendButton::StarsGeometry SendButton::starsGeometry() const {
 }
 
 void SendButton::updateSize() {
+	if (_state.type == Type::EditPrice) {
+		resize(0, _st.inner.height);
+		return;
+	}
 	const auto finalWidth = _starsToSendText.isEmpty()
 		? _st.inner.width
 		: starsGeometry().outer.width();
@@ -316,20 +320,6 @@ QPoint SendButton::prepareRippleStartPosition() const {
 	const auto size = _st.inner.rippleAreaSize;
 	const auto y = (height() - _st.inner.rippleAreaSize) / 2;
 	return real - QPoint((width() - size) / 2, y);
-}
-
-void SendButton::paintEditPrice(QPainter &p, bool over) {
-	if (!isDisabled()) {
-		paintRipple(
-			p,
-			(width() - _st.inner.rippleAreaSize) / 2,
-			_st.inner.rippleAreaPosition.y());
-	}
-
-	const auto &icon = (isDisabled() || !over)
-		? _st.editPrice
-		: _st.editPriceOver;
-	icon.paintInCenter(p, rect());
 }
 
 SendStarButton::SendStarButton(

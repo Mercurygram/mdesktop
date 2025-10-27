@@ -540,7 +540,7 @@ void PaidReactionsBox(
 	});
 	const auto activeFgOverride = [=](int count) {
 		const auto coloring = Calls::Group::Ui::StarsColoringForCount(count);
-		return Ui::ColorFromSerialized(coloring.bg2);
+		return Ui::ColorFromSerialized(coloring.bgLight);
 	};
 
 	const auto bubble = Premium::AddBubbleRow(
