@@ -23,6 +23,7 @@ InfoToggle {
 
 InfoPeerBadge {
 	verified: icon;
+	verifiedCheck: icon;
 	premium: icon;
 	premiumFg: color;
 	position: point;
@@ -554,14 +555,12 @@ infoRatingDeductedBadge: RoundButton(customEmojiTextBadge) {
 infoProfileInaccessibleUserpic: icon {{ "info/inaccessible_userpic", historyPeerUserpicFg }};
 
 infoVerifiedCheckPosition: point(4px, 2px);
-infoVerifiedCheck: icon {
-	{ "profile_verified_star", profileVerifiedCheckBg },
-	{ "profile_verified_check", profileVerifiedCheckFg }
-};
+infoVerifiedStar: icon {{ "profile_verified_star", profileVerifiedCheckBg }};
 infoPremiumStar: icon {{ "profile_premium", profileVerifiedCheckBg }};
 
 infoPeerBadge: InfoPeerBadge {
-	verified: infoVerifiedCheck;
+	verified: infoVerifiedStar;
+	verifiedCheck: icon {{ "profile_verified_check", profileVerifiedCheckFg }};
 	premium: infoPremiumStar;
 	premiumFg: profileVerifiedCheckBg;
 	position: infoVerifiedCheckPosition;
@@ -571,10 +570,8 @@ infoBotVerifyBadge: InfoPeerBadge(infoPeerBadge) {
 	position: point(-2px, 2px);
 }
 infoColoredPeerBadge: InfoPeerBadge(infoPeerBadge) {
-	verified: icon {
-		{ "profile_verified_star", groupCallMembersFg },
-		{ "profile_verified_check", groupCallBg }
-	};
+	verified: icon {{ "profile_verified_star", groupCallMembersFg }}; // Will be colorized.
+	verifiedCheck: icon {{ "profile_verified_check", groupCallMembersFg }};
 	premium: icon {{ "profile_premium", groupCallMembersFg }};
 	premiumFg: groupCallMembersFg;
 }
