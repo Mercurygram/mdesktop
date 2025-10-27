@@ -1292,6 +1292,7 @@ void TopBar::setupButtons(
 			Wrap wrap,
 			std::optional<QColor> edgeColor) mutable {
 		const auto isLayer = (wrap == Wrap::Layer);
+		const auto isSide = (wrap == Wrap::Side);
 		setRoundEdges(isLayer);
 		setLottieSingleLoop(wrap == Wrap::Side);
 
@@ -1321,7 +1322,7 @@ void TopBar::setupButtons(
 			controller->showBackFromStack();
 		});
 
-		if (!isLayer) {
+		if (!isLayer && !isSide) {
 			_close = nullptr;
 		} else {
 			_close = base::make_unique_q<Ui::IconButton>(
@@ -1330,10 +1331,12 @@ void TopBar::setupButtons(
 					? st::infoTopBarColoredClose
 					: st::infoTopBarBlackClose);
 			_close->show();
-			_close->addClickHandler([=] {
-				controller->hideLayer();
-				controller->hideSpecialLayer();
-			});
+			_close->addClickHandler(isSide
+				? Fn<void()> ([=] { controller->closeThirdSection(); })
+				: Fn<void()> ([=] {
+					controller->hideLayer();
+					controller->hideSpecialLayer();
+				}));
 			widthValue() | rpl::start_with_next([=] {
 				_close->moveToRight(0, 0);
 			}, _close->lifetime());
