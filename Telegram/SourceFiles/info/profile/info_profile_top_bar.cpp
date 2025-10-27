@@ -505,7 +505,8 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 	const auto mapped = [=](std::optional<QColor> c) {
 		if (c) {
 			return TopBarActionButtonStyle{
-				.bgColor = anim::with_alpha(
+				.bgColor = Ui::BlendColors(
+					*c,
 					Qt::black,
 					st::infoProfileTopBarActionButtonBgOpacity),
 				.fgColor = std::make_optional(st::premiumButtonFg->c),
