@@ -1005,6 +1005,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_color_profile_about_link" = "Change {emoji}";
 "lng_settings_color_choose_channel" = "Choose a color and a logo for your channel's profile";
 "lng_settings_color_choose_group" = "Choose a color and a logo for the group's profile";
+"lng_settings_color_group_boost_footer#one" = "The group has **{count}** boost. {link}";
+"lng_settings_color_group_boost_footer#other" = "The group has **{count}** boosts. {link}";
+"lng_settings_color_group_boost_footer_link" = "What are boosts?";
 
 "lng_suggest_hide_new_title" = "Hide new chats?";
 "lng_suggest_hide_new_about" = "You are receiving lots of new chats from users who are not in your Contact List.\n\nDo you want to have such chats **automatically muted** and **archived**?";

@@ -454,6 +454,24 @@ infoProfileTopBarActionReport: icon{{ "profile/report-22x22", windowBoldFg }};
 infoProfileTopBarActionLeave: icon{{ "profile/leave-22x22", windowBoldFg }};
 infoProfileTopBarActionMore: icon{{ "profile/profile_more", windowBoldFg }};
 
+infoProfileTopBarBoostFooter: FlatLabel(defaultFlatLabel) {
+	textFg: windowSubTextFg;
+	style: TextStyle(defaultTextStyle) {
+		font: font(11px);
+	}
+	palette: TextPalette(defaultTextPalette) {
+		linkFg: windowBoldFg;
+		selectLinkFg: windowBoldFg;
+	}
+}
+infoProfileTopBarBoostFooterColored: FlatLabel(infoProfileTopBarBoostFooter) {
+	textFg: groupCallVideoSubTextFg;
+	palette: TextPalette(defaultTextPalette) {
+		linkFg: groupCallIconFg;
+		selectLinkFg: groupCallIconFg;
+	}
+}
+
 infoMinimalWidth: 324px;
 infoDesiredWidth: 392px;
 infoMinimalLayerMargin: 48px;

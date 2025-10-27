@@ -1504,6 +1504,69 @@ void ProcessButton(not_null<Ui::RoundButton*> button) {
 	crl::on_main(button, [=] { button->raise(); });
 }
 
+void CreateBoostLevelContainer(
+		not_null<Ui::VerticalLayout*> container,
+		int levelHint,
+		rpl::producer<std::optional<QColor>> colorProducer,
+		Fn<void()> callback) {
+	const auto boostLevelContainer = container->add(
+		object_ptr<Ui::RpWidget>(container));
+	boostLevelContainer->resize(
+		0,
+		st::infoProfileTopBarBoostFooter.style.font->height * 1.5);
+
+	struct State {
+		base::unique_qptr<Ui::FlatLabel> label;
+		std::optional<QColor> currentColor;
+	};
+	const auto state = boostLevelContainer->lifetime().make_state<State>();
+
+	boostLevelContainer->paintRequest() | rpl::start_with_next([=] {
+		auto p = QPainter(boostLevelContainer);
+		const auto bg = state->currentColor.value_or(st::boxDividerBg->c);
+		p.fillRect(boostLevelContainer->rect(), bg);
+		p.fillRect(boostLevelContainer->rect(), st::shadowFg);
+	}, boostLevelContainer->lifetime());
+
+	std::move(colorProducer) | rpl::start_with_next([=](
+			std::optional<QColor> color) {
+		const auto colorChanged = (state->currentColor != color)
+			|| !state->label;
+		state->currentColor = color;
+		boostLevelContainer->update();
+
+		if (colorChanged) {
+			const auto &style = color
+				? st::infoProfileTopBarBoostFooterColored
+				: st::infoProfileTopBarBoostFooter;
+			state->label = base::make_unique_q<Ui::FlatLabel>(
+				boostLevelContainer,
+				tr::lng_settings_color_group_boost_footer(
+					lt_count,
+					rpl::single(levelHint) | tr::to_count(),
+					lt_link,
+					tr::lng_settings_color_group_boost_footer_link(
+					) | rpl::map([=](QString t) {
+						using namespace Ui::Text;
+						return Link(std::move(t), u"internal:"_q);
+					}),
+					Ui::Text::RichLangValue),
+				style);
+			state->label->show();
+			boostLevelContainer->sizeValue(
+			) | rpl::start_with_next([=](QSize s) {
+				state->label->moveToLeft(
+					(s.width() - state->label->width()) / 2,
+					(s.height() - state->label->height()) / 2);
+			}, state->label->lifetime());
+			state->label->setClickHandlerFilter([=](auto...) {
+				callback();
+				return false;
+			});
+		}
+	}, boostLevelContainer->lifetime());
+}
+
 } // namespace
 
 void AddLevelBadge(
@@ -1595,6 +1658,26 @@ void EditPeerColorSection(
 		}, state->preview->lifetime());
 		const auto peerColors = &peer->session().api().peerColors();
 		const auto profileIndices = peerColors->profileColorIndices();
+
+		if (group) {
+			auto colorProducer = state->profileIndex.value(
+			) | rpl::map([=, colors = &peer->session().api().peerColors()](
+					uint8 index) {
+				const auto colorSet = colors->colorProfileFor(index);
+				return (colorSet && !colorSet->bg.empty())
+					? std::make_optional(colorSet->bg.front())
+					: std::optional<QColor>();
+			});
+			CreateBoostLevelContainer(
+				container,
+				channel->levelHint(),
+				std::move(colorProducer),
+				[=] {
+					if (const auto strong = show->resolveWindow()) {
+						strong->resolveBoostState(channel);
+					}
+				});
+		}
 
 		const auto profileMargin = st::settingsColorRadioMargin;
 		const auto profileSkip = st::settingsColorRadioSkip;
