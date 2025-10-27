@@ -39,6 +39,7 @@ struct StoryIdDates {
 	StoryId id = 0;
 	TimeId date = 0;
 	TimeId expires = 0;
+	bool videoStream = false;
 
 	[[nodiscard]] bool valid() const {
 		return id != 0;

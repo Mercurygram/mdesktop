@@ -264,10 +264,11 @@ public:
 	struct PeerSourceState {
 		StoryId maxId = 0;
 		StoryId readTill = 0;
+		bool hasVideoStream = false;
 	};
 	[[nodiscard]] std::optional<PeerSourceState> peerSourceState(
 		not_null<PeerData*> peer,
-		StoryId storyMaxId);
+		const MTPRecentStory &recent);
 	[[nodiscard]] bool isUnread(not_null<Story*> story);
 
 	enum class Polling {
@@ -308,7 +309,10 @@ private:
 		uint64 hash = 0;
 		mtpRequestId requestId = 0;
 	};
-
+	struct RecentState {
+		StoryId maxId = 0;
+		bool hasVideoStream = false;
+	};
 	struct PollingSettings {
 		int chat = 0;
 		int viewer = 0;
@@ -333,7 +337,9 @@ private:
 		const QVector<MTPStoryItem> &list);
 	void sendResolveRequests();
 	void finalizeResolve(FullStoryId id);
-	void updatePeerStoriesState(not_null<PeerData*> peer);
+	void updatePeerStoriesState(
+		not_null<PeerData*> peer,
+		std::optional<RecentState> cachedRecentState = std::nullopt);
 
 	[[nodiscard]] Set *lookupArchive(not_null<PeerData*> peer);
 	void clearArchive(not_null<PeerData*> peer);
@@ -462,7 +468,7 @@ private:
 
 	base::flat_map<PeerId, StoryId> _readTill;
 	base::flat_set<FullStoryId> _pendingReadTillItems;
-	base::flat_map<not_null<PeerData*>, StoryId> _pendingPeerStateMaxId;
+	base::flat_map<not_null<PeerData*>, RecentState> _pendingPeerRecentState;
 	mtpRequestId _readTillsRequestId = 0;
 	bool _readTillReceived = false;
 

@@ -2286,18 +2286,25 @@ void Stories::setPreloadingInViewer(std::vector<FullStoryId> ids) {
 
 std::optional<Stories::PeerSourceState> Stories::peerSourceState(
 		not_null<PeerData*> peer,
-		StoryId storyMaxId) {
+		const MTPRecentStory &recent) {
+	const auto &data = recent.data();
+	const auto maxId = data.vmax_id().value_or_empty();
+	const auto live = data.is_is_live();
 	const auto i = _readTill.find(peer->id);
 	if (_readTillReceived || (i != end(_readTill))) {
 		return PeerSourceState{
-			.maxId = storyMaxId,
+			.maxId = maxId,
 			.readTill = std::min(
-				storyMaxId,
+				maxId,
 				(i != end(_readTill)) ? i->second : 0),
+			.hasVideoStream = live,
 		};
 	}
 	requestReadTills();
-	_pendingPeerStateMaxId[peer] = storyMaxId;
+	_pendingPeerRecentState[peer] = RecentState{
+		.maxId = maxId,
+		.hasVideoStream = live,
+	};
 	return std::nullopt;
 }
 
@@ -2310,8 +2317,8 @@ void Stories::requestReadTills() {
 	)).done([=](const MTPUpdates &result) {
 		_readTillReceived = true;
 		api->applyUpdates(result);
-		for (auto &[peer, maxId] : base::take(_pendingPeerStateMaxId)) {
-			updatePeerStoriesState(peer);
+		for (auto &[peer, recent] : base::take(_pendingPeerRecentState)) {
+			updatePeerStoriesState(peer, recent);
 		}
 		for (const auto &storyId : base::take(_pendingReadTillItems)) {
 			_owner->refreshStoryItemViews(storyId);
@@ -2435,20 +2442,32 @@ void Stories::sendPollingViewsRequests() {
 	_pollingViewsTimer.callOnce(kPollViewsInterval);
 }
 
-void Stories::updatePeerStoriesState(not_null<PeerData*> peer) {
+void Stories::updatePeerStoriesState(
+		not_null<PeerData*> peer,
+		std::optional<RecentState> cachedRecentState) {
 	const auto till = _readTill.find(peer->id);
 	const auto readTill = (till != end(_readTill)) ? till->second : 0;
-	const auto pendingMaxId = [&] {
-		const auto j = _pendingPeerStateMaxId.find(peer);
-		return (j != end(_pendingPeerStateMaxId)) ? j->second : 0;
+	const auto pendingRecentState = [&] {
+		if (cachedRecentState) {
+			return *cachedRecentState;
+		}
+		const auto j = _pendingPeerRecentState.find(peer);
+		return (j != end(_pendingPeerRecentState))
+			? j->second
+			: RecentState();
 	};
 	const auto i = _all.find(peer->id);
-	const auto max = (i != end(_all))
-		? (i->second.ids.empty() ? 0 : i->second.ids.back().id)
-		: pendingMaxId();
-	peer->setStoriesState(!max
+	const auto recent = (i != end(_all))
+		? RecentState{
+			(i->second.ids.empty() ? 0 : i->second.ids.back().id),
+			(!i->second.ids.empty() && i->second.ids.back().videoStream),
+		}
+		: pendingRecentState();
+	peer->setStoriesState(recent.hasVideoStream
+		? PeerData::StoriesState::HasVideoStream
+		: !recent.maxId
 		? PeerData::StoriesState::None
-		: (max <= readTill)
+		: (recent.maxId <= readTill)
 		? PeerData::StoriesState::HasRead
 		: PeerData::StoriesState::HasUnread);
 }

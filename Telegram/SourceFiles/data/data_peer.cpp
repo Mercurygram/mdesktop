@@ -1984,6 +1984,15 @@ bool PeerData::hasUnreadStories() const {
 	return false;
 }
 
+bool PeerData::hasActiveVideoStream() const {
+	if (const auto user = asUser()) {
+		return user->hasActiveVideoStream();
+	} else if (const auto channel = asChannel()) {
+		return channel->hasActiveVideoStream();
+	}
+	return false;
+}
+
 void PeerData::setStoriesState(StoriesState state) {
 	if (const auto user = asUser()) {
 		return user->setStoriesState(state);

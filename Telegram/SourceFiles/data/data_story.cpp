@@ -279,7 +279,12 @@ bool Story::mine() const {
 }
 
 StoryIdDates Story::idDates() const {
-	return { _id, _date, _expires };
+	return {
+		_id,
+		_date,
+		_expires,
+		std::holds_alternative<std::shared_ptr<GroupCall>>(_media.data),
+	};
 }
 
 FullStoryId Story::fullId() const {

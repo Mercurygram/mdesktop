@@ -447,17 +447,6 @@ void Row::PaintCornerBadgeFrame(
 		q.restore();
 
 		const auto outline = QRectF(0, 0, photoSize, photoSize);
-		const auto storiesUnreadCount = data->storiesUnreadCount;
-		const auto storiesUnreadBrush = [&] {
-			if (context.active || !storiesUnreadCount) {
-				return st::dialogsUnreadBgMutedActive->b;
-			}
-			auto gradient = Ui::UnreadStoryOutlineGradient(outline);
-			return QBrush(gradient);
-		}();
-		const auto storiesBrush = context.active
-			? st::dialogsUnreadBgMutedActive->b
-			: st::dialogsUnreadBgMuted->b;
 		const auto storiesUnread = st::dialogsStoriesFull.lineTwice / 2.;
 		const auto storiesLine = st::dialogsStoriesFull.lineReadTwice / 2.;
 		auto segments = std::vector<Ui::OutlineSegment>();
@@ -465,6 +454,17 @@ void Row::PaintCornerBadgeFrame(
 			const auto storiesVideoStreamBrush = st::attentionButtonFg->b;
 			segments.push_back({ storiesVideoStreamBrush, storiesUnread });
 		} else {
+			const auto storiesUnreadCount = data->storiesUnreadCount;
+			const auto storiesUnreadBrush = [&] {
+				if (context.active || !storiesUnreadCount) {
+					return st::dialogsUnreadBgMutedActive->b;
+				}
+				auto gradient = Ui::UnreadStoryOutlineGradient(outline);
+				return QBrush(gradient);
+			}();
+			const auto storiesBrush = context.active
+				? st::dialogsUnreadBgMutedActive->b
+				: st::dialogsUnreadBgMuted->b;
 			segments.reserve(storiesCount);
 			const auto storiesReadCount = storiesCount - storiesUnreadCount;
 			for (auto i = 0; i != storiesReadCount; ++i) {
@@ -567,7 +567,7 @@ void Row::paintUserpic(
 	const auto storiesHas = storiesPeer
 		? storiesPeer->hasActiveStories()
 		: storiesFolder
-		? storiesFolder->storiesCount()
+		? (storiesFolder->storiesCount() > 0)
 		: false;
 	if (!cornerBadgeShown && !storiesHas) {
 		BasicRow::paintUserpic(p, entry, peer, videoUserpic, context, false);
@@ -604,6 +604,8 @@ void Row::paintUserpic(
 		: 0;
 	const auto storiesHasVideoStream = storiesSource
 		? storiesSource->hasVideoStream
+		: (storiesPeer && storiesPeer->hasActiveVideoStream())
+		? 1
 		: 0;
 	const auto limit = Ui::kOutlineSegmentsMax;
 	const auto storiesCount = std::min(storiesCountReal, limit);
