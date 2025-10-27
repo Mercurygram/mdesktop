@@ -97,6 +97,9 @@ void Badge::setContent(Content content) {
 			: id
 			? nullptr
 			: &style.premium;
+		const auto iconForeground = (_content.badge == BadgeType::Verified)
+			? &style.verifiedCheck
+			: nullptr;
 		if (id) {
 			_emojiStatus = _session->data().customEmojiManager().create(
 				Data::EmojiStatusCustomId(id),
@@ -137,6 +140,9 @@ void Badge::setContent(Content content) {
 						_overrideSt->premiumFg->c);
 				} else {
 					icon->paint(p, emoji, 0, check->width());
+				}
+				if (iconForeground) {
+					iconForeground->paint(p, emoji, 0, check->width());
 				}
 			}
 		}, _view->lifetime());

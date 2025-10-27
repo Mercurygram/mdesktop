@@ -471,8 +471,8 @@ void TopBar::updateCollectibleStatus() {
 			auto fg = std::make_shared<style::owned_color>(
 				Ui::BlendColors(
 					colorProfile->palette.back(),
-					Qt::white,
-					kStoryOutlineFadeRange));
+					colorProfile->palette.size() == 1 ? Qt::white : Qt::black,
+					0.2));
 			result->premiumFg = fg->color();
 			return std::shared_ptr<style::InfoPeerBadge>(
 				result.release(),
