@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unixtime.h"
 #include "boxes/peers/replace_boost_box.h"
 #include "boxes/background_box.h"
+#include "boxes/premium_preview_box.h"
 #include "boxes/star_gift_box.h"
 #include "boxes/stickers_box.h"
 #include "boxes/transfer_gift_box.h"
@@ -525,23 +526,17 @@ void Set(
 	}
 }
 
-bool ShowPremiumToast(
+bool ShowPremiumPreview(
 		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<PeerData*> peer) {
 	if (!peer->isSelf() || show->session().premium()) {
 		return false;
 	}
-	Settings::ShowPremiumPromoToast(
-		show,
-		tr::lng_settings_color_subscribe(
-			tr::now,
-			lt_link,
-			Ui::Text::Link(
-				Ui::Text::Bold(
-					tr::lng_send_as_premium_required_link(tr::now))),
-			Ui::Text::WithEntities),
-		u"name_color"_q);
-	return true;
+	if (const auto controller = show->resolveWindow()) {
+		ShowPremiumPreviewBox(controller, PremiumFeature::PeerColors);
+		return true;
+	}
+	return false;
 }
 
 void Apply(
@@ -1941,7 +1936,7 @@ void EditPeerColorSection(
 	button->setClickedCallback([=] {
 		if (state->applying) {
 			return;
-		} else if (ShowPremiumToast(show, peer)) {
+		} else if (ShowPremiumPreview(show, peer)) {
 			return;
 		}
 		const auto values = SetValues{
@@ -2204,7 +2199,7 @@ void EditPeerProfileColorSection(
 	button->setClickedCallback([=] {
 		if (profileState->applying) {
 			return;
-		} else if (ShowPremiumToast(show, peer)) {
+		} else if (ShowPremiumPreview(show, peer)) {
 			return;
 		}
 		const auto values = SetValues{

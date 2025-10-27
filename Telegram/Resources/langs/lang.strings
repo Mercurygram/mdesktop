@@ -992,7 +992,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_color_emoji_off" = "Off";
 "lng_settings_color_emoji_about" = "Make replies to your messages stand out by adding custom patterns to them.";
 "lng_settings_color_emoji_about_channel" = "Select an icon to create a custom pattern for replies to your messages.";
-"lng_settings_color_subscribe" = "Subscribe to {link} to choose a custom color for your name.";
 "lng_settings_color_changed" = "Your name color has been updated!";
 "lng_settings_color_changed_channel" = "Your channel color has been updated!";
 "lng_settings_color_changed_profile" = "Your profile style has been updated!";
@@ -2769,6 +2768,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_premium_summary_about_filter_tags" = "Display folder names for each chat in the chat list.";
 "lng_premium_summary_subtitle_todo_lists" = "Checklists";
 "lng_premium_summary_about_todo_lists" = "Plan, assign, and complete tasks - seamlessly and efficiently.";
+"lng_premium_summary_subtitle_peer_colors" = "Name and Profile Colors";
+"lng_premium_summary_about_peer_colors" = "Choose a color and logo for your profile and replies to your messages.";
 "lng_premium_summary_bottom_subtitle" = "About Telegram Premium";
 "lng_premium_summary_bottom_about" = "While the free version of Telegram already gives its users more than any other messaging application, **Telegram Premium** pushes its capabilities even further.\n\n**Telegram Premium** is a paid option, because most Premium Features require additional expenses from Telegram to third parties such as data center providers and server manufacturers. Contributions from **Telegram Premium** users allow us to cover such costs and also help Telegram stay free for everyone.";
 "lng_premium_summary_button" = "Subscribe for {cost} per month";
