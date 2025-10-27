@@ -73,6 +73,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/wrap/fade_wrap.h"
+#include "window/themes/window_theme.h"
 #include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
@@ -97,34 +98,43 @@ constexpr auto kStoryOutlineFadeRange = 1. - kStoryOutlineFadeEnd;
 
 using AnimatedPatternPoint = TopBar::AnimatedPatternPoint;
 
-[[nodiscard]] QColor AdaptProfilePatternColor(const QColor &color) {
-	const auto adaptHSV = [](
-			const QColor &color,
-			float hueShift,
-			float saturationShift) {
-		const auto hsv = color.toHsv();
+struct PatternColors {
+	QColor patternColor;
+	bool useOverlayBlend = false;
+};
 
-		auto h = hsv.hueF() + hueShift;
-		const auto s = qBound(0.0, hsv.saturationF() + saturationShift, 1.0);
-
-		if (h >= 1.0) {
-			h -= 1.0;
-		}
-		if (h < 0.0) {
-			h += 1.0;
-		}
-
-		return QColor::fromHsvF(h, s, hsv.valueF(), hsv.alphaF());
+[[nodiscard]] PatternColors CalculatePatternColors(
+		const std::optional<Data::ColorProfileSet> &colorProfile,
+		const std::shared_ptr<Data::EmojiStatusCollectible> &collectible,
+		const std::optional<QColor> &edgeColor,
+		bool isDark) {
+	if (collectible && collectible->patternColor.isValid()) {
+		return {
+			.patternColor = Ui::BlendColors(
+				collectible->patternColor,
+				Qt::black,
+				isDark ? (140. / 255) : (160. / 255)),
+			// .patternColor = collectible->patternColor.lighter(isDark
+			// 	? 140
+			// 	: 160),
+			.useOverlayBlend = false
+		};
+	}
+	if (colorProfile && !colorProfile->bg.empty()) {
+		return {
+			.patternColor = QColor(0, 0, 0, int(0.6 * 255)),
+			.useOverlayBlend = true
+		};
+	}
+	const auto baseWhite = isDark ? 0.5 : 0.3;
+	return {
+		.patternColor = QColor::fromRgbF(
+			baseWhite,
+			baseWhite,
+			baseWhite,
+			0.6),
+		.useOverlayBlend = false
 	};
-	const auto computePerceivedBrightness = [](
-			const QColor &color) {
-		const auto r = color.redF();
-		const auto g = color.greenF();
-		const auto b = color.blueF();
-		return 0.299 * r + 0.587 * g + 0.114 * b;
-	};
-	const bool isDark = computePerceivedBrightness(color) < 0.2;
-	return adaptHSV(color, 0.5, isDark ? 0.28 : -0.28);
 }
 
 [[nodiscard]] std::vector<AnimatedPatternPoint> GenerateAnimatedPattern(
@@ -1535,8 +1545,11 @@ void TopBar::paintAnimatedPattern(
 	}
 
 	if (_basePatternImage.isNull()) {
-		const auto collectible = effectiveCollectible();
-		const auto colorProfile = effectiveColorProfile();
+		auto patternColors = CalculatePatternColors(
+			effectiveColorProfile(),
+			effectiveCollectible(),
+			_edgeColor.current(),
+			Window::Theme::IsNightMode());
 		const auto ratio = style::DevicePixelRatio();
 		const auto scale = 0.75;
 		const auto size = Ui::Emoji::GetSizeNormal() * scale;
@@ -1547,17 +1560,23 @@ void TopBar::paintAnimatedPattern(
 		_basePatternImage.fill(Qt::transparent);
 		auto painter = QPainter(&_basePatternImage);
 		auto hq = PainterHighQualityEnabler(painter);
+		const auto fullSize = Ui::Emoji::GetSizeNormal();
+		const auto offset = (fullSize - fullSize * scale) / 2;
+		painter.translate(offset, offset);
 		painter.scale(scale, scale);
-		_patternEmoji->paint(painter, {
-			.textColor = collectible
-				? collectible->patternColor
-				: colorProfile && !colorProfile->palette.empty()
-				? AdaptProfilePatternColor(colorProfile->palette.front())
-				: Ui::BlendColors(
-					_edgeColor.current().value_or(QColor()),
-					Qt::white,
-					0.5),
-		});
+		_patternEmoji->paint(painter, { .textColor = Qt::white });
+
+		if (patternColors.useOverlayBlend) {
+			painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+			painter.fillRect(
+				QRect(QPoint(), _basePatternImage.size() / ratio),
+				QColor(0, 0, 0, int(0.8 * 255)));
+		} else {
+			painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+			painter.fillRect(
+				QRect(QPoint(), _basePatternImage.size() / ratio),
+				patternColors.patternColor);
+		}
 	}
 
 	const auto progress = _progress.current();
