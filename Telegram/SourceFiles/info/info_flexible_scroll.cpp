@@ -90,7 +90,6 @@ void FlexibleScrollHelper::setupScrollHandling() {
 			return;
 		}
 		const auto diff = top - _scrollTopPrevious;
-		_scrollTopPrevious = top;
 		if (std::abs(diff) == singleStep) {
 			const auto previousValue = top - diff;
 			const auto nextStep = (diff > 0)
@@ -176,6 +175,7 @@ void FlexibleScrollHelper::setupScrollHandling() {
 			}
 			return;
 		}
+		_scrollTopPrevious = top;
 		const auto current = heightDiff() - top;
 		_inner->moveToLeft(0, std::min(0, current));
 		_pinnedToTop->resize(
