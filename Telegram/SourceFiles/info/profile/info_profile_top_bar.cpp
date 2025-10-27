@@ -334,10 +334,12 @@ TopBar::TopBar(
 		updateVideoUserpic();
 	}
 
-	_peer->session().changes().peerFlagsValue(
-		_peer,
-		Data::PeerUpdate::Flag::EmojiStatus
-			| Data::PeerUpdate::Flag::ColorProfile
+	rpl::merge(
+		style::PaletteChanged(),
+		_peer->session().changes().peerFlagsValue(
+			_peer,
+			Data::PeerUpdate::Flag::EmojiStatus
+				| Data::PeerUpdate::Flag::ColorProfile) | rpl::to_empty
 	) | rpl::start_with_next([=] {
 		if (_pinnedToTopGiftsFirstTimeShowed) {
 			_peer->session().recentSharedGifts().clearLastRequestTime(_peer);
