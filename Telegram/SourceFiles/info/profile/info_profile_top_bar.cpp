@@ -501,6 +501,7 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 	const auto chat = peer->asChat();
 	const auto topic = _key.topic();
 	const auto sublist = _key.sublist();
+	const auto isSide = (_wrap.current() == Wrap::Side);
 	const auto mapped = [=](std::optional<QColor> c) {
 		if (c) {
 			return TopBarActionButtonStyle{
@@ -525,6 +526,58 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 	_actions = base::make_unique_q<Ui::HorizontalFitContainer>(
 		this,
 		st::infoProfileTopBarActionButtonsSpace);
+	const auto chechMax = [&, max = 3] {
+		return buttons.size() >= max;
+	};
+	const auto addMore = [&] {
+		if ([&]() -> bool {
+			if (isSide) {
+				return false;
+			}
+			const auto guard = gsl::finally([&] { _peerMenu = nullptr; });
+			showTopBarMenu(controller, true);
+			return _peerMenu;
+		}()) {
+			const auto moreButton = Ui::CreateChild<TopBarActionButton>(
+				this,
+				tr::lng_profile_action_short_more(tr::now),
+				st::infoProfileTopBarActionMore);
+			moreButton->setClickedCallback([=] {
+				showTopBarMenu(controller, false);
+			});
+			_actionMore = moreButton;
+			_actions->add(moreButton);
+			buttons.push_back(moreButton);
+		}
+	};
+	const auto guard = gsl::finally([&] {
+		addMore();
+		_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
+				TopBarActionButtonStyle st) {
+			for (const auto &button : buttons) {
+				button->setStyle(st);
+			}
+		}, _actions->lifetime());
+		const auto padding = st::infoProfileTopBarActionButtonsPadding;
+		sizeValue() | rpl::start_with_next([=](const QSize &size) {
+			const auto ratio = float64(size.height())
+				/ (st::infoProfileTopBarActionButtonsHeight
+					+ st::infoLayerTopBarHeight);
+			const auto h = st::infoProfileTopBarActionButtonSize;
+			const auto resultHeight = (ratio >= 1.)
+				? h
+				: (ratio <= 0.5)
+				? 0
+				: int(h * (ratio - 0.5) / 0.5);
+			_actions->setGeometry(
+				padding.left(),
+				size.height() - resultHeight - padding.bottom(),
+				size.width() - rect::m::sum::h(padding),
+				resultHeight);
+		}, _actions->lifetime());
+		_actions->show();
+		_actions->raise();
+	});
 	if (user) {
 		const auto message = Ui::CreateChild<TopBarActionButton>(
 			this,
@@ -619,29 +672,26 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 				: &st::windowBoldFg);
 		}, notifications->lifetime());
 	}
-	if (user && !user->sharedMediaInfo() && !user->isInaccessible()) {
-		user->session().changes().peerFlagsValue(
-			user,
-			Data::PeerUpdate::Flag::HasCalls
-		) | rpl::filter([=] {
-			return user->hasCalls();
-		}) | rpl::take(1) | rpl::start_with_next([=] {
-			const auto call = Ui::CreateChild<TopBarActionButton>(
-				this,
-				tr::lng_profile_action_short_call(tr::now),
-				st::infoProfileTopBarActionCall);
-			call->setClickedCallback([=] {
-				Core::App().calls().startOutgoingCall(user, false);
-			});
-			_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
-					TopBarActionButtonStyle st) {
-				call->setStyle(std::move(st));
-			}, call->lifetime());
-			_actions->add(call);
-		}, lifetime());
-		if (user->callsStatus() == UserData::CallsStatus::Unknown) {
-			user->updateFull();
-		}
+	if (chechMax()) {
+		return;
+	}
+	if (!isSide
+		&& user
+		&& !user->sharedMediaInfo()
+		&& !user->isInaccessible()
+		&& user->hasCalls()) {
+		const auto call = Ui::CreateChild<TopBarActionButton>(
+			this,
+			tr::lng_profile_action_short_call(tr::now),
+			st::infoProfileTopBarActionCall);
+		call->setClickedCallback([=] {
+			Core::App().calls().startOutgoingCall(user, false);
+		});
+		buttons.push_back(call);
+		_actions->add(call);
+	}
+	if (chechMax()) {
+		return;
 	}
 	if (const auto chat = channel ? channel->discussionLink() : nullptr) {
 		const auto discuss = Ui::CreateChild<TopBarActionButton>(
@@ -660,6 +710,9 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 		});
 		_actions->add(discuss);
 		buttons.push_back(discuss);
+	}
+	if (chechMax()) {
+		return;
 	}
 	{
 		const auto channel = peer->asBroadcast();
@@ -687,6 +740,9 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 			buttons.push_back(giftButton);
 		}
 	}
+	if (chechMax()) {
+		return;
+	}
 	if (!topic
 		&& ((chat && !chat->amCreator())
 			|| (channel && !channel->amCreator()))) {
@@ -701,6 +757,9 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 		_actions->add(reportButton);
 		buttons.push_back(reportButton);
 	}
+	if (chechMax()) {
+		return;
+	}
 	if (!topic && !sublist && channel && channel->amIn()) {
 		const auto leaveButton = Ui::CreateChild<TopBarActionButton>(
 			this,
@@ -714,50 +773,6 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 		_actions->add(leaveButton);
 		buttons.push_back(leaveButton);
 	}
-	if ([&]() -> bool {
-		if (_wrap.current() == Wrap::Side) {
-			return false;
-		}
-		const auto guard = gsl::finally([&] { _peerMenu = nullptr; });
-		showTopBarMenu(controller, true);
-		return _peerMenu;
-	}()) {
-		const auto moreButton = Ui::CreateChild<TopBarActionButton>(
-			this,
-			tr::lng_profile_action_short_more(tr::now),
-			st::infoProfileTopBarActionMore);
-		moreButton->setClickedCallback([=] {
-			showTopBarMenu(controller, false);
-		});
-		_actionMore = moreButton;
-		_actions->add(moreButton);
-		buttons.push_back(moreButton);
-	}
-	_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
-			TopBarActionButtonStyle st) {
-		for (const auto &button : buttons) {
-			button->setStyle(st);
-		}
-	}, _actions->lifetime());
-	const auto padding = st::infoProfileTopBarActionButtonsPadding;
-	sizeValue() | rpl::start_with_next([=](const QSize &size) {
-		const auto ratio = float64(size.height())
-			/ (st::infoProfileTopBarActionButtonsHeight
-				+ st::infoLayerTopBarHeight);
-		const auto h = st::infoProfileTopBarActionButtonSize;
-		const auto resultHeight = (ratio >= 1.)
-			? h
-			: (ratio <= 0.5)
-			? 0
-			: int(h * (ratio - 0.5) / 0.5);
-		_actions->setGeometry(
-			padding.left(),
-			size.height() - resultHeight - padding.bottom(),
-			size.width() - rect::m::sum::h(padding),
-			resultHeight);
-	}, _actions->lifetime());
-	_actions->show();
-	_actions->raise();
 }
 
 void TopBar::setupUserpicButton(
