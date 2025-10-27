@@ -591,6 +591,10 @@ rpl::producer<int> StarsRating::widthValue() const {
 	return _widthValue.value();
 }
 
+int StarsRating::width() const {
+	return _widthValue.current();
+}
+
 rpl::lifetime &StarsRating::lifetime() {
 	return _widget->lifetime();
 }

@@ -1091,21 +1091,26 @@ void TopBar::updateStatusPosition(float64 progressCurrent) {
 		_st.subtitlePosition.y(),
 		st::infoProfileTopBarStatusTop,
 		progressCurrent);
+	const auto totalElementsWidth = _status->width()
+		+ (_starsRating ? _starsRating->width() : 0)
+		+ (!_showLastSeen->isHidden() ? _showLastSeen->width() : 0);
 	const auto statusLeft = anim::interpolate(
 		statusMostLeft(),
-		(width() - _status->width()) / 2,
+		(width() - totalElementsWidth) / 2,
 		progressCurrent);
 
 	if (const auto rating = _starsRating.get()) {
-		rating->moveTo(statusLeft - _statusShift.current(), statusTop);
+		rating->moveTo(statusLeft, statusTop);
 		rating->setOpacity(progressCurrent);
 	}
+	const auto statusShift = _statusShift.current() * progressCurrent;
 
-	_status->moveToLeft(statusLeft, statusTop);
+	_status->moveToLeft(statusLeft + statusShift, statusTop);
 
 	if (!_showLastSeen->isHidden()) {
 		_showLastSeen->moveToLeft(
 			statusLeft
+				+ statusShift
 				+ _status->textMaxWidth()
 				+ st::infoProfileTopBarLastSeenSkip,
 			statusTop);

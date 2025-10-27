@@ -44,6 +44,7 @@ public:
 		std::optional<QColor> shapeColor);
 
 	[[nodiscard]] rpl::producer<int> widthValue() const;
+	[[nodiscard]] int width() const;
 
 	[[nodiscard]] rpl::lifetime &lifetime();
 
