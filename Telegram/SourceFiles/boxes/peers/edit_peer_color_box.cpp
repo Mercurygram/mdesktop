@@ -83,6 +83,97 @@ constexpr auto kFakeChannelId = ChannelId(0xFFFFFFF000ULL);
 constexpr auto kFakeWebPageId = WebPageId(0xFFFFFFFF00000000ULL);
 constexpr auto kUnsetColorIndex = uint8(0xFF);
 
+base::unique_qptr<Ui::RpWidget> CreateEmptyPlaceholder(
+		not_null<Ui::RpWidget*> parent,
+		int width,
+		const QMargins &padding,
+		Fn<void()> switchToNextTab) {
+	const auto container = Ui::CreateChild<Ui::RpWidget>(parent);
+	auto result = base::unique_qptr<Ui::RpWidget>{ container };
+
+	auto icon = Settings::CreateLottieIcon(
+		container,
+		{
+			.name = u"my_gifts_empty"_q,
+			.sizeOverride = {
+				st::changePhoneIconSize,
+				st::changePhoneIconSize,
+			},
+		},
+		st::settingsBlockedListIconPadding);
+	const auto iconWidget = icon.widget.data();
+	iconWidget->show();
+
+	const auto emptyLabel = Ui::CreateChild<Ui::FlatLabel>(
+		container,
+		tr::lng_gift_stars_tabs_my_empty(),
+		st::giftBoxGiftEmptyLabel);
+	emptyLabel->setTryMakeSimilarLines(true);
+	emptyLabel->resizeToWidth(
+		width - st::boxRowPadding.left() - st::boxRowPadding.right());
+	emptyLabel->show();
+
+	const auto emptyNextLabel = switchToNextTab
+		? Ui::CreateChild<Ui::FlatLabel>(
+			container,
+			tr::lng_gift_stars_tabs_my_empty_next(
+				lt_emoji,
+				rpl::single(Ui::Text::IconEmoji(&st::textMoreIconEmoji)),
+				TextWithEntities::Simple
+			) | rpl::map([](TextWithEntities t) {
+				return Ui::Text::Wrapped(
+					std::move(t),
+					EntityType::Url,
+					u"internal:"_q);
+			}),
+			st::giftBoxGiftEmptyLabel)
+		: nullptr;
+	if (emptyNextLabel) {
+		emptyNextLabel->resizeToWidth(
+			width - st::boxRowPadding.left() - st::boxRowPadding.right());
+		emptyNextLabel->setClickHandlerFilter([=](auto...) {
+			switchToNextTab();
+			return false;
+		});
+	}
+
+	icon.animate(anim::repeat::loop);
+
+	const auto labelHeight = emptyLabel->height();
+	const auto nextLabelHeight = emptyNextLabel
+		? emptyNextLabel->height()
+		: 0;
+	const auto totalHeight = iconWidget->height()
+		+ st::normalFont->height + labelHeight + nextLabelHeight
+		+ (nextLabelHeight ? st::normalFont->height : 0)
+		+ padding.top() + padding.bottom();
+	container->resize(width, totalHeight);
+
+	container->sizeValue(
+	) | rpl::start_with_next([=](QSize size) {
+		const auto totalContentHeight = iconWidget->height()
+			+ st::normalFont->height + emptyLabel->height()
+			+ (emptyNextLabel
+				? st::normalFont->height + emptyNextLabel->height()
+				: 0);
+		const auto iconY = (size.height() - totalContentHeight) / 2;
+		iconWidget->move(
+			(size.width() - iconWidget->width()) / 2,
+			iconY);
+		emptyLabel->move(
+			(size.width() - emptyLabel->width()) / 2,
+			iconY + iconWidget->height() + st::normalFont->height);
+		if (emptyNextLabel) {
+			emptyNextLabel->move(
+				(size.width() - emptyNextLabel->width()) / 2,
+				iconY + iconWidget->height() + st::normalFont->height
+					+ emptyLabel->height() + st::normalFont->height);
+		}
+	}, container->lifetime());
+
+	return result;
+}
+
 class PreviewDelegate final : public HistoryView::DefaultElementDelegate {
 public:
 	PreviewDelegate(
@@ -1000,7 +1091,7 @@ void Apply(
 	return result;
 }
 
-void AddColorGiftTabs(
+Fn<void()> AddColorGiftTabs(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Main::Session*> session,
 		Fn<void(uint64 giftId)> chosen,
@@ -1066,6 +1157,16 @@ void AddColorGiftTabs(
 		}
 		container->resizeToWidth(container->width());
 	}, container->lifetime());
+	
+	return [=]() {
+		const auto &list = state->list.current();
+		if (!list.empty()) {
+			if (state->tabs) {
+				state->tabs->setActiveTab(QString::number(list.front().id));
+			}
+			chosen(list.front().id);
+		}
+	};
 }
 
 void AddGiftSelector(
@@ -1075,7 +1176,8 @@ void AddGiftSelector(
 		Fn<void(std::shared_ptr<Data::UniqueGift> selected)> chosen,
 		rpl::producer<std::optional<Ui::ColorCollectible>> selected,
 		bool profile,
-		rpl::producer<uint64> selectedGiftId = rpl::single(uint64(0))) {
+		rpl::producer<uint64> selectedGiftId = rpl::single(uint64(0)),
+		Fn<void()> switchToNextTab = nullptr) {
 	using namespace Info::PeerGifts;
 
 	const auto raw = container->add(
@@ -1098,6 +1200,7 @@ void AddGiftSelector(
 		rpl::variable<std::optional<Ui::ColorCollectible>> selected;
 		rpl::variable<uint64> selectedGiftId;
 		int perRow = 1;
+		base::unique_qptr<Ui::RpWidget> emptyPlaceholder;
 
 		Fn<void()> loadMore;
 		Fn<void()> resize;
@@ -1335,6 +1438,19 @@ void AddGiftSelector(
 		const auto count = int(state->current->list.size());
 		state->validated.clear();
 
+		if (count == 0 && state->showingGiftId.current() == 0) {
+			if (!state->emptyPlaceholder) {
+				state->emptyPlaceholder = CreateEmptyPlaceholder(
+					raw,
+					width,
+					padding,
+					switchToNextTab);
+			}
+			state->emptyPlaceholder->show();
+			raw->resize(raw->width(), state->emptyPlaceholder->height());
+			return;
+		}
+
 		const auto rows = (count + state->perRow - 1) / state->perRow;
 		const auto height = padding.top()
 			+ (rows * state->delegate->buttonSize().height())
@@ -1349,6 +1465,7 @@ void AddGiftSelector(
 	) | rpl::start_with_next([=](uint64 showingId) {
 		state->current = &state->lists[showingId];
 		state->buttons.clear();
+		state->emptyPlaceholder = nullptr;
 		state->delegate.emplace(session, showingId
 			? GiftButtonMode::Full
 			: GiftButtonMode::Minimal);
@@ -1911,26 +2028,35 @@ void EditPeerColorSection(
 		Ui::AddSkip(container, st::settingsColorSampleSkip);
 
 		const auto session = &peer->session();
-		AddColorGiftTabs(container, session, [=](uint64 giftId) {
-			state->showingGiftId = giftId;
-		}, false);
+		const auto switchToNextTab = AddColorGiftTabs(
+			container,
+			session,
+			[=](uint64 giftId) { state->showingGiftId = giftId; },
+			false);
 
 		auto showingGiftId = state->showingGiftId.value();
-		AddGiftSelector(container, session, std::move(showingGiftId), [=](
-				std::shared_ptr<Data::UniqueGift> selected) {
-			state->index = selected->peerColor ? kUnsetColorIndex : 0;
-			state->emojiId = selected->peerColor
-				? selected->peerColor->backgroundEmojiId
-				: 0;
-			state->buyCollectible = (selected->peerColor
-				&& (selected->ownerId != session->userPeerId())
-				&& selected->starsForResale > 0)
-				? selected
-				: nullptr;
-			state->collectible = selected->peerColor
-				? *selected->peerColor
-				: std::optional<Ui::ColorCollectible>();
-		}, state->collectible.value(), false, rpl::single(uint64(0)));
+		AddGiftSelector(
+			container,
+			session,
+			std::move(showingGiftId),
+			[=](std::shared_ptr<Data::UniqueGift> selected) {
+				state->index = selected->peerColor ? kUnsetColorIndex : 0;
+				state->emojiId = selected->peerColor
+					? selected->peerColor->backgroundEmojiId
+					: 0;
+				state->buyCollectible = (selected->peerColor
+					&& (selected->ownerId != session->userPeerId())
+					&& selected->starsForResale > 0)
+					? selected
+					: nullptr;
+				state->collectible = selected->peerColor
+					? *selected->peerColor
+					: std::optional<Ui::ColorCollectible>();
+			},
+			state->collectible.value(),
+			false,
+			rpl::single(uint64(0)),
+			switchToNextTab);
 	}
 
 	button->setClickedCallback([=] {
@@ -2165,30 +2291,40 @@ void EditPeerProfileColorSection(
 		Ui::AddSkip(container, st::settingsColorSampleSkip);
 
 		const auto session = &peer->session();
-		AddColorGiftTabs(container, session, [=](uint64 giftId) {
-			state->showingGiftId = giftId;
-		}, true);
+		const auto switchToNextTab = AddColorGiftTabs(
+			container,
+			session,
+			[=](uint64 giftId) { state->showingGiftId = giftId; },
+			true);
 
 		auto showingGiftId = state->showingGiftId.value();
-		AddGiftSelector(container, session, std::move(showingGiftId), [=](
-				std::shared_ptr<Data::UniqueGift> selected) {
-			state->selectedGiftId = selected->id;
-			state->index = kUnsetColorIndex;
-			state->patternEmojiId = 0;
-			state->buyCollectible = (selected->peerColor
-				&& (selected->ownerId != session->userPeerId())
-				&& selected->starsForResale > 0)
-				? selected
-				: nullptr;
-			state->collectible = selected->peerColor
-				? *selected->peerColor
-				: std::optional<Ui::ColorCollectible>();
-			preview->setColorProfileIndex(std::nullopt);
-			preview->setPatternEmojiId(selected->pattern.document->id);
-			preview->setLocalEmojiStatusId(
-				session->data().emojiStatuses().fromUniqueGift(*selected));
-			resetWrap->toggle(true, anim::type::normal);
-		}, state->collectible.value(), true, state->selectedGiftId.value());
+		AddGiftSelector(
+			container,
+			session,
+			std::move(showingGiftId),
+			[=](std::shared_ptr<Data::UniqueGift> selected) {
+				state->selectedGiftId = selected->id;
+				state->index = kUnsetColorIndex;
+				state->patternEmojiId = 0;
+				state->buyCollectible = (selected->peerColor
+					&& (selected->ownerId != session->userPeerId())
+					&& selected->starsForResale > 0)
+					? selected
+					: nullptr;
+				state->collectible = selected->peerColor
+					? *selected->peerColor
+					: std::optional<Ui::ColorCollectible>();
+				preview->setColorProfileIndex(std::nullopt);
+				preview->setPatternEmojiId(selected->pattern.document->id);
+				preview->setLocalEmojiStatusId(
+					session->data().emojiStatuses().fromUniqueGift(
+						*selected));
+				resetWrap->toggle(true, anim::type::normal);
+			},
+			state->collectible.value(),
+			true,
+			state->selectedGiftId.value(),
+			switchToNextTab);
 	}
 
 	struct ProfileState {

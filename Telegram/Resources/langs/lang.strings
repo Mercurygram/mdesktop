@@ -3649,6 +3649,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_stars_your_finished" = "none left";
 "lng_gift_stars_tabs_all" = "All Gifts";
 "lng_gift_stars_tabs_my" = "My Gifts";
+"lng_gift_stars_tabs_my_empty" = "You don't have any gifts you can use as a profile cover.";
+"lng_gift_stars_tabs_my_empty_next" = "Browse gifts available for purchase {emoji}";
 "lng_gift_stars_tabs_collectibles" = "Collectibles";
 "lng_gift_send_title" = "Send a Gift";
 "lng_gift_send_message" = "Enter Message";
