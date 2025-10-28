@@ -1225,7 +1225,7 @@ bool GroupCall::rtmp() const {
 bool GroupCall::conference() const {
 	if (const auto raw = _sharedCall.get()) {
 		return (raw->origin() == Data::GroupCallOrigin::Conference);
-	} else if (const auto info = _startConferenceInfo.get()) {
+	} else if (_startConferenceInfo.get()) {
 		return true;
 	}
 	return false;
@@ -1241,7 +1241,7 @@ bool GroupCall::videoStream() const {
 Data::GroupCallOrigin GroupCall::origin() const {
 	if (const auto raw = _sharedCall.get()) {
 		return raw->origin();
-	} else if (const auto info = _startConferenceInfo.get()) {
+	} else if (_startConferenceInfo.get()) {
 		return Data::GroupCallOrigin::Conference;
 	}
 	return Data::GroupCallOrigin::Group;
