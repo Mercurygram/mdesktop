@@ -28,6 +28,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_document.h"
 #include "data/data_group_call.h"
 #include "data/data_message_reaction_id.h"
+#include "data/data_message_reactions.h"
 #include "data/data_peer_values.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
@@ -863,12 +864,16 @@ void ReplyArea::show(
 			: nullptr);
 		_controller->setCommentsShownToggles(
 			_controls->commentsShownToggles());
-		_controls->setStarsReactionCounter(_data.videoStream
-			? _controller->starsReactionsValue()
-			: nullptr);
 	}
+	using Controls = HistoryView::ComposeControls;
+	_controls->setStarsReactionCounter(_data.videoStream
+		? _controller->starsReactionsValue()
+		: nullptr);
 	_controller->setStarsReactionIncrements(
-		_controls->starsReactionIncrements());
+		_controls->starsReactionIncrements(
+		) | rpl::map([](Controls::StarReactionIncrement increment) {
+			return increment.count;
+		}));
 	if (!peerChanged) {
 		if (_data.peer) {
 			_controls->clear();
@@ -951,6 +956,22 @@ void ReplyArea::show(
 void ReplyArea::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
 	_type = ReplyAreaType::VideoStreamComment;
 	_videoStream = videoStream;
+	const auto messages = videoStream->messages();
+	_controls->setStarsReactionTop(rpl::single(rpl::empty) | rpl::then(
+		messages->starsValueChanges()
+	) | rpl::map([=] {
+		const auto &list = messages->starsTop().topDonors;
+		auto result = std::vector<Data::MessageReactionsTopPaid>();
+		result.reserve(list.size());
+		for (const auto &item : list) {
+			result.push_back({
+				.peer = item.peer,
+				.count = uint32(item.stars),
+				.my = item.my ? 1U : 0U,
+			});
+		}
+		return result;
+	}));
 }
 
 bool ReplyArea::showSlowmodeError() {

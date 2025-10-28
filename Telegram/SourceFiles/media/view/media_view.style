@@ -663,7 +663,7 @@ storiesEmojiPan: EmojiPan(defaultEmojiPan) {
 		menuBelow: icon {{ "menu/link_below", storiesComposeWhiteText }};
 		menuAbove: icon {{ "menu/link_above", storiesComposeWhiteText }};
 		menuPrice: icon {{ "menu/earn", storiesComposeWhiteText }};
-		menuEditStars: icon {{ "chat/input_paid", storiesComposeWhiteText }};
+		menuEditStars: icon {{ "chat/input_paid", storiesComposeWhiteText, point(-8px, -8px) }};
 
 		stripBubble: icon{
 			{ "chat/reactions_bubble_shadow", windowShadowFg },

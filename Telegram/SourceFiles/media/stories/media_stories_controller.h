@@ -186,7 +186,7 @@ public:
 	void setCommentsShownToggles(rpl::producer<> toggles);
 	[[nodiscard]] auto starsReactionsValue() const
 		-> rpl::producer<Ui::SendStarButtonState>;
-	void setStarsReactionIncrements(rpl::producer<> increments);
+	void setStarsReactionIncrements(rpl::producer<int> increments);
 
 	void unfocusReply();
 	void shareRequested();

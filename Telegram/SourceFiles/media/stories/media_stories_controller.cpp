@@ -1771,13 +1771,13 @@ auto Controller::starsReactionsValue() const
 	});
 }
 
-void Controller::setStarsReactionIncrements(rpl::producer<> increments) {
+void Controller::setStarsReactionIncrements(rpl::producer<int> increments) {
 	std::move(
 		increments
-	) | rpl::start_with_next([=] {
+	) | rpl::start_with_next([=](int count) {
 		if (const auto call = _videoStreamCall.get()) {
 			const auto show = _delegate->storiesShow();
-			Payments::TryAddingPaidReaction(call, 1, std::nullopt, show);
+			Payments::TryAddingPaidReaction(call, count, std::nullopt, show);
 		}
 	}, _videoStreamLifetime);
 }

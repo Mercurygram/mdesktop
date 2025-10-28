@@ -47,6 +47,7 @@ struct Draft;
 class DraftKey;
 class PhotoMedia;
 struct WebPageDraft;
+struct MessageReactionsTopPaid;
 } // namespace Data
 
 namespace InlineBots {
@@ -167,7 +168,15 @@ public:
 	[[nodiscard]] rpl::producer<> commentsShownToggles() const;
 	void setStarsReactionCounter(
 		rpl::producer<Ui::SendStarButtonState> count);
-	[[nodiscard]] rpl::producer<> starsReactionIncrements() const;
+	using StarReactionTop = Data::MessageReactionsTopPaid;
+	void setStarsReactionTop(
+		rpl::producer<std::vector<StarReactionTop>> top);
+	struct StarReactionIncrement {
+		int count = 0;
+		bool fromBox = false;
+	};
+	[[nodiscard]] auto starsReactionIncrements() const
+		-> rpl::producer<StarReactionIncrement>;
 
 	bool focus();
 	[[nodiscard]] bool focused() const;
@@ -450,7 +459,8 @@ private:
 	rpl::event_stream<> _focusRequests;
 	rpl::event_stream<> _showScheduledRequests;
 	rpl::event_stream<> _commentsShownToggles;
-	rpl::event_stream<> _starsReactionIncrements;
+	rpl::event_stream<StarReactionIncrement> _starsReactionIncrements;
+	rpl::variable<std::vector<StarReactionTop>> _starsReactionTop;
 	rpl::variable<bool> _recording;
 	rpl::variable<bool> _hasSendText;
 

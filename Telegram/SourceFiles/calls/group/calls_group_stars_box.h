@@ -11,6 +11,10 @@ namespace ChatHelpers {
 class Show;
 } // namespace ChatHelpers
 
+namespace Data {
+struct MessageReactionsTopPaid;
+} // namespace Data
+
 namespace Ui {
 class BoxContent;
 class GenericBox;
@@ -20,7 +24,9 @@ namespace Calls::Group {
 
 struct VideoStreamStarsBoxArgs {
 	std::shared_ptr<ChatHelpers::Show> show;
+	std::vector<Data::MessageReactionsTopPaid> top;
 	int current = 0;
+	bool sending = false;
 	Fn<void(int)> save;
 	QString name;
 };

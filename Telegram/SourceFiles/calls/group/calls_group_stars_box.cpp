@@ -34,15 +34,18 @@ void VideoStreamStarsBox(
 		VideoStreamStarsBoxArgs &&args) {
 	args.show->session().credits().load();
 
+	const auto sending = args.sending;
 	auto submitText = [=](rpl::producer<int> amount) {
 		auto nice = std::move(amount) | rpl::map([=](int count) {
 			return Ui::CreditsEmojiSmall().append(
 				Lang::FormatCountDecimal(count));
 		});
-		return tr::lng_paid_comment_button(
-			lt_stars,
-			std::move(nice),
-			Ui::Text::RichLangValue);
+		return (sending
+			? tr::lng_paid_reaction_button
+			: tr::lng_paid_comment_button)(
+				lt_stars,
+				std::move(nice),
+				Ui::Text::RichLangValue);
 	};
 	const auto &show = args.show;
 	const auto session = &show->session();
@@ -78,15 +81,20 @@ void VideoStreamStarsBox(
 			.my = (entry.my == 1),
 		});
 	};
-	top.reserve(2);
+
+	top.reserve(args.top.size() + 1);
+	for (const auto &entry : args.top) {
+		add(entry);
+	}
+
 	auto myAdded = base::flat_set<uint64>();
 	const auto i = ranges::find(top, true, &Ui::PaidReactionTop::my);
 	if (i != end(top)) {
 		myAdded.emplace(i->barePeerId);
 	}
 	const auto myCount = uint32((i != end(top)) ? i->count : 0);
-	const auto myAdd = [&](PeerData *peer) {
-		const auto barePeerId = peer ? uint64(peer->id.value) : 0;
+	const auto myAdd = [&](not_null<PeerData*> peer) {
+		const auto barePeerId = uint64(peer->id.value);
 		if (!myAdded.emplace(barePeerId).second) {
 			return;
 		}
@@ -97,7 +105,6 @@ void VideoStreamStarsBox(
 		});
 	};
 	myAdd(session->user());
-	myAdd(nullptr);
 	ranges::stable_sort(top, ranges::greater(), &Ui::PaidReactionTop::count);
 	const auto weak = base::make_weak(box);
 	Ui::PaidReactionsBox(box, {
@@ -114,7 +121,8 @@ void VideoStreamStarsBox(
 				strong->closeBox();
 			}
 		},
-		.videoStreamChoosing = true,
+		.videoStreamChoosing = !sending,
+		.videoStreamSending = sending,
 		.dark = true,
 	});
 }

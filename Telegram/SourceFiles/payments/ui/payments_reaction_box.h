@@ -44,6 +44,7 @@ struct PaidReactionBoxArgs {
 	rpl::producer<CreditsAmount> balanceValue;
 	Fn<void(int, uint64)> send;
 	bool videoStreamChoosing = false;
+	bool videoStreamSending = false;
 	bool dark = false;
 };
 

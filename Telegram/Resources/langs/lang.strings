@@ -4677,6 +4677,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_paid_comment_limit_about#other" = "characters";
 "lng_paid_comment_emoji_about#one" = "emoji";
 "lng_paid_comment_emoji_about#other" = "emoji";
+"lng_paid_reaction_title" = "React with Stars";
+"lng_paid_reaction_about" = "Highlight and pin your message by sending Stars to {name}.";
+"lng_paid_reaction_button" = "Send {stars}";
 
 "lng_sensitive_tag" = "18+";
 "lng_sensitive_title" = "18+";

@@ -31,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_changes.h"
 #include "data/data_drafts.h"
 #include "data/data_messages.h"
+#include "data/data_message_reactions.h"
 #include "data/data_saved_sublist.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
@@ -1306,13 +1307,38 @@ void ComposeControls::setStarsReactionCounter(
 			updateControlsGeometry(_wrap->size());
 		}, _starsReaction->lifetime());
 
-		_starsReaction->setClickedCallback([=] {
-			_starsReactionIncrements.fire({});
-		});
+		_starsReaction->setAcceptBoth();
+		_starsReaction->clicks(
+		) | rpl::start_with_next([=](Qt::MouseButton button) {
+			if (button == Qt::LeftButton) {
+				_starsReactionIncrements.fire({ .count = 1 });
+			} else {
+				_show->show(Calls::Group::MakeVideoStreamStarsBox({
+					.show = _show,
+					.top = _starsReactionTop.current(),
+					.current = 0,
+					.sending = true,
+					.save = crl::guard(_starsReaction, [=](int count) {
+						_starsReactionIncrements.fire({
+							.count = count,
+							.fromBox = true,
+						});
+					}),
+					.name = _history ? _history->peer->shortName() : QString(),
+				}));
+
+			}
+		}, _starsReaction->lifetime());
 	}
 }
 
-rpl::producer<> ComposeControls::starsReactionIncrements() const {
+void ComposeControls::setStarsReactionTop(
+		rpl::producer<std::vector<StarReactionTop>> top) {
+	_starsReactionTop = std::move(top);
+}
+
+auto ComposeControls::starsReactionIncrements() const
+-> rpl::producer<StarReactionIncrement> {
 	return _starsReactionIncrements.events();
 }
 
@@ -2465,18 +2491,7 @@ void ComposeControls::initSendButton() {
 
 	_send->clicks(
 	) | rpl::start_with_next([=] {
-		const auto type = _send->type();
-		if (type == Ui::SendButton::Type::EditPrice) {
-			_show->show(Calls::Group::MakeVideoStreamStarsBox({
-				.show = _show,
-				.current = _chosenStarsCount.value_or(0),
-				.save = crl::guard(_send, [=](int count) {
-					_chosenStarsCount = count;
-					updateSendButtonType();
-				}),
-				.name = _history ? _history->peer->name() : QString(),
-			}));
-		} else if (type == Ui::SendButton::Type::Cancel) {
+		if (_send->type() == Ui::SendButton::Type::Cancel) {
 			cancelInlineBot();
 		}
 	}, _send->lifetime());
