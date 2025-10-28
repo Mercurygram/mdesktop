@@ -1298,7 +1298,8 @@ void ComposeControls::setStarsReactionCounter(
 	} else {
 		_starsReaction = Ui::CreateChild<Ui::SendStarButton>(
 			_wrap.get(),
-			_st.starsReaction,
+			_st.attach,
+			_st.starsReactionCounter,
 			std::move(count));
 		updateControlsVisibility();
 
@@ -3219,7 +3220,6 @@ void ComposeControls::paintBackground(QPainter &p, QRect full, QRect clip) {
 				+ _st.commentsSkip);
 		}
 		if (_starsReaction) {
-			p.drawRoundedRect(_starsReaction->geometry(), r, r);
 			full.setWidth(full.width()
 				- _starsReaction->width()
 				- _st.starsSkip);

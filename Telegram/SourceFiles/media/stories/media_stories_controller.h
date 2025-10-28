@@ -348,7 +348,7 @@ private:
 	MsgId _commentsLastReadId = 0;
 	MsgId _commentsLastId = 0;
 	rpl::variable<int> _starsReactions;
-	bool _mineStarReaction = false;
+	rpl::variable<bool> _starsReactionHighlighted;
 
 	std::vector<CachedSource> _cachedSourcesList;
 	int _cachedSourceIndex = -1;

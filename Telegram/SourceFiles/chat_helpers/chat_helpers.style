@@ -220,7 +220,7 @@ ComposeControls {
 	commentsUnreadSize: pixels;
 	commentsUnreadMargin: pixels;
 	commentsUnreadPosition: point;
-	starsReaction: RoundButton;
+	starsReactionCounter: RoundButton;
 	starsSkip: pixels;
 	suggestions: EmojiSuggestions;
 	tabbed: EmojiPan;

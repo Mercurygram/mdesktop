@@ -1766,8 +1766,11 @@ void Controller::setCommentsShownToggles(rpl::producer<> toggles) {
 
 auto Controller::starsReactionsValue() const
 -> rpl::producer<Ui::SendStarButtonState> {
-	return _starsReactions.value() | rpl::map([=](int stars) {
-		return Ui::SendStarButtonState{ stars, _mineStarReaction };
+	return rpl::combine(
+		_starsReactions.value(),
+		_starsReactionHighlighted.value()
+	) | rpl::map([=](int stars, bool highlighted) {
+		return Ui::SendStarButtonState{ stars, highlighted };
 	});
 }
 
@@ -1911,18 +1914,19 @@ void Controller::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
 	_starsReactions = rpl::single(rpl::empty) | rpl::then(
 		videoStream->messages()->starsValueChanges()
 	) | rpl::map([=] {
-		const auto state = videoStream->messages()->starsLocalState();
-
-		_mineStarReaction = (state.my > 0);
-		return state.total;
+		return videoStream->messages()->starsLocalState().total;
 	});
+	_paidReactionToast->shownForCall(
+	) | rpl::start_with_next([=](Calls::GroupCall *call) {
+		_starsReactionHighlighted = (call == videoStream);
+	}, _videoStreamLifetime);
 
 	_replyArea->updateVideoStream(videoStream);
 }
 
 void Controller::clearVideoStreamCall() {
 	_videoStreamCall = nullptr;
-	_mineStarReaction = false;
+	_starsReactionHighlighted = false;
 	_starsReactions = 0;
 	_videoStreamLifetime.destroy();
 }

@@ -11,6 +11,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace style {
 struct SendButton;
+struct IconButton;
+struct RoundButton;
 } // namespace style
 
 namespace Ui {
@@ -89,14 +91,15 @@ private:
 
 struct SendStarButtonState {
 	int count = 0;
-	bool mine = false;
+	bool highlight = false;
 };
 
 class SendStarButton final : public RippleButton {
 public:
 	SendStarButton(
 		QWidget *parent,
-		const style::RoundButton &st,
+		const style::IconButton &st,
+		const style::RoundButton &counterSt,
 		rpl::producer<SendStarButtonState> state);
 
 protected:
@@ -106,12 +109,17 @@ protected:
 	QPoint prepareRippleStartPosition() const override;
 
 private:
-	void updateSize();
+	void setCount(int count);
+	void highlight(bool enabled);
 
-	const style::RoundButton &_st;
+	const style::IconButton &_st;
+	const style::RoundButton &_counterSt;
 
+	QImage _frame;
 	Ui::Text::String _starsText;
-	bool _mine = false;
+	Ui::Animations::Simple _highlight;
+	int _count = 0;
+	bool _highlighted = false;
 
 };
 

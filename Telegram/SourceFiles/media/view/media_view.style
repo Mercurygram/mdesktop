@@ -734,20 +734,17 @@ storiesComposeControls: ComposeControls(defaultComposeControls) {
 	commentsUnreadSize: 6px;
 	commentsUnreadMargin: 2px;
 	commentsUnreadPosition: point(24px, 8px);
-	starsReaction: RoundButton(defaultActiveButton) {
+	starsReactionCounter: RoundButton(defaultActiveButton) {
 		style: TextStyle(semiboldTextStyle) {
-			font: font(14px semibold);
+			font: font(9px semibold);
 		}
 		textFg: storiesComposeGrayIcon;
 		textFgOver: storiesComposeGrayIcon;
 		textBg: storiesComposeBg;
 		textBgOver: storiesComposeBg;
-		radius: 21px;
-		width: -20px;
-		height: 42px;
-		numbersSkip: 3px;
-		padding: margins(0px, 0px, 0px, 0px);
-		textTop: 11px;
+		numbersSkip: 2px;
+		padding: margins(4px, 0px, 4px, 1px);
+		textTop: 1px;
 		ripple: storiesComposeRippleLight;
 	}
 	starsSkip: 8px;

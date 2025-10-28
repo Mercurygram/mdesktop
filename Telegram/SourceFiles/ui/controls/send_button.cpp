@@ -324,73 +324,112 @@ QPoint SendButton::prepareRippleStartPosition() const {
 
 SendStarButton::SendStarButton(
 	QWidget *parent,
-	const style::RoundButton &st,
+	const style::IconButton &st,
+	const style::RoundButton &counterSt,
 	rpl::producer<SendStarButtonState> state)
 : RippleButton(parent, st.ripple)
-, _st(st) {
+, _st(st)
+, _counterSt(counterSt) {
+	resize(_st.width, _st.height);
+
 	std::move(state) | rpl::start_with_next([=](SendStarButtonState value) {
-		if (value.count) {
-			_starsText.setText(
-				_st.style,
-				Lang::FormatCountToShort(value.count).string);
-		} else {
-			_starsText = Text::String();
-		}
-		_mine = value.mine;
-		updateSize();
+		setCount(value.count);
+		highlight(value.highlight);
 	}, lifetime());
 }
 
 void SendStarButton::paintEvent(QPaintEvent *e) {
-	auto p = QPainter(this);
+	const auto ratio = style::DevicePixelRatio();
+	const auto fullSize = size() * ratio;
+	if (_frame.size() != fullSize) {
+		_frame = QImage(fullSize, QImage::Format_ARGB32_Premultiplied);
+		_frame.setDevicePixelRatio(ratio);
+	}
+	_frame.fill(Qt::transparent);
 
-	if (_mine) {
+	auto p = QPainter(&_frame);
+
+	const auto highlighted = _highlight.value(_highlighted ? 1. : 0.);
+	p.setPen(Qt::NoPen);
+	p.setBrush(_counterSt.textBg);
+	p.drawEllipse(rect());
+	paintRipple(p, QPoint());
+	if (highlighted > 0.) {
 		auto hq = PainterHighQualityEnabler(p);
-		p.setPen(Qt::NoPen);
 		p.setBrush(st::creditsBg3);
-		p.drawRoundedRect(rect(), _st.radius, _st.radius);
-	} else {
-		paintRipple(p, QPoint());
+		p.setOpacity(highlighted);
+		p.drawEllipse(rect());
+		p.setOpacity(1.);
 	}
 
-	if (_mine) {
-		p.setPen(st::premiumButtonFg);
-	} else {
-		p.setPen(_st.textFg);
-	}
-	const auto &icon = st::starIconEmoji.icon;
-	const auto left = _starsText.isEmpty()
-		? ((_st.height - icon.width()) / 2)
-		: (-_st.width / 2);
-	icon.paint(
-		p,
-		left,
-		(height() - icon.height()) / 2,
-		width(),
-		_mine ? st::premiumButtonFg->c : _st.textFg->c);
+	st::starIconEmoji.icon.paintInCenter(p, rect(), st::premiumButtonFg->c);
 
 	if (!_starsText.isEmpty()) {
+		auto hq = PainterHighQualityEnabler(p);
+		p.setCompositionMode(QPainter::CompositionMode_Source);
+		auto pen = st::transparent->p;
+		pen.setWidthF(_counterSt.numbersSkip);
+		p.setPen(pen);
+		p.setBrush(
+			anim::brush(_counterSt.textBg, st::creditsBg3, highlighted));
+		const auto size = QSize(
+			_starsText.maxWidth(),
+			_counterSt.style.font->height);
+		const auto larger = size.grownBy(_counterSt.padding);
+		const auto left = (width() - larger.width());
+		const auto top = 0;
+		const auto r = larger.height() / 2.;
+		p.drawRoundedRect(left, top, larger.width(), larger.height(), r, r);
+		p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+		p.setPen(
+			anim::pen(_counterSt.textFg, st::premiumButtonFg, highlighted));
 		_starsText.draw(p, {
 			.position = QPoint(
-				left + icon.width() + _st.numbersSkip,
-				_st.textTop),
+				left + _counterSt.padding.left(),
+				top + _counterSt.padding.top()),
 		});
 	}
+
+	QPainter(this).drawImage(0, 0, _frame);
 }
 
-void SendStarButton::updateSize() {
-	const auto &icon = st::starIconEmoji.icon;
-	if (_starsText.isEmpty()) {
-		resize(_st.height, _st.height);
+void SendStarButton::setCount(int count) {
+	if (_count == count) {
+		return;
+	}
+	_count = count;
+	if (_count) {
+		_starsText.setText(
+			_counterSt.style,
+			Lang::FormatCountDecimal(_count));
+		const auto sub = _counterSt.padding.left()
+			+ _counterSt.padding.right();
+		if (_starsText.maxWidth() > width() - sub) {
+			_starsText.setText(
+				_counterSt.style,
+				Lang::FormatCountToShort(_count).string);
+		}
 	} else {
-		const auto width = icon.width() - _st.width;
-		resize(width + _st.numbersSkip + _starsText.maxWidth(), _st.height);
+		_starsText = Text::String();
 	}
 	update();
 }
 
+void SendStarButton::highlight(bool enabled) {
+	if (_highlighted == enabled) {
+		return;
+	}
+	_highlighted = enabled;
+	_highlight.start(
+		[=] { update(); },
+		enabled ? 0. : 1.,
+		enabled ? 1. : 0.,
+		360,
+		anim::easeOutCirc);
+}
+
 QImage SendStarButton::prepareRippleMask() const {
-	return RippleAnimation::RoundRectMask(size(), _st.radius);
+	return RippleAnimation::EllipseMask(size());
 }
 
 QPoint SendStarButton::prepareRippleStartPosition() const {

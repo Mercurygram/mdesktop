@@ -44,6 +44,9 @@ public:
 		Fn<bool(not_null<Calls::GroupCall*> call)> mine);
 	~PaidReactionToast();
 
+	[[nodiscard]] rpl::producer<FullMsgId> shownForId() const;
+	[[nodiscard]] rpl::producer<Calls::GroupCall*> shownForCall() const;
+
 private:
 	bool maybeShowFor(not_null<HistoryItem*> item);
 	bool maybeShowFor(not_null<Calls::GroupCall*> call);
@@ -72,6 +75,8 @@ private:
 	std::vector<FullMsgId> _stack;
 
 	base::flat_map<FullMsgId, base::weak_ptr<Calls::GroupCall>> _idsForCalls;
+
+	rpl::variable<FullMsgId> _shownForId;
 
 	rpl::lifetime _lifetime;
 

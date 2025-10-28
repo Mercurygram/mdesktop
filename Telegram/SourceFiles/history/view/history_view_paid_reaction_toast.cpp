@@ -180,6 +180,17 @@ PaidReactionToast::~PaidReactionToast() {
 	}
 }
 
+rpl::producer<FullMsgId> PaidReactionToast::shownForId() const {
+	return _shownForId.value();
+}
+
+rpl::producer<Calls::GroupCall*> PaidReactionToast::shownForCall() const {
+	return shownForId() | rpl::map([=](FullMsgId id) {
+		const auto i = _idsForCalls.find(id);
+		return (i != end(_idsForCalls)) ? i->second.get() : nullptr;
+	});
+}
+
 bool PaidReactionToast::maybeShowFor(not_null<HistoryItem*> item) {
 	const auto count = item->reactionsPaidScheduled();
 	const auto shownPeer = item->reactionsLocalShownPeer();
@@ -294,11 +305,16 @@ void PaidReactionToast::showFor(
 	if (!strong) {
 		return;
 	}
+
+	_shownForId = itemId;
 	const auto widget = strong->widget();
 	const auto hideToast = [=, weak = _weak] {
 		if (const auto strong = weak.get()) {
 			if (strong == _weak.get()) {
 				_stack.erase(ranges::remove(_stack, itemId), end(_stack));
+				if (_shownForId.current() == itemId) {
+					_shownForId = FullMsgId();
+				}
 
 				_hiding.push_back(base::take(_weak));
 				strong->hideAnimated();
@@ -308,6 +324,9 @@ void PaidReactionToast::showFor(
 						if (maybeShowFor(item)) {
 							break;
 						}
+					}
+					if (_shownForId.current() == _stack.back()) {
+						_shownForId = FullMsgId();
 					}
 					_stack.pop_back();
 				}
