@@ -1,3 +1,8 @@
+6.2.5 beta (28.10.25)
+
+- New profile pages design.
+- Qt 6.10 on Linux.
+
 6.2.4 (22.10.25)
 
 - Highlight links in contact notes.
