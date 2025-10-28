@@ -336,6 +336,25 @@ TopBar::TopBar(
 
 	rpl::merge(
 		style::PaletteChanged(),
+		_peer->session().data().giftUpdates() | rpl::filter([=](
+				const Data::GiftUpdate &update) {
+			if (update.action == Data::GiftUpdate::Action::Pin) {
+				if (_peer->isSelf() && update.id.isUser()) {
+					return true;
+				}
+				if (_peer == update.id.chat()) {
+					return true;
+				}
+			}
+			if (update.action == Data::GiftUpdate::Action::Unpin) {
+				for (const auto &gift : _pinnedToTopGifts) {
+					if (gift.manageId == update.id) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}) | rpl::to_empty,
 		_peer->session().changes().peerFlagsValue(
 			_peer,
 			Data::PeerUpdate::Flag::EmojiStatus
@@ -1764,6 +1783,7 @@ void TopBar::setupNewGifts(
 		const auto document = _peer->owner().document(
 			gift.info.document->id);
 		auto entry = PinnedToTopGiftEntry();
+		entry.manageId = gift.manageId;
 		entry.media = document->createMediaView();
 		entry.media->checkStickerSmall();
 		if (const auto &unique = gift.info.unique) {
