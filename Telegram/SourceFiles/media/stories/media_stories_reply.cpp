@@ -104,7 +104,7 @@ namespace {
 [[nodiscard]] ChatHelpers::ComposeFeatures Features(bool videoStream) {
 	return {
 		.likes = !videoStream,
-		.sendAs = false,
+		.sendAs = videoStream,
 		.ttlInfo = false,
 		.attachments = !videoStream,
 		.botCommandSend = false,
@@ -858,7 +858,7 @@ void ReplyArea::show(
 	const auto streamChanged = (_data.videoStream != data.videoStream);
 	_data = data;
 	if (streamChanged) {
-		_controls->updateFeatures(Features(_data.videoStream));
+		_controls->updateFeatures(Features(_data.videoStream != nullptr));
 		_controls->setToggleCommentsButton(_data.videoStream
 			? _controller->commentsStateValue()
 			: nullptr);
@@ -917,6 +917,7 @@ void ReplyArea::show(
 	using namespace HistoryView;
 	_controls->setHistory({
 		.history = history,
+		.videoStream = _data.videoStream,
 		.showSlowmodeError = [=] { return showSlowmodeError(); },
 		.sendActionFactory = [=] { return prepareSendAction({}); },
 		.slowmodeSecondsLeft = SlowmodeSecondsLeft(history->peer),

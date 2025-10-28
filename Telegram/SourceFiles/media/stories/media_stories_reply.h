@@ -24,6 +24,7 @@ class GroupCall;
 } // namespace Calls
 
 namespace Data {
+class GroupCall;
 struct ReactionId;
 } // namespace Data
 
@@ -61,7 +62,7 @@ class Controller;
 struct ReplyAreaData {
 	PeerData *peer = nullptr;
 	StoryId id = 0;
-	bool videoStream = false;
+	std::shared_ptr<Data::GroupCall> videoStream;
 
 	friend inline auto operator<=>(ReplyAreaData, ReplyAreaData) = default;
 	friend inline bool operator==(ReplyAreaData, ReplyAreaData) = default;

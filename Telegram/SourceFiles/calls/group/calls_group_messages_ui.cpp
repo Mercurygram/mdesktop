@@ -902,40 +902,11 @@ void MessagesUi::setupMessagesWidget() {
 		updateBottomFade();
 	}, scroll->lifetime());
 
-	ReceiveSomeMouseEvents(scroll, [=](QPoint point) {
-		for (const auto &entry : _views) {
-			if (entry.failed || entry.top + entry.height <= point.y()) {
-				continue;
-			} else if (entry.top >= point.y()
-				|| entry.left >= point.x()
-				|| entry.left + entry.width <= point.x()) {
-				return false;
-			}
-
-			const auto padding = st::groupCallMessagePadding;
-			const auto userpicSize = st::groupCallUserpic;
-			const auto userpicPadding = st::groupCallUserpicPadding;
-			const auto leftSkip = userpicPadding.left()
-				+ userpicSize
-				+ userpicPadding.right();
-			const auto userpic = QRect(
-				entry.left + userpicPadding.left(),
-				entry.top + userpicPadding.top(),
-				userpicSize,
-				userpicSize);
-			const auto link = userpic.contains(point)
-				? entry.fromLink
-				: entry.text.getState(point - QPoint(
-					entry.left + leftSkip,
-					entry.top + padding.top()
-				), entry.width - leftSkip - padding.right()).link;
-			if (link) {
-				ActivateClickHandler(_messages, link, Qt::LeftButton);
-			}
-			return true;
-		}
-		return false;
-	});
+	if (_mode == MessagesMode::GroupCall) {
+		receiveSomeMouseEvents();
+	} else {
+		receiveAllMouseEvents();
+	}
 
 	_messages->paintRequest() | rpl::start_with_next([=](QRect clip) {
 		const auto start = scroll->scrollTop();
@@ -1114,6 +1085,47 @@ void MessagesUi::setupMessagesWidget() {
 
 	scroll->show();
 	applyGeometry();
+}
+
+void MessagesUi::receiveSomeMouseEvents() {
+	ReceiveSomeMouseEvents(_scroll.get(), [=](QPoint point) {
+		for (const auto &entry : _views) {
+			if (entry.failed || entry.top + entry.height <= point.y()) {
+				continue;
+			} else if (entry.top >= point.y()
+				|| entry.left >= point.x()
+				|| entry.left + entry.width <= point.x()) {
+				return false;
+			}
+
+			const auto padding = st::groupCallMessagePadding;
+			const auto userpicSize = st::groupCallUserpic;
+			const auto userpicPadding = st::groupCallUserpicPadding;
+			const auto leftSkip = userpicPadding.left()
+				+ userpicSize
+				+ userpicPadding.right();
+			const auto userpic = QRect(
+				entry.left + userpicPadding.left(),
+				entry.top + userpicPadding.top(),
+				userpicSize,
+				userpicSize);
+			const auto link = userpic.contains(point)
+				? entry.fromLink
+				: entry.text.getState(point - QPoint(
+					entry.left + leftSkip,
+					entry.top + padding.top()
+				), entry.width - leftSkip - padding.right()).link;
+			if (link) {
+				ActivateClickHandler(_messages, link, Qt::LeftButton);
+			}
+			return true;
+		}
+		return false;
+	});
+}
+
+void MessagesUi::receiveAllMouseEvents() {
+
 }
 
 void MessagesUi::setupPinnedWidget() {

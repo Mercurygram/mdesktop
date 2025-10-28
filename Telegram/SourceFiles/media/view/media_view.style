@@ -689,6 +689,17 @@ storiesBoxInputField: InputField(defaultComposeFilesField) {
 	borderFgActive: storiesComposeBlue;
 	menu: storiesPopupMenu;
 }
+storiesChooseSendAs: ChooseSendAs(defaultChooseSendAs) {
+	button: SendAsButton(defaultSendAsButton) {
+		width: 42px;
+		height: 42px;
+	}
+	label: FlatLabel(defaultFlatLabel) {
+		minWidth: 272px;
+		textFg: storiesComposeWhiteText;
+	}
+	list: groupCallJoinAsList;
+}
 storiesComposeControls: ComposeControls(defaultComposeControls) {
 	bg: storiesComposeBg;
 	radius: 21px;
@@ -866,6 +877,7 @@ storiesComposeControls: ComposeControls(defaultComposeControls) {
 		position: point(37px, 14px);
 		icon: icon{{ "emoji/premium_lock", storiesComposeGrayIcon, point(13px, 14px) }};
 	}
+	chooseSendAs: storiesChooseSendAs;
 }
 storiesViewsMenu: PopupMenu(storiesPopupMenuWithIcons) {
 	scrollPadding: margins(0px, 6px, 0px, 4px);

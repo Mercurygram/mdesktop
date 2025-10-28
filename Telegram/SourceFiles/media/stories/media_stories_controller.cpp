@@ -818,7 +818,7 @@ void Controller::rebuildFromContext(
 	_slider->show({
 		.index = _sliderCount ? _sliderIndex : _index,
 		.total = _sliderCount ? _sliderCount : shownCount(),
-		.videoStream = _videoStream,
+		.videoStream = videoStream(),
 	});
 }
 
@@ -856,7 +856,7 @@ void Controller::show(
 	_context = context;
 	_waitingForId = {};
 	_waitingForDelta = 0;
-	_videoStream = (story->call() != nullptr);
+	_videoStream = story->call();
 	if (!_videoStream) {
 		clearVideoStreamCall();
 	}
@@ -921,7 +921,7 @@ void Controller::show(
 		.privacy = story->privacy(),
 		.edited = story->edited(),
 		.video = (document != nullptr),
-		.videoStream = _videoStream,
+		.videoStream = videoStream(),
 		.silent = (document && document->isSilentVideo()),
 	});
 	uiShow()->hideLayer(anim::type::instant);
@@ -943,7 +943,7 @@ void Controller::show(
 		.forwards = story->forwards(),
 		.views = story->views(),
 		.total = story->interactions(),
-		.type = RecentViewsTypeFor(peer, _videoStream),
+		.type = RecentViewsTypeFor(peer, videoStream()),
 		.canViewReactions = (!_videoStream
 			&& CanViewReactionsFor(peer)
 			&& !peer->isMegagroup()),
@@ -1052,7 +1052,7 @@ void Controller::subscribeToSession() {
 				.forwards = update.story->forwards(),
 				.views = update.story->views(),
 				.total = update.story->interactions(),
-				.type = RecentViewsTypeFor(peer, _videoStream),
+				.type = RecentViewsTypeFor(peer, videoStream()),
 				.canViewReactions = (!_videoStream
 					&& CanViewReactionsFor(peer)
 					&& !peer->isMegagroup()),
@@ -1932,7 +1932,7 @@ void Controller::clearVideoStreamCall() {
 }
 
 bool Controller::videoStream() const {
-	return _videoStream;
+	return _videoStream != nullptr;
 }
 
 rpl::lifetime &Controller::lifetime() {

@@ -245,7 +245,11 @@ void ShowPaidReactionDetails(
 	};
 	const auto linked = item->discussionPostOriginalSender();
 	const auto channel = (linked ? linked : item->history()->peer.get());
-	const auto channels = session->sendAsPeers().paidReactionList(channel);
+	const auto channels = session->sendAsPeers().list(
+		{ channel, Main::SendAsType::PaidReaction }
+	) | ranges::views::transform(
+		&Main::SendAsPeer::peer
+	) | ranges::to_vector;
 	const auto topPaid = item->topPaidReactionsWithLocal();
 	top.reserve(topPaid.size() + 2 + channels.size());
 	for (const auto &entry : topPaid) {

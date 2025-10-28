@@ -1200,7 +1200,12 @@ void GroupCall::playConnectingSoundOnce() {
 }
 
 not_null<PeerData*> GroupCall::messagesFrom() const {
-	return joinAs();
+	if (!videoStream()) {
+		return joinAs();
+	} else if (const auto real = lookupReal()) {
+		return real->resolveSendAs();
+	}
+	return _peer->session().user();
 }
 
 bool GroupCall::showChooseJoinAs() const {

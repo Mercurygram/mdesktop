@@ -1056,7 +1056,7 @@ void ComposeControls::setHistory(SetHistoryArgs &&args) {
 		return;
 	}
 	const auto peer = _history->peer;
-	initSendAsButton(peer);
+	initSendAsButton(peer, args.videoStream);
 	if (peer->isChat() && peer->asChat()->noParticipantInfo()) {
 		session().api().requestFullPeer(peer);
 	} else if (const auto channel = peer->asMegagroup()) {
@@ -1686,7 +1686,7 @@ void ComposeControls::init() {
 	) | rpl::start_with_next([=](const auto &id) {
 		unregisterDraftSources();
 		updateSendButtonType();
-		if (_history && updateSendAsButton()) {
+		if (_history && updateSendAsButton(nullptr)) {
 			updateControlsVisibility();
 			updateControlsGeometry(_wrap->size());
 			orderControls();
@@ -2529,24 +2529,33 @@ void ComposeControls::initSendButton() {
 	}, _send->lifetime());
 }
 
-void ComposeControls::initSendAsButton(not_null<PeerData*> peer) {
+void ComposeControls::initSendAsButton(
+		not_null<PeerData*> peer,
+		std::shared_ptr<Data::GroupCall> videoStream) {
 	using namespace rpl::mappers;
+	using namespace Main;
 
 	// SendAsPeers::shouldChoose checks Data::CanSendAnything(PeerData*).
+	const auto key = SendAsKey{
+		peer,
+		videoStream ? SendAsType::VideoStream : SendAsType::Message,
+	};
 	rpl::combine(
-		rpl::single(peer) | rpl::then(
-			session().sendAsPeers().updated() | rpl::filter(_1 == peer)
+		rpl::single(key) | rpl::then(
+			session().sendAsPeers().updated() | rpl::filter(_1 == key)
 		),
-		Data::CanSendAnythingValue(peer, false)
+		(videoStream
+			? rpl::single(true)
+			: Data::CanSendAnythingValue(key.peer, false))
 	) | rpl::skip(1) | rpl::start_with_next([=] {
-		if (updateSendAsButton()) {
+		if (updateSendAsButton(videoStream)) {
 			updateControlsVisibility();
 			updateControlsGeometry(_wrap->size());
 			orderControls();
 		}
 	}, _historyLifetime);
 
-	updateSendAsButton();
+	updateSendAsButton(videoStream);
 }
 
 void ComposeControls::cancelInlineBot() {
@@ -3155,13 +3164,16 @@ void ComposeControls::updateMessagesTTLShown() {
 	}
 }
 
-bool ComposeControls::updateSendAsButton() {
+bool ComposeControls::updateSendAsButton(
+		std::shared_ptr<Data::GroupCall> videoStream) {
 	const auto peer = _history ? _history->peer.get() : nullptr;
+	const auto type = videoStream
+		? Main::SendAsType::VideoStream
+		: Main::SendAsType::Message;
 	if (!_features.sendAs
 		|| !peer
-		|| !_regularWindow
 		|| isEditingMessage()
-		|| !session().sendAsPeers().shouldChoose(peer)) {
+		|| !session().sendAsPeers().shouldChoose({ peer, type })) {
 		if (!_sendAs) {
 			return false;
 		}
@@ -3170,13 +3182,13 @@ bool ComposeControls::updateSendAsButton() {
 	} else if (_sendAs) {
 		return false;
 	}
-	_sendAs = std::make_unique<Ui::SendAsButton>(
-		_wrap.get(),
-		st::sendAsButton);
-	Ui::SetupSendAsButton(
-		_sendAs.get(),
-		rpl::single(peer),
-		_regularWindow);
+	const auto &st = _st.chooseSendAs;
+	_sendAs = std::make_unique<Ui::SendAsButton>(_wrap.get(), st.button);
+	if (videoStream) {
+		Ui::SetupSendAsButton(_sendAs.get(), st, videoStream, _show);
+	} else {
+		Ui::SetupSendAsButton(_sendAs.get(), st, rpl::single(peer), _show);
+	}
 	return true;
 }
 

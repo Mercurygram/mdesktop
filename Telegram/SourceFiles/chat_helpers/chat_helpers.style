@@ -201,6 +201,22 @@ ComposeFiles {
 	statusFg: color;
 }
 
+SendAsButton {
+	width: pixels;
+	height: pixels;
+	size: pixels;
+	activeBg: color;
+	activeFg: color;
+	cross: CrossAnimation;
+	duration: int;
+}
+
+ChooseSendAs {
+	button: SendAsButton;
+	label: FlatLabel;
+	list: PeerList;
+}
+
 ComposeControls {
 	bg: color;
 	radius: pixels;
@@ -232,6 +248,7 @@ ComposeControls {
 	boxField: InputField;
 	restrictionLabel: FlatLabel;
 	premiumRequired: ComposePremiumRequired;
+	chooseSendAs: ChooseSendAs;
 }
 
 ReportBox {
@@ -1436,6 +1453,42 @@ defaultRestrictionLabel: FlatLabel(defaultFlatLabel) {
 	textFg: placeholderFg;
 	align: align(top);
 }
+defaultSendAsButton: SendAsButton {
+	width: 44px;
+	height: 46px;
+	size: 28px;
+	activeBg: activeButtonBg;
+	activeFg: activeButtonFg;
+	cross: CrossAnimation {
+		size: 28px;
+		skip: 10px;
+		stroke: 1.5;
+		minScale: 0.3;
+	}
+	duration: 150;
+}
+defaultChooseSendAs: ChooseSendAs {
+	button: defaultSendAsButton;
+	label: FlatLabel(defaultFlatLabel) {
+		minWidth: 272px;
+	}
+	list: PeerList(peerListBox) {
+		item: PeerListItem(peerListBoxItem) {
+			height: 56px;
+			checkbox: RoundImageCheckbox(defaultPeerListCheckbox) {
+				check: RoundCheckbox(defaultRoundCheckbox) {
+					size: 0px;
+				}
+				imageRadius: 19px;
+				imageSmallRadius: 15px;
+			}
+			photoSize: 38px;
+			photoPosition: point(24px, 9px);
+			namePosition: point(73px, 9px);
+			statusPosition: point(73px, 28px);
+		}
+	}
+}
 defaultComposeControls: ComposeControls {
 	bg: historyComposeAreaBg;
 	radius: 0px;
@@ -1454,6 +1507,7 @@ defaultComposeControls: ComposeControls {
 	premium: defaultPremiumLimits;
 	boxField: defaultInputField;
 	restrictionLabel: defaultRestrictionLabel;
+	chooseSendAs: defaultChooseSendAs;
 }
 
 moreChatsBarHeight: 48px;

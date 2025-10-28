@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_chat.h"
 #include "data/data_changes.h"
 #include "data/data_session.h"
+#include "data/data_user.h"
 #include "main/main_session.h"
 #include "calls/calls_instance.h"
 #include "calls/group/calls_group_call.h"
@@ -70,6 +71,7 @@ GroupCall::GroupCall(
 , _reloadByQueuedUpdatesTimer([=] { reload(); })
 , _speakingByActiveFinishTimer([=] { checkFinishSpeakingByActive(); })
 , _scheduleDate(scheduleDate)
+, _savedSendAs(peer->session().user())
 , _rtmp(rtmp)
 , _conference(origin == GroupCallOrigin::Conference)
 , _videoStream(origin == GroupCallOrigin::VideoStream)
@@ -548,6 +550,9 @@ void GroupCall::applyCallFields(const MTPDgroupCall &data) {
 	_allParticipantsLoaded
 		= (_serverParticipantsCount == _participants.size());
 	_conferenceInviteLink = qs(data.vinvite_link().value_or_empty());
+	if (const auto as = data.vdefault_send_as()) {
+		_savedSendAs = _peer->owner().peer(peerFromMTP(*as));
+	}
 }
 
 void GroupCall::applyLocalUpdate(
@@ -1127,6 +1132,14 @@ void GroupCall::setMessagesEnabledLocally(bool enabled) {
 
 ApiWrap &GroupCall::api() const {
 	return session().api();
+}
+
+void GroupCall::saveSendAs(not_null<PeerData*> peer) {
+	_savedSendAs = peer;
+	api().request(MTPphone_SaveDefaultSendAs(
+		input(),
+		peer->input
+	)).send();
 }
 
 } // namespace Data

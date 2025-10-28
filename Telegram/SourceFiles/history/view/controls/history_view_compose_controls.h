@@ -46,6 +46,7 @@ struct MessagePosition;
 struct Draft;
 class DraftKey;
 class PhotoMedia;
+class GroupCall;
 struct WebPageDraft;
 struct MessageReactionsTopPaid;
 } // namespace Data
@@ -77,6 +78,7 @@ class SuggestionsController;
 
 namespace Main {
 class Session;
+struct SendAsKey;
 } // namespace Main
 
 namespace Webrtc {
@@ -296,7 +298,9 @@ private:
 	void initFieldAutocomplete();
 	void initTabbedSelector();
 	void initSendButton();
-	void initSendAsButton(not_null<PeerData*> peer);
+	void initSendAsButton(
+		not_null<PeerData*> peer,
+		std::shared_ptr<Data::GroupCall> videoStream);
 	void initWebpageProcess();
 	void initForwardProcess();
 	void initWriteRestriction();
@@ -308,7 +312,7 @@ private:
 	void updateSubmitSettings();
 	void updateSendButtonType();
 	void updateMessagesTTLShown();
-	bool updateSendAsButton();
+	bool updateSendAsButton(std::shared_ptr<Data::GroupCall> videoStream);
 	void updateAttachBotsMenu();
 	void updateHeight();
 	void updateWrappingVisibility();

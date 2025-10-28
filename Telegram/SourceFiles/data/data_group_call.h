@@ -213,6 +213,14 @@ public:
 		return _messagesMinPrice.value();
 	}
 
+	[[nodiscard]] not_null<PeerData*> resolveSendAs() const {
+		return _savedSendAs.current();
+	}
+	[[nodiscard]] rpl::producer<not_null<PeerData*>> sendAsValue() const {
+		return _savedSendAs.value();
+	}
+	void saveSendAs(not_null<PeerData*> peer);
+
 private:
 	enum class ApplySliceSource {
 		FullReloaded,
@@ -295,6 +303,8 @@ private:
 	rpl::variable<base::flat_set<UserId>> _participantsWithAccess;
 	rpl::event_stream<base::flat_set<UserId>> _staleParticipantIds;
 	rpl::lifetime _checkStaleLifetime;
+
+	rpl::variable<not_null<PeerData*>> _savedSendAs;
 
 	bool _creator : 1 = false;
 	bool _joinMuted : 1 = false;

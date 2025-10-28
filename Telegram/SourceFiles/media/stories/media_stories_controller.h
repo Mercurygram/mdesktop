@@ -306,6 +306,7 @@ private:
 	std::unique_ptr<CaptionFullView> _captionFullView;
 	std::unique_ptr<RepostView> _repostView;
 
+	std::shared_ptr<Data::GroupCall> _videoStream;
 	base::weak_ptr<Calls::GroupCall> _videoStreamCall;
 	std::unique_ptr<PaidReactionToast> _paidReactionToast;
 	rpl::lifetime _videoStreamLifetime;
@@ -318,7 +319,6 @@ private:
 	bool _layerShown = false;
 	bool _menuShown = false;
 	bool _tooltipShown = false;
-	bool _videoStream = false;
 	bool _paused = false;
 
 	FullStoryId _shown;

@@ -14,6 +14,10 @@ enum class SendProgressType;
 struct SendAction;
 } // namespace Api
 
+namespace Data {
+class GroupCall;
+} // namespace Data
+
 class History;
 
 namespace HistoryView::Controls {
@@ -66,6 +70,7 @@ struct WriteRestriction {
 
 struct SetHistoryArgs {
 	required<History*> history;
+	std::shared_ptr<Data::GroupCall> videoStream;
 	MsgId topicRootId = 0;
 	PeerId monoforumPeerId = 0;
 	Fn<bool()> showSlowmodeError;

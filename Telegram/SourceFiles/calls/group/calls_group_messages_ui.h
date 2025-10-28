@@ -122,6 +122,9 @@ private:
 	void updateLeftFade();
 	void updateRightFade();
 
+	void receiveSomeMouseEvents();
+	void receiveAllMouseEvents();
+
 	const not_null<QWidget*> _parent;
 	const std::shared_ptr<ChatHelpers::Show> _show;
 	const MessagesMode _mode;
