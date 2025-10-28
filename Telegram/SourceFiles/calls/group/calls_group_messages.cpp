@@ -159,7 +159,8 @@ void Messages::send(TextWithTags text, int stars) {
 			_call->inputCall(),
 			MTP_long(randomId),
 			serialized,
-			MTP_long(stars)
+			MTP_long(stars),
+			MTPInputPeer() // send_as
 		)).done([=](
 				const MTPUpdates &result,
 				const MTP::Response &response) {
@@ -577,7 +578,8 @@ void Messages::reactionsPaidSend() {
 		_call->inputCall(),
 		MTP_long(randomId),
 		MTP_textWithEntities(MTP_string(), MTP_vector<MTPMessageEntity>()),
-		MTP_long(send.count)
+		MTP_long(send.count),
+		MTPInputPeer() // send_as
 	)).done([=](
 			const MTPUpdates &result,
 			const MTP::Response &response) {

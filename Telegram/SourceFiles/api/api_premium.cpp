@@ -36,7 +36,7 @@ namespace {
 		.giveawayId = data.vgiveaway_msg_id().value_or_empty(),
 		.date = data.vdate().v,
 		.used = data.vused_date().value_or_empty(),
-		.months = data.vmonths().v,
+		.days = data.vdays().v,
 		.giveaway = data.is_via_giveaway(),
 	};
 }

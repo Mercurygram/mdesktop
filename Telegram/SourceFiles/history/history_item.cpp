@@ -6523,7 +6523,7 @@ void HistoryItem::applyAction(const MTPMessageAction &action) {
 				.message = (data.vmessage()
 					? Api::ParseTextWithEntities(session, *data.vmessage())
 					: TextWithEntities()),
-				.count = data.vmonths().v,
+				.count = data.vdays().v,
 				.type = Data::GiftType::Premium,
 			});
 	}, [&](const MTPDmessageActionSuggestProfilePhoto &data) {
@@ -6578,7 +6578,7 @@ void HistoryItem::applyAction(const MTPMessageAction &action) {
 				.channel = (boostedId
 					? history()->owner().channel(boostedId).get()
 					: nullptr),
-				.count = data.vmonths().v,
+				.count = data.vdays().v,
 				.type = Data::GiftType::Premium,
 				.viaGiveaway = data.is_via_giveaway(),
 				.unclaimed = data.is_unclaimed(),

@@ -236,8 +236,10 @@ void ShowInfoTooltip(
 	return result;
 }
 
-[[nodiscard]] tr::phrase<lngtag_count> GiftDurationPhrase(int months) {
-	return (months < 12)
+[[nodiscard]] tr::phrase<lngtag_count> GiftDurationPhrase(int days) {
+	return (days < 30)
+		? tr::lng_premium_gift_duration_days
+		: (days < 30 * 12)
 		? tr::lng_premium_gift_duration_months
 		: tr::lng_premium_gift_duration_years;
 }
@@ -778,7 +780,7 @@ void AddTable(
 		tr::lng_gift_link_label_gift(),
 		tr::lng_gift_link_gift_premium(
 			lt_duration,
-			GiftDurationValue(current.months) | Ui::Text::ToWithEntities(),
+			GiftDurationValue(current.days) | Ui::Text::ToWithEntities(),
 			Ui::Text::WithEntities));
 	if (!skipReason && current.from) {
 		const auto reason = AddTableRow(
@@ -863,17 +865,22 @@ void ShowAlreadyPremiumToast(
 
 } // namespace
 
-rpl::producer<QString> GiftDurationValue(int months) {
-	return GiftDurationPhrase(months)(
+rpl::producer<QString> GiftDurationValue(int days) {
+	return GiftDurationPhrase(days)(
 		lt_count,
-		rpl::single(float64((months < 12) ? months : (months / 12))));
+		rpl::single(float64((days < 30)
+			? days
+			: (days < 30 * 12)
+			? (days / 30)
+			: (days / (30 * 12)))));
 }
 
-QString GiftDuration(int months) {
-	return GiftDurationPhrase(months)(
-		tr::now,
-		lt_count,
-		(months < 12) ? months : (months / 12));
+QString GiftDuration(int days) {
+	return GiftDurationPhrase(days)(tr::now, lt_count, (days < 30)
+		? days
+		: (days < 30 * 12)
+		? (days / 30)
+		: (days / (30 * 12)));
 }
 
 void GiftCodeBox(
@@ -1121,9 +1128,9 @@ void ResolveGiftCode(
 			code.to = toId;
 			const auto self = (fromId == selfId);
 			const auto peer = session->data().peer(self ? toId : fromId);
-			const auto months = code.months;
+			const auto days = code.days;
 			const auto parent = controller->parentController();
-			Settings::ShowGiftPremium(parent, peer, months, self);
+			Settings::ShowGiftPremium(parent, peer, days, self);
 		} else {
 			controller->uiShow()->showBox(Box(GiftCodeBox, controller, slug));
 		}
@@ -1242,7 +1249,7 @@ void GiveawayInfoBox(
 						lt_channel,
 						Ui::Text::Bold(first),
 						lt_duration,
-						TextWithEntities{ GiftDuration(months) },
+						TextWithEntities{ GiftDuration(months * 30) },
 						Ui::Text::RichLangValue),
 			Ui::Text::RichLangValue));
 	const auto many = start
