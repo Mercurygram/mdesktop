@@ -45,8 +45,8 @@ TopBarActionButton::~TopBarActionButton() = default;
 void TopBarActionButton::setupLottie(const QString &lottieName) {
 	_lottie = std::make_unique<Lottie::Icon>(Lottie::IconDescriptor{
 		.name = lottieName,
-		.sizeOverride = Size(st::infoProfileTopBarActionButtonLottieSize),
 		.color = _lottieColor,
+		.sizeOverride = Size(st::infoProfileTopBarActionButtonLottieSize),
 	});
 	_lottie->animate([=] { update(); }, 0, _lottie->framesCount() - 1);
 }
