@@ -1449,6 +1449,8 @@ void AddGiftSelector(
 			state->emptyPlaceholder->show();
 			raw->resize(raw->width(), state->emptyPlaceholder->height());
 			return;
+		} else if (state->emptyPlaceholder) {
+			state->emptyPlaceholder = nullptr;
 		}
 
 		const auto rows = (count + state->perRow - 1) / state->perRow;
@@ -1465,7 +1467,9 @@ void AddGiftSelector(
 	) | rpl::start_with_next([=](uint64 showingId) {
 		state->current = &state->lists[showingId];
 		state->buttons.clear();
-		state->emptyPlaceholder = nullptr;
+		if (state->emptyPlaceholder) {
+			state->emptyPlaceholder = nullptr;
+		}
 		state->delegate.emplace(session, showingId
 			? GiftButtonMode::Full
 			: GiftButtonMode::Minimal);
