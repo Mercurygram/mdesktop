@@ -1138,7 +1138,8 @@ void TopBar::updateStatusPosition(float64 progressCurrent) {
 		rating->moveTo(statusLeft, statusTop);
 		rating->setOpacity(progressCurrent);
 	}
-	const auto statusShift = _statusShift.current() * progressCurrent;
+	const auto statusShift = _statusShift.current()
+		* std::clamp((progressCurrent) / 0.15, 0., 1.);
 
 	_status->moveToLeft(statusLeft + statusShift, statusTop);
 
