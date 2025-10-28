@@ -7,12 +7,19 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/components/recent_shared_media_gifts.h"
 
+#include "api/api_credits.h" // InputSavedStarGiftId
 #include "api/api_premium.h"
 #include "apiwrap.h"
+#include "chat_helpers/compose/compose_show.h"
 #include "data/data_document.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
+#include "data/data_user.h"
+#include "lang/lang_keys.h"
+#include "main/main_app_config.h"
 #include "main/main_session.h"
+#include "ui/text/text_utilities.h"
+#include "ui/toast/toast.h"
 
 namespace Data {
 namespace {
@@ -106,6 +113,122 @@ void RecentSharedMediaGifts::clearLastRequestTime(
 	if (it != _recent.end()) {
 		it->second.lastRequestTime = 0;
 	}
+}
+
+void RecentSharedMediaGifts::togglePinned(
+		std::shared_ptr<ChatHelpers::Show> show,
+		not_null<PeerData*> peer,
+		const Data::SavedStarGiftId &manageId,
+		bool pinned,
+		std::shared_ptr<Data::UniqueGift> uniqueData,
+		std::shared_ptr<Data::UniqueGift> replacingData) {
+	const auto performToggle = [=](const std::vector<SavedStarGift> &gifts) {
+		const auto limit = _session->appConfig().pinnedGiftsLimit();
+		auto manageIds = std::vector<Data::SavedStarGiftId>();
+
+		if (pinned) {
+			manageIds.push_back(manageId);
+			for (const auto &gift : gifts) {
+				if (gift.pinned && gift.manageId != manageId) {
+					manageIds.push_back(gift.manageId);
+					if (manageIds.size() >= limit) {
+						break;
+					}
+				}
+			}
+		} else {
+			for (const auto &gift : gifts) {
+				if (gift.pinned && gift.manageId != manageId) {
+					manageIds.push_back(gift.manageId);
+				}
+			}
+		}
+
+		auto inputs = QVector<MTPInputSavedStarGift>();
+		inputs.reserve(manageIds.size());
+		for (const auto &id : manageIds) {
+			inputs.push_back(Api::InputSavedStarGiftId(id));
+		}
+
+		_session->api().request(MTPpayments_ToggleStarGiftsPinnedToTop(
+			peer->input,
+			MTP_vector<MTPInputSavedStarGift>(std::move(inputs))
+		)).done([=] {
+			const auto updateLocal = [=] {
+				using GiftAction = Data::GiftUpdate::Action;
+				_session->data().notifyGiftUpdate({
+					.id = manageId,
+					.action = (pinned ? GiftAction::Pin : GiftAction::Unpin),
+				});
+				if (pinned) {
+					show->showToast({
+						.title = (uniqueData
+							? tr::lng_gift_pinned_done_title(
+								tr::now,
+								lt_gift,
+								Data::UniqueGiftName(*uniqueData))
+							: QString()),
+						.text = (replacingData
+							? tr::lng_gift_pinned_done_replaced(
+								tr::now,
+								lt_gift,
+								TextWithEntities{
+									Data::UniqueGiftName(*replacingData),
+								},
+								Ui::Text::WithEntities)
+							: tr::lng_gift_pinned_done(
+								tr::now,
+								Ui::Text::WithEntities)),
+						.duration = Ui::Toast::kDefaultDuration * 2,
+					});
+				}
+			};
+
+			if (!pinned) {
+				auto result = std::deque<SavedStarGift>();
+				for (const auto &id : manageIds) {
+					for (const auto &gift : gifts) {
+						if (gift.manageId == id) {
+							result.push_back(gift);
+							break;
+						}
+					}
+				}
+				_recent[peer->id].gifts = std::move(result);
+				updateLocal();
+			} else {
+				_session->api().request(MTPpayments_GetSavedStarGift(
+					MTP_vector<MTPInputSavedStarGift>(
+						1,
+						Api::InputSavedStarGiftId(manageId))
+				)).done([=](const MTPpayments_SavedStarGifts &result) {
+					const auto &tlGift = result.data().vgifts().v.front();
+					if (auto parsed = Api::FromTL(peer, tlGift)) {
+						auto result = std::deque<SavedStarGift>();
+						for (const auto &id : manageIds) {
+							if (parsed->manageId == id) {
+								parsed->pinned = true;
+								result.push_back(*parsed);
+								continue;
+							}
+							for (const auto &gift : gifts) {
+								if (gift.manageId == id) {
+									result.push_back(gift);
+									break;
+								}
+							}
+						}
+						_recent[peer->id].gifts = std::move(result);
+						updateLocal();
+					}
+				}).send();
+			}
+		}).fail([=](const MTP::Error &error) {
+			show->showToast(error.type());
+		}).send();
+	};
+
+	request(peer, performToggle, true);
 }
 
 } // namespace Data

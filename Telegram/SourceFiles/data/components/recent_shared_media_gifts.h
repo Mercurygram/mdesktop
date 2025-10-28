@@ -9,6 +9,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "data/data_star_gift.h"
 
+namespace ChatHelpers {
+class Show;
+} // namespace ChatHelpers
+
 namespace Main {
 class Session;
 } // namespace Main
@@ -26,6 +30,14 @@ public:
 		bool onlyPinnedToTop = false);
 
 	void clearLastRequestTime(not_null<PeerData*> peer);
+
+	void togglePinned(
+		std::shared_ptr<ChatHelpers::Show> show,
+		not_null<PeerData*> peer,
+		const Data::SavedStarGiftId &manageId,
+		bool pinned,
+		std::shared_ptr<Data::UniqueGift> uniqueData,
+		std::shared_ptr<Data::UniqueGift> replacingData = nullptr);
 
 private:
 	[[nodiscard]] std::vector<Data::SavedStarGift> filterGifts(
