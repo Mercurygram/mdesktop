@@ -2141,6 +2141,12 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill() {
 				setupBotPermissions();
 			}
 		}
+		if (!user->isSelf() && !_sublist) {
+			auto topSkip = _wrap->add(CreateSlideSkipWidget(_wrap));
+			Ui::MultiSlideTracker tracker;
+			addReportReaction(tracker);
+			topSkip->toggleOn(std::move(tracker).atLeastOneShownValue());
+		}
 	}
 	add(CreateSkipWidget(_wrap));
 
