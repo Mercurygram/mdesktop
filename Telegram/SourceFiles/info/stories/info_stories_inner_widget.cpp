@@ -24,6 +24,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_top_bar.h"
 #include "info/profile/info_profile_values.h"
 #include "info/profile/info_profile_widget.h"
+#include "info/saved/info_saved_music_common.h"
 #include "info/stories/info_stories_albums.h"
 #include "info/stories/info_stories_widget.h"
 #include "info/info_controller.h"
@@ -296,6 +297,12 @@ void InnerWidget::startTop() {
 
 void InnerWidget::createProfileTop() {
 	startTop();
+
+	Info::Saved::SetupSavedMusic(
+		_top,
+		_controller,
+		_peer,
+		_topBarColor.value());
 
 	using namespace Profile;
 	AddDetails(_top, _controller, _peer, nullptr, nullptr, { v::null });
