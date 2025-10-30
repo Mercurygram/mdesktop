@@ -1356,9 +1356,17 @@ void TopBar::paintEvent(QPaintEvent *e) {
 	if (_patternEmoji && _patternEmoji->ready()) {
 		paintAnimatedPattern(p, rect(), geometry);
 	}
-	paintPinnedToTopGifts(p, rect(), geometry);
-	paintUserpic(p, geometry);
-	paintStoryOutline(p, geometry);
+
+	const auto clipBounds = e->region().boundingRect();
+	if (clipBounds.bottom() >= geometry.top()
+		&& clipBounds.top() <= geometry.bottom()) {
+		paintPinnedToTopGifts(p, rect(), geometry);
+	}
+
+	if (clipBounds.intersects(geometry)) {
+		paintUserpic(p, geometry);
+		paintStoryOutline(p, geometry);
+	}
 }
 
 void TopBar::setupButtons(
