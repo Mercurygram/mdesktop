@@ -85,7 +85,11 @@ namespace {
 			rpl::single(0)
 		) | rpl::map([=](TimeId left) {
 			return (type == ReplyAreaType::VideoStreamComment)
-				? tr::lng_video_stream_comment_ph()
+				? (starsPerMessage
+					? tr::lng_video_stream_comment_paid_ph(
+						lt_count,
+						rpl::single(starsPerMessage * 1.))
+					: tr::lng_video_stream_comment_ph())
 				: starsPerMessage
 				? tr::lng_message_stars_ph(
 					lt_count,
@@ -854,19 +858,20 @@ void ReplyArea::show(
 	if (_data == data) {
 		return;
 	}
+	const auto stream = data.videoStream.get();
 	const auto peerChanged = (_data.peer != data.peer);
-	const auto streamChanged = (_data.videoStream != data.videoStream);
+	const auto streamChanged = (_data.videoStream.get() != stream);
 	_data = data;
 	if (streamChanged) {
-		_controls->updateFeatures(Features(_data.videoStream != nullptr));
-		_controls->setToggleCommentsButton(_data.videoStream
+		_controls->updateFeatures(Features(stream != nullptr));
+		_controls->setToggleCommentsButton(stream
 			? _controller->commentsStateValue()
 			: nullptr);
 		_controller->setCommentsShownToggles(
 			_controls->commentsShownToggles());
 	}
 	using Controls = HistoryView::ComposeControls;
-	_controls->setStarsReactionCounter(_data.videoStream
+	_controls->setStarsReactionCounter(stream
 		? _controller->starsReactionsValue()
 		: nullptr);
 	_controller->setStarsReactionIncrements(
@@ -874,21 +879,12 @@ void ReplyArea::show(
 		) | rpl::map([](Controls::StarReactionIncrement increment) {
 			return increment.count;
 		}));
+	_starsForMessage = starsPerMessageValue();
 	if (!peerChanged) {
 		if (_data.peer) {
 			_controls->clear();
 		}
 		return;
-	} else if (const auto peer = _data.peer) {
-		using Flag = Data::PeerUpdate::Flag;
-		_starsForMessage = peer->session().changes().peerFlagsValue(
-			peer,
-			Flag::StarsPerMessage | Flag::FullInfo
-		) | rpl::map([=] {
-			return peer->starsPerMessageChecked();
-		});
-	} else {
-		_starsForMessage = 0;
 	}
 	invalidate_weak_ptrs(&_shownPeerGuard);
 	const auto peer = data.peer;
@@ -927,6 +923,9 @@ void ReplyArea::show(
 		) | rpl::map([](const Data::ReactionId &id) {
 			return !id.empty();
 		}),
+		.minStarsCount = (_data.videoStream
+			? _starsForMessage.value()
+			: nullptr),
 		.writeRestriction = std::move(writeRestriction),
 	});
 	_controls->clear();
@@ -952,6 +951,21 @@ void ReplyArea::show(
 			_cant = nullptr;
 		}
 	}
+}
+
+rpl::producer<int> ReplyArea::starsPerMessageValue() const {
+	if (const auto stream = _data.videoStream.get()) {
+		return stream->messagesMinPriceValue();
+	} else if (const auto peer = _data.peer) {
+		using Flag = Data::PeerUpdate::Flag;
+		return peer->session().changes().peerFlagsValue(
+			peer,
+			Flag::StarsPerMessage | Flag::FullInfo
+		) | rpl::map([=] {
+			return peer->starsPerMessageChecked();
+		});
+	}
+	return rpl::single(0);
 }
 
 void ReplyArea::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {

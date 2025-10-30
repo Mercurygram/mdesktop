@@ -910,9 +910,6 @@ ComposeControls::ComposeControls(
 , _mode(descriptor.mode)
 , _wrap(std::make_unique<Ui::RpWidget>(parent))
 , _send(std::make_shared<Ui::SendButton>(_wrap.get(), _st.send))
-, _editStars(_features.editMessageStars
-	? Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.editStars)
-	: nullptr)
 , _like(_features.likes
 	? Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.like)
 	: nullptr)
@@ -1026,6 +1023,9 @@ void ComposeControls::setHistory(SetHistoryArgs &&args) {
 	_liked = args.liked ? std::move(args.liked) : rpl::single(false);
 	_writeRestriction = rpl::single(Controls::WriteRestriction())
 		| rpl::then(std::move(args.writeRestriction));
+	_minStarsCount = args.minStarsCount
+		? std::move(args.minStarsCount)
+		: rpl::single(0);
 	const auto history = *args.history;
 	if (_history == history) {
 		return;
@@ -1085,19 +1085,36 @@ void ComposeControls::initLikeButton() {
 }
 
 void ComposeControls::initEditStarsButton() {
-	if (_editStars) {
-		_editStars->setClickedCallback([=] {
-			_show->show(Calls::Group::MakeVideoStreamStarsBox({
-				.show = _show,
-				.current = _chosenStarsCount.value_or(0),
-				.save = crl::guard(_editStars, [=](int count) {
-					_chosenStarsCount = count;
-					updateSendButtonType();
-				}),
-				.name = _history ? _history->peer->shortName() : QString(),
-			}));
-		});
+	if (!_features.editMessageStars) {
+		delete base::take(_editStars);
+		_chosenStarsCount = std::nullopt;
+		return;
 	}
+	if (_chosenStarsCount.value_or(0) < _minStarsCount.current()) {
+		_chosenStarsCount = _minStarsCount.current();
+		updateSendButtonType();
+	}
+	if (_editStars) {
+		return;
+	}
+	_editStars = Ui::CreateChild<Ui::IconButton>(
+		_wrap.get(),
+		_st.editStars);
+	_editStars->show();
+	_editStars->setClickedCallback([=] {
+		const auto min = _minStarsCount.current();
+		const auto now = std::max(min, _chosenStarsCount.value_or(0));
+		_show->show(Calls::Group::MakeVideoStreamStarsBox({
+			.show = _show,
+			.min = min,
+			.current = now,
+			.save = crl::guard(_editStars, [=](int count) {
+				_chosenStarsCount = count;
+				updateSendButtonType();
+			}),
+			.name = _history ? _history->peer->shortName() : QString(),
+		}));
+	});
 }
 
 void ComposeControls::updateLikeParent() {
@@ -1136,15 +1153,7 @@ void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
 		changed = true;
 	}
 	if (was.editMessageStars != features.editMessageStars) {
-		if (!features.editMessageStars) {
-			delete base::take(_editStars);
-			_chosenStarsCount = std::nullopt;
-		} else {
-			_editStars = Ui::CreateChild<Ui::IconButton>(
-				_wrap.get(),
-				_st.editStars);
-			initEditStarsButton();
-		}
+		initEditStarsButton();
 		changed = true;
 	}
 	if (was.recordMediaMessage != features.recordMediaMessage) {
@@ -1654,6 +1663,11 @@ void ComposeControls::init() {
 	initWriteRestriction();
 	initVoiceRecordBar();
 	initKeyHandler();
+	initEditStarsButton();
+	_minStarsCount.changes() | rpl::start_with_next([=] {
+		initEditStarsButton();
+		updateControlsGeometry(_wrap->size());
+	}, _wrap->lifetime());
 
 	_hidden.changes(
 	) | rpl::start_with_next([=] {

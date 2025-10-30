@@ -168,6 +168,7 @@ private:
 	void chooseAttach(std::optional<bool> overrideSendImagesAsPhotos);
 
 	[[nodiscard]] Fn<SendMenu::Details()> sendMenuDetails() const;
+	[[nodiscard]] rpl::producer<int> starsPerMessageValue() const;
 
 	void showPremiumToast(not_null<DocumentData*> emoji);
 	[[nodiscard]] bool showSlowmodeError();

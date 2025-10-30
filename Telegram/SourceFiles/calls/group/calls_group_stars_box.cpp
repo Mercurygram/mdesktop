@@ -29,6 +29,15 @@ constexpr auto kDefaultStars = 10;
 
 } // namespace
 
+int MaxVideoStreamStarsCount(not_null<Main::Session*> session) {
+	const auto appConfig = &session->appConfig();
+	return std::max(
+		appConfig->get<int>(
+			u"stars_paid_reaction_amount_max"_q,
+			kMaxStarsFallback),
+		2);
+}
+
 void VideoStreamStarsBox(
 		not_null<Ui::GenericBox*> box,
 		VideoStreamStarsBoxArgs &&args) {
@@ -49,15 +58,10 @@ void VideoStreamStarsBox(
 	};
 	const auto &show = args.show;
 	const auto session = &show->session();
-	const auto appConfig = &session->appConfig();
-	const auto max = std::max(
-		appConfig->get<int>(
-			u"stars_paid_reaction_amount_max"_q,
-			kMaxStarsFallback),
-		2);
+	const auto max = std::max(args.min, MaxVideoStreamStarsCount(session));
 	const auto chosen = std::clamp(
 		args.current ? args.current : kDefaultStars,
-		1,
+		args.min,
 		max);
 	auto top = std::vector<Ui::PaidReactionTop>();
 	const auto add = [&](const Data::MessageReactionsTopPaid &entry) {
@@ -108,6 +112,7 @@ void VideoStreamStarsBox(
 	ranges::stable_sort(top, ranges::greater(), &Ui::PaidReactionTop::count);
 	const auto weak = base::make_weak(box);
 	Ui::PaidReactionsBox(box, {
+		.min = args.min,
 		.chosen = chosen,
 		.max = max,
 		.top = std::move(top),

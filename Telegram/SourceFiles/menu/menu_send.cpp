@@ -684,7 +684,8 @@ FillMenuResult FillEditCommentPriceMenu(
 	menu->addAction(tr::lng_video_stream_edit_stars(tr::now), [=] {
 		show->show(Calls::Group::MakeVideoStreamStarsBox({
 			.show = show,
-			.current = int(details.price.value_or(0)),
+			.min = int(details.commentPriceMin.value_or(1)),
+			.current = int(details.price.value_or(1)),
 			.save = [=](int count) {
 				auto copy = details;
 				copy.price = count;

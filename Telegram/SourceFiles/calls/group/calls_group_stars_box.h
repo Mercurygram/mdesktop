@@ -15,6 +15,10 @@ namespace Data {
 struct MessageReactionsTopPaid;
 } // namespace Data
 
+namespace Main {
+class Session;
+} // namespace Main
+
 namespace Ui {
 class BoxContent;
 class GenericBox;
@@ -22,9 +26,12 @@ class GenericBox;
 
 namespace Calls::Group {
 
+[[nodiscard]] int MaxVideoStreamStarsCount(not_null<Main::Session*> session);
+
 struct VideoStreamStarsBoxArgs {
 	std::shared_ptr<ChatHelpers::Show> show;
 	std::vector<Data::MessageReactionsTopPaid> top;
+	int min = 0;
 	int current = 0;
 	bool sending = false;
 	Fn<void(int)> save;

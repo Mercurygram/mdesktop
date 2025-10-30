@@ -128,6 +128,7 @@ struct Discreter {
 void PaidReactionSlider(
 		not_null<VerticalLayout*> container,
 		const style::MediaSlider &st,
+		int min,
 		int current,
 		int max,
 		Fn<void(int)> changed,
@@ -149,14 +150,17 @@ void PaidReactionSlider(
 	slider->setAlwaysDisplayMarker(true);
 	slider->setDirection(ContinuousSlider::Direction::Horizontal);
 	slider->setValue(discreter.valueToRatio(current));
+	const auto ratioToValue = [=](float64 ratio) {
+		const auto value = discreter.ratioToValue(ratio);
+		return std::max(value, min);
+	};
 	slider->setAdjustCallback([=](float64 ratio) {
-		return discreter.valueToRatio(discreter.ratioToValue(ratio));
+		return discreter.valueToRatio(ratioToValue(ratio));
 	});
-	const auto ratioToValue = discreter.ratioToValue;
-	const auto callback = [=](float64 value) {
-		const auto count = ratioToValue(value);
-		update(count);
-		changed(count);
+	const auto callback = [=](float64 ratio) {
+		const auto value = ratioToValue(ratio);
+		update(value);
+		changed(value);
 	};
 	slider->setChangeProgressCallback(callback);
 	slider->setChangeFinishedCallback(callback);
@@ -506,8 +510,9 @@ void PaidReactionsBox(
 	Expects(!args.top.empty());
 
 	const auto dark = args.dark;
-	args.max = std::max(args.max, 2);
-	args.chosen = std::clamp(args.chosen, 1, args.max);
+	args.min = std::max(args.min, 1);
+	args.max = std::max(args.max, args.min + 1);
+	args.chosen = std::clamp(args.chosen, args.min, args.max);
 
 	box->setWidth(st::boxWideWidth);
 	box->setStyle(dark ? st::darkEditStarsBox : st::paidReactBox);
@@ -583,6 +588,7 @@ void PaidReactionsBox(
 	PaidReactionSlider(
 		content,
 		(dark ? st::darkEditStarsSlider : st::paidReactSlider),
+		args.min,
 		args.chosen,
 		args.max,
 		changed,

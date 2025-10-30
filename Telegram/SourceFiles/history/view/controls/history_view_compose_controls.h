@@ -419,6 +419,7 @@ private:
 	const std::shared_ptr<Ui::SendButton> _send;
 	Ui::IconButton *_editStars = nullptr;
 	Ui::IconButton *_like = nullptr;
+	rpl::variable<int> _minStarsCount;
 	std::optional<int> _chosenStarsCount;
 	Ui::IconButton *_commentsShown = nullptr;
 	Ui::RpWidget *_commentsShownNewDot = nullptr;

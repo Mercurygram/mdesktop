@@ -78,6 +78,7 @@ struct SetHistoryArgs {
 	rpl::producer<int> slowmodeSecondsLeft;
 	rpl::producer<bool> sendDisabledBySlowmode;
 	rpl::producer<bool> liked;
+	rpl::producer<int> minStarsCount;
 	rpl::producer<WriteRestriction> writeRestriction;
 };
 
