@@ -1216,6 +1216,10 @@ void ApiWrap::gotUserFull(
 void ApiWrap::requestPeerSettings(not_null<PeerData*> peer) {
 	if (!_requestedPeerSettings.emplace(peer).second) {
 		return;
+	} else if (peer->isMonoforum()) {
+		peer->setBarSettings(PeerBarSettings());
+		_requestedPeerSettings.erase(peer);
+		return;
 	}
 	request(MTPmessages_GetPeerSettings(
 		peer->input
@@ -1227,6 +1231,7 @@ void ApiWrap::requestPeerSettings(not_null<PeerData*> peer) {
 			_requestedPeerSettings.erase(peer);
 		});
 	}).fail([=] {
+		peer->setBarSettings(PeerBarSettings());
 		_requestedPeerSettings.erase(peer);
 	}).send();
 }
