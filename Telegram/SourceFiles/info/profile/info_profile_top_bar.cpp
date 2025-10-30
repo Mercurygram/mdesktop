@@ -1826,7 +1826,7 @@ void TopBar::setupNewGifts(
 				entry.animation = LottieAnimationFromDocument(
 					_lottiePlayer.get(),
 					entry.media.get(),
-					StickerLottieSize::StickerSet,
+					StickerLottieSize::PinnedProfileUniqueGiftSize,
 					Size(st::infoProfileTopBarGiftSize)
 						* style::DevicePixelRatio());
 			} else if (!entry.media->loaded()) {
@@ -1967,6 +1967,7 @@ void TopBar::paintPinnedToTopGifts(
 			frameToRender = gift.lastFrame;
 		} else if (gift.animation && gift.animation->ready()) {
 			frameToRender = gift.animation->frame();
+			frameToRender.setDevicePixelRatio(style::DevicePixelRatio());
 			if (_lottiePlayer) {
 				_lottiePlayer->markFrameShown();
 			}
@@ -1991,22 +1992,18 @@ void TopBar::paintPinnedToTopGifts(
 			}
 		}
 		if (!frameToRender.isNull()) {
-			const auto resultRect = QRect(
-				QPoint(giftPos.x() - halfSz, giftPos.y() - halfSz),
-				QSize(sz, sz));
+			const auto resultPos = QPoint(
+				giftPos.x() - halfSz,
+				giftPos.y() - halfSz);
 			if (!gift.bg.isNull()) {
 				const auto bgSize = gift.bg.size()
-					/ gift.bg.devicePixelRatio();
-				const auto bgRect = QRect(
-					resultRect.x()
-						+ (resultRect.width() - bgSize.width()) / 2,
-					resultRect.y()
-						+ (resultRect.height() - bgSize.height()) / 2,
-					bgSize.width(),
-					bgSize.height());
-				p.drawImage(bgRect, gift.bg);
+					/ style::DevicePixelRatio();
+				const auto bgPos = QPoint(
+					resultPos.x() + (sz - bgSize.width()) / 2,
+					resultPos.y() + (sz - bgSize.height()) / 2);
+				p.drawImage(bgPos, gift.bg);
 			}
-			p.drawImage(resultRect, frameToRender);
+			p.drawImage(resultPos.x(), resultPos.y(), frameToRender);
 		}
 	}
 	p.setOpacity(1.);
