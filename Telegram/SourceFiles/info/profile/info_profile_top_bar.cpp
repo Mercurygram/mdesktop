@@ -308,6 +308,12 @@ TopBar::TopBar(
 			std::move(badgeUpdates),
 			_botVerify->updated());
 	}
+	badgeUpdates = rpl::merge(
+		std::move(badgeUpdates),
+		Info::Profile::NameValue(_peer) | rpl::map([=](const QString &name) {
+			_title->resizeToWidth(_title->st().style.font->width(name));
+			return rpl::empty_value();
+		}));
 	std::move(badgeUpdates) | rpl::start_with_next([=] {
 		updateLabelsPosition();
 	}, _title->lifetime());
