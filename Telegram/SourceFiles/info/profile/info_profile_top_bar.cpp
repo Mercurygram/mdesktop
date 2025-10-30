@@ -1045,18 +1045,23 @@ void TopBar::updateLabelsPosition() {
 		0,
 		rightButtonsWidth,
 		1. - progressCurrent);
+	const auto titleMostLeft = TopBar::titleMostLeft();
 	const auto interpolatedPadding = anim::interpolate(
-		titleMostLeft(),
+		titleMostLeft,
 		rect::m::sum::h(st::boxRowPadding),
 		progressCurrent);
 	auto titleWidth = width() - interpolatedPadding - reservedRight;
 	const auto verifiedWidget = _verified ? _verified->widget() : nullptr;
 	const auto badgeWidget = _badge ? _badge->widget() : nullptr;
+	const auto botVerifyWidget = _botVerify ? _botVerify->widget() : nullptr;
 	if (verifiedWidget) {
 		titleWidth -= verifiedWidget->width();
 	}
 	if (badgeWidget) {
 		titleWidth -= badgeWidget->width();
+	}
+	if (botVerifyWidget) {
+		titleWidth -= botVerifyWidget->width();
 	}
 	if (verifiedWidget || badgeWidget) {
 		titleWidth -= st::infoVerifiedCheckPosition.x();
@@ -1076,7 +1081,6 @@ void TopBar::updateLabelsPosition() {
 	const auto margins = LargeCustomEmojiMargins();
 
 	auto totalElementsWidth = _title->width();
-	const auto botVerifyWidget = _botVerify ? _botVerify->widget() : nullptr;
 	const auto botVerifySkip = botVerifyWidget
 		? botVerifyWidget->width() + st::infoVerifiedCheckPosition.x()
 		: 0;
@@ -1092,7 +1096,7 @@ void TopBar::updateLabelsPosition() {
 	totalElementsWidth += botVerifySkip;
 
 	auto titleLeft = anim::interpolate(
-		titleMostLeft(),
+		titleMostLeft,
 		(width() - totalElementsWidth) / 2,
 		progressCurrent);
 
