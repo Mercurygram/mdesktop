@@ -105,7 +105,10 @@ void Badge::setContent(Content content) {
 				Data::EmojiStatusCustomId(id),
 				[raw = _view.data()] { raw->update(); },
 				sizeTag());
-			if (_customStatusLoopsLimit > 0) {
+			if (_content.badge == BadgeType::BotVerified) {
+				_emojiStatus = std::make_unique<Ui::Text::FirstFrameEmoji>(
+					std::move(_emojiStatus));
+			} else if (_customStatusLoopsLimit > 0) {
 				_emojiStatus = std::make_unique<Ui::Text::LimitedLoopsEmoji>(
 					std::move(_emojiStatus),
 					_customStatusLoopsLimit);
