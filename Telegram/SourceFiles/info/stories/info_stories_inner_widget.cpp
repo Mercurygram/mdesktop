@@ -263,6 +263,10 @@ void InnerWidget::setupAlbums() {
 
 InnerWidget::~InnerWidget() = default;
 
+rpl::producer<> InnerWidget::backRequest() const {
+	return _backClicks.events();
+}
+
 void InnerWidget::setupTop() {
 	const auto albumId = _albumId.current();
 	if (_addingToAlbumId) {
@@ -504,6 +508,8 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 			.backToggles = _backToggles.value(),
 			.showFinished = _showFinished.events(),
 		});
+	content->backRequest(
+	) | rpl::start_to_stream(_backClicks, content->lifetime());
 	_topBarColor = content->edgeColor();
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });
 }

@@ -57,6 +57,8 @@ public:
 		int addingToAlbumId = 0);
 	~InnerWidget();
 
+	[[nodiscard]] rpl::producer<> backRequest() const;
+
 	bool showInternal(not_null<Memento*> memento);
 	void setIsStackBottom(bool isStackBottom) {
 		_isStackBottom = isStackBottom;
@@ -162,6 +164,7 @@ private:
 	rpl::variable<bool> _albumEmpty;
 
 	rpl::variable<bool> _backToggles;
+	rpl::event_stream<> _backClicks;
 	rpl::event_stream<> _showFinished;
 	rpl::variable<std::optional<QColor>> _topBarColor;
 

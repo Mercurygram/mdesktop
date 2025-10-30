@@ -46,6 +46,8 @@ public:
 		not_null<Controller*> controller,
 		Origin origin);
 
+	[[nodiscard]] rpl::producer<> backRequest() const;
+
 	void saveState(not_null<Memento*> memento);
 	void restoreState(not_null<Memento*> memento);
 
@@ -93,6 +95,7 @@ private:
 	rpl::event_stream<int> _desiredHeight;
 
 	rpl::variable<bool> _backToggles;
+	rpl::event_stream<> _backClicks;
 	rpl::event_stream<int> _onlineCount;
 	rpl::event_stream<> _showFinished;
 

@@ -930,6 +930,10 @@ TopBar::~TopBar() {
 	base::take(_badgeOldTooltips);
 }
 
+rpl::producer<> TopBar::backRequest() const {
+	return _backClicks.events();
+}
+
 void TopBar::setOnlineCount(rpl::producer<int> &&count) {
 	std::move(count) | rpl::start_with_next([=](int v) {
 		if (_statusLabel) {
@@ -1370,9 +1374,9 @@ void TopBar::setupButtons(
 		_back->toggleOn(isLayer || isSide
 			? rpl::duplicate(backToggles)
 			: rpl::single(wrap == Wrap::Narrow));
-		_back->entity()->setClickedCallback([=] {
-			controller->showBackFromStack();
-		});
+		_back->entity()->clicks() | rpl::to_empty | rpl::start_to_stream(
+			_backClicks,
+			_back->lifetime());
 
 		if (!isLayer && !isSide) {
 			_close = nullptr;

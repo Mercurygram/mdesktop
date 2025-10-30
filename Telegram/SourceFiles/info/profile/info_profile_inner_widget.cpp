@@ -97,6 +97,10 @@ InnerWidget::InnerWidget(
 	}, lifetime());
 }
 
+rpl::producer<> InnerWidget::backRequest() const {
+	return _backClicks.events();
+}
+
 object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 		not_null<RpWidget*> parent,
 		Origin origin) {
@@ -435,6 +439,8 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 			.backToggles = _backToggles.value(),
 			.showFinished = _showFinished.events(),
 		});
+	content->backRequest(
+	) | rpl::start_to_stream(_backClicks, content->lifetime());
 	content->setOnlineCount(_onlineCount.events());
 	_topBarColor = content->edgeColor();
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });

@@ -110,6 +110,8 @@ public:
 	TopBar(not_null<Ui::RpWidget*> parent, Descriptor descriptor);
 	~TopBar();
 
+	[[nodiscard]] rpl::producer<> backRequest() const;
+
 	void setOnlineCount(rpl::producer<int> &&count);
 
 	void setRoundEdges(bool value);
@@ -249,6 +251,8 @@ private:
 
 	base::unique_qptr<Ui::IconButton> _close;
 	base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> _back;
+
+	rpl::event_stream<> _backClicks;
 
 	base::unique_qptr<Ui::IconButton> _topBarButton;
 	base::unique_qptr<Ui::PopupMenu> _peerMenu;

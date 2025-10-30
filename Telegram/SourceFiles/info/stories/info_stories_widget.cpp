@@ -124,6 +124,10 @@ Widget::Widget(
 	) | rpl::start_with_next([=] {
 		refreshBottom();
 	}, _inner->lifetime());
+
+	_inner->backRequest() | rpl::start_with_next([=] {
+		checkBeforeClose([=] { controller->showBackFromStack(); });
+	}, _inner->lifetime());
 }
 
 void Widget::setInnerFocus() {
