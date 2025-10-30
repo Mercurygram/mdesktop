@@ -148,12 +148,14 @@ struct PatternColors {
 	const auto acx = ax + aw / 2.;
 	const auto acy = ay + ah / 2.;
 
-	const auto padding24 = 24.;
-	const auto padding16 = 16.;
-	const auto padding8 = 8.;
-	const auto padding12 = 12.;
-	const auto padding48 = 48.;
-	const auto padding96 = 96.;
+	constexpr auto kPaddingScale = 0.8;
+
+	const auto padding24 = style::ConvertFloatScale(24. * kPaddingScale);
+	const auto padding16 = style::ConvertFloatScale(16. * kPaddingScale);
+	const auto padding8 = style::ConvertFloatScale(8. * kPaddingScale);
+	const auto padding12 = style::ConvertFloatScale(12. * kPaddingScale);
+	const auto padding48 = style::ConvertFloatScale(48. * kPaddingScale);
+	const auto padding96 = style::ConvertFloatScale(96. * kPaddingScale);
 	static const auto kCos120 = std::cos(M_PI * 120. / 180.);
 	static const auto kCos160 = std::cos(M_PI * 160. / 180.);
 	const auto r48Cos120 = (padding48 + aw / 2.) * kCos120;
