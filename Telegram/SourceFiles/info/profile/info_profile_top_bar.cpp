@@ -840,19 +840,53 @@ void TopBar::setupUserpicButton(
 	const auto menu = _userpicButton->lifetime().make_state<
 		base::unique_qptr<Ui::PopupMenu>
 	>();
+	const auto canReport = [=, peer = _peer] {
+		if (!peer->hasUserpic()) {
+			return false;
+		}
+		const auto user = peer->asUser();
+		if (!user) {
+			return false;
+		} else if (user->hasPersonalPhoto()
+				|| user->isSelf()
+				|| user->isInaccessible()
+				|| user->isRepliesChat()
+				|| user->isVerifyCodes()
+				|| (user->botInfo && user->botInfo->canEditInformation)
+				|| user->isServiceUser()) {
+			return false;
+		}
+		return true;
+	};
+
 	_userpicButton->clicks() | rpl::start_with_next([=](
 			Qt::MouseButton button) {
 		if (button == Qt::RightButton
-			&& _hasStories
+			&& (_hasStories || canReport())
 			&& _peer->userpicPhotoId()) {
 			*menu = base::make_unique_q<Ui::PopupMenu>(
 				this,
 				st::popupMenuExpandedSeparator);
 
-			(*menu)->addAction(
-				tr::lng_profile_open_photo(tr::now),
-				openPhoto,
-				&st::menuIconPhoto);
+			if (_hasStories) {
+				(*menu)->addAction(
+					tr::lng_profile_open_photo(tr::now),
+					openPhoto,
+					&st::menuIconPhoto);
+			}
+
+			if (canReport()) {
+				(*menu)->addAction(
+					tr::lng_profile_report(tr::now),
+					[=] {
+						controller->show(
+							ReportProfilePhotoBox(
+								_peer,
+								_peer->owner().photo(
+									_peer->userpicPhotoId())));
+					},
+					&st::menuIconReport);
+			}
 
 			(*menu)->popup(QCursor::pos());
 		} else if (button == Qt::LeftButton) {
