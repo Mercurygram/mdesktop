@@ -292,6 +292,9 @@ TopBar::TopBar(
 		_statusLabel->refresh();
 	}, lifetime());
 
+	_title->setSelectable(true);
+	_title->setContextCopyText(tr::lng_profile_copy_fullname(tr::now));
+
 	auto badgeUpdates = rpl::producer<rpl::empty_value>();
 	if (_badge) {
 		badgeUpdates = rpl::merge(
