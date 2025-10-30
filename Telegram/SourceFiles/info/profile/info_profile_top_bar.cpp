@@ -320,7 +320,8 @@ TopBar::TopBar(
 		Info::Profile::NameValue(_peer) | rpl::map([=](const QString &name) {
 			_title->resizeToWidth(_title->st().style.font->width(name));
 			return rpl::empty_value();
-		}));
+		}),
+		rpl::duplicate(descriptor.backToggles) | rpl::to_empty);
 	std::move(badgeUpdates) | rpl::start_with_next([=] {
 		updateLabelsPosition();
 	}, _title->lifetime());
@@ -328,7 +329,7 @@ TopBar::TopBar(
 	setupUniqueBadgeTooltip();
 	setupButtons(
 		controller,
-		descriptor.backToggles.value(),
+		rpl::duplicate(descriptor.backToggles),
 		descriptor.source);
 	setupUserpicButton(controller);
 	if (_hasActions) {
@@ -937,14 +938,6 @@ void TopBar::setOnlineCount(rpl::producer<int> &&count) {
 	}, lifetime());
 }
 
-void TopBar::setEnableBackButtonValue(rpl::producer<bool> &&producer) {
-	std::move(
-		producer
-	) | rpl::start_with_next([=](bool value) {
-		updateLabelsPosition();
-	}, lifetime());
-}
-
 void TopBar::setRoundEdges(bool value) {
 	_roundEdges = value;
 	update();
@@ -1374,11 +1367,10 @@ void TopBar::setupButtons(
 			st::infoTopBarScale);
 		_back->QWidget::show();
 		_back->setDuration(0);
-		_back->toggleOn(isLayer
+		_back->toggleOn(isLayer || isSide
 			? rpl::duplicate(backToggles)
 			: rpl::single(wrap == Wrap::Narrow));
-		setEnableBackButtonValue(_back->toggledValue());
-		_back->entity()->addClickHandler([=] {
+		_back->entity()->setClickedCallback([=] {
 			controller->showBackFromStack();
 		});
 

@@ -96,7 +96,7 @@ public:
 		rpl::producer<Wrap> wrap;
 		Source source = Source::Profile;
 		PeerData *peer = nullptr;
-		rpl::variable<bool> backToggles;
+		rpl::producer<bool> backToggles;
 		rpl::producer<> showFinished;
 	};
 
