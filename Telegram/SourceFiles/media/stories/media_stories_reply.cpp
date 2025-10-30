@@ -893,23 +893,33 @@ void ReplyArea::show(
 	_type = peer->isMegagroup()
 		? ReplyAreaType::Comment
 		: ReplyAreaType::Reply;
-	auto writeRestriction = Data::CanSendAnythingValue(
-		peer
-	) | rpl::map([=](bool can) {
-		using namespace HistoryView::Controls;
-		return peer->session().frozen()
-			? WriteRestriction{ .type = WriteRestrictionType::Frozen }
-			: (can
-			|| !user
-			|| !user->requiresPremiumToWrite()
-			|| user->session().premium())
-			? WriteRestriction()
-			: WriteRestriction{
-				.text = tr::lng_send_non_premium_story(tr::now),
-				.button = tr::lng_send_non_premium_unlock(tr::now),
-				.type = WriteRestrictionType::PremiumRequired,
-			};
-	});
+	auto writeRestriction = stream
+		? stream->messagesEnabledValue() | rpl::map([=](bool enabled) {
+			using namespace HistoryView::Controls;
+			return enabled
+				? WriteRestriction()
+				: WriteRestriction{
+					.text = u"Comments disabled."_q,
+					.type = WriteRestrictionType::Rights,
+				};
+		}) | rpl::type_erased()
+		: Data::CanSendAnythingValue(
+			peer
+		) | rpl::map([=](bool can) {
+			using namespace HistoryView::Controls;
+			return peer->session().frozen()
+				? WriteRestriction{ .type = WriteRestrictionType::Frozen }
+				: (can
+				|| !user
+				|| !user->requiresPremiumToWrite()
+				|| user->session().premium())
+				? WriteRestriction()
+				: WriteRestriction{
+					.text = tr::lng_send_non_premium_story(tr::now),
+					.button = tr::lng_send_non_premium_unlock(tr::now),
+					.type = WriteRestrictionType::PremiumRequired,
+				};
+		});
 	using namespace HistoryView;
 	_controls->setHistory({
 		.history = history,
@@ -923,15 +933,13 @@ void ReplyArea::show(
 		) | rpl::map([](const Data::ReactionId &id) {
 			return !id.empty();
 		}),
-		.minStarsCount = (_data.videoStream
-			? _starsForMessage.value()
-			: nullptr),
+		.minStarsCount = (stream ? _starsForMessage.value() : nullptr),
 		.writeRestriction = std::move(writeRestriction),
 	});
 	_controls->clear();
 	const auto hidden = peer
 		&& (peer->isBroadcast() || peer->isSelf() || peer->isServiceUser())
-		&& !_data.videoStream;
+		&& !stream;
 	const auto cant = !peer;
 	if (!hidden && !cant) {
 		_controls->show();

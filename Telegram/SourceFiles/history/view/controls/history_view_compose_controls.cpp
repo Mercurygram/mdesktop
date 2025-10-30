@@ -2911,6 +2911,7 @@ void ComposeControls::updateWrappingVisibility() {
 	_wrap->setVisible(!hidden && !restricted);
 	updateLikeParent();
 	if (!hidden && !restricted) {
+		updateControlsGeometry(_wrap->size());
 		_wrap->raise();
 	}
 }
@@ -3239,13 +3240,13 @@ void ComposeControls::paintBackground(QPainter &p, QRect full, QRect clip) {
 		p.setBrush(_st.bg);
 		p.setPen(Qt::NoPen);
 		const auto r = _st.radius;
-		if (_commentsShown) {
+		if (_commentsShown && !_wrap->isHidden()) {
 			p.drawRoundedRect(_commentsShown->geometry(), r, r);
 			full.setLeft(full.left()
 				+ _commentsShown->width()
 				+ _st.commentsSkip);
 		}
-		if (_starsReaction) {
+		if (_starsReaction && !_wrap->isHidden()) {
 			full.setWidth(full.width()
 				- _starsReaction->width()
 				- _st.starsSkip);

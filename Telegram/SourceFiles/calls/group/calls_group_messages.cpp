@@ -89,23 +89,20 @@ Messages::Messages(not_null<GroupCall*> call, not_null<MTP::Sender*> api)
 			}
 		}, _lifetime);
 
-		_call->stateValue() | rpl::filter([=](GroupCall::State state) {
-			return (state == GroupCall::State::Joined);
-		}) | rpl::start_with_next([=] {
-			_api->request(base::take(_starsTopRequestId)).cancel();
-			_starsTopRequestId = _api->request(MTPphone_GetGroupCallStars(
-				_call->inputCall()
-			)).done([=](const MTPphone_GroupCallStars &result) {
-				const auto &data = result.data();
+		_starsTopRequestId = _api->request(MTPphone_GetGroupCallStars(
+			_call->inputCall()
+		)).done([=](const MTPphone_GroupCallStars &result) {
+			const auto &data = result.data();
 
-				const auto owner = &_session->data();
-				owner->processUsers(data.vusers());
-				owner->processChats(data.vchats());
+			const auto owner = &_session->data();
+			owner->processUsers(data.vusers());
+			owner->processChats(data.vchats());
 
-				_paid.top = ParseStarsTop(owner, result);
-				_paidChanges.fire({});
-			}).send();
-		}, _lifetime);
+			_paid.top = ParseStarsTop(owner, result);
+			_paidChanges.fire({});
+		}).fail([=](const MTP::Error &error) {
+			[[maybe_unused]] const auto &type = error.type();
+		}).send();
 	});
 }
 
