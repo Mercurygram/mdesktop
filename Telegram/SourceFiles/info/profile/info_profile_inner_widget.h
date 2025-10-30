@@ -73,7 +73,9 @@ private:
 	object_ptr<RpWidget> setupContent(
 		not_null<RpWidget*> parent,
 		Origin origin);
-	object_ptr<RpWidget> setupSharedMedia(not_null<RpWidget*> parent);
+	object_ptr<RpWidget> setupSharedMedia(
+		not_null<RpWidget*> parent,
+		Ui::MultiSlideTracker &mainTracker);
 	void setupMembers(not_null<Ui::VerticalLayout*> container);
 	void setupSavedMusic(not_null<Ui::VerticalLayout*> container);
 

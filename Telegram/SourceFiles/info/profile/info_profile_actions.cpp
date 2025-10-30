@@ -1157,11 +1157,11 @@ public:
 		not_null<Ui::RpWidget*> parent,
 		not_null<Data::ForumTopic*> topic);
 
-	object_ptr<Ui::RpWidget> fill();
+	object_ptr<Ui::RpWidget> fill(Ui::MultiSlideTracker &mainTracker);
 
 private:
 	object_ptr<Ui::RpWidget> setupPersonalChannel(not_null<UserData*> user);
-	object_ptr<Ui::RpWidget> setupInfo();
+	object_ptr<Ui::RpWidget> setupInfo(Ui::MultiSlideTracker &mainTracker);
 	void setupMainApp();
 	void setupBotPermissions();
 	void addViewChannelButton(
@@ -1323,8 +1323,13 @@ bool SetClickContext(
 	return false;
 }
 
-object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
-	auto result = object_ptr<Ui::VerticalLayout>(_wrap);
+object_ptr<Ui::RpWidget> DetailsFiller::setupInfo(
+		Ui::MultiSlideTracker &mainTracker) {
+	auto wrap = object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+		_wrap,
+		object_ptr<Ui::VerticalLayout>(_wrap));
+	mainTracker.track(wrap.data());
+	const auto result = wrap->entity();
 	auto tracker = Ui::MultiSlideTracker();
 
 	// Fill context for a mention / hashtag / bot command link.
@@ -1467,7 +1472,7 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 			not_null<Ui::FlatLabel*> label,
 			int rightSkip) {
 		const auto parent = label->parentWidget();
-		const auto container = result.data();
+		const auto container = result;
 		rpl::combine(
 			container->widthValue(),
 			label->geometryValue(),
@@ -1715,8 +1720,10 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 			addTranslateToMenu(about.text, AboutWithAdvancedValue(_peer));
 		}
 	}
+	wrap->toggleOn(tracker.atLeastOneShownValue());
+	wrap->finishAnimating();
 
-	return result;
+	return wrap;
 }
 
 object_ptr<Ui::RpWidget> DetailsFiller::setupPersonalChannel(
@@ -2150,18 +2157,16 @@ void DetailsFiller::addViewChannelButton(
 		tracker);
 }
 
-object_ptr<Ui::RpWidget> DetailsFiller::fill() {
+object_ptr<Ui::RpWidget> DetailsFiller::fill(
+		Ui::MultiSlideTracker &mainTracker) {
 	Expects(!_topic || !_topic->creating());
 
-	if (!_topic) {
-	} else {
-		add(object_ptr<Ui::BoxContentDivider>(_wrap));
-	}
 	if (const auto user = _sublist ? nullptr : _peer->asUser()) {
 		add(setupPersonalChannel(user));
 	}
-	add(CreateSkipWidget(_wrap));
-	add(setupInfo());
+	add(CreateSlideSkipWidget(_wrap))->toggleOn(
+		mainTracker.atLeastOneShownValue());
+	add(setupInfo(mainTracker));
 	if (const auto user = _peer->asUser()) {
 		if (const auto info = user->botInfo.get()) {
 			if (info->hasMainApp) {
@@ -2172,20 +2177,21 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill() {
 			}
 		}
 		if (!user->isSelf() && !_sublist) {
-			const auto topSkip = _wrap->add(CreateSlideSkipWidget(_wrap));
+			const auto topSkip = add(CreateSlideSkipWidget(_wrap));
 			Ui::MultiSlideTracker tracker;
 			addReportReaction(tracker);
 			topSkip->toggleOn(std::move(tracker).atLeastOneShownValue());
 		}
 	} else if (const auto channel = _peer->asChannel()) {
 		if (!channel->isMegagroup()) {
-			const auto topSkip = _wrap->add(CreateSlideSkipWidget(_wrap));
+			const auto topSkip = add(CreateSlideSkipWidget(_wrap));
 			Ui::MultiSlideTracker tracker;
 			addViewChannelButton(tracker, channel);
 			topSkip->toggleOn(std::move(tracker).atLeastOneShownValue());
 		}
 	}
-	add(CreateSkipWidget(_wrap));
+	add(CreateSlideSkipWidget(_wrap))->toggleOn(
+		mainTracker.atLeastOneShownValue());
 
 	return std::move(_wrap);
 }
@@ -2639,25 +2645,28 @@ object_ptr<Ui::RpWidget> SetupDetails(
 		not_null<Controller*> controller,
 		not_null<Ui::RpWidget*> parent,
 		not_null<PeerData*> peer,
-		Origin origin) {
+		Origin origin,
+		Ui::MultiSlideTracker &mainTracker) {
 	DetailsFiller filler(controller, parent, peer, origin);
-	return filler.fill();
+	return filler.fill(mainTracker);
 }
 
 object_ptr<Ui::RpWidget> SetupDetails(
 		not_null<Controller*> controller,
 		not_null<Ui::RpWidget*> parent,
-		not_null<Data::SavedSublist*> sublist) {
+		not_null<Data::SavedSublist*> sublist,
+		Ui::MultiSlideTracker &mainTracker) {
 	DetailsFiller filler(controller, parent, sublist);
-	return filler.fill();
+	return filler.fill(mainTracker);
 }
 
 object_ptr<Ui::RpWidget> SetupDetails(
 		not_null<Controller*> controller,
 		not_null<Ui::RpWidget*> parent,
-		not_null<Data::ForumTopic*> topic) {
+		not_null<Data::ForumTopic*> topic,
+		Ui::MultiSlideTracker &mainTracker) {
 	DetailsFiller filler(controller, parent, topic);
-	return filler.fill();
+	return filler.fill(mainTracker);
 }
 
 object_ptr<Ui::RpWidget> SetupActions(
@@ -2935,13 +2944,17 @@ void AddDetails(
 		not_null<PeerData*> peer,
 		Data::ForumTopic *topic,
 		Data::SavedSublist *sublist,
-		Origin origin) {
+		Origin origin,
+		Ui::MultiSlideTracker &mainTracker) {
 	if (topic) {
-		container->add(SetupDetails(controller, container, topic));
+		container->add(
+			SetupDetails(controller, container, topic, mainTracker));
 	} else if (sublist) {
-		container->add(SetupDetails(controller, container, sublist));
+		container->add(
+			SetupDetails(controller, container, sublist, mainTracker));
 	} else {
-		container->add(SetupDetails(controller, container, peer, origin));
+		container->add(
+			SetupDetails(controller, container, peer, origin, mainTracker));
 	}
 }
 

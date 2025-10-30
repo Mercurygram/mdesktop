@@ -121,8 +121,16 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 		return result;
 	}
 
-	AddDetails(result, _controller, _peer, _topic, _sublist, origin);
-	result->add(setupSharedMedia(result.data()));
+	auto mainTracker = Ui::MultiSlideTracker();
+	AddDetails(
+		result,
+		_controller,
+		_peer,
+		_topic,
+		_sublist,
+		origin,
+		mainTracker);
+	result->add(setupSharedMedia(result.data(), mainTracker));
 	if (_topic || _sublist) {
 		return result;
 	}
@@ -196,7 +204,8 @@ void InnerWidget::addAboutVerificationOrDivider(
 }
 
 object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
-		not_null<RpWidget*> parent) {
+		not_null<RpWidget*> parent,
+		Ui::MultiSlideTracker &mainTracker) {
 	using namespace rpl::mappers;
 	using MediaType = Media::Type;
 
@@ -322,7 +331,18 @@ object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
 
 	auto layout = result->entity();
 
-	addAboutVerificationOrDivider(layout);
+	if (rpl::variable<bool>(mainTracker.atLeastOneShownValue()).current()) {
+		addAboutVerificationOrDivider(layout);
+	} else {
+		const auto wrap = layout->add(
+			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+				layout,
+				object_ptr<Ui::VerticalLayout>(layout)));
+		Ui::AddDivider(wrap->entity());
+		wrap->setDuration(
+			st::infoSlideDuration
+		)->toggleOn(mainTracker.atLeastOneShownValue());
+	}
 	Ui::AddSkip(layout, st::infoSharedMediaBottomSkip);
 	layout->add(std::move(content));
 	Ui::AddSkip(layout, st::infoSharedMediaBottomSkip);

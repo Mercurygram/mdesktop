@@ -305,7 +305,15 @@ void InnerWidget::createProfileTop() {
 		_topBarColor.value());
 
 	using namespace Profile;
-	AddDetails(_top, _controller, _peer, nullptr, nullptr, { v::null });
+	auto mainTracker = Ui::MultiSlideTracker();
+	AddDetails(
+		_top,
+		_controller,
+		_peer,
+		nullptr,
+		nullptr,
+		{ v::null },
+		mainTracker);
 
 	auto tracker = Ui::MultiSlideTracker();
 	const auto dividerWrap = _top->add(
