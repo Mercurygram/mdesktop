@@ -1631,6 +1631,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_delete_note" = "Delete Note";
 "lng_info_bio_label" = "Bio";
 "lng_info_link_label" = "Link";
+"lng_info_link_topic_label" = "This topic link will only work for group members";
 "lng_info_location_label" = "Location";
 "lng_info_about_label" = "Description";
 "lng_info_work_open" = "Open";

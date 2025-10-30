@@ -1656,7 +1656,8 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo(
 			: QString();
 		auto linkText = LinkValue(
 			_peer,
-			true
+			true,
+			topicRootId
 		) | rpl::map([=](const LinkWithUrl &link) {
 			const auto text = link.text;
 			return text.isEmpty()
@@ -1669,7 +1670,7 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo(
 		});
 		const auto linkLine = addInfoOneLine(
 			(topicRootId
-				? tr::lng_info_link_label(Ui::Text::WithEntities)
+				? tr::lng_info_link_topic_label(Ui::Text::WithEntities)
 				: UsernamesSubtext(_peer, tr::lng_info_link_label())),
 			std::move(linkText),
 			QString());
@@ -1682,7 +1683,7 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo(
 		linkLine.subtext->overrideLinkClickHandler(linkCallback);
 		linkLine.text->setContextMenuHook(lnkHook);
 		linkLine.subtext->setContextMenuHook(lnkHook);
-		{
+		if (!topicRootId || !_peer->username().isEmpty()) {
 			const auto qr = Ui::CreateChild<Ui::IconButton>(
 				linkLine.text->parentWidget(),
 				st::infoProfileLabeledButtonQr);
