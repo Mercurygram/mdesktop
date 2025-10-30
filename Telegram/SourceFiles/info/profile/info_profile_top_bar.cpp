@@ -473,7 +473,7 @@ void TopBar::updateCollectibleStatus() {
 		_patternEmoji = document->owner().customEmojiManager().create(
 			document,
 			[=] { update(); },
-			Data::CustomEmojiSizeTag::Large);
+			Data::CustomEmojiSizeTag::Normal);
 	} else {
 		_patternEmoji = nullptr;
 	}
@@ -1597,8 +1597,8 @@ void TopBar::paintAnimatedPattern(
 			_edgeColor.current(),
 			Window::Theme::IsNightMode());
 		const auto ratio = style::DevicePixelRatio();
-		const auto scale = 0.75;
-		const auto size = Ui::Emoji::GetSizeNormal() * scale;
+		const auto scale = 0.910;
+		const auto size = st::emojiSize;
 		_basePatternImage = QImage(
 			QSize(size, size) * ratio,
 			QImage::Format_ARGB32_Premultiplied);
@@ -1606,22 +1606,21 @@ void TopBar::paintAnimatedPattern(
 		_basePatternImage.fill(Qt::transparent);
 		auto painter = QPainter(&_basePatternImage);
 		auto hq = PainterHighQualityEnabler(painter);
-		const auto fullSize = Ui::Emoji::GetSizeNormal();
-		const auto offset = (fullSize - fullSize * scale) / 2;
-		painter.translate(offset, offset);
+		// const auto contentSize = size * scale;
+		// const auto offset = (size - contentSize) / 2.;
+		// painter.translate(offset, offset);
 		painter.scale(scale, scale);
 		_patternEmoji->paint(painter, { .textColor = Qt::white });
+		painter.resetTransform();
 
 		if (patternColors.useOverlayBlend) {
 			painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
 			painter.fillRect(
-				QRect(QPoint(), _basePatternImage.size() / ratio),
+				Rect(Size(size)),
 				QColor(0, 0, 0, int(0.8 * 255)));
 		} else {
 			painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-			painter.fillRect(
-				QRect(QPoint(), _basePatternImage.size() / ratio),
-				patternColors.patternColor);
+			painter.fillRect(Rect(Size(size)), patternColors.patternColor);
 		}
 	}
 
