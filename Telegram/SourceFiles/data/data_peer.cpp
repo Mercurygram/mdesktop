@@ -952,6 +952,13 @@ void PeerData::setBarSettings(PeerBarSettings which) {
 				history->refreshHiddenLinksItems();
 			});
 		}
+		if (const auto from = migrateFrom()) {
+			if (const auto history = owner().historyLoaded(from)) {
+				crl::on_main(&history->session(), [=] {
+					history->refreshHiddenLinksItems();
+				});
+			}
+		}
 	}
 }
 
@@ -980,6 +987,9 @@ bool PeerData::hideLinks() const {
 	//if (!isUser()) {
 	//	return false;
 	//}
+	if (const auto to = migrateTo()) {
+		return to->hideLinks();
+	}
 	const auto settings = barSettings();
 	return !settings || (*settings & PeerBarSetting::ReportSpam);
 }
