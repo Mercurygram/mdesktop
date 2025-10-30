@@ -27,6 +27,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_document_media.h"
 #include "data/data_document.h"
 #include "data/data_emoji_statuses.h"
+#include "data/data_forum.h"
 #include "data/data_forum_topic.h"
 #include "data/data_peer_values.h"
 #include "data/data_peer.h"
@@ -247,7 +248,7 @@ TopBar::TopBar(
 			? 0
 			: st::infoProfileTopBarActionButtonsHeight);
 }())
-, _title(this, Info::Profile::NameValue(_peer), _st.title)
+, _title(this, nameValue(), _st.title)
 , _starsRating(_peer->isUser()
 	? std::make_unique<Ui::StarsRating>(
 		this,
@@ -261,9 +262,41 @@ TopBar::TopBar(
 , _status(this, QString(), statusStyle())
 , _statusLabel(std::make_unique<StatusLabel>(_status.data(), _peer))
 , _showLastSeen(
+	this,
+	tr::lng_status_lastseen_when(),
+	st::infoProfileCover.showLastSeen)
+, _forumButton([&, controller = descriptor.controller] {
+	const auto topic = _key.topic();
+	if (!topic) {
+		return object_ptr<Ui::RoundButton>{ nullptr };
+	}
+	auto owned = object_ptr<Ui::RoundButton>(
 		this,
-		tr::lng_status_lastseen_when(),
-		st::infoProfileCover.showLastSeen) {
+		rpl::single(QString()),
+		st::infoProfileTopBarTopicStatusButton);
+	owned->setText(Info::Profile::NameValue(
+		_peer
+	) | rpl::map([=](const QString &name) {
+		return TextWithEntities(name)
+			.append(' ')
+			.append(Ui::Text::IconEmoji(&st::textMoreIconEmoji, QString()));
+	}));
+	owned->setTextTransform(Ui::RoundButton::TextTransform::NoTransform);
+	owned->setClickedCallback([=, peer = _peer] {
+		if (const auto forum = peer->forum()) {
+			if (peer->useSubsectionTabs()) {
+				controller->searchInChat(forum->history());
+			} else if (controller->adaptive().isOneColumn()) {
+				controller->showForum(forum);
+			} else {
+				controller->showPeerHistory(peer->id);
+			}
+		} else {
+			controller->showPeerHistory(peer->id);
+		}
+	});
+	return owned;
+}()) {
 	const auto controller = descriptor.controller;
 
 	if (_peer->isMegagroup() || _peer->isChat()) {
@@ -279,11 +312,13 @@ TopBar::TopBar(
 				: std::make_shared<Info::Memento>(shown, section));
 		});
 	}
-	if (!_peer->isMegagroup()) {
+	if (!_peer->isMegagroup() && !_topic) {
 		setupStatusWithRating();
 	}
 
-	setupShowLastSeen(controller);
+	if (!_topic) {
+		setupShowLastSeen(controller);
+	}
 
 	_peer->session().changes().peerFlagsValue(
 		_peer,
@@ -317,7 +352,7 @@ TopBar::TopBar(
 	}
 	badgeUpdates = rpl::merge(
 		std::move(badgeUpdates),
-		Info::Profile::NameValue(_peer) | rpl::map([=](const QString &name) {
+		nameValue() | rpl::map([=](const QString &name) {
 			_title->resizeToWidth(_title->st().style.font->width(name));
 			return rpl::empty_value();
 		}),
@@ -389,6 +424,10 @@ TopBar::TopBar(
 	) | rpl::take(1) | rpl::start_with_next([=] {
 		setupPinnedToTopGifts(controller);
 	}, lifetime());
+
+	if (_forumButton) {
+		_forumButton->show();
+	}
 }
 
 void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
@@ -421,7 +460,7 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 			_status.create(this, QString(), statusStyle());
 		}
 		_status->show();
-		if (!_peer->isMegagroup()) {
+		if (!_peer->isMegagroup() && !_topic) {
 			setupStatusWithRating();
 		}
 		_status->widthValue() | rpl::start_with_next([=] {
@@ -1165,6 +1204,24 @@ void TopBar::updateLabelsPosition() {
 }
 
 void TopBar::updateStatusPosition(float64 progressCurrent) {
+	if (_forumButton) {
+		const auto buttonTop = anim::interpolate(
+			_st.subtitlePosition.y(),
+			st::infoProfileTopBarStatusTop,
+			progressCurrent);
+		const auto buttonLeft = anim::interpolate(
+			statusMostLeft(),
+			(width() - _forumButton->width()) / 2,
+			progressCurrent);
+		_forumButton->moveToLeft(buttonLeft, buttonTop);
+		_forumButton->setVisible(true);
+
+		_status->hide();
+		// _starsRating->hide();
+		_showLastSeen->hide();
+		return;
+	}
+
 	const auto statusTop = anim::interpolate(
 		_st.subtitlePosition.y(),
 		st::infoProfileTopBarStatusTop,
@@ -2213,6 +2270,13 @@ const style::FlatLabel &TopBar::statusStyle() const {
 	return _peer->isMegagroup()
 		? st::infoProfileMegagroupCover.status
 		: st::infoProfileCover.status;
+}
+
+rpl::producer<QString> TopBar::nameValue() const {
+	if (const auto topic = _key.topic()) {
+		return Info::Profile::TitleValue(topic);
+	}
+	return Info::Profile::NameValue(_peer);
 }
 
 } // namespace Info::Profile

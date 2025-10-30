@@ -189,6 +189,8 @@ private:
 	[[nodiscard]] const style::FlatLabel &statusStyle() const;
 	void setupStatusWithRating();
 
+	[[nodiscard]] rpl::producer<QString> nameValue() const;
+
 	[[nodiscard]] auto effectiveColorProfile()
 	const -> std::optional<Data::ColorProfileSet>;
 	[[nodiscard]] auto effectiveCollectible()
@@ -221,6 +223,7 @@ private:
 	std::unique_ptr<StatusLabel> _statusLabel;
 	rpl::variable<int> _statusShift = 0;
 	object_ptr<Ui::RoundButton> _showLastSeen = { nullptr };
+	object_ptr<Ui::RoundButton> _forumButton = { nullptr };
 	QGraphicsOpacityEffect *_showLastSeenOpacity = nullptr;
 
 	std::shared_ptr<style::FlatLabel> _statusSt;

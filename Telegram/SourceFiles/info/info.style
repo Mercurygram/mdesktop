@@ -454,6 +454,10 @@ infoProfileTopBarActionReport: icon{{ "profile/report-22x22", windowBoldFg }};
 infoProfileTopBarActionLeave: icon{{ "profile/leave-22x22", windowBoldFg }};
 infoProfileTopBarActionMore: icon{{ "profile/profile_more", windowBoldFg }};
 
+infoProfileTopBarTopicStatusButton: RoundButton(defaultTableSmallButton) {
+	radius: 4px;
+}
+
 infoProfileTopBarBoostFooter: FlatLabel(defaultFlatLabel) {
 	textFg: windowSubTextFg;
 	style: TextStyle(defaultTextStyle) {
