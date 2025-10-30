@@ -1164,6 +1164,9 @@ private:
 	object_ptr<Ui::RpWidget> setupInfo();
 	void setupMainApp();
 	void setupBotPermissions();
+	void addViewChannelButton(
+		Ui::MultiSlideTracker &tracker,
+		not_null<ChannelData*> channel);
 
 	void addReportReaction(Ui::MultiSlideTracker &tracker);
 	void addReportReaction(
@@ -2120,6 +2123,33 @@ void DetailsFiller::addReportReaction(
 		st::infoMainButtonAttention);
 }
 
+void DetailsFiller::addViewChannelButton(
+		Ui::MultiSlideTracker &tracker,
+		not_null<ChannelData*> channel) {
+	using namespace rpl::mappers;
+
+	auto window = _controller->parentController();
+	auto activePeerValue = window->activeChatValue(
+	) | rpl::map([](Dialogs::Key key) {
+		return key.peer();
+	});
+	auto viewChannelVisible = rpl::combine(
+		_controller->wrapValue(),
+		std::move(activePeerValue),
+		(_1 != Wrap::Side) || (_2 != channel));
+	auto viewChannel = [=] {
+		window->showPeerHistory(
+			channel,
+			Window::SectionShow::Way::Forward);
+	};
+	AddMainButton(
+		_wrap,
+		tr::lng_profile_view_channel(),
+		std::move(viewChannelVisible),
+		std::move(viewChannel),
+		tracker);
+}
+
 object_ptr<Ui::RpWidget> DetailsFiller::fill() {
 	Expects(!_topic || !_topic->creating());
 
@@ -2142,9 +2172,16 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill() {
 			}
 		}
 		if (!user->isSelf() && !_sublist) {
-			auto topSkip = _wrap->add(CreateSlideSkipWidget(_wrap));
+			const auto topSkip = _wrap->add(CreateSlideSkipWidget(_wrap));
 			Ui::MultiSlideTracker tracker;
 			addReportReaction(tracker);
+			topSkip->toggleOn(std::move(tracker).atLeastOneShownValue());
+		}
+	} else if (const auto channel = _peer->asChannel()) {
+		if (!channel->isMegagroup()) {
+			const auto topSkip = _wrap->add(CreateSlideSkipWidget(_wrap));
+			Ui::MultiSlideTracker tracker;
+			addViewChannelButton(tracker, channel);
 			topSkip->toggleOn(std::move(tracker).atLeastOneShownValue());
 		}
 	}
