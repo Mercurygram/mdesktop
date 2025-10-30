@@ -27,6 +27,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_user.h"
 #include "data/data_saved_music.h"
 #include "data/data_saved_sublist.h"
+#include "info/saved/info_saved_music_common.h"
 #include "info_profile_actions.h"
 #include "main/main_session.h"
 #include "apiwrap.h"
@@ -48,11 +49,6 @@ namespace Info {
 namespace Profile {
 
 namespace {
-
-[[nodiscard]] MusicButtonData DocumentMusicButtonData(
-		not_null<DocumentData*> document) {
-	return { Ui::Text::FormatSongNameFor(document) };
-}
 
 void AddAboutVerification(
 		not_null<Ui::VerticalLayout*> layout,
@@ -182,47 +178,11 @@ void InnerWidget::setupMembers(not_null<Ui::VerticalLayout*> container) {
 }
 
 void InnerWidget::setupSavedMusic(not_null<Ui::VerticalLayout*> container) {
-	auto musicValue = Data::SavedMusic::Supported(_peer->id)
-		? Data::SavedMusicList(
-			_peer,
-			nullptr,
-			1
-		) | rpl::map([=](const Data::SavedMusicSlice &data) {
-			return data.size() ? data[0].get() : nullptr;
-		}) | rpl::type_erased()
-		: rpl::single<HistoryItem*>((HistoryItem*)(nullptr));
-
-	const auto divider = container->add(
-		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-			container,
-			object_ptr<Ui::VerticalLayout>(container)));
-
-	rpl::combine(
-		std::move(musicValue),
-		_topBarColor.value()
-	) | rpl::start_with_next([=](
-			HistoryItem *item,
-			std::optional<QColor> color) {
-		while (divider->entity()->count()) {
-			delete divider->entity()->widgetAt(0);
-		}
-		if (item) {
-			if (const auto document = item->media()
-					? item->media()->document()
-					: nullptr) {
-				const auto music = divider->entity()->add(
-					object_ptr<MusicButton>(
-						divider->entity(),
-						DocumentMusicButtonData(document),
-						[window = _controller, peer = _peer] {
-							window->showSection(Info::Saved::MakeMusic(peer));
-						}));
-				music->setOverrideBg(color);
-			}
-			divider->toggle(true, anim::type::normal);
-		}
-	}, lifetime());
-	divider->finishAnimating();
+	Info::Saved::SetupSavedMusic(
+		container,
+		_controller,
+		_peer,
+		_topBarColor.value());
 }
 
 void InnerWidget::addAboutVerificationOrDivider(
