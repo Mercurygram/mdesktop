@@ -300,6 +300,10 @@ TopBar::TopBar(
 		badgeUpdates = rpl::merge(
 			std::move(badgeUpdates),
 			_badge->updated());
+
+		_badge->setPremiumClickCallback([controller, peer = _peer] {
+			::Settings::ShowEmojiStatusPremium(controller, peer);
+		});
 	}
 	if (_verified) {
 		badgeUpdates = rpl::merge(
