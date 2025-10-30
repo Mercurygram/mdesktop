@@ -1942,9 +1942,6 @@ void TopBar::paintPinnedToTopGifts(
 			? _progress.current() * _giftsAppearing->value(0.)
 			: _progress.current());
 
-	const auto sz = st::infoProfileTopBarGiftSize;
-	const auto halfSz = sz / 2.;
-
 	for (auto &gift : _pinnedToTopGifts) {
 		if (!gift.animation
 			&& (_lottieSingleLoop ? gift.lastFrame.isNull() : true)) {
@@ -1992,18 +1989,21 @@ void TopBar::paintPinnedToTopGifts(
 			}
 		}
 		if (!frameToRender.isNull()) {
-			const auto resultPos = QPoint(
-				giftPos.x() - halfSz,
-				giftPos.y() - halfSz);
+			const auto frameSize = frameToRender.width()
+				/ style::DevicePixelRatio();
+			const auto halfFrameSize = frameSize / 2.;
+			const auto resultPos = QPointF(
+				giftPos.x() - halfFrameSize,
+				giftPos.y() - halfFrameSize);
 			if (!gift.bg.isNull()) {
-				const auto bgSize = gift.bg.size()
+				const auto bgSize = gift.bg.width()
 					/ style::DevicePixelRatio();
-				const auto bgPos = QPoint(
-					resultPos.x() + (sz - bgSize.width()) / 2,
-					resultPos.y() + (sz - bgSize.height()) / 2);
+				const auto bgPos = QPointF(
+					resultPos.x() + (frameSize - bgSize) / 2.,
+					resultPos.y() + (frameSize - bgSize) / 2.);
 				p.drawImage(bgPos, gift.bg);
 			}
-			p.drawImage(resultPos.x(), resultPos.y(), frameToRender);
+			p.drawImage(resultPos, frameToRender);
 		}
 	}
 	p.setOpacity(1.);
