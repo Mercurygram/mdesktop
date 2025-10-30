@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "base/unique_qptr.h"
 #include "ui/effects/animations.h"
 #include "ui/round_rect.h"
 
@@ -26,6 +27,7 @@ class ElasticScroll;
 class EmojiButton;
 class InputField;
 class SendButton;
+class PopupMenu;
 class RpWidget;
 } // namespace Ui
 
@@ -38,6 +40,7 @@ namespace Calls::Group {
 
 struct Message;
 struct MessageIdUpdate;
+struct MessageDeleteRequest;
 
 enum class MessagesMode {
 	GroupCall,
@@ -52,6 +55,7 @@ public:
 		MessagesMode mode,
 		rpl::producer<std::vector<Message>> messages,
 		rpl::producer<MessageIdUpdate> idUpdates,
+		rpl::producer<bool> canManageValue,
 		rpl::producer<bool> shown);
 	~MessagesUi();
 
@@ -59,6 +63,7 @@ public:
 	void raise();
 
 	[[nodiscard]] rpl::producer<> hiddenShowRequested() const;
+	[[nodiscard]] rpl::producer<MessageDeleteRequest> deleteRequests() const;
 
 	[[nodiscard]] rpl::lifetime &lifetime();
 
@@ -124,6 +129,8 @@ private:
 
 	void receiveSomeMouseEvents();
 	void receiveAllMouseEvents();
+	void handleClick(const MessageView &entry, QPoint point);
+	void showContextMenu(const MessageView &entry, QPoint globalPoint);
 
 	const not_null<QWidget*> _parent;
 	const std::shared_ptr<ChatHelpers::Show> _show;
@@ -137,8 +144,11 @@ private:
 	Ui::RpWidget *_pinned = nullptr;
 	QImage _pinnedCanvas;
 	int _pinnedScrollSkip = 0;
+	base::unique_qptr<Ui::PopupMenu> _menu;
 
+	rpl::variable<bool> _canManage;
 	rpl::event_stream<> _hiddenShowRequested;
+	rpl::event_stream<MessageDeleteRequest> _deleteRequests;
 	std::optional<std::vector<Message>> _hidden;
 	std::vector<MessageView> _views;
 	style::complex_color _messageBg;

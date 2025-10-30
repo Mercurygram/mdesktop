@@ -244,6 +244,7 @@ Panel::Panel(not_null<GroupCall*> call, ConferencePanelMigration info)
 	MessagesMode::GroupCall,
 	_call->messages()->listValue(),
 	_call->messages()->idUpdates(),
+	_call->canManageValue(),
 	_call->messagesEnabledValue()))
 , _toasts(std::make_unique<Toasts>(this))
 , _controlsBackgroundColor([] {

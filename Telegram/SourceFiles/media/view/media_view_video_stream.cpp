@@ -105,6 +105,7 @@ VideoStream::VideoStream(
 		Calls::Group::MessagesMode::VideoStream,
 		_call->messages()->listValue(),
 		_call->messages()->idUpdates(),
+		_call->canManageValue(),
 		rpl::combine(
 			_call->messagesEnabledValue(),
 			_commentsShown.value(),
@@ -211,6 +212,12 @@ void VideoStream::setupVideo() {
 void VideoStream::setupMessages() {
 	_messages->hiddenShowRequested() | rpl::start_with_next([=] {
 		_call->messages()->requestHiddenShow();
+	}, _messages->lifetime());
+
+
+	_messages->deleteRequests(
+	) | rpl::start_with_next([=](Calls::Group::MessageDeleteRequest event) {
+		_call->messages()->deleteConfirmed(event);
 	}, _messages->lifetime());
 }
 

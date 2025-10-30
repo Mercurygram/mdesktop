@@ -8,12 +8,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "calls/group/calls_group_messages.h"
 
 #include "apiwrap.h"
+#include "api/api_blocked_peers.h"
+#include "api/api_chat_participants.h"
 #include "api/api_text_entities.h"
 #include "base/random.h"
 #include "base/unixtime.h"
 #include "calls/group/ui/calls_group_stars_coloring.h"
 #include "calls/group/calls_group_call.h"
 #include "calls/group/calls_group_message_encryption.h"
+#include "data/data_channel.h"
 #include "data/data_group_call.h"
 #include "data/data_message_reactions.h"
 #include "data/data_peer.h"
@@ -150,6 +153,7 @@ void Messages::send(TextWithTags text, int stars) {
 		.peer = from,
 		.text = std::move(prepared),
 		.stars = stars,
+		.mine = true,
 	});
 
 	if (!_call->conference()) {
@@ -324,15 +328,18 @@ void Messages::received(
 	if (checkCustomEmoji && !peer->isSelf() && !peer->isPremium()) {
 		allowedEntityTypes.pop_back();
 	}
+	const auto author = peer->owner().peer(peerFromMTP(from));
 	_messages.push_back({
 		.id = id,
 		.date = date,
 		.pinFinishDate = PinFinishDate(date, stars),
-		.peer = peer->owner().peer(peerFromMTP(from)),
+		.peer = author,
 		.text = Ui::Text::Filtered(
 			Api::ParseTextWithEntities(&peer->session(), message),
 			allowedEntityTypes),
 		.stars = stars,
+		.mine = (author->isSelf()
+			|| (author->isChannel() && author->asChannel()->amCreator()))
 	});
 	ranges::sort(_messages, ranges::less(), &Message::id);
 	checkDestroying(true);
@@ -570,6 +577,7 @@ void Messages::reactionsPaidSend() {
 		.id = localId,
 		.peer = from,
 		.stars = int(send.count),
+		.mine = true,
 	});
 
 	using Flag = MTPphone_SendGroupCallMessage::Flag;
@@ -604,6 +612,43 @@ Messages::PaidLocalState Messages::starsLocalState() const {
 	const auto my = (i != end(donors) ? i->stars : 0) + local;
 	const auto total = _paid.top.total + local;
 	return { .total = total, .my = my };
+}
+
+void Messages::deleteConfirmed(MessageDeleteRequest request) {
+	const auto eraseFrom = [&](auto iterator) {
+		if (iterator != end(_messages)) {
+			_messages.erase(iterator, end(_messages));
+			pushChanges();
+		}
+	};
+	const auto peer = _call->peer();
+	if (const auto from = request.deleteAllFrom) {
+		using Flag = MTPphone_DeleteGroupCallParticipantMessages::Flag;
+		_api->request(MTPphone_DeleteGroupCallParticipantMessages(
+			MTP_flags(request.reportSpam ? Flag::f_report_spam : Flag()),
+			_call->inputCall(),
+			from->input
+		)).send();
+		eraseFrom(ranges::remove(_messages, not_null(from), &Message::peer));
+	} else {
+		using Flag = MTPphone_DeleteGroupCallMessages::Flag;
+		_api->request(MTPphone_DeleteGroupCallMessages(
+			MTP_flags(request.reportSpam ? Flag::f_report_spam : Flag()),
+			_call->inputCall(),
+			MTP_vector<MTPint>(1, MTP_int(request.id.bare))
+		)).send();
+		eraseFrom(ranges::remove(_messages, request.id, &Message::id));
+	}
+	if (const auto ban = request.ban) {
+		if (const auto channel = peer->asChannel()) {
+			ban->session().api().chatParticipants().kick(
+				channel,
+				ban,
+				ChatRestrictionsInfo());
+		} else {
+			ban->session().api().blockedPeers().block(ban);
+		}
+	}
 }
 
 } // namespace Calls::Group

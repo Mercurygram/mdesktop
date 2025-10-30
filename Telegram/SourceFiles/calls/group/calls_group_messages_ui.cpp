@@ -27,14 +27,20 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
+#include "ui/boxes/confirm_box.h"
 #include "ui/controls/emoji_button.h"
 #include "ui/controls/send_button.h"
 #include "ui/effects/animations.h"
 #include "ui/effects/radial_animation.h"
 #include "ui/effects/reaction_fly_animation.h"
+#include "ui/layers/generic_box.h"
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/fields/input_field.h"
+#include "ui/widgets/menu/menu_item_base.h"
+#include "ui/widgets/menu/menu_action.h"
+#include "ui/widgets/checkbox.h"
 #include "ui/widgets/elastic_scroll.h"
+#include "ui/widgets/popup_menu.h"
 #include "ui/color_int_conversion.h"
 #include "ui/painter.h"
 #include "ui/ui_utility.h"
@@ -44,6 +50,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_chat.h"
 #include "styles/style_credits.h"
 #include "styles/style_media_view.h"
+#include "styles/style_menu_icons.h"
 
 #include <QtGui/QGuiApplication>
 #include <QtGui/QWindow>
@@ -154,6 +161,87 @@ void ReceiveSomeMouseEvents(
 		new EventFilter(scroll, std::move(handleClick)));
 }
 
+[[nodiscard]] base::unique_qptr<Ui::Menu::ItemBase> MakeMessageDateAction(
+		not_null<Ui::PopupMenu*> menu,
+		TimeId value) {
+	const auto parent = menu->menu();
+
+	const auto parsed = base::unixtime::parse(value);
+	const auto date = parsed.date();
+	const auto time = QLocale().toString(
+		parsed.time(),
+		QLocale::ShortFormat);
+	const auto today = QDateTime::currentDateTime().date();
+	const auto text = (date == today)
+		? tr::lng_context_sent_today(tr::now, lt_time, time)
+		: (date.addDays(1) == today)
+		? tr::lng_context_sent_yesterday(tr::now, lt_time, time)
+		: tr::lng_context_sent_date(
+			tr::now,
+			lt_date,
+			langDayOfMonthFull(date),
+			lt_time,
+			time);
+	const auto action = Ui::Menu::CreateAction(parent, text, [] {});
+	action->setDisabled(true);
+	return base::make_unique_q<Ui::Menu::Action>(
+		menu->menu(),
+		st::storiesCommentSentAt,
+		action,
+		nullptr,
+		nullptr);
+}
+
+void ShowDeleteMessageConfirmation(
+		std::shared_ptr<Ui::Show> show,
+		MsgId id,
+		not_null<PeerData*> from,
+		bool canModerate,
+		Fn<void(MessageDeleteRequest)> callback) {
+	show->show(Box([=](not_null<Ui::GenericBox*> box) {
+		struct State {
+			rpl::variable<bool> report;
+			rpl::variable<bool> all;
+			rpl::variable<bool> ban;
+		};
+		const auto state = box->lifetime().make_state<State>();
+		const auto confirmed = [=](Fn<void()> close) {
+			callback(MessageDeleteRequest{
+				.id = id,
+				.deleteAllFrom = state->all.current() ? from.get() : nullptr,
+				.ban = state->ban.current() ? from.get() : nullptr,
+				.reportSpam = state->report.current(),
+			});
+			close();
+		};
+		Ui::ConfirmBox(box, {
+			.text = tr::lng_selected_delete_sure_this(),
+			.confirmed = confirmed,
+			.confirmText = tr::lng_box_delete(),
+			.labelStyle = &st::groupCallBoxLabel,
+		});
+		if (canModerate) {
+			const auto check = [&](rpl::producer<QString> text) {
+				const auto add = st::groupCallCheckbox.margin;
+				const auto added = QMargins(0, add.top(), 0, add.bottom());
+				const auto margin = st::boxRowPadding + added;
+
+				return box->addRow(object_ptr<Ui::Checkbox>(
+					box,
+					std::move(text),
+					false,
+					st::groupCallCheckbox
+				), margin)->checkedValue();
+			};
+			state->report = check(tr::lng_report_spam());
+			state->all = check(tr::lng_delete_all_from_user(
+				lt_user,
+				rpl::single(from->shortName()))),
+			state->ban = check(tr::lng_ban_user());
+		}
+	}));
+}
+
 } // namespace
 
 struct MessagesUi::MessageView {
@@ -168,9 +256,11 @@ struct MessagesUi::MessageView {
 	std::unique_ptr<Ui::ReactionFlyAnimation> reactionAnimation;
 	std::unique_ptr<Ui::RpWidget> reactionWidget;
 	QPoint reactionShift;
+	TextWithEntities original;
 	Ui::PeerUserpicView view;
 	Ui::Text::String text;
 	Ui::Text::String price;
+	TimeId date = 0;
 	int stars = 0;
 	int top = 0;
 	int width = 0;
@@ -180,6 +270,7 @@ struct MessagesUi::MessageView {
 	bool removed = false;
 	bool sending = false;
 	bool failed = false;
+	bool mine = false;
 };
 
 struct MessagesUi::PinnedView {
@@ -215,10 +306,12 @@ MessagesUi::MessagesUi(
 	MessagesMode mode,
 	rpl::producer<std::vector<Message>> messages,
 	rpl::producer<MessageIdUpdate> idUpdates,
+	rpl::producer<bool> canManageValue,
 	rpl::producer<bool> shown)
 : _parent(parent)
 , _show(std::move(show))
 , _mode(mode)
+, _canManage(std::move(canManageValue))
 , _messageBg([] {
 	auto result = st::groupCallBg->c;
 	result.setAlphaF(kMessageBgOpacity);
@@ -274,6 +367,7 @@ void MessagesUi::showList(const std::vector<Message> &list) {
 		} else if (entry.sending != (i->date == 0)) {
 			animateMessageSent(entry);
 		}
+		entry.date = i->date;
 		if (i == from) {
 			appendPinned(*i, now);
 			++from;
@@ -293,6 +387,7 @@ void MessagesUi::showList(const std::vector<Message> &list) {
 			} else if (j->sending != (i->date == 0)) {
 				animateMessageSent(*j);
 			}
+			j->date = i->date;
 			toggleMessage(*j, true);
 		} else {
 			if (i + 1 == till && !i->date) {
@@ -562,9 +657,12 @@ void MessagesUi::appendMessage(const Message &data) {
 	auto &entry = _views.emplace_back(MessageView{
 		.id = id,
 		.from = peer,
+		.original = data.text,
+		.date = data.date,
 		.stars = data.stars,
 		.top = top,
 		.sending = !data.date,
+		.mine = data.mine,
 	});
 	const auto repaint = [=] {
 		repaintMessage(id);
@@ -1092,40 +1190,100 @@ void MessagesUi::receiveSomeMouseEvents() {
 		for (const auto &entry : _views) {
 			if (entry.failed || entry.top + entry.height <= point.y()) {
 				continue;
-			} else if (entry.top >= point.y()
-				|| entry.left >= point.x()
-				|| entry.left + entry.width <= point.x()) {
-				return false;
+			} else if (entry.top < point.y()
+				&& entry.left < point.x()
+				&& entry.left + entry.width > point.x()) {
+				handleClick(entry, point);
+				return true;
 			}
-
-			const auto padding = st::groupCallMessagePadding;
-			const auto userpicSize = st::groupCallUserpic;
-			const auto userpicPadding = st::groupCallUserpicPadding;
-			const auto leftSkip = userpicPadding.left()
-				+ userpicSize
-				+ userpicPadding.right();
-			const auto userpic = QRect(
-				entry.left + userpicPadding.left(),
-				entry.top + userpicPadding.top(),
-				userpicSize,
-				userpicSize);
-			const auto link = userpic.contains(point)
-				? entry.fromLink
-				: entry.text.getState(point - QPoint(
-					entry.left + leftSkip,
-					entry.top + padding.top()
-				), entry.width - leftSkip - padding.right()).link;
-			if (link) {
-				ActivateClickHandler(_messages, link, Qt::LeftButton);
-			}
-			return true;
+			break;
 		}
 		return false;
 	});
 }
 
 void MessagesUi::receiveAllMouseEvents() {
+	_messages->events() | rpl::start_with_next([=](not_null<QEvent*> e) {
+		const auto type = e->type();
+		if (type != QEvent::MouseButtonPress) {
+			return;
+		}
+		const auto m = static_cast<QMouseEvent*>(e.get());
+		const auto point = m->pos();
+		for (const auto &entry : _views) {
+			if (entry.failed || entry.top + entry.height <= point.y()) {
+				continue;
+			} else if (entry.top < point.y()
+				&& entry.left < point.x()
+				&& entry.left + entry.width > point.x()) {
+				if (m->button() == Qt::LeftButton) {
+					handleClick(entry, point);
+				} else {
+					showContextMenu(entry, m->globalPos());
+				}
+			}
+			break;
+		}
+	}, _messages->lifetime());
+}
 
+void MessagesUi::handleClick(const MessageView &entry, QPoint point) {
+	const auto padding = st::groupCallMessagePadding;
+	const auto userpicSize = st::groupCallUserpic;
+	const auto userpicPadding = st::groupCallUserpicPadding;
+	const auto leftSkip = userpicPadding.left()
+		+ userpicSize
+		+ userpicPadding.right();
+	const auto userpic = QRect(
+		entry.left + userpicPadding.left(),
+		entry.top + userpicPadding.top(),
+		userpicSize,
+		userpicSize);
+	const auto link = userpic.contains(point)
+		? entry.fromLink
+		: entry.text.getState(point - QPoint(
+			entry.left + leftSkip,
+			entry.top + padding.top()
+		), entry.width - leftSkip - padding.right()).link;
+	if (link) {
+		ActivateClickHandler(_messages, link, Qt::LeftButton);
+	}
+}
+
+void MessagesUi::showContextMenu(
+		const MessageView &entry,
+		QPoint globalPoint) {
+	if (_menu || !entry.date || entry.failed) {
+		return;
+	}
+	_menu = base::make_unique_q<Ui::PopupMenu>(
+		_parent,
+		st::groupCallPopupMenuWithIcons);
+	_menu->addAction(MakeMessageDateAction(_menu.get(), entry.date));
+	const auto &original = entry.original;
+	const auto canCopy = !original.empty();
+	const auto canDelete = entry.mine || _canManage.current();
+	if (canCopy || canDelete) {
+		_menu->addSeparator(&st::mediaviewWideMenuSeparator);
+	}
+	if (canCopy) {
+		_menu->addAction(tr::lng_context_copy_text(tr::now), [=] {
+			TextUtilities::SetClipboardText(
+				TextForMimeData::WithExpandedLinks(original));
+		}, &st::mediaMenuIconCopy);
+	}
+	if (canDelete) {
+		const auto id = entry.id;
+		const auto from = entry.from;
+		const auto canModerate = _canManage.current() && !entry.mine;
+		_menu->addAction(tr::lng_context_delete_msg(tr::now), [=] {
+			ShowDeleteMessageConfirmation(_show, id, from, canModerate, [=](
+					MessageDeleteRequest request) {
+				_deleteRequests.fire_copy(request);
+			});
+		}, &st::mediaMenuIconDelete);
+	}
+	_menu->popup(globalPoint);
 }
 
 void MessagesUi::setupPinnedWidget() {
@@ -1509,6 +1667,10 @@ void MessagesUi::raise() {
 
 rpl::producer<> MessagesUi::hiddenShowRequested() const {
 	return _hiddenShowRequested.events();
+}
+
+rpl::producer<MessageDeleteRequest> MessagesUi::deleteRequests() const {
+	return _deleteRequests.events();
 }
 
 rpl::lifetime &MessagesUi::lifetime() {

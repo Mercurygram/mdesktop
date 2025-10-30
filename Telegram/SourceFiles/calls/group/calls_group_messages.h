@@ -38,11 +38,19 @@ struct Message {
 	TextWithEntities text;
 	int stars = 0;
 	bool failed = false;
+	bool mine = false;
 };
 
 struct MessageIdUpdate {
 	MsgId localId = 0;
 	MsgId realId = 0;
+};
+
+struct MessageDeleteRequest {
+	MsgId id = 0;
+	PeerData *deleteAllFrom = nullptr;
+	PeerData *ban = nullptr;
+	bool reportSpam = false;
 };
 
 struct StarsTopDonor {
@@ -104,6 +112,8 @@ public:
 	[[nodiscard]] rpl::producer<> hiddenShowRequested() const {
 		return _hiddenShowRequests.events();
 	}
+
+	void deleteConfirmed(MessageDeleteRequest request);
 
 private:
 	struct Pending {

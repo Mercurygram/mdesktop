@@ -5684,7 +5684,7 @@ void OverlayWidget::handleKeyPress(not_null<QKeyEvent*> e) {
 			activateControls();
 		}
 		moveToNext(-1);
-	} else if (key == Qt::Key_H) {
+	} else if (key == Qt::Key_H && !_stories) {
 		if (_flip & Qt::Horizontal) {
 			_flip &= ~Qt::Horizontal;
 		} else {
@@ -5694,7 +5694,7 @@ void OverlayWidget::handleKeyPress(not_null<QKeyEvent*> e) {
 			validatePhotoCurrentImage();
 			redisplayContent();
 		}
-	} else if (key == Qt::Key_V) {
+	} else if (key == Qt::Key_V && !_stories) {
 		if (_flip & Qt::Vertical) {
 			_flip &= ~Qt::Vertical;
 		} else {

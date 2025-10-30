@@ -310,13 +310,12 @@ mediaviewTitleMaximizeMacPadding: margins(0px, 4px, 8px, 4px);
 
 mediaviewShadowTop: icon{{ "mediaview/shadow_top", windowShadowFg }};
 mediaviewShadowBottom: icon{{ "mediaview/shadow_bottom", windowShadowFg }};
-
+mediaviewWideMenuSeparator: MenuSeparator(mediaviewMenuSeparator) {
+	padding: margins(0px, 4px, 0px, 4px);
+	width: 6px;
+}
 mediaviewSpeedMenuInner: Menu(mediaviewMenu) {
-	separator: MenuSeparator(mediaviewMenuSeparator) {
-		fg: groupCallMenuBgOver;
-		padding: margins(0px, 4px, 0px, 4px);
-		width: 6px;
-	}
+	separator: mediaviewWideMenuSeparator;
 	itemPadding: margins(54px, 7px, 54px, 9px);
 	itemFgDisabled: mediaviewTextLinkFg;
 }
@@ -609,10 +608,7 @@ storiesEmojiPan: EmojiPan(defaultEmojiPan) {
 	fadeLeft: icon {{ "fade_horizontal-flip_horizontal", storiesComposeBg }};
 	fadeRight: icon {{ "fade_horizontal", storiesComposeBg }};
 	menu: storiesPopupMenuWithIcons;
-	expandedSeparator: MenuSeparator(storiesMenuSeparator) {
-		padding: margins(0px, 4px, 0px, 4px);
-		width: 6px;
-	}
+	expandedSeparator: mediaviewWideMenuSeparator;
 	tabs: SettingsSlider(emojiTabs) {
 		barFgActive: storiesComposeBlue;
 		labelFg: storiesComposeGrayText;
@@ -699,6 +695,9 @@ storiesChooseSendAs: ChooseSendAs(defaultChooseSendAs) {
 		textFg: storiesComposeWhiteText;
 	}
 	list: groupCallJoinAsList;
+}
+storiesCommentSentAt: Menu(storiesMenu, whoSentItem) {
+	itemFgDisabled: groupCallMembersFg;
 }
 storiesComposeControls: ComposeControls(defaultComposeControls) {
 	bg: storiesComposeBg;
