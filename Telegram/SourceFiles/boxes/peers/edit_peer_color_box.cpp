@@ -1164,7 +1164,7 @@ Fn<void()> AddColorGiftTabs(
 		}
 		container->resizeToWidth(container->width());
 	}, container->lifetime());
-	
+
 	return [=]() {
 		const auto &list = state->list.current();
 		if (!list.empty()) {
@@ -2536,7 +2536,15 @@ void SetupPeerColorSample(
 	) | rpl::map([=] {
 		return peer->colorCollectible();
 	});
+	auto colorProfileIndexValue = peer->session().changes().peerFlagsValue(
+		peer,
+		Data::PeerUpdate::Flag::ColorProfile
+	) | rpl::map([=] {
+		return peer->colorProfileIndex();
+	});
 	const auto name = peer->shortName();
+
+	const auto sampleSize = st::settingsColorSampleSize;
 
 	const auto sample = Ui::CreateChild<Ui::ColorSample>(
 		button.get(),
@@ -2548,21 +2556,40 @@ void SetupPeerColorSample(
 		name);
 	sample->show();
 
+	const auto profileSample = Ui::CreateChild<Ui::ColorSample>(
+		button.get(),
+		[=, peerColors = &peer->session().api().peerColors()](uint8 index) {
+			return peerColors->colorProfileFor(peer).value_or(
+				Data::ColorProfileSet{});
+		},
+		0,
+		false);
+	profileSample->hide();
+	profileSample->resize(sampleSize, sampleSize);
+
 	rpl::combine(
 		button->widthValue(),
 		rpl::duplicate(label),
-		rpl::duplicate(colorIndexValue)
+		rpl::duplicate(colorIndexValue),
+		rpl::duplicate(colorProfileIndexValue)
 	) | rpl::start_with_next([=](
 			int width,
-			const QString &button,
-			int colorIndex) {
-		const auto sampleSize = st::settingsColorSampleSize;
+			const QString &buttonText,
+			int colorIndex,
+			std::optional<uint8> profileIndex) {
 		const auto available = width
 			- st::settingsButton.padding.left()
 			- (st::settingsColorButton.padding.right() - sampleSize)
-			- st::settingsButton.style.font->width(button)
+			- st::settingsButton.style.font->width(buttonText)
 			- st::settingsButtonRightSkip;
-		if (style->colorPatternIndex(colorIndex)) {
+
+		const auto hasProfile = profileIndex.has_value();
+		const auto hasColor = (colorIndex != 0);
+
+		profileSample->setVisible(hasProfile);
+
+		sample->setForceCircle(hasProfile);
+		if (style->colorPatternIndex(colorIndex) || hasProfile) {
 			sample->resize(sampleSize, sampleSize);
 		} else {
 			const auto padding = st::settingsColorSamplePadding;
@@ -2573,13 +2600,25 @@ void SetupPeerColorSample(
 			sample->resize(std::min(wantedWidth, available), wantedHeight);
 		}
 		sample->update();
+		sample->setCutoutPadding(hasProfile
+			? st::settingsColorSampleCutout
+			: 0);
+		profileSample->update();
 	}, sample->lifetime());
 
 	rpl::combine(
 		button->sizeValue(),
 		sample->sizeValue(),
-		std::move(colorIndexValue)
-	) | rpl::start_with_next([=](QSize outer, QSize inner, int colorIndex) {
+		rpl::duplicate(colorIndexValue),
+		rpl::duplicate(colorProfileIndexValue)
+	) | rpl::start_with_next([=](
+			QSize outer,
+			QSize inner,
+			int colorIndex,
+			std::optional<uint8> profileIndex) {
+		const auto hasProfile = profileIndex.has_value();
+		const auto hasColor = (colorIndex != 0);
+
 		const auto right = st::settingsColorButton.padding.right()
 			- st::settingsColorSampleSkip
 			- st::settingsColorSampleSize
@@ -2589,9 +2628,18 @@ void SetupPeerColorSample(
 		sample->move(
 			outer.width() - right - inner.width(),
 			(outer.height() - inner.height()) / 2);
+		profileSample->move(
+			sample->pos().x()
+				+ (hasColor
+					? (st::settingsColorProfileSampleShift
+						- st::settingsColorSampleSize
+						- st::lineWidth)
+					: 0),
+			sample->pos().y());
 	}, sample->lifetime());
 
 	sample->setAttribute(Qt::WA_TransparentForMouseEvents);
+	profileSample->setAttribute(Qt::WA_TransparentForMouseEvents);
 }
 
 void AddPeerColorButton(

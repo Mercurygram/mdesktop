@@ -589,6 +589,8 @@ filterLinkChatsList: PeerList(peerListBox) {
 	padding: margins(0px, 0px, 0px, membersMarginBottom);
 }
 
+settingsColorSampleCutout: 3px;
+settingsColorProfileSampleShift: 5px;
 settingsColorSampleSize: 20px;
 settingsColorSampleCenter: 6px;
 settingsColorSampleCenterRadius: 2px;

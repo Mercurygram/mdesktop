@@ -144,7 +144,7 @@ void ColorSample::paintEvent(QPaintEvent *e) {
 	}
 
 	const auto colors = _style->coloredValues(false, _index);
-	if (!_simple && !colors.outlines[1].alpha()) {
+	if (!_forceCircle && !_simple && !colors.outlines[1].alpha()) {
 		const auto radius = height() / 2;
 		p.setPen(Qt::NoPen);
 		if (const auto raw = _collectible.get()) {
@@ -182,12 +182,55 @@ void ColorSample::paintEvent(QPaintEvent *e) {
 		const auto full = QRectF(-half, -half, size, size);
 		p.translate(size / 2., size / 2.);
 		p.setPen(Qt::NoPen);
+
+		auto combinedClip = QPainterPath();
+		if (_cutoutPadding > 0) {
+			combinedClip.addRect(QRectF(-half, -half, size, size));
+			auto cutout = QPainterPath();
+			const auto cutoutRadius = half;
+			const auto cutoutX = -half - _cutoutPadding;
+			const auto cutoutY = 0.0;
+			if (colors.outlines[1].alpha()) {
+				const auto angle = M_PI / (180. / 45.);
+				const auto rotatedX = cutoutX * std::cos(angle)
+					- cutoutY * std::sin(angle);
+				const auto rotatedY = cutoutX * std::sin(angle)
+					+ cutoutY * std::cos(angle);
+				cutout.addEllipse(
+					QPointF(rotatedX, rotatedY),
+					cutoutRadius,
+					cutoutRadius);
+			} else {
+				cutout.addEllipse(
+					QPointF(cutoutX, cutoutY),
+					cutoutRadius,
+					cutoutRadius);
+			}
+			combinedClip = combinedClip.subtracted(cutout);
+		}
+
 		if (colors.outlines[1].alpha()) {
 			p.rotate(-45.);
-			p.setClipRect(-size, 0, 3 * size, size);
+			if (_cutoutPadding > 0) {
+				auto rectPath = QPainterPath();
+				rectPath.addRect(QRectF(-size, 0, 3 * size, size));
+				auto clipRect = combinedClip.intersected(rectPath);
+				p.setClipPath(clipRect);
+			} else {
+				p.setClipRect(-size, 0, 3 * size, size);
+			}
 			p.setBrush(colors.outlines[1]);
 			p.drawEllipse(full);
-			p.setClipRect(-size, -size, 3 * size, size);
+			if (_cutoutPadding > 0) {
+				auto rectPath = QPainterPath();
+				rectPath.addRect(QRectF(-size, -size, 3 * size, size));
+				auto clipRect = combinedClip.intersected(rectPath);
+				p.setClipPath(clipRect);
+			} else {
+				p.setClipRect(-size, -size, 3 * size, size);
+			}
+		} else if (_cutoutPadding > 0) {
+			p.setClipPath(combinedClip);
 		}
 		p.setBrush(colors.outlines[0]);
 		p.drawEllipse(full);
@@ -219,6 +262,22 @@ void ColorSample::paintEvent(QPaintEvent *e) {
 
 uint8 ColorSample::index() const {
 	return _index;
+}
+
+void ColorSample::setCutoutPadding(int padding) {
+	if (_cutoutPadding == padding) {
+		return;
+	}
+	_cutoutPadding = padding;
+	update();
+}
+
+void ColorSample::setForceCircle(bool force) {
+	if (_forceCircle == force) {
+		return;
+	}
+	_forceCircle = force;
+	update();
 }
 
 ColorSelector::ColorSelector(

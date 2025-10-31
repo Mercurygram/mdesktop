@@ -44,6 +44,8 @@ public:
 	[[nodiscard]] uint8 index() const;
 
 	void setSelected(bool selected);
+	void setCutoutPadding(int padding);
+	void setForceCircle(bool force);
 
 private:
 	void paintEvent(QPaintEvent *e) override;
@@ -56,6 +58,8 @@ private:
 	bool _selected = false;
 	bool _simple = false;
 	Fn<Data::ColorProfileSet(uint8)> _profileProvider;
+	int _cutoutPadding = 0;
+	bool _forceCircle = false;
 
 };
 
