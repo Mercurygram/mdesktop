@@ -426,8 +426,8 @@ infoProfileTopBarGiftBottomRight: point(40px, 13px);
 
 infoProfileTopBarActionButtonBgOpacity: 0.16;
 infoProfileTopBarActionButtonSize: 52px;
-infoProfileTopBarActionButtonIconSize: 24px;
-infoProfileTopBarActionButtonLottieSize: infoProfileTopBarActionButtonIconSize - 2px;
+infoProfileTopBarActionButtonIconSize: 23px;
+infoProfileTopBarActionButtonLottieSize: infoProfileTopBarActionButtonIconSize - 0px;
 infoProfileTopBarActionButtonIconTop: 6px;
 infoProfileTopBarActionButtonTextTop: infoProfileTopBarActionButtonIconSize + infoProfileTopBarActionButtonIconTop + 1px;
 infoProfileTopBarActionButtonTextSkip: 4px;
@@ -444,14 +444,14 @@ infoProfileTopBarNoActionsHeightMax: infoProfileTopBarHeightMax - infoProfileTop
 
 infoProfileTopBarActionMenuSkip: 10px;
 
-infoProfileTopBarActionMessage: icon{{ "profile/message-22x22", windowBoldFg }};
-infoProfileTopBarActionMute: icon{{ "profile/mute-22x22", windowBoldFg }};
-infoProfileTopBarActionUnmute: icon{{ "profile/unmute-22x22", windowBoldFg }};
-infoProfileTopBarActionCall: icon{{ "profile/call-22x22", windowBoldFg }};
-infoProfileTopBarActionGift: icon{{ "profile/gift-22x22", windowBoldFg }};
-infoProfileTopBarActionJoin: icon{{ "profile/join-22x22", windowBoldFg }};
-infoProfileTopBarActionReport: icon{{ "profile/report-22x22", windowBoldFg }};
-infoProfileTopBarActionLeave: icon{{ "profile/leave-22x22", windowBoldFg }};
+infoProfileTopBarActionMessage: icon{{ "profile/message-23x23", windowBoldFg }};
+infoProfileTopBarActionMute: icon{{ "profile/mute-23x23", windowBoldFg }};
+infoProfileTopBarActionUnmute: icon{{ "profile/unmute-23x23", windowBoldFg }};
+infoProfileTopBarActionCall: icon{{ "profile/call-23x23", windowBoldFg }};
+infoProfileTopBarActionGift: icon{{ "profile/gift-23x23", windowBoldFg }};
+infoProfileTopBarActionJoin: icon{{ "profile/join-23x23", windowBoldFg }};
+infoProfileTopBarActionReport: icon{{ "profile/report-23x23", windowBoldFg }};
+infoProfileTopBarActionLeave: icon{{ "profile/leave-23x23", windowBoldFg }};
 infoProfileTopBarActionMore: icon{{ "profile/profile_more", windowBoldFg }};
 
 infoProfileTopBarTopicStatusButton: RoundButton(defaultTableSmallButton) {

@@ -133,19 +133,20 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 			: 0.0;
 		p.setOpacity(iconScale);
 		p.save();
-		const auto iconLeft = (width() - iconSize) / 2;
-		const auto half = iconSize / 2;
-		const auto iconCenter = QPoint(iconLeft + half, iconTop + half);
+		const auto iconLeft = (width() - iconSize) / 2.;
+		const auto half = iconSize / 2.;
+		const auto iconCenter = QPointF(iconLeft + half, iconTop + half);
 		p.translate(iconCenter);
 		p.scale(iconScale, iconScale);
 		p.translate(-iconCenter);
+		p.translate(iconLeft, iconTop);
 		if (_lottie) {
-			_lottie->paint(p, iconLeft, iconTop, _fgColor);
+			_lottie->paint(p, 0, 0, _fgColor);
 		} else if (_icon) {
 			if (_fgColor) {
-				_icon->paint(p, iconLeft, iconTop, width(), *_fgColor);
+				_icon->paint(p, 0, 0, width(), *_fgColor);
 			} else {
-				_icon->paint(p, iconLeft, iconTop, width());
+				_icon->paint(p, 0, 0, width());
 			}
 		}
 		p.restore();
