@@ -73,17 +73,17 @@ using SectionCustomTopBarData = Info::Settings::SectionCustomTopBarData;
 [[nodiscard]] Data::PremiumSubscriptionOptions SubscriptionOptionsForRows(
 		Data::PremiumSubscriptionOptions result) {
 	for (auto &option : result) {
-		const auto total = option.costTotal;
+		const auto perYear = option.costPerYear;
 		const auto perMonth = option.costPerMonth;
 
-		option.costTotal = tr::lng_premium_gift_per(
+		option.costPerYear = tr::lng_premium_gift_per(
 			tr::now,
 			lt_cost,
 			perMonth);
 		option.costPerMonth = tr::lng_premium_subscribe_total(
 			tr::now,
 			lt_cost,
-			total);
+			perYear);
 
 		if (option.duration == tr::lng_months(tr::now, lt_count, 1)) {
 			option.costPerMonth = QString();
