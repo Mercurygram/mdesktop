@@ -285,6 +285,15 @@ using Order = std::vector<QString>;
 			},
 		},
 		{
+			u"peer_colors"_q,
+			Entry{
+				&st::settingsPremiumIconPeerColors,
+				tr::lng_premium_summary_subtitle_peer_colors(),
+				tr::lng_premium_summary_about_peer_colors(),
+				PremiumFeature::PeerColors,
+			},
+		},
+		{
 			u"stories"_q,
 			Entry{
 				&st::settingsPremiumIconStories,
@@ -1792,6 +1801,8 @@ std::vector<PremiumFeature> PremiumFeaturesOrder(
 			return PremiumFeature::Effects;
 		} else if (s == u"todo"_q) {
 			return PremiumFeature::TodoLists;
+		} else if (s == u"peer_colors"_q) {
+			return PremiumFeature::PeerColors;
 		}
 		return PremiumFeature::kCount;
 	}) | ranges::views::filter([](PremiumFeature type) {
