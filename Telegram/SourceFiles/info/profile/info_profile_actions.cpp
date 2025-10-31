@@ -2887,20 +2887,6 @@ object_ptr<Ui::RpWidget> SetupChannelMembersAndManage(
 			st::infoChannelAdminsIconPosition);
 	}
 
-	if (EditPeerInfoBox::Available(channel)) {
-		const auto sessionController = controller->parentController();
-		const auto button = AddActionButton(
-			result->entity(),
-			tr::lng_profile_manage(),
-			rpl::single(true),
-			[=] { sessionController->showEditPeerBox(channel); },
-			nullptr);
-		object_ptr<FloatingIcon>(
-			button,
-			st::menuIconManage,
-			st::infoChannelAdminsIconPosition);
-	}
-
 	result->setDuration(st::infoSlideDuration)->toggleOn(
 		rpl::combine(
 			std::move(membersShown),
