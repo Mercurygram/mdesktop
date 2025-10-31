@@ -581,15 +581,17 @@ void Set(
 		using Flag = MTPaccount_UpdateColor::Flag;
 		using ColorFlag = MTPDpeerColor::Flag;
 		send(MTPaccount_UpdateColor(
-			MTP_flags(Flag::f_color
-				| (values.forProfile ? Flag::f_for_profile : Flag(0))),
+			MTP_flags((values.forProfile ? Flag::f_for_profile : Flag(0))
+				| (values.colorIndex != kUnsetColorIndex
+					? Flag::f_color
+					: Flag(0))),
 			(values.colorCollectible
 				? MTP_inputPeerColorCollectible(
 					MTP_long(values.colorCollectible->collectibleId))
 				: MTP_peerColor(
 					MTP_flags(ColorFlag()
 						| ColorFlag::f_color
-						| (values.backgroundEmojiId || !values.forProfile
+						| (values.backgroundEmojiId
 							? ColorFlag::f_background_emoji_id
 							: ColorFlag(0))),
 					MTP_int(values.colorIndex),
@@ -598,7 +600,9 @@ void Set(
 		if (peer->isBroadcast()) {
 			using Flag = MTPchannels_UpdateColor::Flag;
 			send(MTPchannels_UpdateColor(
-				MTP_flags(Flag::f_color
+				MTP_flags((values.colorIndex != kUnsetColorIndex
+						? Flag::f_color
+						: Flag(0))
 					| Flag::f_background_emoji_id
 					| (values.forProfile ? Flag::f_for_profile : Flag(0))),
 				channel->inputChannel,
