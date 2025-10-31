@@ -388,6 +388,8 @@ boostFeatureStories: icon{{ "settings/premium/features/feature_stories", windowB
 boostFeatureTranscribe: icon{{ "settings/premium/features/feature_voice", windowBgActive }};
 boostFeatureAutoTranslate: icon{{ "menu/translate", windowBgActive }};
 boostFeatureOffSponsored: icon{{ "settings/premium/features/feature_off_sponsored", windowBgActive }};
+boostFeatureProfileColor: icon{{ "settings/premium/features/feature_color_profile", windowBgActive }};
+boostFeatureProfileIcon: icon{{ "settings/premium/features/feature_profile_cover", windowBgActive }};
 
 paidReactBox: Box(boostBox) {
 	buttonPadding: margins(22px, 22px, 22px, 22px);

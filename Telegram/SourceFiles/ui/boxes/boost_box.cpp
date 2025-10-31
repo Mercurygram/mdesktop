@@ -143,6 +143,7 @@ void AddFeaturesList(
 	const auto proj = &Ui::Text::RichLangValue;
 	const auto lowMax = std::max({
 		features.linkLogoLevel,
+		features.profileIconLevel,
 		features.autotranslateLevel,
 		features.transcribeLevel,
 		features.emojiPackLevel,
@@ -155,10 +156,14 @@ void AddFeaturesList(
 		(features.linkStylesByLevel.empty()
 			? 0
 			: features.linkStylesByLevel.back().first),
+		(features.profileColorsByLevel.empty()
+			? 0
+			: features.profileColorsByLevel.back().first),
 	});
 	const auto highMax = std::max(lowMax, features.sponsoredLevel);
 	auto nameColors = 0;
 	auto linkStyles = 0;
+	auto profileColors = 0;
 	for (auto i = std::max(startFromLevel, 1); i <= highMax; ++i) {
 		if ((i > lowMax) && (i < highMax)) {
 			continue;
@@ -241,11 +246,33 @@ void AddFeaturesList(
 					proj
 				), st::boostFeatureName);
 			}
+
 			add(tr::lng_feature_reactions(
 				lt_count,
 				rpl::single(float64(i)),
 				proj
 			), st::boostFeatureCustomReactions);
+		}
+		// Profile colors and icons for both channels and groups
+		if (const auto j = features.profileColorsByLevel.find(i)
+			; j != end(features.profileColorsByLevel)) {
+			profileColors += j->second;
+		}
+		if (profileColors > 0) {
+			add((group
+				? tr::lng_feature_profile_color_group
+				: tr::lng_feature_profile_color_channel)(
+					lt_count,
+					rpl::single(float64(profileColors)),
+					proj
+				), st::boostFeatureProfileColor);
+		}
+		if (i >= features.profileIconLevel) {
+			add(
+				(group
+					? tr::lng_feature_profile_icon_group
+					: tr::lng_feature_profile_icon_channel)(proj),
+				st::boostFeatureProfileIcon);
 		}
 		add(
 			tr::lng_feature_stories(lt_count, rpl::single(float64(i)), proj),

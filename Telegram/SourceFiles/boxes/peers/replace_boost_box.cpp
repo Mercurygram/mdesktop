@@ -433,6 +433,7 @@ Ui::BoostCounters ParseBoostCounters(
 Ui::BoostFeatures LookupBoostFeatures(not_null<ChannelData*> channel) {
 	auto nameColorsByLevel = base::flat_map<int, int>();
 	auto linkStylesByLevel = base::flat_map<int, int>();
+	auto profileColorsByLevel = base::flat_map<int, int>();
 	const auto group = channel->isMegagroup();
 	const auto peerColors = &channel->session().api().peerColors();
 	const auto &list = group
@@ -445,6 +446,29 @@ Ui::BoostFeatures LookupBoostFeatures(not_null<ChannelData*> channel) {
 		}
 		++linkStylesByLevel[level];
 	}
+	{
+		const auto profileIndices = peerColors->profileColorIndices();
+		auto lowestNonZeroLevel = std::numeric_limits<int>::max();
+		auto levels = std::vector<int>();
+		levels.reserve(profileIndices.size());
+
+		for (const auto index : profileIndices) {
+			const auto level = peerColors->requiredLevelFor(
+				channel->id,
+				index,
+				group,
+				true);
+			levels.push_back(level);
+			if (level) {
+				lowestNonZeroLevel = std::min(lowestNonZeroLevel, level);
+			}
+		}
+
+		for (const auto level : levels) {
+			++profileColorsByLevel[std::max(level, lowestNonZeroLevel)];
+		}
+	}
+
 	const auto &themes = channel->owner().cloudThemes().chatThemes();
 	if (themes.empty()) {
 		channel->owner().cloudThemes().refreshChatThemes();
@@ -453,7 +477,11 @@ Ui::BoostFeatures LookupBoostFeatures(not_null<ChannelData*> channel) {
 	return Ui::BoostFeatures{
 		.nameColorsByLevel = std::move(nameColorsByLevel),
 		.linkStylesByLevel = std::move(linkStylesByLevel),
+		.profileColorsByLevel = std::move(profileColorsByLevel),
 		.linkLogoLevel = group ? 0 : levelLimits.channelBgIconLevelMin(),
+		.profileIconLevel = group
+			? levelLimits.groupProfileBgIconLevelMin()
+			: levelLimits.channelProfileBgIconLevelMin(),
 		.autotranslateLevel = group ? 0 : levelLimits.channelAutoTranslateLevelMin(),
 		.transcribeLevel = group ? levelLimits.groupTranscribeLevelMin() : 0,
 		.emojiPackLevel = group ? levelLimits.groupEmojiStickersLevelMin() : 0,
