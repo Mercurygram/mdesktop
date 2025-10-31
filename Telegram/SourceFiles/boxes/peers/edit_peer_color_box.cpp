@@ -760,7 +760,7 @@ void Apply(
 	}, right->lifetime());
 
 	const auto session = &show->session();
-	const auto added = st::normalFont->spacew;
+	const auto added = st::lineWidth * 2;
 	std::move(emojiIdValue) | rpl::start_with_next([=](DocumentId emojiId) {
 		state->emojiId = emojiId;
 		state->emoji = emojiId
@@ -790,13 +790,16 @@ void Apply(
 		}
 		auto p = QPainter(right);
 		const auto height = right->height();
-		if (state->emoji && state->index != kUnsetColorIndex) {
+		if (state->emoji
+			&& (state->index != kUnsetColorIndex || profileIndices)) {
 			const auto profileSet = profileIndices
 				? peer->session().api().peerColors().colorProfileFor(
 					state->index)
 				: std::nullopt;
 			const auto textColor = profileSet && !profileSet->palette.empty()
 				? profileSet->palette.front()
+				: profileIndices
+				? style->windowActiveTextFg()->c
 				: style->coloredValues(false, state->index).name;
 			state->emoji->paint(p, {
 				.textColor = textColor,
