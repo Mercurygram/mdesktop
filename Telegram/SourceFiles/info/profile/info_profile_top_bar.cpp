@@ -646,6 +646,11 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 	};
 	const auto guard = gsl::finally([&] {
 		addMore();
+		style::PaletteChanged(
+		) | rpl::start_with_next([=] {
+			const auto current = _edgeColor.current();
+			_edgeColor.force_assign(current);
+		}, _actions->lifetime());
 		_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
 				TopBarActionButtonStyle st) {
 			for (const auto &button : buttons) {
