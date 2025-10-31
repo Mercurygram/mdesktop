@@ -8,8 +8,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_top_bar.h"
 
 #include "api/api_peer_colors.h"
+#include "api/api_peer_photo.h"
 #include "api/api_user_privacy.h"
 #include "apiwrap.h"
+#include "base/call_delayed.h"
 #include "base/timer_rpl.h"
 #include "base/timer.h"
 #include "base/unixtime.h"
@@ -27,8 +29,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_document_media.h"
 #include "data/data_document.h"
 #include "data/data_emoji_statuses.h"
-#include "data/data_forum.h"
 #include "data/data_forum_topic.h"
+#include "data/data_forum.h"
 #include "data/data_peer_values.h"
 #include "data/data_peer.h"
 #include "data/data_photo.h"
@@ -40,6 +42,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/notify/data_notify_settings.h"
 #include "data/notify/data_peer_notify_settings.h"
 #include "data/stickers/data_custom_emoji.h"
+#include "editor/photo_editor_common.h"
+#include "editor/photo_editor_layer_widget.h"
 #include "history/history.h"
 #include "info/info_memento.h"
 #include "info/profile/info_profile_badge_tooltip.h"
@@ -48,6 +52,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_status_label.h"
 #include "info/profile/info_profile_top_bar_action_button.h"
 #include "info/profile/info_profile_values.h"
+#include "info/userpic/info_userpic_emoji_builder_common.h"
+#include "info/userpic/info_userpic_emoji_builder_common.h"
+#include "info/userpic/info_userpic_emoji_builder_menu_item.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_animation.h"
 #include "lottie/lottie_multi_player.h"
@@ -59,15 +66,17 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/boxes/show_or_premium_box.h"
 #include "ui/color_contrast.h"
 #include "ui/controls/stars_rating.h"
+#include "ui/controls/userpic_button.h"
 #include "ui/effects/animations.h"
+#include "ui/effects/outline_segments.h"
 #include "ui/empty_userpic.h"
 #include "ui/layers/generic_box.h"
-#include "ui/peer/video_userpic_player.h"
 #include "ui/painter.h"
+#include "ui/peer/video_userpic_player.h"
 #include "ui/rect.h"
+#include "ui/text/text_utilities.h"
 #include "ui/top_background_gradient.h"
 #include "ui/ui_utility.h"
-#include "ui/effects/outline_segments.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/horizontal_fit_container.h"
 #include "ui/widgets/labels.h"
@@ -78,14 +87,16 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
-#include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h"
+#include "styles/style_chat.h"
 #include "styles/style_info.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
 
 #include <QGraphicsOpacityEffect>
+#include <QtGui/QClipboard>
+#include <QtGui/QGuiApplication>
 
 namespace Info::Profile {
 namespace {
@@ -891,14 +902,113 @@ void TopBar::setupUserpicButton(
 		return true;
 	};
 
+	const auto isContact = [=, peer = _peer] {
+		if (const auto user = peer->asUser()) {
+			return user->isContact()
+				&& !user->isSelf()
+				&& !user->isInaccessible()
+				&& !user->isServiceUser();
+		}
+		return false;
+	};
+
+	const auto canSuggestPhoto = [=, peer = _peer] {
+		if (const auto user = peer->asUser()) {
+			return !user->isSelf()
+				&& !user->isBot()
+				&& !user->starsPerMessageChecked()
+				&& user->owner().history(user)->lastServerMessage();
+		}
+		return false;
+	};
+
+	const auto choosePhotoCallback = [=](Ui::UserpicButton::ChosenType type) {
+		return [=](QImage &&image) {
+			using ChosenType = Ui::UserpicButton::ChosenType;
+			auto result = Api::PeerPhoto::UserPhoto{
+				std::move(image),
+				0,
+				std::vector<QColor>(),
+			};
+			switch (type) {
+			case ChosenType::Set:
+				_peer->session().api().peerPhoto().upload(
+					_peer,
+					std::move(result));
+				break;
+			case ChosenType::Suggest:
+				_peer->session().api().peerPhoto().suggest(
+					_peer,
+					std::move(result));
+				break;
+			}
+		};
+	};
+
+	const auto editorData = [=](Ui::UserpicButton::ChosenType type) {
+		const auto user = _peer->asUser();
+		const auto name = (user && !user->firstName.isEmpty())
+			? user->firstName
+			: _peer->name();
+		const auto phrase = (type == Ui::UserpicButton::ChosenType::Suggest)
+			? &tr::lng_profile_suggest_sure
+			: &tr::lng_profile_set_personal_sure;
+		return Editor::EditorData{
+			.about = (*phrase)(
+				tr::now,
+				lt_user,
+				Ui::Text::Bold(name),
+				Ui::Text::WithEntities),
+			.confirm = ((type == Ui::UserpicButton::ChosenType::Suggest)
+				? tr::lng_profile_suggest_button(tr::now)
+				: tr::lng_profile_set_photo_button(tr::now)),
+			.cropType = Editor::EditorData::CropType::Ellipse,
+			.keepAspectRatio = true,
+		};
+	};
+
+	const auto chooseFile = [=](Ui::UserpicButton::ChosenType type) {
+		base::call_delayed(
+			st::defaultRippleAnimation.hideDuration,
+			crl::guard(this, [=] {
+				Editor::PrepareProfilePhotoFromFile(
+					this,
+					&controller->window(),
+					editorData(type),
+					choosePhotoCallback(type));
+			}));
+	};
+
+	const auto addFromClipboard = [=](
+			Ui::PopupMenu *menu,
+			Ui::UserpicButton::ChosenType type,
+			tr::phrase<> text) {
+		if (const auto data = QGuiApplication::clipboard()->mimeData()) {
+			if (data->hasImage()) {
+				auto openEditor = crl::guard(this, [=] {
+					Editor::PrepareProfilePhoto(
+						this,
+						&controller->window(),
+						editorData(type),
+						choosePhotoCallback(type),
+						qvariant_cast<QImage>(data->imageData()));
+				});
+				menu->addAction(
+					std::move(text)(tr::now),
+					std::move(openEditor),
+					&st::menuIconPhoto);
+			}
+		}
+	};
+
 	_userpicButton->clicks() | rpl::start_with_next([=](
 			Qt::MouseButton button) {
 		if (button == Qt::RightButton
-			&& (_hasStories || canReport())
+			&& (_hasStories || canReport() || isContact())
 			&& _peer->userpicPhotoId()) {
 			*menu = base::make_unique_q<Ui::PopupMenu>(
 				this,
-				st::popupMenuExpandedSeparator);
+				st::popupMenuWithIcons);
 
 			if (_hasStories) {
 				(*menu)->addAction(
@@ -918,6 +1028,52 @@ void TopBar::setupUserpicButton(
 									_peer->userpicPhotoId())));
 					},
 					&st::menuIconReport);
+			}
+
+			if (isContact()) {
+				if (!(*menu)->empty()) {
+					(*menu)->addSeparator(&st::expandedMenuSeparator);
+				}
+				(*menu)->addAction(
+					tr::lng_profile_set_photo_for(tr::now),
+					[=] { chooseFile(Ui::UserpicButton::ChosenType::Set); },
+					&st::menuIconPhotoSet);
+				addFromClipboard(
+					menu->get(),
+					Ui::UserpicButton::ChosenType::Set,
+					tr::lng_profile_set_photo_for_from_clipboard);
+				if (canSuggestPhoto()) {
+					(*menu)->addAction(
+						tr::lng_profile_suggest_photo(tr::now),
+						[=] {
+							chooseFile(
+								Ui::UserpicButton::ChosenType::Suggest);
+						},
+						&st::menuIconPhotoSuggest);
+					addFromClipboard(
+						menu->get(),
+						Ui::UserpicButton::ChosenType::Suggest,
+						tr::lng_profile_suggest_photo_from_clipboard);
+				}
+				if (controller) {
+					const auto done = [=](UserpicBuilder::Result data) {
+						auto result = Api::PeerPhoto::UserPhoto{
+							base::take(data.image),
+							data.id,
+							base::take(data.colors),
+						};
+						_peer->session().api().peerPhoto().upload(
+							_peer,
+							std::move(result));
+					};
+					UserpicBuilder::AddEmojiBuilderAction(
+						controller,
+						menu->get(),
+						_peer->session().api().peerPhoto().emojiListValue(
+							Api::PeerPhoto::EmojiListType::Profile),
+						done,
+						false);
+				}
 			}
 
 			(*menu)->popup(QCursor::pos());
