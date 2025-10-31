@@ -46,6 +46,7 @@ enum class WriteRestrictionType {
 	Rights,
 	PremiumRequired,
 	Frozen,
+	Hidden,
 };
 
 struct WriteRestriction {

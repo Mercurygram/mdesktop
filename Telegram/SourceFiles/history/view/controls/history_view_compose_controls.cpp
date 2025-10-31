@@ -2901,9 +2901,11 @@ void ComposeControls::initVoiceRecordBar() {
 }
 
 void ComposeControls::updateWrappingVisibility() {
-	const auto hidden = _hidden.current();
 	const auto &restriction = _writeRestriction.current();
 	const auto restricted = !restriction.empty() && _writeRestricted;
+	using Type = HistoryView::Controls::WriteRestrictionType;
+	const auto hidden = _hidden.current()
+		|| (restriction.type == Type::Hidden);
 	if (_writeRestricted) {
 		_writeRestricted->setVisible(!hidden && restricted);
 	}

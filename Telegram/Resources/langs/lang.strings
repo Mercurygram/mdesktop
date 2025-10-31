@@ -4165,6 +4165,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_video_stream_comment_ph" = "Comment";
 "lng_video_stream_comment_paid_ph#one" = "Comment for {count} Star";
 "lng_video_stream_comment_paid_ph#other" = "Comment for {count} Stars";
+"lng_video_stream_comments_disabled" = "Comments disabled.";
 "lng_video_stream_stars" = "Add Stars to highlight your comment";
 "lng_video_stream_live" = "LIVE";
 "lng_video_stream_watched#one" = "{count} watching";

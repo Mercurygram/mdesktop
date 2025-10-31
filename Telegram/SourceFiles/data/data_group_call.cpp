@@ -128,6 +128,13 @@ bool GroupCall::loaded() const {
 	return _version > 0;
 }
 
+rpl::producer<bool> GroupCall::loadedValue() const {
+	if (loaded()) {
+		return rpl::single(true);
+	}
+	return _loadedChanges.events_starting_with(false);
+}
+
 bool GroupCall::rtmp() const {
 	return _rtmp;
 }
@@ -552,6 +559,9 @@ void GroupCall::applyCallFields(const MTPDgroupCall &data) {
 	_conferenceInviteLink = qs(data.vinvite_link().value_or_empty());
 	if (const auto as = data.vdefault_send_as()) {
 		_savedSendAs = _peer->owner().peer(peerFromMTP(*as));
+	}
+	if (initial) {
+		_loadedChanges.fire(true);
 	}
 }
 

@@ -81,6 +81,7 @@ public:
 
 	[[nodiscard]] CallId id() const;
 	[[nodiscard]] bool loaded() const;
+	[[nodiscard]] rpl::producer<bool> loadedValue() const;
 	[[nodiscard]] bool rtmp() const;
 	[[nodiscard]] GroupCallOrigin origin() const;
 	[[nodiscard]] bool canManage() const;
@@ -262,6 +263,7 @@ private:
 
 	not_null<PeerData*> _peer;
 	int _version = 0;
+	rpl::event_stream<bool> _loadedChanges;
 	mtpRequestId _participantsRequestId = 0;
 	mtpRequestId _reloadRequestId = 0;
 	crl::time _reloadLastFinished = 0;

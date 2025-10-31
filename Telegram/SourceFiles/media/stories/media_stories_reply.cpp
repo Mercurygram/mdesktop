@@ -896,12 +896,17 @@ void ReplyArea::show(
 		? ReplyAreaType::Comment
 		: ReplyAreaType::Reply;
 	auto writeRestriction = stream
-		? stream->messagesEnabledValue() | rpl::map([=](bool enabled) {
+		? rpl::combine(
+			stream->messagesEnabledValue(),
+			stream->loadedValue()
+		) | rpl::map([=](bool enabled, bool loaded) {
 			using namespace HistoryView::Controls;
-			return enabled
+			return !loaded
+				? WriteRestriction{ .type = WriteRestrictionType::Hidden }
+				: enabled
 				? WriteRestriction()
 				: WriteRestriction{
-					.text = u"Comments disabled."_q,
+					.text = tr::lng_video_stream_comments_disabled(tr::now),
 					.type = WriteRestrictionType::Rights,
 				};
 		}) | rpl::type_erased()
