@@ -596,7 +596,7 @@ infoColoredPeerBadge: InfoPeerBadge(infoPeerBadge) {
 	verified: icon {{ "profile_verified_star", groupCallMembersFg }}; // Will be colorized.
 	verifiedCheck: icon {{ "profile_verified_check", groupCallMembersFg }};
 	premium: icon {{ "profile_premium", groupCallMembersFg }};
-	premiumFg: groupCallMembersFg;
+	premiumFg: groupCallVideoSubTextFg;
 }
 infoColoredBotVerifyBadge: InfoPeerBadge(infoColoredPeerBadge) {
 	position: point(-2px, 2px);

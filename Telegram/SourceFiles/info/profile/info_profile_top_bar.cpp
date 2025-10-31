@@ -551,6 +551,20 @@ void TopBar::updateCollectibleStatus() {
 		_pinnedToTopGifts.clear();
 	}
 	if (colorProfile && !colorProfile->palette.empty()) {
+		const auto copyStVerified = [&](const style::InfoPeerBadge &st) {
+			auto result = std::make_unique<style::InfoPeerBadge>(
+				base::duplicate(st));
+			auto fg = std::make_shared<style::owned_color>(
+				Ui::BlendColors(
+					colorProfile->palette.back(),
+					colorProfile->palette.size() == 1 ? Qt::white : Qt::black,
+					0.2));
+			result->premiumFg = fg->color();
+			return std::shared_ptr<style::InfoPeerBadge>(
+				result.release(),
+				[fg](style::InfoPeerBadge *ptr) { delete ptr; });
+			return std::shared_ptr<style::InfoPeerBadge>(result.release());
+		};
 		const auto copySt = [&](const style::InfoPeerBadge &st) {
 			auto result = std::make_unique<style::InfoPeerBadge>(
 				base::duplicate(st));
@@ -559,7 +573,7 @@ void TopBar::updateCollectibleStatus() {
 		};
 		_botVerifySt = copySt(st::infoColoredBotVerifyBadge);
 		_badgeSt = copySt(st::infoColoredPeerBadge);
-		_verifiedSt = copySt(st::infoColoredPeerBadge);
+		_verifiedSt = copyStVerified(st::infoColoredPeerBadge);
 	} else {
 		_botVerifySt = nullptr;
 		_badgeSt = nullptr;
