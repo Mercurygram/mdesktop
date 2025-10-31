@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/application.h"
 #include "core/core_settings.h"
 #include "history/view/media/history_view_media_common.h"
+#include "ui/basic_click_handlers.h"
 #include "ui/chat/chat_style.h"
 #include "ui/effects/premium_graphics.h"
 #include "ui/effects/premium_top_bar.h"
@@ -604,30 +605,8 @@ void SetupLoginEmail(
 		{ &st::menuIconRecoveryEmail });
 	CreateRightLabel(button, std::move(label), st, std::move(text));
 
-	button->addClickHandler([=, email = std::move(email)] {
-		controller->uiShow()->show(Box([=](not_null<Ui::GenericBox*> box) {
-			{
-				box->getDelegate()->setTitle(rpl::duplicate(
-					email
-				) | rpl::map(Ui::Text::WrapEmailPattern));
-				for (const auto &child : ranges::views::reverse(
-						box->parentWidget()->children())) {
-					if (child && child->isWidgetType()) {
-						(static_cast<QWidget*>(child))->setAttribute(
-							Qt::WA_TransparentForMouseEvents);
-						break;
-					}
-				}
-			}
-			Ui::ConfirmBox(box, Ui::ConfirmBoxArgs{
-				.text = tr::lng_settings_cloud_login_email_box_about(),
-				.confirmed = [=](Fn<void()> close) {
-					showOther(CloudLoginEmailId());
-					close();
-				},
-				.confirmText = tr::lng_settings_cloud_login_email_box_ok(),
-			});
-		}));
+	button->addClickHandler([=] {
+		UrlClickHandler::Open(u"tg://settings/login_email"_q);
 	});
 
 	const auto reloadOnActivation = [=](Qt::ApplicationState state) {

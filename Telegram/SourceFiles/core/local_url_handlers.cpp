@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/local_url_handlers.h"
 
 #include "api/api_authorizations.h"
+#include "api/api_cloud_password.h"
 #include "api/api_confirm_phone.h"
 #include "api/api_chat_filters.h"
 #include "api/api_chat_invite.h"
@@ -52,6 +53,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_peer_menu.h"
 #include "window/themes/window_theme_editor_box.h" // GenerateSlug.
 #include "payments/payments_checkout_process.h"
+#include "settings/cloud_password/settings_cloud_password_login_email.h"
 #include "settings/settings_active_sessions.h"
 #include "settings/settings_credits.h"
 #include "settings/settings_credits_graphics.h"
@@ -497,6 +499,33 @@ bool ShowWallPaper(
 	return result;
 }
 
+void LoginEmailBox(
+		not_null<Ui::GenericBox*> box,
+		rpl::producer<QString> email,
+		Fn<void()> callback) {
+	{
+		box->getDelegate()->setTitle(rpl::duplicate(
+			email
+		) | rpl::map(Ui::Text::WrapEmailPattern));
+		for (const auto &child : ranges::views::reverse(
+				box->parentWidget()->children())) {
+			if (child && child->isWidgetType()) {
+				(static_cast<QWidget*>(child))->setAttribute(
+					Qt::WA_TransparentForMouseEvents);
+				break;
+			}
+		}
+	}
+	Ui::ConfirmBox(box, Ui::ConfirmBoxArgs{
+		.text = tr::lng_settings_cloud_login_email_box_about(),
+		.confirmed = [=](Fn<void()> close) {
+			callback();
+			close();
+		},
+		.confirmText = tr::lng_settings_cloud_login_email_box_ok(),
+	});
+}
+
 [[nodiscard]] ChatAdminRights ParseRequestedAdminRights(
 		const QString &value) {
 	auto result = ChatAdminRights();
@@ -759,6 +788,21 @@ bool ResolvePrivatePost(
 	return true;
 }
 
+void ShowLoginEmailSettings(Window::SessionController *controller) {
+	controller->session().api().cloudPassword().reload();
+	controller->uiShow()->show(Box(
+		LoginEmailBox,
+		controller->session().api().cloudPassword().state(
+		) | rpl::map([](const Core::CloudPasswordState &state) {
+			return state.loginEmailPattern;
+		}),
+		[=] {
+			controller->showSettings(
+				::Settings::CloudLoginEmailId());
+			controller->window().activate();
+		}));
+}
+
 bool ResolveSettings(
 		Window::SessionController *controller,
 		const Match &match,
@@ -787,6 +831,9 @@ bool ResolveSettings(
 			return ::Settings::GlobalTTLId();
 		} else if (section == u"information"_q) {
 			return ::Settings::Information::Id();
+		} else if (section == u"login_email"_q) {
+			ShowLoginEmailSettings(controller);
+			return {};
 		}
 		return ::Settings::Main::Id();
 	}();
@@ -1685,7 +1732,7 @@ const std::vector<LocalUrlHandler> &LocalUrlHandlers() {
 			ResolvePrivatePost
 		},
 		{
-			u"^settings(/language|/devices|/folders|/privacy|/themes|/change_number|/auto_delete|/information|/edit_profile|/phone_privacy)?$"_q,
+			u"^settings(/language|/devices|/folders|/privacy|/themes|/change_number|/auto_delete|/information|/edit_profile|/phone_privacy|/login_email)?$"_q,
 			ResolveSettings
 		},
 		{
