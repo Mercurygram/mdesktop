@@ -761,6 +761,10 @@ object_ptr<BoxContent> MakePaidReactionBox(PaidReactionBoxArgs &&args) {
 	return Box(PaidReactionsBox, std::move(args));
 }
 
+int MaxTopPaidDonorsShown() {
+	return kMaxTopPaidShown;
+}
+
 QImage GenerateSmallBadgeImage(
 		QString text,
 		const style::icon &icon,

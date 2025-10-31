@@ -150,6 +150,8 @@ private:
 
 	[[nodiscard]] Data::PaidReactionSend startPaidReactionSending();
 	void finishPaidSending(Data::PaidReactionSend send, bool success);
+	void addStars(not_null<PeerData*> from, int stars, bool mine);
+	void requestStarsStats();
 
 	const not_null<GroupCall*> _call;
 	const not_null<Main::Session*> _session;
@@ -178,6 +180,7 @@ private:
 	bool _changesScheduled = false;
 
 	rpl::event_stream<> _hiddenShowRequests;
+	base::Timer _starsStatsTimer;
 
 	rpl::lifetime _lifetime;
 

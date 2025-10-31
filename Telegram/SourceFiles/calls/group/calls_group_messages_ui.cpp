@@ -764,21 +764,30 @@ void MessagesUi::appendPinned(const Message &data, TimeId now) {
 
 	const auto id = data.id;
 	const auto peer = data.peer;
-	const auto i = ranges::lower_bound(
+	const auto finishes = crl::now()
+		+ (data.pinFinishDate - now) * crl::time(1000);
+	const auto i = ranges::find(_pinnedViews, peer, &PinnedView::from);
+	if (i != end(_pinnedViews)) {
+		if (i->end > finishes) {
+			return;
+		}
+		_pinnedViews.erase(i);
+	}
+	const auto j = ranges::lower_bound(
 		_pinnedViews,
 		data.stars,
 		ranges::greater(),
 		&PinnedView::stars);
-	const auto left = (i != end(_pinnedViews))
-		? i->left
+	const auto left = (j != end(_pinnedViews))
+		? j->left
 		: _pinnedViews.empty()
 		? 0
 		: (_pinnedViews.back().left + _pinnedViews.back().width);
-	auto &entry = *_pinnedViews.insert(i, PinnedView{
+	auto &entry = *_pinnedViews.insert(j, PinnedView{
 		.id = data.id,
 		.from = peer,
 		.duration = (data.pinFinishDate - data.date) * crl::time(1000),
-		.end = crl::now() + (data.pinFinishDate - now) * crl::time(1000),
+		.end = finishes,
 		.stars = data.stars,
 		.left = left,
 	});
@@ -1426,6 +1435,7 @@ void MessagesUi::setupPinnedWidget() {
 			entry.text.draw(p, {
 				.position = { x + leftSkip, y + padding.top() },
 				.availableWidth = entry.width - leftSkip - padding.right(),
+				.elisionLines = 1,
 			});
 			if (scaled) {
 				p.restore();

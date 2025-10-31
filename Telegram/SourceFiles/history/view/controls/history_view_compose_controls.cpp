@@ -1157,10 +1157,7 @@ void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
 		changed = true;
 	}
 	if (was.recordMediaMessage != features.recordMediaMessage) {
-		_chosenStarsCount = features.editMessageStars
-			? 0
-			: std::optional<int>();
-		updateSendButtonType();
+		clearChosenStarsForMessage();
 	}
 	if (was.attachments != features.attachments) {
 		if (!features.attachments) {
@@ -1876,7 +1873,9 @@ void ComposeControls::clearListenState() {
 }
 
 void ComposeControls::clearChosenStarsForMessage() {
-	const auto empty = _features.editMessageStars ? 0 : std::optional<int>();
+	const auto empty = _features.editMessageStars
+		? _minStarsCount.current()
+		: std::optional<int>();
 	if (_chosenStarsCount != empty) {
 		_chosenStarsCount = empty;
 		updateSendButtonType();

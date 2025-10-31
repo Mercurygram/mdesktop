@@ -56,6 +56,8 @@ void PaidReactionsBox(
 [[nodiscard]] object_ptr<BoxContent> MakePaidReactionBox(
 	PaidReactionBoxArgs &&args);
 
+[[nodiscard]] int MaxTopPaidDonorsShown();
+
 [[nodiscard]] QImage GenerateSmallBadgeImage(
 	QString text,
 	const style::icon &icon,

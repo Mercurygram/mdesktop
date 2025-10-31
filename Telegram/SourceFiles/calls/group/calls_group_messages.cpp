@@ -32,6 +32,7 @@ namespace Calls::Group {
 namespace {
 
 constexpr auto kMaxShownVideoStreamMessages = 100;
+constexpr auto kStarsStatsShortPollDelay = 30 * crl::time(1000);
 
 [[nodiscard]] StarsTop ParseStarsTop(
 		not_null<Data::Session*> owner,
@@ -77,7 +78,8 @@ Messages::Messages(not_null<GroupCall*> call, not_null<MTP::Sender*> api)
 , _session(&call->peer()->session())
 , _api(api)
 , _destroyTimer([=] { checkDestroying(); })
-, _ttl(_session->appConfig().groupCallMessageTTL()) {
+, _ttl(_session->appConfig().groupCallMessageTTL())
+, _starsStatsTimer([=] { requestStarsStats(); }) {
 	Ui::PostponeCall(_call, [=] {
 		_call->real(
 		) | rpl::start_with_next([=](not_null<Data::GroupCall*> call) {
@@ -89,20 +91,7 @@ Messages::Messages(not_null<GroupCall*> call, not_null<MTP::Sender*> api)
 			}
 		}, _lifetime);
 
-		_starsTopRequestId = _api->request(MTPphone_GetGroupCallStars(
-			_call->inputCall()
-		)).done([=](const MTPphone_GroupCallStars &result) {
-			const auto &data = result.data();
-
-			const auto owner = &_session->data();
-			owner->processUsers(data.vusers());
-			owner->processChats(data.vchats());
-
-			_paid.top = ParseStarsTop(owner, result);
-			_paidChanges.fire({});
-		}).fail([=](const MTP::Error &error) {
-			[[maybe_unused]] const auto &type = error.type();
-		}).send();
+		requestStarsStats();
 	});
 }
 
@@ -116,6 +105,30 @@ Messages::~Messages() {
 				_paid.sendingShownPeer),
 		}, false);
 	}
+}
+
+void Messages::requestStarsStats() {
+	if (!_call->videoStream()) {
+		return;
+	}
+	_starsStatsTimer.cancel();
+	_starsTopRequestId = _api->request(MTPphone_GetGroupCallStars(
+		_call->inputCall()
+	)).done([=](const MTPphone_GroupCallStars &result) {
+		const auto &data = result.data();
+
+		const auto owner = &_session->data();
+		owner->processUsers(data.vusers());
+		owner->processChats(data.vchats());
+
+		_paid.top = ParseStarsTop(owner, result);
+		_paidChanges.fire({});
+
+		_starsStatsTimer.callOnce(kStarsStatsShortPollDelay);
+	}).fail([=](const MTP::Error &error) {
+		[[maybe_unused]] const auto &type = error.type();
+		_starsStatsTimer.callOnce(kStarsStatsShortPollDelay);
+	}).send();
 
 }
 
@@ -187,6 +200,8 @@ void Messages::send(TextWithTags text, int stars) {
 			failed(randomId, response);
 		}).send();
 	}
+
+	addStars(from, stars, true);
 	checkDestroying(true);
 }
 
@@ -326,6 +341,11 @@ void Messages::received(
 		allowedEntityTypes.pop_back();
 	}
 	const auto author = peer->owner().peer(peerFromMTP(from));
+
+	// Should check by sendAsPeers() list instead, but it may not be
+	// loaded here yet.
+	const auto mine = author->isSelf()
+		|| (author->isChannel() && author->asChannel()->amCreator());
 	_messages.push_back({
 		.id = id,
 		.date = date,
@@ -335,10 +355,11 @@ void Messages::received(
 			Api::ParseTextWithEntities(&peer->session(), message),
 			allowedEntityTypes),
 		.stars = stars,
-		.mine = (author->isSelf()
-			|| (author->isChannel() && author->asChannel()->amCreator()))
+		.mine = mine,
 	});
 	ranges::sort(_messages, ranges::less(), &Message::id);
+
+	addStars(author, stars, mine);
 	checkDestroying(true);
 }
 
@@ -595,6 +616,7 @@ void Messages::reactionsPaidSend() {
 		failed(randomId, response);
 	}).send();
 
+	addStars(from, int(send.count), true);
 	checkDestroying(true);
 }
 
@@ -605,7 +627,7 @@ void Messages::undoScheduledPaidOnDestroy() {
 Messages::PaidLocalState Messages::starsLocalState() const {
 	const auto &donors = _paid.top.topDonors;
 	const auto i = ranges::find(donors, true, &StarsTopDonor::my);
-	const auto local = int(_paid.scheduled + _paid.sending);
+	const auto local = int(_paid.scheduled);
 	const auto my = (i != end(donors) ? i->stars : 0) + local;
 	const auto total = _paid.top.total + local;
 	return { .total = total, .my = my };
@@ -646,6 +668,31 @@ void Messages::deleteConfirmed(MessageDeleteRequest request) {
 			ban->session().api().blockedPeers().block(ban);
 		}
 	}
+}
+
+void Messages::addStars(not_null<PeerData*> from, int stars, bool mine) {
+	if (stars <= 0) {
+		return;
+	}
+	_paid.top.total += stars;
+	const auto i = ranges::find(
+		_paid.top.topDonors,
+		from.get(),
+		&StarsTopDonor::peer);
+	if (i != end(_paid.top.topDonors)) {
+		i->stars += stars;
+	} else {
+		_paid.top.topDonors.push_back({
+			.peer = from,
+			.stars = stars,
+			.my = mine,
+		});
+	}
+	ranges::stable_sort(
+		_paid.top.topDonors,
+		ranges::greater(),
+		&StarsTopDonor::stars);
+	_paidChanges.fire({});
 }
 
 } // namespace Calls::Group

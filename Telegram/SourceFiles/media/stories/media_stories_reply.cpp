@@ -39,10 +39,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 #include "inline_bots/inline_bot_result.h"
 #include "lang/lang_keys.h"
+#include "main/session/send_as_peers.h"
 #include "main/main_session.h"
 #include "media/stories/media_stories_controller.h"
 #include "media/stories/media_stories_stealth.h"
 #include "menu/menu_send.h"
+#include "payments/ui/payments_reaction_box.h" // MaxTopPaidDonorsShown
 #include "settings/settings_credits_graphics.h" // DarkCreditsEntryBoxStyle
 #include "storage/localimageloader.h"
 #include "storage/storage_account.h"
@@ -984,14 +986,24 @@ void ReplyArea::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
 		messages->starsValueChanges()
 	) | rpl::map([=] {
 		const auto &list = messages->starsTop().topDonors;
+		const auto peer = _videoStream->peer();
+		const auto &as = peer->session().sendAsPeers().list(
+			{ peer, Main::SendAsType::VideoStream });
+		const auto limit = std::min(
+			int(list.size()),
+			Ui::MaxTopPaidDonorsShown() + std::max(int(as.size()), 1));
+		auto still = Ui::MaxTopPaidDonorsShown();
 		auto result = std::vector<Data::MessageReactionsTopPaid>();
-		result.reserve(list.size());
+		result.reserve(limit);
 		for (const auto &item : list) {
 			result.push_back({
 				.peer = item.peer,
 				.count = uint32(item.stars),
 				.my = item.my ? 1U : 0U,
 			});
+			if (!item.my && !--still) {
+				break;
+			}
 		}
 		return result;
 	}));
