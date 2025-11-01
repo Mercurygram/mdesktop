@@ -75,7 +75,8 @@ private:
 		Origin origin);
 	object_ptr<RpWidget> setupSharedMedia(
 		not_null<RpWidget*> parent,
-		rpl::producer<bool> showDivider);
+		rpl::producer<bool> showDivider,
+		Ui::MultiSlideTracker &sharedTracker);
 	void setupMembers(
 		not_null<Ui::VerticalLayout*> container,
 		rpl::producer<bool> showDivider);

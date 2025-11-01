@@ -122,6 +122,7 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 	}
 
 	auto mainTracker = Ui::MultiSlideTracker();
+	auto sharedTracker = Ui::MultiSlideTracker();
 	auto dividerOverridden = rpl::variable<bool>(false);
 	AddDetails(
 		result,
@@ -138,7 +139,11 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 	) | rpl::map([](bool main, bool dividerOverridden) {
 		return dividerOverridden ? false : main;
 	}) | rpl::distinct_until_changed();
-	result->add(setupSharedMedia(result.data(), rpl::duplicate(showDivider)));
+	result->add(
+		setupSharedMedia(
+			result.data(),
+			rpl::duplicate(showDivider),
+			sharedTracker));
 	if (_topic || _sublist) {
 		return result;
 	}
@@ -151,6 +156,12 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 			result->add(std::move(buttons));
 		}
 	}
+	showDivider = rpl::combine(
+		std::move(showDivider),
+		sharedTracker.atLeastOneShownValue()
+	) | rpl::map([](bool show, bool shared) {
+		return show || shared;
+	}) | rpl::distinct_until_changed();
 	if (auto actions = SetupActions(_controller, result.data(), _peer)) {
 		addAboutVerificationOrDivider(result, rpl::duplicate(showDivider));
 		result->add(std::move(actions));
@@ -227,12 +238,13 @@ void InnerWidget::addAboutVerificationOrDivider(
 
 object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
 		not_null<RpWidget*> parent,
-		rpl::producer<bool> showDivider) {
+		rpl::producer<bool> showDivider,
+		Ui::MultiSlideTracker &sharedTracker) {
 	using namespace rpl::mappers;
 	using MediaType = Media::Type;
 
 	auto content = object_ptr<Ui::VerticalLayout>(parent);
-	auto tracker = Ui::MultiSlideTracker();
+	auto &tracker = sharedTracker;
 	auto addMediaButton = [&](
 			MediaType type,
 			const style::icon &icon) {
