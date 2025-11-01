@@ -1740,6 +1740,11 @@ void ApiWrap::joinChannel(not_null<ChannelData*> channel) {
 		)).done([=](const MTPUpdates &result) {
 			_channelAmInRequests.remove(channel);
 			applyUpdates(result);
+
+			session().data().addRecentJoinChat({
+				.fromPeerId = channel->id,
+				.joinedPeerId = channel->id,
+			});
 		}).fail([=](const MTP::Error &error) {
 			const auto &type = error.type();
 
