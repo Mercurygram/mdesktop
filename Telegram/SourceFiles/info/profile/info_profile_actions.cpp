@@ -1642,13 +1642,6 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo(
 				QString()
 			).text->setLinksTrusted();
 		}
-
-		AddMainButton(
-			result,
-			tr::lng_info_add_as_contact(),
-			CanAddContactValue(user),
-			[=] { controller->window().show(Box(EditContactBox, controller, user)); },
-			tracker);
 	} else {
 		const auto topicRootId = _topic ? _topic->rootId() : 0;
 		const auto addToLink = topicRootId
@@ -2169,6 +2162,24 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill(
 		mainTracker.atLeastOneShownValue());
 	add(setupInfo(mainTracker));
 	if (const auto user = _peer->asUser()) {
+		{
+			const auto wrap = _wrap->add(
+				object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+					_wrap.data(),
+					object_ptr<Ui::VerticalLayout>(_wrap.data())));
+			Ui::AddSkip(wrap->entity());
+			auto &tracker = mainTracker;
+			AddMainButton(
+				wrap->entity(),
+				tr::lng_info_add_as_contact(),
+				CanAddContactValue(user),
+				[=, controller = _controller->parentController()] {
+					controller->uiShow()->show(
+						Box(EditContactBox, controller, user));
+				},
+				tracker);
+			wrap->toggleOn(CanAddContactValue(user));
+		}
 		if (const auto info = user->botInfo.get()) {
 			if (info->hasMainApp) {
 				setupMainApp();
