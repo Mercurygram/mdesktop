@@ -2135,7 +2135,13 @@ void DetailsFiller::addViewChannelButton(
 		not_null<ChannelData*> channel) {
 	using namespace rpl::mappers;
 
-	auto window = _controller->parentController();
+	const auto wrap = _wrap->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			_wrap.data(),
+			object_ptr<Ui::VerticalLayout>(_wrap.data())));
+	Ui::AddSkip(wrap->entity());
+
+	const auto window = _controller->parentController();
 	auto activePeerValue = window->activeChatValue(
 	) | rpl::map([](Dialogs::Key key) {
 		return key.peer();
@@ -2149,8 +2155,9 @@ void DetailsFiller::addViewChannelButton(
 			channel,
 			Window::SectionShow::Way::Forward);
 	};
+	wrap->toggleOn(rpl::duplicate(viewChannelVisible));
 	AddMainButton(
-		_wrap,
+		wrap->entity(),
 		tr::lng_profile_view_channel(),
 		std::move(viewChannelVisible),
 		std::move(viewChannel),
@@ -2199,10 +2206,7 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill(
 		}
 	} else if (const auto channel = _peer->asChannel()) {
 		if (!channel->isMegagroup()) {
-			const auto topSkip = add(CreateSlideSkipWidget(_wrap));
-			Ui::MultiSlideTracker tracker;
-			addViewChannelButton(tracker, channel);
-			topSkip->toggleOn(std::move(tracker).atLeastOneShownValue());
+			addViewChannelButton(mainTracker, channel);
 		}
 	}
 	add(CreateSlideSkipWidget(_wrap))->toggleOn(
