@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "ui/wrap/fade_wrap.h"
 #include "ui/painter.h"
+#include "ui/rect.h"
 #include "styles/style_giveaway.h"
 #include "styles/style_layers.h"
 #include "styles/style_premium.h"
@@ -169,15 +170,41 @@ void AddFeaturesList(
 			continue;
 		}
 		const auto unlocks = (i == startFromLevel);
-		container->add(
-			MakeFeaturesBadge(
-				container,
-				(unlocks
-					? tr::lng_boost_level_unlocks
-					: tr::lng_boost_level)(
-						lt_count,
-						rpl::single(float64(i)))),
-			st::boostLevelBadgePadding);
+		{
+			const auto badge = container->add(
+				MakeFeaturesBadge(
+					container,
+					(unlocks
+						? tr::lng_boost_level_unlocks
+						: tr::lng_boost_level)(
+							lt_count,
+							rpl::single(float64(i)))),
+				st::boostLevelBadgePadding,
+				style::al_top);
+			const auto padding = st::boxRowPadding;
+			const auto line = Ui::CreateChild<Ui::RpWidget>(container);
+			badge->geometryValue() | rpl::start_with_next([=](const QRect &r) {
+				line->setGeometry(
+					padding.left(),
+					r.y(),
+					container->width() - rect::m::sum::h(padding),
+					r.height());
+			}, line->lifetime());
+			const auto shift = st::lineWidth * 10;
+			line->paintRequest() | rpl::start_with_next([=] {
+				auto p = QPainter(line);
+				p.setPen(st::windowSubTextFg);
+				const auto y = line->height() / 2;
+				const auto left = badge->x() - shift - padding.left();
+				const auto right = left + badge->width() + shift * 2;
+				if (left > 0) {
+					p.drawLine(0, y, left, y);
+				}
+				if (right < line->width()) {
+					p.drawLine(right, y, line->width(), y);
+				}
+			}, line->lifetime());
+		}
 		if (i >= features.sponsoredLevel) {
 			add(tr::lng_channel_earn_off(proj), st::boostFeatureOffSponsored);
 		}
