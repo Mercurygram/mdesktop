@@ -967,14 +967,19 @@ template <typename Text, typename ToggleOn, typename Callback>
 		ToggleOn &&toggleOn,
 		Callback &&callback,
 		Ui::MultiSlideTracker &tracker,
+		Ui::MultiSlideTracker *buttonTracker,
 		const style::SettingsButton &st = st::infoMainButton) {
-	tracker.track(AddActionButton(
+	const auto button = AddActionButton(
 		parent,
 		std::move(text) | Ui::Text::ToUpper(),
 		std::move(toggleOn),
 		std::move(callback),
 		nullptr,
-		st));
+		st);
+	tracker.track(button);
+	if (buttonTracker) {
+		buttonTracker->track(button);
+	}
 }
 
 rpl::producer<CreditsAmount> AddCurrencyAction(
@@ -1166,13 +1171,17 @@ private:
 	void setupBotPermissions();
 	void addViewChannelButton(
 		Ui::MultiSlideTracker &tracker,
-		not_null<ChannelData*> channel);
+		not_null<ChannelData*> channel,
+		Ui::MultiSlideTracker *buttonTracker);
 
-	void addReportReaction(Ui::MultiSlideTracker &tracker);
+	void addReportReaction(
+		Ui::MultiSlideTracker &tracker,
+		Ui::MultiSlideTracker *buttonTracker);
 	void addReportReaction(
 		GroupReactionOrigin data,
 		bool ban,
-		Ui::MultiSlideTracker &tracker);
+		Ui::MultiSlideTracker &tracker,
+		Ui::MultiSlideTracker *buttonTracker);
 
 	template <
 		typename Widget,
@@ -2068,7 +2077,9 @@ void DetailsFiller::setupBotPermissions() {
 	AddSkip(_wrap);
 }
 
-void DetailsFiller::addReportReaction(Ui::MultiSlideTracker &tracker) {
+void DetailsFiller::addReportReaction(
+		Ui::MultiSlideTracker &tracker,
+		Ui::MultiSlideTracker *buttonTracker) {
 	v::match(_origin.data, [&](GroupReactionOrigin data) {
 		const auto user = _peer->asUser();
 		if (_peer->isSelf()) {
@@ -2085,7 +2096,7 @@ void DetailsFiller::addReportReaction(Ui::MultiSlideTracker &tracker) {
 				const auto ban = channel->canBanMembers()
 					&& (!user || !channel->mgInfo->admins.contains(user->id))
 					&& (!user || channel->mgInfo->creator != user);
-				addReportReaction(data, ban, tracker);
+				addReportReaction(data, ban, tracker, buttonTracker);
 			}
 		}
 	}, [](const auto &) {});
@@ -2094,7 +2105,8 @@ void DetailsFiller::addReportReaction(Ui::MultiSlideTracker &tracker) {
 void DetailsFiller::addReportReaction(
 		GroupReactionOrigin data,
 		bool ban,
-		Ui::MultiSlideTracker &tracker) {
+		Ui::MultiSlideTracker &tracker,
+		Ui::MultiSlideTracker *buttonTracker) {
 	const auto peer = _peer;
 	if (!peer) {
 		return;
@@ -2127,12 +2139,14 @@ void DetailsFiller::addReportReaction(
 		[=] { controller->show(
 			Box(ReportReactionBox, controller, peer, data, ban, sent)); },
 		tracker,
+		buttonTracker,
 		st::infoMainButtonAttention);
 }
 
 void DetailsFiller::addViewChannelButton(
 		Ui::MultiSlideTracker &tracker,
-		not_null<ChannelData*> channel) {
+		not_null<ChannelData*> channel,
+		Ui::MultiSlideTracker *buttonTracker) {
 	using namespace rpl::mappers;
 
 	const auto wrap = _wrap->add(
@@ -2161,7 +2175,8 @@ void DetailsFiller::addViewChannelButton(
 		tr::lng_profile_view_channel(),
 		std::move(viewChannelVisible),
 		std::move(viewChannel),
-		tracker);
+		tracker,
+		buttonTracker);
 }
 
 object_ptr<Ui::RpWidget> DetailsFiller::fill(
@@ -2174,6 +2189,7 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill(
 	add(CreateSlideSkipWidget(_wrap))->toggleOn(
 		mainTracker.atLeastOneShownValue());
 	add(setupInfo(mainTracker));
+	auto lastButtonTracker = Ui::MultiSlideTracker();
 	if (const auto user = _peer->asUser()) {
 		{
 			const auto wrap = _wrap->add(
@@ -2190,7 +2206,8 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill(
 					controller->uiShow()->show(
 						Box(EditContactBox, controller, user));
 				},
-				tracker);
+				tracker,
+				&lastButtonTracker);
 			wrap->toggleOn(CanAddContactValue(user));
 		}
 		if (const auto info = user->botInfo.get()) {
@@ -2202,15 +2219,15 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill(
 			}
 		}
 		if (!user->isSelf() && !_sublist) {
-			addReportReaction(mainTracker);
+			addReportReaction(mainTracker, &lastButtonTracker);
 		}
 	} else if (const auto channel = _peer->asChannel()) {
 		if (!channel->isMegagroup()) {
-			addViewChannelButton(mainTracker, channel);
+			addViewChannelButton(mainTracker, channel, &lastButtonTracker);
 		}
 	}
 	add(CreateSlideSkipWidget(_wrap))->toggleOn(
-		mainTracker.atLeastOneShownValue());
+		lastButtonTracker.atLeastOneShownValue());
 
 	return std::move(_wrap);
 }
