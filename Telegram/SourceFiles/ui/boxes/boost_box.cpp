@@ -203,22 +203,27 @@ void AddFeaturesList(
 				tr::lng_feature_emoji_status(proj),
 				st::boostFeatureEmojiStatus);
 		}
-		if (group && i >= features.transcribeLevel) {
-			add(
-				tr::lng_feature_transcribe(proj),
-				st::boostFeatureTranscribe);
+		if (const auto j = features.profileColorsByLevel.find(i)
+			; j != end(features.profileColorsByLevel)) {
+			profileColors += j->second;
 		}
-		if (group && i >= features.emojiPackLevel) {
+		if (i >= features.profileIconLevel) {
 			add(
-				tr::lng_feature_custom_emoji_pack(proj),
-				st::boostFeatureCustomEmoji);
+				(group
+					? tr::lng_feature_profile_icon_group
+					: tr::lng_feature_profile_icon_channel)(proj),
+				st::boostFeatureProfileIcon);
+		}
+		if (profileColors > 0) {
+			add((group
+				? tr::lng_feature_profile_color_group
+				: tr::lng_feature_profile_color_channel)(
+					lt_count,
+					rpl::single(float64(profileColors)),
+					proj
+				), st::boostFeatureProfileColor);
 		}
 		if (!group) {
-			if (i >= features.autotranslateLevel) {
-				add(
-					tr::lng_feature_autotranslate(proj),
-					st::boostFeatureAutoTranslate);
-			}
 			if (const auto j = features.linkStylesByLevel.find(i)
 				; j != end(features.linkStylesByLevel)) {
 				linkStyles += j->second;
@@ -246,37 +251,30 @@ void AddFeaturesList(
 					proj
 				), st::boostFeatureName);
 			}
-
 			add(tr::lng_feature_reactions(
 				lt_count,
 				rpl::single(float64(i)),
 				proj
 			), st::boostFeatureCustomReactions);
 		}
-		// Profile colors and icons for both channels and groups
-		if (const auto j = features.profileColorsByLevel.find(i)
-			; j != end(features.profileColorsByLevel)) {
-			profileColors += j->second;
-		}
-		if (profileColors > 0) {
-			add((group
-				? tr::lng_feature_profile_color_group
-				: tr::lng_feature_profile_color_channel)(
-					lt_count,
-					rpl::single(float64(profileColors)),
-					proj
-				), st::boostFeatureProfileColor);
-		}
-		if (i >= features.profileIconLevel) {
-			add(
-				(group
-					? tr::lng_feature_profile_icon_group
-					: tr::lng_feature_profile_icon_channel)(proj),
-				st::boostFeatureProfileIcon);
-		}
 		add(
 			tr::lng_feature_stories(lt_count, rpl::single(float64(i)), proj),
 			st::boostFeatureStories);
+		if (!group && i >= features.autotranslateLevel) {
+			add(
+				tr::lng_feature_autotranslate(proj),
+				st::boostFeatureAutoTranslate);
+		}
+		if (group && i >= features.transcribeLevel) {
+			add(
+				tr::lng_feature_transcribe(proj),
+				st::boostFeatureTranscribe);
+		}
+		if (group && i >= features.emojiPackLevel) {
+			add(
+				tr::lng_feature_custom_emoji_pack(proj),
+				st::boostFeatureCustomEmoji);
+		}
 	}
 }
 
