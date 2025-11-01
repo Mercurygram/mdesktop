@@ -54,6 +54,11 @@ public:
 	~SelfForwardsTagger();
 
 private:
+	struct ToastTimerState {
+		rpl::lifetime timerLifetime;
+		bool expanded = false;
+	};
+
 	void setup();
 	void showSelectorForMessages(const MessageIdsList &ids);
 	void showToast(const TextWithEntities &text, Fn<void()> callback);
@@ -62,6 +67,10 @@ private:
 	void createLottieIcon(not_null<QWidget*> widget, const QString &name);
 	not_null<Ui::AbstractButton*> createRightButton(
 		not_null<Ui::RpWidget*> widget);
+	void setupToastTimer(
+		not_null<Ui::RpWidget*> widget,
+		not_null<ToastTimerState*> state,
+		Fn<void()> hideCallback);
 	void hideToast();
 	[[nodiscard]] QRect toastGeometry() const;
 

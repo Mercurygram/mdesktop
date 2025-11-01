@@ -188,35 +188,13 @@ void SelfForwardsTagger::showSelectorForMessages(
 		base::install_event_filter(selector, list, eventFilterCallback);
 	}
 
-	struct State {
-		rpl::lifetime timerLifetime;
-		bool expanded = false;
-	};
-	const auto state = selector->lifetime().make_state<State>();
-	const auto restartTimer = [=](crl::time ms) {
-		state->timerLifetime.destroy();
-		base::timer_once(ms) | rpl::start_with_next([=] {
-			hideAndDestroy();
-		}, state->timerLifetime);
-	};
+	const auto state = selector->lifetime().make_state<ToastTimerState>();
 
 	selector->willExpand() | rpl::start_with_next([=] {
 		state->expanded = true;
 	}, selector->lifetime());
 
-	base::install_event_filter(selector, [=](not_null<QEvent*> event) {
-		if (event->type() == QEvent::MouseButtonPress) {
-			state->timerLifetime.destroy();
-			return base::EventFilterResult::Continue;
-		} else if (!state->expanded && event->type() == QEvent::Enter) {
-			state->timerLifetime.destroy();
-			return base::EventFilterResult::Continue;
-		} else if (!state->expanded && event->type() == QEvent::Leave) {
-			restartTimer(kTimerOnLeave);
-			return base::EventFilterResult::Continue;
-		}
-		return base::EventFilterResult::Continue;
-	}, selector->lifetime());
+	setupToastTimer(selector, state, hideAndDestroy);
 
 	QObject::connect(
 		_toast->widget(),
@@ -237,7 +215,6 @@ void SelfForwardsTagger::showSelectorForMessages(
 			rect.x() + (rect.width() - selector->width()) / 2,
 			rect::bottom(rect) - st::selfForwardsTaggerStripSkip);
 	}, selector->lifetime());
-	restartTimer(kInitTimer);
 	selector->show();
 }
 
@@ -372,20 +349,10 @@ void SelfForwardsTagger::showChannelFilterToast(not_null<PeerData*> peer) {
 		const auto rightButton = createRightButton(widget);
 		const auto history = peer->owner().history(peer);
 
-		struct State {
-			rpl::lifetime timerLifetime;
-			bool menuExpanded = false;
-		};
-		const auto state = widget->lifetime().make_state<State>();
-		const auto restartTimer = [=](crl::time ms) {
-			state->timerLifetime.destroy();
-			base::timer_once(ms) | rpl::start_with_next([=] {
-				hideToast();
-			}, state->timerLifetime);
-		};
+		const auto state = widget->lifetime().make_state<ToastTimerState>();
 
 		rightButton->setClickedCallback([=] {
-			state->menuExpanded = true;
+			state->expanded = true;
 			state->timerLifetime.destroy();
 			const auto menu = Ui::CreateChild<Ui::PopupMenu>(
 				rightButton,
@@ -406,21 +373,7 @@ void SelfForwardsTagger::showChannelFilterToast(not_null<PeerData*> peer) {
 			}
 		});
 
-		base::install_event_filter(widget, [=](not_null<QEvent*> event) {
-			if (event->type() == QEvent::MouseButtonPress) {
-				state->timerLifetime.destroy();
-				return base::EventFilterResult::Continue;
-			} else if (!state->menuExpanded && event->type() == QEvent::Enter) {
-				state->timerLifetime.destroy();
-				return base::EventFilterResult::Continue;
-			} else if (!state->menuExpanded && event->type() == QEvent::Leave) {
-				restartTimer(kTimerOnLeave);
-				return base::EventFilterResult::Continue;
-			}
-			return base::EventFilterResult::Continue;
-		}, widget->lifetime());
-
-		restartTimer(kInitTimer);
+		setupToastTimer(widget, state, [=] { hideToast(); });
 	}
 }
 
@@ -437,6 +390,34 @@ not_null<Ui::AbstractButton*> SelfForwardsTagger::createRightButton(
 
 	button->show();
 	return button;
+}
+
+void SelfForwardsTagger::setupToastTimer(
+		not_null<Ui::RpWidget*> widget,
+		not_null<ToastTimerState*> state,
+		Fn<void()> hideCallback) {
+	const auto restartTimer = [=](crl::time ms) {
+		state->timerLifetime.destroy();
+		base::timer_once(ms) | rpl::start_with_next([=] {
+			hideCallback();
+		}, state->timerLifetime);
+	};
+
+	base::install_event_filter(widget, [=](not_null<QEvent*> event) {
+		if (event->type() == QEvent::MouseButtonPress) {
+			state->timerLifetime.destroy();
+			return base::EventFilterResult::Continue;
+		} else if (!state->expanded && event->type() == QEvent::Enter) {
+			state->timerLifetime.destroy();
+			return base::EventFilterResult::Continue;
+		} else if (!state->expanded && event->type() == QEvent::Leave) {
+			restartTimer(kTimerOnLeave);
+			return base::EventFilterResult::Continue;
+		}
+		return base::EventFilterResult::Continue;
+	}, state->timerLifetime);
+
+	restartTimer(kInitTimer);
 }
 
 void SelfForwardsTagger::hideToast() {
