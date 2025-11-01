@@ -122,6 +122,7 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 	}
 
 	auto mainTracker = Ui::MultiSlideTracker();
+	auto dividerOverridden = rpl::variable<bool>(false);
 	AddDetails(
 		result,
 		_controller,
@@ -129,8 +130,15 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 		_topic,
 		_sublist,
 		origin,
-		mainTracker);
-	result->add(setupSharedMedia(result.data(), mainTracker));
+		mainTracker,
+		dividerOverridden);
+	auto showDivider = rpl::combine(
+		mainTracker.atLeastOneShownValue(),
+		dividerOverridden.value()
+	) | rpl::map([](bool main, bool dividerOverridden) {
+		return dividerOverridden ? false : main;
+	}) | rpl::distinct_until_changed();
+	result->add(setupSharedMedia(result.data(), rpl::duplicate(showDivider)));
 	if (_topic || _sublist) {
 		return result;
 	}
@@ -144,23 +152,25 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 		}
 	}
 	if (auto actions = SetupActions(_controller, result.data(), _peer)) {
-		addAboutVerificationOrDivider(result);
+		addAboutVerificationOrDivider(result, rpl::duplicate(showDivider));
 		result->add(std::move(actions));
 	}
 	if (_peer->isChat() || _peer->isMegagroup()) {
 		if (!_peer->isMonoforum()) {
-			setupMembers(result.data());
+			setupMembers(result.data(), rpl::duplicate(showDivider));
 		}
 	}
 	return result;
 }
 
-void InnerWidget::setupMembers(not_null<Ui::VerticalLayout*> container) {
+void InnerWidget::setupMembers(
+		not_null<Ui::VerticalLayout*> container,
+		rpl::producer<bool> showDivider) {
 	auto wrap = container->add(object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 		container,
 		object_ptr<Ui::VerticalLayout>(container)));
 	const auto inner = wrap->entity();
-	addAboutVerificationOrDivider(inner);
+	addAboutVerificationOrDivider(inner, std::move(showDivider));
 	_members = inner->add(object_ptr<Members>(inner, _controller));
 	_members->scrollToRequests(
 	) | rpl::start_with_next([this](Ui::ScrollToRequest request) {
@@ -194,18 +204,30 @@ void InnerWidget::setupSavedMusic(not_null<Ui::VerticalLayout*> container) {
 }
 
 void InnerWidget::addAboutVerificationOrDivider(
-		not_null<Ui::VerticalLayout*> content) {
-	if (_aboutVerificationAdded) {
-		Ui::AddDivider(content);
+		not_null<Ui::VerticalLayout*> content,
+		rpl::producer<bool> showDivider) {
+	if (rpl::variable<bool>(rpl::duplicate(showDivider)).current()) {
+		if (_aboutVerificationAdded) {
+			Ui::AddDivider(content);
+		} else {
+			AddAboutVerification(content, _peer);
+			_aboutVerificationAdded = true;
+		}
 	} else {
-		AddAboutVerification(content, _peer);
-		_aboutVerificationAdded = true;
+		const auto wrap = content->add(
+			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+				content,
+				object_ptr<Ui::VerticalLayout>(content)));
+		Ui::AddDivider(wrap->entity());
+		wrap->setDuration(
+			st::infoSlideDuration
+		)->toggleOn(rpl::duplicate(showDivider));
 	}
 }
 
 object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
 		not_null<RpWidget*> parent,
-		Ui::MultiSlideTracker &mainTracker) {
+		rpl::producer<bool> showDivider) {
 	using namespace rpl::mappers;
 	using MediaType = Media::Type;
 
@@ -331,18 +353,7 @@ object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
 
 	auto layout = result->entity();
 
-	if (rpl::variable<bool>(mainTracker.atLeastOneShownValue()).current()) {
-		addAboutVerificationOrDivider(layout);
-	} else {
-		const auto wrap = layout->add(
-			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-				layout,
-				object_ptr<Ui::VerticalLayout>(layout)));
-		Ui::AddDivider(wrap->entity());
-		wrap->setDuration(
-			st::infoSlideDuration
-		)->toggleOn(mainTracker.atLeastOneShownValue());
-	}
+	addAboutVerificationOrDivider(layout, std::move(showDivider));
 	Ui::AddSkip(layout, st::infoSharedMediaBottomSkip);
 	layout->add(std::move(content));
 	Ui::AddSkip(layout, st::infoSharedMediaBottomSkip);

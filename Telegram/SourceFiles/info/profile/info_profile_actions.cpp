@@ -1152,21 +1152,27 @@ public:
 		not_null<Controller*> controller,
 		not_null<Ui::RpWidget*> parent,
 		not_null<PeerData*> peer,
-		Origin origin);
+		Origin origin,
+		Ui::MultiSlideTracker &mainTracker,
+		rpl::variable<bool> &dividerOverridden);
 	DetailsFiller(
 		not_null<Controller*> controller,
 		not_null<Ui::RpWidget*> parent,
-		not_null<Data::SavedSublist*> sublist);
+		not_null<Data::SavedSublist*> sublist,
+		Ui::MultiSlideTracker &mainTracker,
+		rpl::variable<bool> &dividerOverridden);
 	DetailsFiller(
 		not_null<Controller*> controller,
 		not_null<Ui::RpWidget*> parent,
-		not_null<Data::ForumTopic*> topic);
+		not_null<Data::ForumTopic*> topic,
+		Ui::MultiSlideTracker &mainTracker,
+		rpl::variable<bool> &dividerOverridden);
 
-	object_ptr<Ui::RpWidget> fill(Ui::MultiSlideTracker &mainTracker);
+	object_ptr<Ui::RpWidget> fill();
 
 private:
 	object_ptr<Ui::RpWidget> setupPersonalChannel(not_null<UserData*> user);
-	object_ptr<Ui::RpWidget> setupInfo(Ui::MultiSlideTracker &mainTracker);
+	object_ptr<Ui::RpWidget> setupInfo();
 	void setupMainApp();
 	void setupBotPermissions();
 	void addViewChannelButton(
@@ -1201,6 +1207,8 @@ private:
 	Data::ForumTopic *_topic = nullptr;
 	Data::SavedSublist *_sublist = nullptr;
 	Origin _origin;
+	Ui::MultiSlideTracker &_mainTracker;
+	rpl::variable<bool> &_dividerOverridden;
 	object_ptr<Ui::VerticalLayout> _wrap;
 
 };
@@ -1291,33 +1299,45 @@ DetailsFiller::DetailsFiller(
 	not_null<Controller*> controller,
 	not_null<Ui::RpWidget*> parent,
 	not_null<PeerData*> peer,
-	Origin origin)
+	Origin origin,
+	Ui::MultiSlideTracker &mainTracker,
+	rpl::variable<bool> &dividerOverridden)
 : _controller(controller)
 , _parent(parent)
 , _peer(peer)
 , _origin(origin)
+, _mainTracker(mainTracker)
+, _dividerOverridden(dividerOverridden)
 , _wrap(_parent) {
 }
 
 DetailsFiller::DetailsFiller(
 	not_null<Controller*> controller,
 	not_null<Ui::RpWidget*> parent,
-	not_null<Data::SavedSublist*> sublist)
+	not_null<Data::SavedSublist*> sublist,
+	Ui::MultiSlideTracker &mainTracker,
+	rpl::variable<bool> &dividerOverridden)
 : _controller(controller)
 , _parent(parent)
 , _peer(sublist->sublistPeer())
 , _sublist(sublist)
+, _mainTracker(mainTracker)
+, _dividerOverridden(dividerOverridden)
 , _wrap(_parent) {
 }
 
 DetailsFiller::DetailsFiller(
 	not_null<Controller*> controller,
 	not_null<Ui::RpWidget*> parent,
-	not_null<Data::ForumTopic*> topic)
+	not_null<Data::ForumTopic*> topic,
+	Ui::MultiSlideTracker &mainTracker,
+	rpl::variable<bool> &dividerOverridden)
 : _controller(controller)
 , _parent(parent)
 , _peer(topic->peer())
 , _topic(topic)
+, _mainTracker(mainTracker)
+, _dividerOverridden(dividerOverridden)
 , _wrap(_parent) {
 }
 
@@ -1332,12 +1352,11 @@ bool SetClickContext(
 	return false;
 }
 
-object_ptr<Ui::RpWidget> DetailsFiller::setupInfo(
-		Ui::MultiSlideTracker &mainTracker) {
+object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 	auto wrap = object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 		_wrap,
 		object_ptr<Ui::VerticalLayout>(_wrap));
-	mainTracker.track(wrap.data());
+	_mainTracker.track(wrap.data());
 	const auto result = wrap->entity();
 	auto tracker = Ui::MultiSlideTracker();
 
@@ -2043,7 +2062,6 @@ void DetailsFiller::setupMainApp() {
 		UrlClickHandler::Open(url);
 		return false;
 	});
-	Ui::AddSkip(_wrap);
 }
 
 void DetailsFiller::setupBotPermissions() {
@@ -2072,8 +2090,6 @@ void DetailsFiller::setupBotPermissions() {
 			MTP_bool(allowed)
 		)).send();
 	}, emoji->lifetime());
-	AddSkip(_wrap);
-	AddDivider(_wrap);
 	AddSkip(_wrap);
 }
 
@@ -2130,6 +2146,11 @@ void DetailsFiller::addReportReaction(
 		*forceHidden = true;
 	};
 	wrap->toggleOn(rpl::duplicate(shown));
+	rpl::duplicate(shown) | rpl::start_with_next([=](bool shown) {
+		if (shown) {
+			_dividerOverridden.force_assign(false);
+		}
+	}, wrap->lifetime());
 	AddMainButton(
 		_wrap,
 		(ban
@@ -2179,16 +2200,15 @@ void DetailsFiller::addViewChannelButton(
 		buttonTracker);
 }
 
-object_ptr<Ui::RpWidget> DetailsFiller::fill(
-		Ui::MultiSlideTracker &mainTracker) {
+object_ptr<Ui::RpWidget> DetailsFiller::fill() {
 	Expects(!_topic || !_topic->creating());
 
 	if (const auto user = _sublist ? nullptr : _peer->asUser()) {
 		add(setupPersonalChannel(user));
 	}
 	add(CreateSlideSkipWidget(_wrap))->toggleOn(
-		mainTracker.atLeastOneShownValue());
-	add(setupInfo(mainTracker));
+		_mainTracker.atLeastOneShownValue());
+	add(setupInfo());
 	auto lastButtonTracker = Ui::MultiSlideTracker();
 	if (const auto user = _peer->asUser()) {
 		{
@@ -2197,7 +2217,6 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill(
 					_wrap.data(),
 					object_ptr<Ui::VerticalLayout>(_wrap.data())));
 			Ui::AddSkip(wrap->entity());
-			auto &tracker = mainTracker;
 			AddMainButton(
 				wrap->entity(),
 				tr::lng_info_add_as_contact(),
@@ -2206,24 +2225,27 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill(
 					controller->uiShow()->show(
 						Box(EditContactBox, controller, user));
 				},
-				tracker,
+				_mainTracker,
 				&lastButtonTracker);
 			wrap->toggleOn(CanAddContactValue(user));
 		}
 		if (const auto info = user->botInfo.get()) {
 			if (info->hasMainApp) {
+				_dividerOverridden.force_assign(true);
 				setupMainApp();
 			}
 			if (info->canManageEmojiStatus) {
+				_dividerOverridden.force_assign(false);
 				setupBotPermissions();
 			}
 		}
 		if (!user->isSelf() && !_sublist) {
-			addReportReaction(mainTracker, &lastButtonTracker);
+			addReportReaction(_mainTracker, &lastButtonTracker);
 		}
 	} else if (const auto channel = _peer->asChannel()) {
 		if (!channel->isMegagroup()) {
-			addViewChannelButton(mainTracker, channel, &lastButtonTracker);
+			_dividerOverridden.force_assign(false);
+			addViewChannelButton(_mainTracker, channel, &lastButtonTracker);
 		}
 	}
 	add(CreateSlideSkipWidget(_wrap))->toggleOn(
@@ -2682,27 +2704,46 @@ object_ptr<Ui::RpWidget> SetupDetails(
 		not_null<Ui::RpWidget*> parent,
 		not_null<PeerData*> peer,
 		Origin origin,
-		Ui::MultiSlideTracker &mainTracker) {
-	DetailsFiller filler(controller, parent, peer, origin);
-	return filler.fill(mainTracker);
+		Ui::MultiSlideTracker &mainTracker,
+		rpl::variable<bool> &dividerOverridden) {
+	DetailsFiller filler(
+		controller,
+		parent,
+		peer,
+		origin,
+		mainTracker,
+		dividerOverridden);
+	return filler.fill();
 }
 
 object_ptr<Ui::RpWidget> SetupDetails(
 		not_null<Controller*> controller,
 		not_null<Ui::RpWidget*> parent,
 		not_null<Data::SavedSublist*> sublist,
-		Ui::MultiSlideTracker &mainTracker) {
-	DetailsFiller filler(controller, parent, sublist);
-	return filler.fill(mainTracker);
+		Ui::MultiSlideTracker &mainTracker,
+		rpl::variable<bool> &dividerOverridden) {
+	DetailsFiller filler(
+		controller,
+		parent,
+		sublist,
+		mainTracker,
+		dividerOverridden);
+	return filler.fill();
 }
 
 object_ptr<Ui::RpWidget> SetupDetails(
 		not_null<Controller*> controller,
 		not_null<Ui::RpWidget*> parent,
 		not_null<Data::ForumTopic*> topic,
-		Ui::MultiSlideTracker &mainTracker) {
-	DetailsFiller filler(controller, parent, topic);
-	return filler.fill(mainTracker);
+		Ui::MultiSlideTracker &mainTracker,
+		rpl::variable<bool> &dividerOverridden) {
+	DetailsFiller filler(
+		controller,
+		parent,
+		topic,
+		mainTracker,
+		dividerOverridden);
+	return filler.fill();
 }
 
 object_ptr<Ui::RpWidget> SetupActions(
@@ -2967,16 +3008,33 @@ void AddDetails(
 		Data::ForumTopic *topic,
 		Data::SavedSublist *sublist,
 		Origin origin,
-		Ui::MultiSlideTracker &mainTracker) {
+		Ui::MultiSlideTracker &mainTracker,
+		rpl::variable<bool> &dividerOverridden) {
 	if (topic) {
 		container->add(
-			SetupDetails(controller, container, topic, mainTracker));
+			SetupDetails(
+				controller,
+				container,
+				topic,
+				mainTracker,
+				dividerOverridden));
 	} else if (sublist) {
 		container->add(
-			SetupDetails(controller, container, sublist, mainTracker));
+			SetupDetails(
+				controller,
+				container,
+				sublist,
+				mainTracker,
+				dividerOverridden));
 	} else {
 		container->add(
-			SetupDetails(controller, container, peer, origin, mainTracker));
+			SetupDetails(
+				controller,
+				container,
+				peer,
+				origin,
+				mainTracker,
+				dividerOverridden));
 	}
 }
 

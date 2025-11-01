@@ -306,6 +306,7 @@ void InnerWidget::createProfileTop() {
 
 	using namespace Profile;
 	auto mainTracker = Ui::MultiSlideTracker();
+	auto dividerOverridden = rpl::variable<bool>(false);
 	AddDetails(
 		_top,
 		_controller,
@@ -313,7 +314,8 @@ void InnerWidget::createProfileTop() {
 		nullptr,
 		nullptr,
 		{ v::null },
-		mainTracker);
+		mainTracker,
+		dividerOverridden);
 
 	auto tracker = Ui::MultiSlideTracker();
 	const auto dividerWrap = _top->add(

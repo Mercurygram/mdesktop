@@ -74,7 +74,8 @@ void AddDetails(
 	Data::ForumTopic *topic,
 	Data::SavedSublist *sublist,
 	Origin origin,
-	Ui::MultiSlideTracker &mainTracker);
+	Ui::MultiSlideTracker &mainTracker,
+	rpl::variable<bool> &dividerOverridden);
 
 } // namespace Info::Profile
 
