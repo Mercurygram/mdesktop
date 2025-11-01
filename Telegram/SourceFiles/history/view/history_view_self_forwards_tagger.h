@@ -29,6 +29,7 @@ class SessionController;
 
 namespace Ui {
 class RpWidget;
+class AbstractButton;
 } // namespace Ui
 
 namespace Ui::Toast {
@@ -57,7 +58,10 @@ private:
 	void showSelectorForMessages(const MessageIdsList &ids);
 	void showToast(const TextWithEntities &text, Fn<void()> callback);
 	void showTaggedToast(DocumentId);
+	void showChannelFilterToast(not_null<PeerData*> peer);
 	void createLottieIcon(not_null<QWidget*> widget, const QString &name);
+	not_null<Ui::AbstractButton*> createRightButton(
+		not_null<Ui::RpWidget*> widget);
 	void hideToast();
 	[[nodiscard]] QRect toastGeometry() const;
 

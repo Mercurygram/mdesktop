@@ -46,6 +46,7 @@
     <file alias="toast/saved_messages.tgs">../../animations/toast/saved_messages.tgs</file>
     <file alias="toast/tagged.tgs">../../animations/toast/tagged.tgs</file>
     <file alias="my_gifts_empty.tgs">../../animations/my_gifts_empty.tgs</file>
+    <file alias="toast/chats_filter_in.tgs">../../animations/toast/chats_filter_in.tgs</file>
 
     <file alias="profile_muting.tgs">../../animations/profile/profile_muting.tgs</file>
     <file alias="profile_unmuting.tgs">../../animations/profile/profile_unmuting.tgs</file>
