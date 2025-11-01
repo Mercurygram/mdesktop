@@ -2102,6 +2102,11 @@ void DetailsFiller::addReportReaction(
 	const auto controller = _controller->parentController();
 	const auto forceHidden = std::make_shared<rpl::variable<bool>>(false);
 	const auto user = peer->asUser();
+	const auto wrap = _wrap->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			_wrap.data(),
+			object_ptr<Ui::VerticalLayout>(_wrap.data())));
+	Ui::AddSkip(wrap->entity());
 	auto shown = user
 		? rpl::combine(
 			Info::Profile::IsContactValue(user),
@@ -2112,6 +2117,7 @@ void DetailsFiller::addReportReaction(
 	const auto sent = [=] {
 		*forceHidden = true;
 	};
+	wrap->toggleOn(rpl::duplicate(shown));
 	AddMainButton(
 		_wrap,
 		(ban
@@ -2189,10 +2195,7 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill(
 			}
 		}
 		if (!user->isSelf() && !_sublist) {
-			const auto topSkip = add(CreateSlideSkipWidget(_wrap));
-			Ui::MultiSlideTracker tracker;
-			addReportReaction(tracker);
-			topSkip->toggleOn(std::move(tracker).atLeastOneShownValue());
+			addReportReaction(mainTracker);
 		}
 	} else if (const auto channel = _peer->asChannel()) {
 		if (!channel->isMegagroup()) {
