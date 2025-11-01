@@ -383,6 +383,7 @@ TopBar::TopBar(
 		_peer->session().changes().peerFlagsValue(
 			_peer,
 			Data::PeerUpdate::Flag::FullInfo
+				| Data::PeerUpdate::Flag::ChannelAmIn
 		) | rpl::start_with_next([=] {
 			setupActions(controller);
 		}, lifetime());
