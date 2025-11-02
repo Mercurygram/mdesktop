@@ -122,11 +122,18 @@ struct PatternColors {
 		const std::optional<QColor> &edgeColor,
 		bool isDark) {
 	if (collectible && collectible->patternColor.isValid()) {
+		auto blended = Ui::BlendColors(
+			collectible->patternColor,
+			Qt::black,
+			isDark ? (140. / 255) : (160. / 255));
+		auto result = !edgeColor
+			? std::move(blended)
+			: (Ui::CountContrast(blended, *edgeColor)
+				> Ui::CountContrast(collectible->patternColor, *edgeColor))
+			? std::move(blended)
+			: collectible->patternColor;
 		return {
-			.patternColor = Ui::BlendColors(
-				collectible->patternColor,
-				Qt::black,
-				isDark ? (140. / 255) : (160. / 255)),
+			.patternColor = std::move(result),
 			// .patternColor = collectible->patternColor.lighter(isDark
 			// 	? 140
 			// 	: 160),
