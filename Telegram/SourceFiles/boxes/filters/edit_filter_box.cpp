@@ -423,7 +423,22 @@ void EditFilterBox(
 		current.text,
 		TextUtilities::ConvertEntitiesToTextTags(current.entities),
 	}, Ui::InputField::HistoryAction::Clear);
-	name->setMaxLength(kMaxFilterTitleLength);
+	Ui::AddLengthLimitLabel(
+		name,
+		kMaxFilterTitleLength,
+		Ui::LengthLimitLabelOptions{
+			.customThreshold = 0,
+			.customUpdatePosition = [=](QSize parent, QSize label) {
+				return QPoint(
+					parent.width()
+						- st::windowFilterNameCharsLimitRightPosition.x()
+						- label.width() / 2,
+					st::windowFilterNameCharsLimitRightPosition.y());
+			},
+			.customCharactersCount = [=] {
+				return Ui::ComputeFieldCharacterCount(name);
+			},
+		});
 
 	const auto nameEditing = box->lifetime().make_state<NameEditing>(
 		NameEditing{ name });
@@ -741,7 +756,8 @@ void EditFilterBox(
 		const auto staticTitle = !title.entities.isEmpty()
 			&& state->staticTitle.current();
 		const auto rules = data->current();
-		if (title.empty()) {
+		if (Ui::ComputeFieldCharacterCount(name) > kMaxFilterTitleLength
+			|| title.empty()) {
 			name->showError();
 			box->scrollToY(0);
 			return {};

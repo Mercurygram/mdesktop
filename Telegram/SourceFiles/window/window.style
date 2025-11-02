@@ -283,8 +283,9 @@ windowFilterSmallRemove: IconButton(notifyClose) {
 }
 windowFilterSmallRemoveRight: 10px;
 windowFilterNameInput: InputField(defaultInputField) {
-	textMargins: margins(0px, 26px, 36px, 4px);
+	textMargins: margins(0px, 26px, 56px, 4px);
 }
+windowFilterNameCharsLimitRightPosition: point(42px, 27px);
 windowFilterStaticTitlePosition: point(0px, 5px);
 windowFilterIconToggleSize: size(36px, 36px);
 windowFilterIconTogglePosition: point(-4px, 18px);
