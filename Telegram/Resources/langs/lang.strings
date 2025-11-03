@@ -929,6 +929,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_cloud_login_email_code_title" = "Check Your New Email";
 "lng_settings_cloud_login_email_code_about" = "Please enter the code we have sent to your new email {email}";
 "lng_settings_cloud_login_email_success" = "Your email has been changed.";
+"lng_settings_cloud_login_email_set_success" = "Your login email has been set successfully.";
+"lng_settings_cloud_login_email_busy" = "Please set up login email in another window.";
 "lng_settings_error_email_not_alowed" = "Sorry, this email is not allowed";
 
 "lng_settings_ttl_title" = "Auto-Delete Messages";

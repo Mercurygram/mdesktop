@@ -1725,6 +1725,8 @@ PRIVATE
     window/window_session_controller.cpp
     window/window_session_controller.h
     window/window_session_controller_link_info.h
+    window/window_setup_email.cpp
+    window/window_setup_email.h
     window/window_top_bar_wrap.h
     window/themes/window_theme.cpp
     window/themes/window_theme.h

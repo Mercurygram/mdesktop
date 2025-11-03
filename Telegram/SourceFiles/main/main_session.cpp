@@ -120,7 +120,39 @@ Session::Session(
 , _factchecks(std::make_unique<Data::Factchecks>(this))
 , _locationPickers(std::make_unique<Data::LocationPickers>())
 , _credits(std::make_unique<Data::Credits>(this))
-, _promoSuggestions(std::make_unique<Data::PromoSuggestions>(this))
+, _promoSuggestions(std::make_unique<Data::PromoSuggestions>(this, [=] {
+	using State = Data::SetupEmailState;
+	if (_promoSuggestions->setupEmailState() == State::Setup
+		|| _promoSuggestions->setupEmailState() == State::SetupNoSkip) {
+		if (_settings->setupEmailState() == State::Setup
+			|| _settings->setupEmailState() == State::SetupNoSkip) {
+			crl::on_main([=] {
+			// base::call_delayed(5000, [=] {
+				Core::App().lockBySetupEmail();
+			});
+			const auto unlockLifetime = std::make_shared<rpl::lifetime>();
+			_promoSuggestions->setupEmailStateValue(
+			) | rpl::filter([](Data::SetupEmailState s) {
+				return s == Data::SetupEmailState::None;
+			}) | rpl::take(1) | rpl::start_with_next(crl::guard(this, [=] {
+				Core::App().unlockSetupEmail();
+				_settings->setSetupEmailState(State::None);
+				saveSettingsDelayed(200);
+				unlockLifetime->destroy();
+			}), *unlockLifetime);
+		} else {
+			_settings->setSetupEmailState(
+				_promoSuggestions->setupEmailState());
+			saveSettingsDelayed(200);
+		}
+	} else {
+		if (_settings->setupEmailState() == State::Setup
+			|| _settings->setupEmailState() == State::SetupNoSkip) {
+			_settings->setSetupEmailState(State::None);
+			saveSettingsDelayed(200);
+		}
+	}
+}))
 , _cachedReactionIconFactory(std::make_unique<ReactionIconFactory>())
 , _supportHelper(Support::Helper::Create(this))
 , _fastButtonsBots(std::make_unique<Support::FastButtonsBots>(this))
