@@ -75,6 +75,7 @@ void SaveCallJoinMuted(
 	const auto call = peer->groupCall();
 	if (!call
 		|| call->id() != callId
+		|| peer->isUser()
 		|| !peer->canManageGroupCall()
 		|| !call->canChangeJoinMuted()
 		|| call->joinMuted() == joinMuted) {
@@ -99,7 +100,7 @@ void SaveCallMessagesEnabled(
 	if (!call
 		|| call->id() != callId
 		|| !peer->canManageGroupCall()
-		|| !call->canChangeJoinMuted()
+		|| !call->canChangeMessagesEnabled()
 		|| call->messagesEnabled() == messagesEnabled) {
 		return;
 	}
@@ -890,7 +891,7 @@ std::pair<Fn<void()>, rpl::lifetime> ShareInviteLinkAction(
 		bool generatingLink = false;
 	};
 	const auto state = lifetime.make_state<State>(&peer->session());
-	if (!peer->canManageGroupCall()) {
+	if (peer->isUser() || !peer->canManageGroupCall()) {
 		state->linkSpeaker = QString();
 	}
 

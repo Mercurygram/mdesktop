@@ -1364,7 +1364,7 @@ void GroupCall::initialJoinRequested() {
 		}
 	}, _lifetime);
 
-	if (_sharedCall) {
+	if (_sharedCall && conference()) {
 		_canManage = _sharedCall->canManage();
 		return;
 	}

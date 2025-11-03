@@ -137,7 +137,9 @@ bool Messages::ready() const {
 }
 
 void Messages::send(TextWithTags text, int stars) {
-	if (!ready()) {
+	if (text.empty() && !stars) {
+		return;
+	} else if (!ready()) {
 		_pending.push_back({ std::move(text), stars });
 		return;
 	}

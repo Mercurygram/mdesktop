@@ -107,7 +107,9 @@ namespace {
 	}) | rpl::flatten_latest();
 }
 
-[[nodiscard]] ChatHelpers::ComposeFeatures Features(bool videoStream) {
+[[nodiscard]] ChatHelpers::ComposeFeatures Features(
+		bool videoStream,
+		bool videoStreamManager) {
 	return {
 		.likes = !videoStream,
 		.sendAs = videoStream,
@@ -124,7 +126,7 @@ namespace {
 		.autocompleteMentions = false,
 		.autocompleteCommands = false,
 		.recordMediaMessage = !videoStream,
-		.editMessageStars = videoStream,
+		.editMessageStars = videoStream && !videoStreamManager,
 		.emojiOnlyPanel = videoStream,
 	};
 }
@@ -179,7 +181,7 @@ ReplyArea::ReplyArea(not_null<Controller*> controller)
 			rpl::deferred([=] { return _starsForMessage.value(); })),
 		.voiceCustomCancelText = tr::lng_record_cancel_stories(tr::now),
 		.voiceLockFromBottom = true,
-		.features = Features(false),
+		.features = Features(false, false),
 	}
 )) {
 	initGeometry();
@@ -623,7 +625,7 @@ Fn<SendMenu::Details()> ReplyArea::sendMenuDetails() const {
 				? uint64(_controls->chosenStarsForMessage())
 				: std::optional<uint64>()),
 			.commentPriceMin = (call
-				? uint64(call->messagesMinPrice())
+				? uint64(call->canManage() ? call->messagesMinPrice() : 0)
 				: std::optional<uint64>()),
 			.effectAllowed = (!_data.videoStream
 				&& _data.peer
@@ -865,7 +867,8 @@ void ReplyArea::show(
 	const auto streamChanged = (_data.videoStream.get() != stream);
 	_data = data;
 	if (streamChanged) {
-		_controls->updateFeatures(Features(stream != nullptr));
+		const auto manager = stream && stream->canManage();
+		_controls->updateFeatures(Features(stream != nullptr, manager));
 		_controls->setToggleCommentsButton(stream
 			? _controller->commentsStateValue()
 			: nullptr);
@@ -970,7 +973,12 @@ void ReplyArea::show(
 
 rpl::producer<int> ReplyArea::starsPerMessageValue() const {
 	if (const auto stream = _data.videoStream.get()) {
-		return stream->messagesMinPriceValue();
+		return rpl::combine(
+			Data::CanManageGroupCallValue(stream->peer()),
+			stream->messagesMinPriceValue()
+		) | rpl::map([=](bool canManage, int price) {
+			return canManage ? 0 : price;
+		});
 	} else if (const auto peer = _data.peer) {
 		using Flag = Data::PeerUpdate::Flag;
 		return peer->session().changes().peerFlagsValue(

@@ -49,9 +49,7 @@ class Call;
 class EncryptDecrypt;
 } // namespace TdE2E
 
-namespace Calls {
-
-namespace Group {
+namespace Calls::Group {
 struct MuteRequest;
 struct VolumeRequest;
 struct ParticipantState;
@@ -62,7 +60,9 @@ struct RtmpInfo;
 enum class VideoQuality;
 enum class Error;
 class Messages;
-} // namespace Group
+} // namespace Calls::Group
+
+namespace Calls {
 
 struct InviteRequest;
 struct InviteResult;

@@ -1852,7 +1852,9 @@ int PeerData::slowmodeSecondsLeft() const {
 }
 
 bool PeerData::canManageGroupCall() const {
-	if (const auto chat = asChat()) {
+	if (const auto user = asUser()) {
+		return user->isSelf();
+	} else if (const auto chat = asChat()) {
 		return chat->amCreator()
 			|| (chat->adminRights() & ChatAdminRight::ManageCall);
 	} else if (const auto group = asChannel()) {
@@ -1862,7 +1864,7 @@ bool PeerData::canManageGroupCall() const {
 		return group->amCreator()
 			|| (group->adminRights() & ChatAdminRight::ManageCall);
 	}
-	return false;
+	Unexpected("Peer type in PeerData::canManageGroupCall.");
 }
 
 bool PeerData::amMonoforumAdmin() const {
