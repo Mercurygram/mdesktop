@@ -1437,7 +1437,7 @@ void TopBar::updateStatusPosition(float64 progressCurrent) {
 		progressCurrent);
 
 	if (const auto rating = _starsRating.get()) {
-		rating->moveTo(statusLeft, statusTop);
+		rating->moveTo(statusLeft, statusTop - st::lineWidth);
 		rating->setOpacity(progressCurrent);
 	}
 	const auto statusShift = _statusShift.current()
