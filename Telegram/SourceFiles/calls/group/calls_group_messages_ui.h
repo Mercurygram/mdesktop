@@ -81,6 +81,7 @@ private:
 		Ui::RoundRect badgeDark;
 	};
 
+	void setupBadges();
 	void setupList(
 		rpl::producer<std::vector<Message>> messages,
 		rpl::producer<bool> shown);
@@ -90,6 +91,7 @@ private:
 	void setContentFailed(MessageView &entry);
 	void setContent(
 		MessageView &entry,
+		const QString &name,
 		const TextWithEntities &text,
 		int stars);
 	void updateMessageSize(MessageView &entry);
@@ -162,6 +164,9 @@ private:
 
 	QPoint _reactionBasePosition;
 	rpl::lifetime _effectsLifetime;
+
+	Ui::Text::String _liveBadge;
+	Ui::Text::String _adminBadge;
 
 	//Ui::Animations::Simple _topFadeAnimation;
 	//Ui::Animations::Simple _bottomFadeAnimation;

@@ -38,6 +38,7 @@ struct Message {
 	TextWithEntities text;
 	int stars = 0;
 	bool failed = false;
+	bool admin = false;
 	bool mine = false;
 };
 

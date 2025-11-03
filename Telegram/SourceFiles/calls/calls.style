@@ -1703,6 +1703,18 @@ groupCallMessagePalette: TextPalette(defaultTextPalette) {
 	monoFg: radialFg;
 	spoilerFg: radialFg;
 }
+groupCallMessageBadge: RoundButton(defaultActiveButton) {
+	textBg: attentionButtonFg;
+	textBgOver: attentionButtonFg;
+	width: -6px;
+	height: 12px;
+	radius: 6px;
+	textTop: 1px;
+	style: TextStyle(semiboldTextStyle) {
+		font: font(8px semibold);
+	}
+}
+groupCallMessageBadgeMargin: margins(0px, 4px, 0px, 0px);
 groupCallUserpic: 20px;
 groupCallUserpicPadding: margins(2px, 2px, 4px, 2px);
 groupCallPinnedPadding: margins(10px, 4px, 10px, 2px);

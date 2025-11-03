@@ -165,6 +165,7 @@ void Messages::send(TextWithTags text, int stars) {
 		.peer = from,
 		.text = std::move(prepared),
 		.stars = stars,
+		.admin = (from == _call->peer()),
 		.mine = true,
 	});
 
@@ -357,6 +358,7 @@ void Messages::received(
 			Api::ParseTextWithEntities(&peer->session(), message),
 			allowedEntityTypes),
 		.stars = stars,
+		.admin = (author == _call->peer()),
 		.mine = mine,
 	});
 	ranges::sort(_messages, ranges::less(), &Message::id);
@@ -597,6 +599,7 @@ void Messages::reactionsPaidSend() {
 		.id = localId,
 		.peer = from,
 		.stars = int(send.count),
+		.admin = (from == _call->peer()),
 		.mine = true,
 	});
 

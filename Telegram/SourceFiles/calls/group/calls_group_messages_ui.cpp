@@ -34,6 +34,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/effects/radial_animation.h"
 #include "ui/effects/reaction_fly_animation.h"
 #include "ui/layers/generic_box.h"
+#include "ui/text/custom_emoji_text_badge.h"
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/menu/menu_item_base.h"
@@ -61,6 +62,7 @@ namespace {
 constexpr auto kMessageBgOpacity = 0.8;
 constexpr auto kDarkOverOpacity = 0.25;
 constexpr auto kColoredMessageBgOpacity = 0.65;
+constexpr auto kAdminBadgeTextOpacity = 0.6;
 
 [[nodiscard]] int CountMessageRadius() {
 	const auto minHeight = st::groupCallMessagePadding.top()
@@ -258,6 +260,7 @@ struct MessagesUi::MessageView {
 	QPoint reactionShift;
 	TextWithEntities original;
 	Ui::PeerUserpicView view;
+	Ui::Text::String name;
 	Ui::Text::String text;
 	Ui::Text::String price;
 	TimeId date = 0;
@@ -267,9 +270,13 @@ struct MessagesUi::MessageView {
 	int left = 0;
 	int height = 0;
 	int realHeight = 0;
+	int nameWidth = 0;
+	int textLeft = 0;
+	int textTop = 0;
 	bool removed = false;
 	bool sending = false;
 	bool failed = false;
+	bool admin = false;
 	bool mine = false;
 };
 
@@ -321,11 +328,28 @@ MessagesUi::MessagesUi(
 , _fadeHeight(st::normalFont->height * 2)
 , _fadeWidth(st::normalFont->height * 2)
 , _streamMode(_mode == MessagesMode::VideoStream) {
+	setupBadges();
 	setupList(std::move(messages), std::move(shown));
 	handleIdUpdates(std::move(idUpdates));
 }
 
 MessagesUi::~MessagesUi() = default;
+
+void MessagesUi::setupBadges() {
+	auto helper = Ui::Text::CustomEmojiHelper();
+	const auto liveText = helper.paletteDependent(
+		Ui::Text::CustomEmojiTextBadge(
+			tr::lng_video_stream_live(tr::now),
+			st::groupCallMessageBadge,
+			st::groupCallMessageBadgeMargin));
+	_liveBadge.setMarkedText(
+		st::messageTextStyle,
+		liveText,
+		kMarkupTextOptions,
+		helper.context());
+
+	_adminBadge.setText(st::messageTextStyle, tr::lng_admin_badge(tr::now));
+}
 
 void MessagesUi::setupList(
 		rpl::producer<std::vector<Message>> messages,
@@ -455,13 +479,29 @@ void MessagesUi::updateMessageSize(MessageView &entry) {
 		entry.text,
 		std::min(st::groupCallWidth / 2, inner),
 		inner);
+	const auto space = st::normalFont->spacew;
+	const auto nameWidth = entry.name.isEmpty() ? 0 : entry.name.maxWidth();
+	const auto nameLineWidth = nameWidth
+		? (nameWidth
+			+ space
+			+ _liveBadge.maxWidth()
+			+ space
+			+ _adminBadge.maxWidth())
+		: 0;
 
+	const auto nameHeight = entry.name.isEmpty()
+		? 0
+		: st::messageTextStyle.font->height;
 	const auto textHeight = size.height();
-	entry.width = size.width() + widthSkip;
+	entry.width = std::max(size.width(), std::min(nameLineWidth, inner))
+		+ widthSkip;
 	entry.left = _streamMode ? 0 : (_width - entry.width) / 2;
+	entry.textLeft = leftSkip;
+	entry.textTop = padding.top() + nameHeight;
+	entry.nameWidth = std::min(entry.width - widthSkip, nameWidth);
 	updateReactionPosition(entry);
 
-	const auto contentHeight = padding.top() + textHeight + padding.bottom();
+	const auto contentHeight = entry.textTop + textHeight + padding.bottom();
 	const auto userpicHeight = hasUserpic
 		? (userpicPadding.top() + userpicSize + userpicPadding.bottom())
 		: 0;
@@ -524,6 +564,7 @@ bool MessagesUi::updatePinnedWidth(PinnedView &entry) {
 
 void MessagesUi::setContentFailed(MessageView &entry) {
 	entry.failed = true;
+	entry.name = Ui::Text::String();
 	entry.text = Ui::Text::String(
 		st::messageTextStyle,
 		TextWithEntities().append(
@@ -537,8 +578,14 @@ void MessagesUi::setContentFailed(MessageView &entry) {
 
 void MessagesUi::setContent(
 		MessageView &entry,
+		const QString &name,
 		const TextWithEntities &text,
 		int stars) {
+	entry.name = entry.admin
+		? Ui::Text::String(
+			st::messageTextStyle,
+			Ui::Text::Bold(name))
+		: Ui::Text::String();
 	if (stars) {
 		entry.price = Ui::Text::String(
 			st::whoReadDateStyle,
@@ -549,9 +596,12 @@ void MessagesUi::setContent(
 	} else {
 		entry.price = Ui::Text::String();
 	}
+	const auto composed = entry.admin
+		? text
+		: Ui::Text::Link(Ui::Text::Bold(name), 1).append(' ').append(text);
 	entry.text = Ui::Text::String(
 		st::messageTextStyle,
-		text,
+		composed,
 		kMarkupTextOptions,
 		st::groupCallWidth / 8,
 		Core::TextContext({
@@ -662,6 +712,7 @@ void MessagesUi::appendMessage(const Message &data) {
 		.stars = data.stars,
 		.top = top,
 		.sending = !data.date,
+		.admin = data.admin && _streamMode,
 		.mine = data.mine,
 	});
 	const auto repaint = [=] {
@@ -674,9 +725,7 @@ void MessagesUi::appendMessage(const Message &data) {
 	if (data.failed) {
 		setContentFailed(entry);
 	} else {
-		auto text = Ui::Text::Link(Ui::Text::Bold(data.peer->shortName()), 1)
-			.append(' ').append(data.text);
-		setContent(entry, text, data.stars);
+		setContent(entry, data.peer->shortName(), data.text, data.stars);
 	}
 	updateMessageSize(entry);
 	if (entry.sending) {
@@ -1082,9 +1131,11 @@ void MessagesUi::setupMessagesWidget() {
 					p.drawRoundedRect(x, y, width, use, radius, radius);
 					p.setOpacity(1.);
 				}
+			} else if (entry.admin) {
+				_messageBgRect.paint(p, { x, y, width, use });
 			}
 
-			auto leftSkip = padding.left();
+			const auto textLeft = entry.textLeft;
 			const auto priceSkip = padding.right() / 2;
 			const auto hasUserpic = !entry.failed;
 			if (hasUserpic) {
@@ -1100,7 +1151,7 @@ void MessagesUi::setupMessagesWidget() {
 					.position = position,
 					.size = userpicSize,
 					.shape = Ui::PeerUserpicShape::Circle,
-					});
+				});
 				if (const auto animation = entry.sendingAnimation.get()) {
 					auto hq = PainterHighQualityEnabler(p);
 					auto pen = st::groupCallBg->p;
@@ -1119,18 +1170,40 @@ void MessagesUi::setupMessagesWidget() {
 						state.arcLength);
 					p.setOpacity(1.);
 				}
-				leftSkip = userpicPadding.left()
-					+ userpicSize
-					+ userpicPadding.right();
 			}
 
 			p.setPen(st::white);
+			if (!entry.name.isEmpty()) {
+				const auto space = st::normalFont->spacew;
+				entry.name.draw(p, {
+					.position = {
+						x + textLeft,
+						y + padding.top(),
+					},
+					.availableWidth = entry.nameWidth,
+					.palette = &st::groupCallMessagePalette,
+				});
+				const auto liveLeft = x + textLeft + entry.nameWidth + space;
+				_liveBadge.draw(p, {
+					.position = { liveLeft, y + padding.top() },
+				});
+
+				p.setOpacity(kAdminBadgeTextOpacity);
+				const auto adminLeft = x
+					+ entry.width
+					- padding.right()
+					- _adminBadge.maxWidth();
+				_adminBadge.draw(p, {
+					.position = { adminLeft, y + padding.top() },
+				});
+				p.setOpacity(1.);
+			}
 			entry.text.draw(p, {
 				.position = {
-					x + leftSkip,
-					y + padding.top(),
+					x + textLeft,
+					y + entry.textTop,
 				},
-				.availableWidth = entry.width - leftSkip - padding.right(),
+				.availableWidth = entry.width - textLeft - padding.right(),
 				.palette = &st::groupCallMessagePalette,
 				.spoiler = Ui::Text::DefaultSpoilerCache(),
 				.now = now,
@@ -1240,20 +1313,24 @@ void MessagesUi::handleClick(const MessageView &entry, QPoint point) {
 	const auto padding = st::groupCallMessagePadding;
 	const auto userpicSize = st::groupCallUserpic;
 	const auto userpicPadding = st::groupCallUserpicPadding;
-	const auto leftSkip = userpicPadding.left()
-		+ userpicSize
-		+ userpicPadding.right();
 	const auto userpic = QRect(
 		entry.left + userpicPadding.left(),
 		entry.top + userpicPadding.top(),
 		userpicSize,
 		userpicSize);
-	const auto link = userpic.contains(point)
+	const auto name = entry.name.isEmpty()
+		? QRect()
+		: QRect(
+			entry.left + entry.textLeft,
+			entry.top + padding.top(),
+			entry.nameWidth,
+			st::messageTextStyle.font->height);
+	const auto link = (userpic.contains(point) || name.contains(point))
 		? entry.fromLink
 		: entry.text.getState(point - QPoint(
-			entry.left + leftSkip,
-			entry.top + padding.top()
-		), entry.width - leftSkip - padding.right()).link;
+			entry.left + entry.textLeft,
+			entry.top + entry.textTop
+		), entry.width - entry.textLeft - padding.right()).link;
 	if (link) {
 		ActivateClickHandler(_messages, link, Qt::LeftButton);
 	}
