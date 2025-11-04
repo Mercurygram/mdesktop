@@ -10,9 +10,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_authorizations.h"
 #include "apiwrap.h"
 #include "base/call_delayed.h"
+#include "calls/group/ui/calls_group_stars_coloring.h"
+#include "data/data_session.h"
 #include "main/main_account.h"
 #include "main/main_session.h"
-#include "data/data_session.h"
 #include "ui/chat/chat_style.h"
 
 namespace Main {
@@ -262,6 +263,26 @@ TimeId AppConfig::groupCallMessageTTL() const {
 	return get<int>(u"group_call_message_ttl"_q, 10);
 }
 
+auto AppConfig::groupCallColorings() const -> std::vector<StarsColoring> {
+	if (!_groupCallColorings.empty()) {
+		return _groupCallColorings;
+	}
+
+	if (_groupCallColorings.empty()) {
+		_groupCallColorings = std::vector<StarsColoring>{
+			{ 0x955CDB, 0x49079B, 0, 30, 30, 0 }, // purple
+			{ 0x955CDB, 0x49079B, 10, 60, 60, 1 }, // still purple
+			{ 0x46A3EB, 0x00508E, 50, 120, 80, 2 }, // blue
+			{ 0x40A920, 0x176200, 100, 300, 110, 3 }, // green
+			{ 0xE29A09, 0x9A3E00, 250, 600, 150, 4 }, // yellow
+			{ 0xED771E, 0x9B3100, 500, 900, 200, 7 }, // orange
+			{ 0xE14542, 0x8B0503, 2'000, 1800, 280, 10 }, // red
+			{ 0x596473, 0x252C36, 10'000, 3600, 400, 20 }, // silver
+		};
+	}
+	return _groupCallColorings;
+}
+
 void AppConfig::refresh(bool force) {
 	if (_requestId || !_api) {
 		if (force) {
@@ -291,6 +312,8 @@ void AppConfig::refresh(bool force) {
 				});
 			}
 			updateIgnoredRestrictionReasons(std::move(was));
+
+			_groupCallColorings = {};
 
 			DEBUG_LOG(("getAppConfig result handled."));
 			_refreshed.fire({});

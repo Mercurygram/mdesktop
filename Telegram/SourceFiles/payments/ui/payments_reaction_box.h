@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "base/object_ptr.h"
+#include "calls/group/ui/calls_group_stars_coloring.h"
 
 namespace style {
 struct RoundCheckbox;
@@ -42,6 +43,7 @@ struct PaidReactionBoxArgs {
 	not_null<Main::Session*> session;
 	QString name;
 	Fn<rpl::producer<TextWithEntities>(rpl::producer<int> amount)> submit;
+	std::vector<Calls::Group::Ui::StarsColoring> colorings;
 	rpl::producer<CreditsAmount> balanceValue;
 	Fn<void(int, uint64)> send;
 	bool videoStreamChoosing = false;

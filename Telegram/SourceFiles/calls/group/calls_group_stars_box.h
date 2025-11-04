@@ -24,6 +24,11 @@ class BoxContent;
 class GenericBox;
 } // namespace Ui
 
+namespace Calls::Group::Ui {
+using namespace ::Ui;
+struct StarsColoring;
+} // namespace Calls::Group::Ui
+
 namespace Calls::Group {
 
 [[nodiscard]] int MaxVideoStreamStarsCount(not_null<Main::Session*> session);

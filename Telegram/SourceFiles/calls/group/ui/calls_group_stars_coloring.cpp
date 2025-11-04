@@ -69,28 +69,21 @@ namespace {
 
 } // namespace
 
-StarsColoring StarsColoringForCount(int stars) {
-	const auto list = std::vector<StarsColoring>{
-		{ 0x955CDB, 0x49079B, 0, 30, 30, 0 }, // purple
-		{ 0x955CDB, 0x49079B, 10, 60, 60, 1 }, // still purple
-		{ 0x46A3EB, 0x00508E, 50, 120, 80, 2 }, // blue
-		{ 0x40A920, 0x176200, 100, 300, 110, 3 }, // green
-		{ 0xE29A09, 0x9A3E00, 250, 600, 150, 4 }, // yellow
-		{ 0xED771E, 0x9B3100, 500, 900, 200, 7 }, // orange
-		{ 0xE14542, 0x8B0503, 2'000, 1800, 280, 10 }, // red
-		{ 0x596473, 0x252C36, 10'000, 3600, 400, 20 }, // silver
-	};
-	for (auto i = begin(list), e = end(list); i != e; ++i) {
+StarsColoring StarsColoringForCount(
+		const std::vector<StarsColoring> &colorings,
+		int stars) {
+	for (auto i = begin(colorings), e = end(colorings); i != e; ++i) {
 		if (i->fromStars > stars) {
-			Assert(i != begin(list));
+			Assert(i != begin(colorings));
 			return *(std::prev(i));
 		}
 	}
-	return list.back();
+	return colorings.back();
 }
 
 object_ptr<Ui::RpWidget> VideoStreamStarsLevel(
 		not_null<Ui::RpWidget*> box,
+		const std::vector<StarsColoring> &colorings,
 		rpl::producer<int> starsValue) {
 	auto result = object_ptr<Ui::RpWidget>(box.get());
 	const auto raw = result.data();
@@ -103,8 +96,8 @@ object_ptr<Ui::RpWidget> VideoStreamStarsLevel(
 	const auto state = raw->lifetime().make_state<State>();
 	state->stars = std::move(starsValue);
 	state->coloring = state->stars.value(
-	) | rpl::map([](int stars) {
-		return StarsColoringForCount(stars);
+	) | rpl::map([=](int stars) {
+		return StarsColoringForCount(colorings, stars);
 	});
 
 	state->blocks.push_back(MakeInfoBlock(raw, state->coloring.value(

@@ -35,10 +35,10 @@ public:
 	};
 	struct State {
 		Type type = Type::Send;
+		QColor fillBgOverride;
 		int slowmodeDelay = 0;
 		int starsToSend = 0;
 
-		friend inline constexpr auto operator<=>(State, State) = default;
 		friend inline constexpr bool operator==(State, State) = default;
 	};
 	[[nodiscard]] Type type() const {

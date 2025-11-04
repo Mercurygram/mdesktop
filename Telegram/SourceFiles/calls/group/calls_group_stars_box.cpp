@@ -33,7 +33,7 @@ int MaxVideoStreamStarsCount(not_null<Main::Session*> session) {
 	const auto appConfig = &session->appConfig();
 	return std::max(
 		appConfig->get<int>(
-			u"stars_paid_reaction_amount_max"_q,
+			u"stars_groupcall_message_amount_max"_q,
 			kMaxStarsFallback),
 		2);
 }
@@ -119,6 +119,7 @@ void VideoStreamStarsBox(
 		.session = &show->session(),
 		.name = args.name,
 		.submit = std::move(submitText),
+		.colorings = show->session().appConfig().groupCallColorings(),
 		.balanceValue = session->credits().balanceValue(),
 		.send = [weak, save = args.save](int count, uint64 barePeerId) {
 			save(count);

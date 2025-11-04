@@ -223,13 +223,19 @@ void PaidReactionSlider(
 	}, stars->lifetime());
 }
 
-[[nodiscard]] QImage GenerateBadgeImage(int count, bool videoStream) {
+[[nodiscard]] QImage GenerateBadgeImage(
+		const std::vector<Calls::Group::Ui::StarsColoring> &colorings,
+		int count,
+		bool videoStream) {
 	return GenerateSmallBadgeImage(
 		Lang::FormatCountDecimal(count),
 		st::paidReactTopStarIcon,
 		(videoStream
 			? Ui::ColorFromSerialized(
-				Calls::Group::Ui::StarsColoringForCount(count).bgLight)
+				Calls::Group::Ui::StarsColoringForCount(
+					colorings,
+					count
+				).bgLight)
 			: st::creditsBg3->c),
 		videoStream ? st::white->c : st::premiumButtonFg->c);
 }
@@ -261,6 +267,7 @@ void AddArrowDown(not_null<RpWidget*> widget) {
 [[nodiscard]] not_null<RpWidget*> MakeTopReactor(
 		not_null<QWidget*> parent,
 		const PaidReactionTop &data,
+		const std::vector<Calls::Group::Ui::StarsColoring> &colorings,
 		Fn<void()> selectShownPeer,
 		bool videoStream) {
 	const auto result = CreateChild<AbstractButton>(parent);
@@ -296,7 +303,7 @@ void AddArrowDown(not_null<RpWidget*> widget) {
 		p.drawImage(left, 0, photo->image(st::paidReactTopUserpic));
 
 		if (state->badge.isNull()) {
-			state->badge = GenerateBadgeImage(count, videoStream);
+			state->badge = GenerateBadgeImage(colorings, count, videoStream);
 		}
 		const auto bwidth = state->badge.width()
 			/ state->badge.devicePixelRatio();
@@ -365,6 +372,7 @@ void SelectShownPeer(
 void FillTopReactors(
 		not_null<VerticalLayout*> container,
 		std::vector<PaidReactionTop> top,
+		const std::vector<Calls::Group::Ui::StarsColoring> &colorings,
 		rpl::producer<int> chosen,
 		rpl::producer<uint64> shownPeer,
 		Fn<void(uint64)> changeShownPeer,
@@ -465,6 +473,7 @@ void FillTopReactors(
 					: MakeTopReactor(
 						parent,
 						entry,
+						colorings,
 						selectShownPeer,
 						videoStream);
 				state->widgets.push_back(widget);
@@ -530,6 +539,7 @@ void PaidReactionsBox(
 		state->chosen = count;
 	};
 
+	const auto colorings = args.colorings;
 	const auto videoStreamChoosing = args.videoStreamChoosing;
 	const auto videoStreamSending = args.videoStreamSending;
 	const auto videoStream = videoStreamChoosing || videoStreamSending;
@@ -562,7 +572,9 @@ void PaidReactionsBox(
 		};
 	});
 	const auto activeFgOverride = [=](int count) {
-		const auto coloring = Calls::Group::Ui::StarsColoringForCount(count);
+		const auto coloring = Calls::Group::Ui::StarsColoringForCount(
+			colorings,
+			count);
 		return Ui::ColorFromSerialized(coloring.bgLight);
 	};
 
@@ -602,6 +614,7 @@ void PaidReactionsBox(
 		FillTopReactors(
 			content,
 			std::move(args.top),
+			colorings,
 			state->chosen.value(),
 			state->shownPeer.value(),
 			[=](uint64 barePeerId) {
@@ -613,7 +626,7 @@ void PaidReactionsBox(
 	if (videoStreamChoosing) {
 		using namespace Calls::Group::Ui;
 		box->addRow(
-			VideoStreamStarsLevel(box, state->chosen.value()),
+			VideoStreamStarsLevel(box, colorings, state->chosen.value()),
 			st::boxRowPadding + QMargins(0, st::paidReactTitleSkip, 0, 0));
 	} else if (videoStreamSending) {
 		addTopReactors();

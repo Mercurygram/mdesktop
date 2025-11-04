@@ -31,10 +31,13 @@ struct StarsColoring {
 		const StarsColoring &) = default;
 };
 
-[[nodiscard]] StarsColoring StarsColoringForCount(int stars);
+[[nodiscard]] StarsColoring StarsColoringForCount(
+	const std::vector<StarsColoring> &colorings,
+	int stars);
 
 [[nodiscard]] object_ptr<Ui::RpWidget> VideoStreamStarsLevel(
 	not_null<Ui::RpWidget*> box,
+	const std::vector<StarsColoring> &colorings,
 	rpl::producer<int> starsValue);
 
 } // namespace Calls::Group::Ui

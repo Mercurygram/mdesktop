@@ -26,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_message_reaction_id.h"
 #include "data/data_session.h"
 #include "lang/lang_keys.h"
+#include "main/main_app_config.h"
 #include "main/main_session.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/controls/emoji_button.h"
@@ -1068,6 +1069,8 @@ void MessagesUi::setupMessagesWidget() {
 		const auto start = scroll->scrollTop();
 		const auto end = start + scroll->height();
 		const auto ratio = style::DevicePixelRatio();
+		const auto session = &_show->session();
+		const auto &colorings = session->appConfig().groupCallColorings();
 
 		if ((_canvas.width() < scroll->width() * ratio)
 			|| (_canvas.height() < scroll->height() * ratio)) {
@@ -1112,7 +1115,9 @@ void MessagesUi::setupMessagesWidget() {
 			if (!_streamMode) {
 				_messageBgRect.paint(p, { x, y, width, use });
 			} else if (entry.stars) {
-				const auto coloring = Ui::StarsColoringForCount(entry.stars);
+				const auto coloring = Ui::StarsColoringForCount(
+					colorings,
+					entry.stars);
 				auto &bg = _bgs[ColoringKey(coloring)];
 				if (!bg) {
 					bg = std::make_unique<PayedBg>(coloring);
@@ -1427,6 +1432,8 @@ void MessagesUi::setupPinnedWidget() {
 	animation->seconds.callEach(crl::time(1000));
 
 	_pinned->paintRequest() | rpl::start_with_next([=](QRect clip) {
+		const auto session = &_show->session();
+		const auto &colorings = session->appConfig().groupCallColorings();
 		const auto start = scroll->scrollLeft();
 		const auto end = start + scroll->width();
 		const auto ratio = style::DevicePixelRatio();
@@ -1471,7 +1478,9 @@ void MessagesUi::setupPinnedWidget() {
 				p.setOpacity(scale);
 				p.translate(-mx, -my);
 			}
-			const auto coloring = Ui::StarsColoringForCount(entry.stars);
+			const auto coloring = Ui::StarsColoringForCount(
+				colorings,
+				entry.stars);
 			auto &bg = _bgs[ColoringKey(coloring)];
 			if (!bg) {
 				bg = std::make_unique<PayedBg>(coloring);

@@ -54,15 +54,19 @@ constexpr auto kStarsStatsShortPollDelay = 30 * crl::time(1000);
 	return result;
 }
 
-[[nodiscard]] TimeId PinFinishDate(TimeId date, int stars) {
+[[nodiscard]] TimeId PinFinishDate(
+		not_null<PeerData*> peer,
+		TimeId date,
+		int stars) {
 	if (!date || !stars) {
 		return 0;
 	}
-	return date + Ui::StarsColoringForCount(stars).secondsPin;
+	const auto &colorings = peer->session().appConfig().groupCallColorings();
+	return date + Ui::StarsColoringForCount(colorings, stars).secondsPin;
 }
 
 [[nodiscard]] TimeId PinFinishDate(const Message &message) {
-	return PinFinishDate(message.date, message.stars);
+	return PinFinishDate(message.peer, message.date, message.stars);
 }
 
 [[nodiscard]] std::optional<PeerId> MaybeShownPeer(
@@ -352,10 +356,10 @@ void Messages::received(
 	_messages.push_back({
 		.id = id,
 		.date = date,
-		.pinFinishDate = PinFinishDate(date, stars),
+		.pinFinishDate = PinFinishDate(author, date, stars),
 		.peer = author,
 		.text = Ui::Text::Filtered(
-			Api::ParseTextWithEntities(&peer->session(), message),
+			Api::ParseTextWithEntities(&author->session(), message),
 			allowedEntityTypes),
 		.stars = stars,
 		.admin = (author == _call->peer()),

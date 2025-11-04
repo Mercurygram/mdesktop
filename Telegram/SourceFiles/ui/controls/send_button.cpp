@@ -198,7 +198,11 @@ void SendButton::paintSend(QPainter &p, bool over) {
 	if (const auto padding = _st.sendIconFillPadding; padding > 0) {
 		auto hq = PainterHighQualityEnabler(p);
 		p.setPen(Qt::NoPen);
-		p.setBrush(st::windowBgActive);
+		if (_state.fillBgOverride.isValid()) {
+			p.setBrush(_state.fillBgOverride);
+		} else {
+			p.setBrush(st::windowBgActive);
+		}
 		p.drawEllipse(
 			QRect(_st.sendIconPosition, sendIcon.size()).marginsAdded(
 				{ padding, padding, padding, padding }));
@@ -216,7 +220,11 @@ void SendButton::paintStarsToSend(QPainter &p, bool over) {
 	{
 		PainterHighQualityEnabler hq(p);
 		p.setPen(Qt::NoPen);
-		p.setBrush(over ? _st.stars.textBgOver : _st.stars.textBg);
+		if (_state.fillBgOverride.isValid()) {
+			p.setBrush(_state.fillBgOverride);
+		} else {
+			p.setBrush(over ? _st.stars.textBgOver : _st.stars.textBg);
+		}
 		const auto radius = geometry.rounded.height() / 2;
 		p.drawRoundedRect(geometry.rounded, radius, radius);
 	}
