@@ -74,8 +74,9 @@ SetupEmailLockWidget::SetupEmailLockWidget(
 		? session->domain().accountsAuthedCount()
 		: 0;
 
-	if (state == Data::SetupEmailState::SettingUp
-		|| state == Data::SetupEmailState::SettingUpNoSkip) {
+	if (!window->isPrimary()) {
+	// if (state == Data::SetupEmailState::SettingUp
+	// 	|| state == Data::SetupEmailState::SettingUpNoSkip) {
 		auto icon = CreateEmailIcon(_layout);
 		_iconAnimate = std::move(icon.animate);
 		_layout->add(std::move(icon.widget));
