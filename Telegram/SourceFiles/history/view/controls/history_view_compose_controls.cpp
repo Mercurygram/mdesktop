@@ -1104,19 +1104,25 @@ void ComposeControls::initEditStarsButton() {
 		_st.editStars);
 	_editStars->show();
 	_editStars->setClickedCallback([=] {
-		const auto min = _minStarsCount.current();
-		const auto now = std::max(min, _chosenStarsCount.value_or(0));
-		_show->show(Calls::Group::MakeVideoStreamStarsBox({
-			.show = _show,
-			.min = min,
-			.current = now,
-			.save = crl::guard(_editStars, [=](int count) {
-				_chosenStarsCount = count;
-				updateSendButtonType();
-			}),
-			.name = _history ? _history->peer->shortName() : QString(),
-		}));
+		editStarsFrom();
 	});
+}
+
+void ComposeControls::editStarsFrom(int selected) {
+	const auto min = _minStarsCount.current();
+	if (!selected) {
+		selected = _chosenStarsCount.value_or(0);
+	}
+	_show->show(Calls::Group::MakeVideoStreamStarsBox({
+		.show = _show,
+		.min = min,
+		.current = std::max(selected, min),
+		.save = crl::guard(_editStars, [=](int count) {
+			_chosenStarsCount = count;
+			updateSendButtonType();
+		}),
+		.name = _history ? _history->peer->shortName() : QString(),
+	}));
 }
 
 void ComposeControls::updateLikeParent() {
@@ -1427,7 +1433,26 @@ rpl::producer<> ComposeControls::scrollToMaxRequests() const {
 }
 
 rpl::producer<Api::SendOptions> ComposeControls::sendRequests() const {
-	return sendContentRequests(SendRequestType::Text);
+	return sendContentRequests(
+		SendRequestType::Text
+	) | rpl::filter([=] {
+		if (!_chosenStarsCount) {
+			return true;
+		}
+		using namespace Calls::Group::Ui;
+		const auto count = *_chosenStarsCount;
+		const auto &appConfig = _show->session().appConfig();
+		const auto &colorings = appConfig.groupCallColorings();
+		const auto coloring = StarsColoringForCount(colorings, count);
+		const auto required = StarsRequiredForMessage(
+			colorings,
+			getTextWithAppliedMarkdown());
+		if (required <= count) {
+			return true;
+		}
+		const_cast<ComposeControls*>(this)->editStarsFrom(required);
+		return false;
+	});
 }
 
 rpl::producer<VoiceToSend> ComposeControls::sendVoiceRequests() const {

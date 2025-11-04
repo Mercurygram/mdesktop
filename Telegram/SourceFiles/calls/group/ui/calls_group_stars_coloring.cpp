@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/object_ptr.h"
 #include "lang/lang_keys.h"
 #include "ui/widgets/labels.h"
+#include "ui/emoji_config.h"
 #include "ui/painter.h"
 #include "ui/rp_widget.h"
 #include "styles/style_credits.h"
@@ -79,6 +80,31 @@ StarsColoring StarsColoringForCount(
 		}
 	}
 	return colorings.back();
+}
+
+int StarsRequiredForMessage(
+		const std::vector<StarsColoring> &colorings,
+		const TextWithTags &text) {
+	Expects(!colorings.empty());
+
+	auto emojis = 0;
+	auto outLength = 0;
+	auto view = QStringView(text.text);
+	const auto length = int(view.size());
+	while (!view.isEmpty()) {
+		if (Ui::Emoji::Find(view, &outLength)) {
+			view = view.mid(outLength);
+			++emojis;
+		} else {
+			view = view.mid(1);
+		}
+	}
+	for (const auto &entry : colorings) {
+		if (emojis <= entry.emojiLimit && length <= entry.charactersMax) {
+			return entry.fromStars;
+		}
+	}
+	return colorings.back().fromStars + 1;
 }
 
 object_ptr<Ui::RpWidget> VideoStreamStarsLevel(

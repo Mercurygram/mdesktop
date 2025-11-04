@@ -249,6 +249,7 @@ void ReplyArea::send(Api::SendOptions options) {
 					|| result == Settings::SmallBalanceResult::Already) {
 					if (const auto strong = weak.get()) {
 						strong->messages()->send(text, stars);
+						_controls->clear();
 					}
 				}
 			};
@@ -257,11 +258,11 @@ void ReplyArea::send(Api::SendOptions options) {
 				_controller->uiShow(),
 				stars,
 				SmallBalanceVideoStream{ stream->peer()->id },
-				done);
+				crl::guard(this, done));
 		} else {
 			stream->messages()->send(std::move(text), stars);
+			_controls->clear();
 		}
-		_controls->clear();
 		return;
 	}
 	const auto webPageDraft = _controls->webPageDraft();

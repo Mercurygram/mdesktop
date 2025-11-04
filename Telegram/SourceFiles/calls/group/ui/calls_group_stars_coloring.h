@@ -35,6 +35,10 @@ struct StarsColoring {
 	const std::vector<StarsColoring> &colorings,
 	int stars);
 
+[[nodiscard]] int StarsRequiredForMessage(
+	const std::vector<StarsColoring> &colorings,
+	const TextWithTags &text);
+
 [[nodiscard]] object_ptr<Ui::RpWidget> VideoStreamStarsLevel(
 	not_null<Ui::RpWidget*> box,
 	const std::vector<StarsColoring> &colorings,

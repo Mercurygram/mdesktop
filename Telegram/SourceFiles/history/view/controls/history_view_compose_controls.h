@@ -329,6 +329,7 @@ private:
 
 	[[nodiscard]] auto sendContentRequests(
 		SendRequestType requestType = SendRequestType::Text) const;
+	void editStarsFrom(int selected = 0);
 
 	void orderControls();
 	void updateFieldPlaceholder();
