@@ -80,6 +80,7 @@ public:
 
 	void send(TextWithTags text, int stars);
 
+	void setApplyingInitial(bool value);
 	void received(const MTPDupdateGroupCallMessage &data);
 	void received(const MTPDupdateGroupCallEncryptedMessage &data);
 	void deleted(const MTPDupdateDeleteGroupCallMessages &data);
@@ -149,6 +150,9 @@ private:
 	void sent(uint64 randomId, MsgId realId);
 	void failed(uint64 randomId, const MTP::Response &response);
 
+	[[nodiscard]] bool skipMessage(
+		const TextWithEntities &text,
+		int stars) const;
 	[[nodiscard]] Data::PaidReactionSend startPaidReactionSending();
 	void finishPaidSending(Data::PaidReactionSend send, bool success);
 	void addStars(not_null<PeerData*> from, int stars, bool mine);
@@ -169,8 +173,10 @@ private:
 
 	base::Timer _destroyTimer;
 	std::vector<Message> _messages;
+	base::flat_set<MsgId> _skippedIds;
 	rpl::event_stream<std::vector<Message>> _changes;
 	rpl::event_stream<MessageIdUpdate> _idUpdates;
+	bool _applyingInitial = false;
 
 	mtpRequestId _starsTopRequestId = 0;
 	Paid _paid;

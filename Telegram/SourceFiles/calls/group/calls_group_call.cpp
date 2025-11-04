@@ -1800,7 +1800,9 @@ void GroupCall::joinDone(
 		_api.request(base::take(state.requestId)).cancel();
 		state.inShortPoll = true;
 	}
+	_messages->setApplyingInitial(true);
 	_peer->session().api().applyUpdates(result);
+	_messages->setApplyingInitial(false);
 	for (auto &state : _subchains) {
 		state.inShortPoll = false;
 	}

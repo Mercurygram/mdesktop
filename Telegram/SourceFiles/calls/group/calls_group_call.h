@@ -694,7 +694,7 @@ private:
 	base::flat_set<uint32> _unresolvedSsrcs;
 	rpl::event_stream<Error> _errors;
 	std::vector<Fn<void()>> _rejoinedCallbacks;
-	std::unique_ptr<Group::Messages> _messages;
+	const std::unique_ptr<Group::Messages> _messages;
 	bool _recordingStoppedByMe = false;
 	bool _requestedVideoChannelsUpdateScheduled = false;
 

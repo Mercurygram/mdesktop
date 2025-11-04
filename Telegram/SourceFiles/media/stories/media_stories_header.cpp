@@ -553,13 +553,17 @@ void Header::setVideoStreamViewers(rpl::producer<int> viewers) {
 			st::groupCallMessageBadge,
 			st::groupCallMessageBadgeMargin));
 	const auto context = helper.context();
-	_videoStreamViewersLifetime = tr::lng_group_call_rtmp_viewers(
-		lt_count_decimal,
-		std::move(viewers) | tr::to_count()
-	) | rpl::start_with_next([=](QString text) {
-		_date->setMarkedText(
-			TextWithEntities(badge).append(' ').append(text),
-			context);
+	_videoStreamViewersLifetime = std::move(
+		viewers
+	) | rpl::start_with_next([=](int count) {
+		auto text = badge;
+		if (count) {
+			text.append(' ').append(tr::lng_group_call_rtmp_viewers(
+				tr::now,
+				lt_count_decimal,
+				count));
+		}
+		_date->setMarkedText(text, context);
 	});
 }
 

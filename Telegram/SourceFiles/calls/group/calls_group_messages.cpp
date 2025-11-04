@@ -164,24 +164,29 @@ void Messages::send(TextWithTags text, int stars) {
 	_sendingIdByRandomId.emplace(randomId, localId);
 
 	const auto from = _call->messagesFrom();
-	_messages.push_back({
-		.id = localId,
-		.peer = from,
-		.text = std::move(prepared),
-		.stars = stars,
-		.admin = (from == _call->peer()),
-		.mine = true,
-	});
-
+	const auto skip = skipMessage(prepared, stars);
+	if (skip) {
+		_skippedIds.emplace(localId);
+	} else {
+		_messages.push_back({
+			.id = localId,
+			.peer = from,
+			.text = std::move(prepared),
+			.stars = stars,
+			.admin = (from == _call->peer()),
+			.mine = true,
+		});
+	}
 	if (!_call->conference()) {
 		using Flag = MTPphone_SendGroupCallMessage::Flag;
 		_api->request(MTPphone_SendGroupCallMessage(
-			MTP_flags(stars ? Flag::f_allow_paid_stars : Flag()),
+			MTP_flags(Flag::f_send_as
+				| (stars ? Flag::f_allow_paid_stars : Flag())),
 			_call->inputCall(),
 			MTP_long(randomId),
 			serialized,
 			MTP_long(stars),
-			MTPInputPeer() // send_as
+			from->input
 		)).done([=](
 				const MTPUpdates &result,
 				const MTP::Response &response) {
@@ -209,7 +214,13 @@ void Messages::send(TextWithTags text, int stars) {
 	}
 
 	addStars(from, stars, true);
-	checkDestroying(true);
+	if (!skip) {
+		checkDestroying(true);
+	}
+}
+
+void Messages::setApplyingInitial(bool value) {
+	_applyingInitial = value;
 }
 
 void Messages::received(const MTPDupdateGroupCallMessage &data) {
@@ -300,6 +311,7 @@ void Messages::sent(uint64 randomId, MsgId realId) {
 
 	const auto j = ranges::find(_messages, localId, &Message::id);
 	if (j == end(_messages)) {
+		_skippedIds.emplace(realId);
 		return;
 	}
 	j->id = realId;
@@ -333,6 +345,8 @@ void Messages::received(
 			checkDestroying(true);
 		}
 		return;
+	} else if (_skippedIds.contains(id)) {
+		return;
 	}
 	auto allowedEntityTypes = std::vector<EntityType>{
 		EntityType::Code,
@@ -349,26 +363,42 @@ void Messages::received(
 	}
 	const auto author = peer->owner().peer(peerFromMTP(from));
 
-	// Should check by sendAsPeers() list instead, but it may not be
-	// loaded here yet.
+	auto text = Ui::Text::Filtered(
+		Api::ParseTextWithEntities(&author->session(), message),
+		allowedEntityTypes);
 	const auto mine = author->isSelf()
 		|| (author->isChannel() && author->asChannel()->amCreator());
-	_messages.push_back({
-		.id = id,
-		.date = date,
-		.pinFinishDate = PinFinishDate(author, date, stars),
-		.peer = author,
-		.text = Ui::Text::Filtered(
-			Api::ParseTextWithEntities(&author->session(), message),
-			allowedEntityTypes),
-		.stars = stars,
-		.admin = (author == _call->peer()),
-		.mine = mine,
-	});
-	ranges::sort(_messages, ranges::less(), &Message::id);
+	const auto skip = skipMessage(text, stars);
+	if (skip) {
+		_skippedIds.emplace(id);
+	} else {
+		// Should check by sendAsPeers() list instead, but it may not be
+		// loaded here yet.
+		_messages.push_back({
+			.id = id,
+			.date = date,
+			.pinFinishDate = PinFinishDate(author, date, stars),
+			.peer = author,
+			.text = std::move(text),
+			.stars = stars,
+			.admin = (author == _call->peer()),
+			.mine = mine,
+		});
+		ranges::sort(_messages, ranges::less(), &Message::id);
+	}
+	if (!_applyingInitial) {
+		addStars(author, stars, mine);
+	}
+	if (!skip) {
+		checkDestroying(true);
+	}
+}
 
-	addStars(author, stars, mine);
-	checkDestroying(true);
+bool Messages::skipMessage(const TextWithEntities &text, int stars) const {
+	const auto real = _call->lookupReal();
+	return text.empty()
+		&& real
+		&& (stars < real->messagesMinPrice());
 }
 
 void Messages::checkDestroying(bool afterChanges) {
@@ -598,23 +628,28 @@ void Messages::reactionsPaidSend() {
 	const auto randomId = base::RandomValue<uint64>();
 	_sendingIdByRandomId.emplace(randomId, localId);
 
-	const auto from = _call->messagesFrom(); // send.shownPeer?
-	_messages.push_back({
-		.id = localId,
-		.peer = from,
-		.stars = int(send.count),
-		.admin = (from == _call->peer()),
-		.mine = true,
-	});
-
+	const auto from = _call->messagesFrom();
+	const auto stars = int(send.count);
+	const auto skip = skipMessage({}, stars);
+	if (skip) {
+		_skippedIds.emplace(localId);
+	} else {
+		_messages.push_back({
+			.id = localId,
+			.peer = from,
+			.stars = stars,
+			.admin = (from == _call->peer()),
+			.mine = true,
+		});
+	}
 	using Flag = MTPphone_SendGroupCallMessage::Flag;
 	_api->request(MTPphone_SendGroupCallMessage(
-		MTP_flags(Flag::f_allow_paid_stars),
+		MTP_flags(Flag::f_send_as | Flag::f_allow_paid_stars),
 		_call->inputCall(),
 		MTP_long(randomId),
 		MTP_textWithEntities(MTP_string(), MTP_vector<MTPMessageEntity>()),
-		MTP_long(send.count),
-		MTPInputPeer() // send_as
+		MTP_long(stars),
+		from->input
 	)).done([=](
 			const MTPUpdates &result,
 			const MTP::Response &response) {
@@ -625,8 +660,10 @@ void Messages::reactionsPaidSend() {
 		failed(randomId, response);
 	}).send();
 
-	addStars(from, int(send.count), true);
-	checkDestroying(true);
+	addStars(from, stars, true);
+	if (!skip) {
+		checkDestroying(true);
+	}
 }
 
 void Messages::undoScheduledPaidOnDestroy() {
