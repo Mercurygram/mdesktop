@@ -17,6 +17,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "ui/controls/userpic_button.h"
 #include "ui/layers/box_content.h"
+#include "ui/text/custom_emoji_helper.h"
+#include "ui/text/custom_emoji_text_badge.h"
 #include "ui/text/format_values.h"
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/buttons.h"
@@ -27,6 +29,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "ui/rp_widget.h"
 #include "ui/ui_utility.h"
+#include "styles/style_calls.h"
 #include "styles/style_media_view.h"
 
 #include <QtGui/QGuiApplication>
@@ -296,8 +299,9 @@ Header::Header(not_null<Controller*> controller)
 
 Header::~Header() = default;
 
-void Header::show(HeaderData data) {
+void Header::show(HeaderData data, rpl::producer<int> videoStreamViewers) {
 	if (_data == data) {
+		setVideoStreamViewers(std::move(videoStreamViewers));
 		return;
 	}
 	const auto peerChanged = !_data || (_data->peer != data.peer);
@@ -378,9 +382,9 @@ void Header::show(HeaderData data) {
 		std::move(timestamp.text),
 		st::storiesHeaderDate);
 	_date->setAttribute(Qt::WA_TransparentForMouseEvents);
-	_date->setOpacity(kDateOpacity);
 	_date->show();
 	_date->move(st::storiesHeaderDatePosition);
+	setVideoStreamViewers(std::move(videoStreamViewers));
 
 	_date->widthValue(
 	) | rpl::start_with_next(updateInfoGeometry, _date->lifetime());
@@ -531,6 +535,32 @@ void Header::show(HeaderData data) {
 	if (timestamp.changes > 0) {
 		_dateUpdateTimer.callOnce(timestamp.changes * crl::time(1000));
 	}
+}
+
+void Header::setVideoStreamViewers(rpl::producer<int> viewers) {
+	_videoStreamViewersLifetime.destroy();
+	if (!_date) {
+		return;
+	} else if (!viewers) {
+		_date->setOpacity(kDateOpacity);
+		return;
+	}
+	_date->setOpacity(1.);
+	auto helper = Ui::Text::CustomEmojiHelper();
+	const auto badge = helper.paletteDependent(
+		Ui::Text::CustomEmojiTextBadge(
+			tr::lng_video_stream_live(tr::now),
+			st::groupCallMessageBadge,
+			st::groupCallMessageBadgeMargin));
+	const auto context = helper.context();
+	_videoStreamViewersLifetime = tr::lng_group_call_rtmp_viewers(
+		lt_count_decimal,
+		std::move(viewers) | tr::to_count()
+	) | rpl::start_with_next([=](QString text) {
+		_date->setMarkedText(
+			TextWithEntities(badge).append(' ').append(text),
+			context);
+	});
 }
 
 void Header::createPlayPause() {

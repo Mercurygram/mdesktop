@@ -56,7 +56,7 @@ public:
 	void updatePauseState();
 	void updateVolumeIcon();
 
-	void show(HeaderData data);
+	void show(HeaderData data, rpl::producer<int> videoStreamViewers);
 	void raise();
 
 	[[nodiscard]] bool ignoreWindowMove(QPoint position) const;
@@ -78,6 +78,7 @@ private:
 		bool horizontal);
 	void toggleTooltip(Tooltip type, bool show);
 	void updateTooltipGeometry();
+	void setVideoStreamViewers(rpl::producer<int> viewers);
 
 	const not_null<Controller*> _controller;
 
@@ -105,6 +106,8 @@ private:
 	base::Timer _dateUpdateTimer;
 	bool _ignoreWindowMove = false;
 	bool _privacyBadgeOver = false;
+
+	rpl::lifetime _videoStreamViewersLifetime;
 
 };
 

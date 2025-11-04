@@ -23,6 +23,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/update_checker.h"
 #include "data/data_changes.h"
 #include "data/data_document.h"
+#include "data/data_group_call.h"
 #include "data/data_file_origin.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
@@ -923,7 +924,7 @@ void Controller::show(
 		.video = (document != nullptr),
 		.videoStream = videoStream(),
 		.silent = (document && document->isSilentVideo()),
-	});
+	}, _videoStream ? _videoStream->fullCountValue() : nullptr);
 	uiShow()->hideLayer(anim::type::instant);
 	if (!changeShown(story)) {
 		return;
