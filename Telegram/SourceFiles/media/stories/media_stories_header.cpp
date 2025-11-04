@@ -564,6 +564,7 @@ void Header::setVideoStreamViewers(rpl::producer<int> viewers) {
 				count));
 		}
 		_date->setMarkedText(text, context);
+		_dateUpdated.fire({});
 	});
 }
 
@@ -957,7 +958,7 @@ rpl::producer<bool> Header::tooltipShownValue() const {
 }
 
 void Header::updateDateText() {
-	if (!_date || !_data || !_data->date) {
+	if (!_date || !_data || !_data->date || _videoStreamViewersLifetime) {
 		return;
 	}
 	auto timestamp = ComposeDetails(*_data, base::unixtime::now());
