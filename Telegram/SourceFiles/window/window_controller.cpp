@@ -208,6 +208,11 @@ void Controller::showAccount(
 			}, _sessionController->lifetime());
 			_widget.updateTitle();
 
+			if (session->promoSuggestions().setupEmailState()
+				!= Data::SetupEmailState::None) {
+				_widget.setupSetupEmailLock();
+			}
+
 			session->updates().updateOnline(crl::now());
 		} else {
 			sideBarChanged();
@@ -347,7 +352,7 @@ auto Controller::sessionControllerChanges() const
 }
 
 bool Controller::locked() const {
-	if (Core::App().passcodeLocked() || Core::App().setupEmailLocked()) {
+	if (Core::App().passcodeLocked()/* || Core::App().setupEmailLocked()*/) {
 		return true;
 	} else if (const auto controller = sessionController()) {
 		return controller->session().termsLocked().has_value();

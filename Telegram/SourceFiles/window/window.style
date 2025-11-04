@@ -371,6 +371,10 @@ lockSetupEmailLabel: FlatLabel(defaultFlatLabel) {
 	minWidth: 256px;
 }
 lockSetupEmailLogOutPosition: point(10px, 10px);
+lockSetupEmailUserpicSmall: UserpicButton(defaultUserpicButton) {
+	size: size(22px, 22px);
+	photoSize: 22px;
+}
 
 // Windows specific
 

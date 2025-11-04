@@ -14,17 +14,23 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/application.h"
 #include "data/components/promo_suggestions.h"
 #include "data/data_session.h"
+#include "data/data_user.h"
 #include "intro/intro_code_input.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
+#include "main/main_account.h"
+#include "main/main_domain.h"
 #include "main/main_session.h"
 #include "settings/settings_common.h"
 #include "ui/painter.h"
 #include "ui/ui_utility.h"
 #include "ui/vertical_list.h"
+#include "ui/controls/userpic_button.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/labels.h"
+#include "ui/widgets/popup_menu.h"
+#include "ui/widgets/menu/menu_action.h"
 #include "ui/widgets/sent_code_field.h"
 #include "ui/wrap/vertical_layout.h"
 #include "window/window_controller.h"
@@ -64,6 +70,9 @@ SetupEmailLockWidget::SetupEmailLockWidget(
 		: Data::SetupEmailState::Setup;
 
 	const auto noSkip = state == Data::SetupEmailState::SetupNoSkip;
+	const auto accountsCount = session
+		? session->domain().accountsAuthedCount()
+		: 0;
 
 	if (state == Data::SetupEmailState::SettingUp
 		|| state == Data::SetupEmailState::SettingUpNoSkip) {
@@ -111,7 +120,7 @@ SetupEmailLockWidget::SetupEmailLockWidget(
 					});
 				});
 			}
-		} else {
+		} else if (accountsCount <= 1) {
 			_logoutButton = object_ptr<Ui::RoundButton>(
 				this,
 				tr::lng_settings_logout(),
@@ -123,6 +132,15 @@ SetupEmailLockWidget::SetupEmailLockWidget(
 					Data::SetupEmailState::SettingUpNoSkip);
 				_logoutButton->setClickedCallback([=] {
 					window->showLogoutConfirmation();
+				});
+			}
+		} else {
+			_backButton = object_ptr<Ui::IconButton>(
+				this,
+				st::introBackButton);
+			if (session) {
+				_backButton->setClickedCallback([=] {
+					showAccountsMenu();
 				});
 			}
 		}
@@ -602,6 +620,49 @@ void SetupEmailConfirmWidget::verifyCode(const QString &code) {
 		_codeInput->showError();
 	});
 	Api::VerifyLoginEmail(*_api, code, done, fail);
+}
+
+void SetupEmailLockWidget::showAccountsMenu() {
+	const auto session = window()->maybeSession();
+	if (!session) {
+		return;
+	}
+
+	const auto &st = st::popupMenuWithIcons;
+
+	_accountsMenu = base::make_unique_q<Ui::PopupMenu>(this, st);
+	const auto accounts = session->domain().orderedAccounts();
+
+	for (const auto &account : accounts) {
+		if (!account->sessionExists()) {
+			continue;
+		}
+		const auto user = account->session().user();
+		if (user == session->user()) {
+			continue;
+		}
+		const auto action = new QAction(user->name(), _accountsMenu);
+		QObject::connect(action, &QAction::triggered, [=] {
+			Core::App().domain().maybeActivate(account);
+		});
+		auto owned = base::make_unique_q<Ui::Menu::Action>(
+			_accountsMenu->menu(),
+			_accountsMenu->menu()->st(),
+			action,
+			nullptr,
+			nullptr);
+		const auto userpic = Ui::CreateChild<Ui::UserpicButton>(
+			owned.get(),
+			user,
+			st::lockSetupEmailUserpicSmall);
+		userpic->move(st.menu.itemIconPosition);
+		_accountsMenu->addAction(std::move(owned));
+	}
+
+	_accountsMenu->setForcedOrigin(Ui::PanelAnimation::Origin::TopLeft);
+	_accountsMenu->popup(_backButton
+		? mapToGlobal(QPoint(_backButton->x(), _backButton->height()))
+		: QCursor::pos());
 }
 
 } // namespace Window

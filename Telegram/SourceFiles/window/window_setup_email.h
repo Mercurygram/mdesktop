@@ -82,6 +82,7 @@ private:
 		int codeLength,
 		const QString &emailPattern);
 	void showEmailInput();
+	void showAccountsMenu();
 	QPixmap grabContent();
 
 	object_ptr<Ui::VerticalLayout> _layout;
@@ -91,6 +92,7 @@ private:
 	object_ptr<Ui::IconButton> _backButton = { nullptr };
 	object_ptr<Ui::RoundButton> _logoutButton = { nullptr };
 	object_ptr<Ui::RoundButton> _debugButton = { nullptr };
+	base::unique_qptr<Ui::PopupMenu> _accountsMenu;
 	Ui::InputField *_emailInput = nullptr;
 	Ui::RoundButton *_submit = nullptr;
 	Ui::FlatLabel *_errorLabel = nullptr;
