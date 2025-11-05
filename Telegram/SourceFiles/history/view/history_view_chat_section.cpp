@@ -2390,6 +2390,9 @@ void ChatWidget::checkActivation() {
 }
 
 void ChatWidget::doSetInnerFocus() {
+	if (!Ui::InFocusChain(this)) {
+		return;
+	}
 	if (_composeSearch
 		&& _inner->getSelectedText().rich.text.isEmpty()
 		&& _inner->getSelectedItems().empty()) {
