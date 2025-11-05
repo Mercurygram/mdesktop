@@ -3108,11 +3108,18 @@ void AddWithdrawalWidget(
 		button->setAttribute(Qt::WA_TransparentForMouseEvents, disabled);
 	};
 
+	struct UrlState {
+		QString url;
+		base::unique_qptr<Ui::PopupMenu> menu;
+	};
+	const auto urlState = buttonsContainer->lifetime().make_state<UrlState>();
+
 	rpl::combine(
 		std::move(secondButtonUrl),
 		buttonsContainer->sizeValue()
 	) | rpl::start_with_next([=](const QString &url, const QSize &size) {
 		const auto secondVisible = !url.isEmpty();
+		urlState->url = url;
 		withdrawalWrap->toggle(
 			withdrawalEnabled || secondVisible,
 			anim::type::instant);
@@ -3128,6 +3135,27 @@ void AddWithdrawalWidget(
 			buttonCredits->setClickedCallback([=] {
 				UrlClickHandler::Open(url);
 			});
+			buttonCredits->events(
+			) | rpl::filter([](not_null<QEvent*> e) {
+				return e->type() == QEvent::ContextMenu;
+			}) | rpl::start_with_next([=](not_null<QEvent*> e) {
+				if (urlState->url.isEmpty()) {
+					return;
+				}
+				urlState->menu = base::make_unique_q<Ui::PopupMenu>(
+					buttonCredits,
+					st::popupMenuWithIcons);
+				urlState->menu->addAction(
+					tr::lng_context_copy_link(tr::now),
+					[=, show = controller->uiShow()] {
+						TextUtilities::SetClipboardText({ urlState->url });
+						show->showToast(
+							tr::lng_channel_public_link_copied(tr::now));
+					},
+					&st::menuIconCopy);
+				urlState->menu->popup(QCursor::pos());
+				e->accept();
+			}, buttonCredits->lifetime());
 		}
 	}, buttonsContainer->lifetime());
 
