@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/checkbox.h"
+#include "ui/widgets/labels.h"
 #include "ui/widgets/continuous_sliders.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/wrap/slide_wrap.h"
@@ -25,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h"
 #include "styles/style_credits.h"
+#include "styles/style_info.h"
 #include "styles/style_layers.h"
 #include "styles/style_media_player.h"
 #include "styles/style_premium.h"
@@ -530,6 +532,21 @@ void PaidReactionsBox(
 	) | rpl::start_with_next([=](bool show) {
 		state->shownPeer = show ? state->savedShownPeer : 0;
 	}, named->lifetime());
+
+	AddSkip(content);
+	AddSkip(content);
+
+	AddDividerText(
+		content,
+		tr::lng_paid_react_agree(
+			lt_link,
+			rpl::combine(
+				tr::lng_paid_react_agree_link(),
+				tr::lng_group_invite_subscription_about_url()
+			) | rpl::map([](const QString &text, const QString &url) {
+				return Ui::Text::Link(text, url);
+			}),
+			Ui::Text::RichLangValue));
 
 	const auto button = box->addButton(rpl::single(QString()), [=] {
 		args.send(state->chosen.current(), state->shownPeer.current());
