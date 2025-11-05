@@ -290,12 +290,14 @@ void FillTopReactors(
 		rpl::producer<int> chosen,
 		rpl::producer<uint64> shownPeer,
 		Fn<void(uint64)> changeShownPeer) {
-	container->add(
-		MakeBoostFeaturesBadge(
+	const auto badge = container->add(
+		object_ptr<SlideWrap<RpWidget>>(
 			container,
-			tr::lng_paid_react_top_title(),
-			[](QRect) { return st::creditsBg3->b; }),
-		st::boxRowPadding + st::paidReactTopTitleMargin,
+			MakeBoostFeaturesBadge(
+				container,
+				tr::lng_paid_react_top_title(),
+				[](QRect) { return st::creditsBg3->b; }),
+			st::boxRowPadding + st::paidReactTopTitleMargin),
 		style::al_top);
 
 	const auto height = st::paidReactTopNameSkip + st::normalFont->height;
@@ -359,8 +361,10 @@ void FillTopReactors(
 				barePeerId,
 				changeShownPeer); };
 		if (list.empty()) {
+			badge->hide(anim::type::normal);
 			wrap->hide(anim::type::normal);
 		} else {
+			badge->show(anim::type::normal);
 			for (const auto &widget : state->widgets) {
 				widget->hide();
 			}
@@ -388,6 +392,7 @@ void FillTopReactors(
 
 		state->updated.fire({});
 	}, wrap->lifetime());
+	badge->finishAnimating();
 	wrap->finishAnimating();
 
 	rpl::combine(
