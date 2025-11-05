@@ -400,6 +400,9 @@ paidReactBox: Box(boostBox) {
 		style: semiboldTextStyle;
 	}
 }
+paidReactBoxCheckbox: Checkbox(defaultCheckbox) {
+	width: 0px;
+}
 paidReactBubbleIcon: icon{{ "settings/premium/star", premiumButtonFg }};
 paidReactBubbleTop: 5px;
 paidReactSliderTop: 5px;

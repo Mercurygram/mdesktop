@@ -523,7 +523,8 @@ void PaidReactionsBox(
 		object_ptr<Checkbox>(
 			box,
 			tr::lng_paid_react_show_in_top(tr::now),
-			state->shownPeer.current() != 0),
+			state->shownPeer.current() != 0,
+			st::paidReactBoxCheckbox),
 		style::al_top);
 	named->checkedValue(
 	) | rpl::start_with_next([=](bool show) {
