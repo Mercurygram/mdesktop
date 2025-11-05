@@ -3072,7 +3072,6 @@ void AddWithdrawalWidget(
 	const auto buttonsContainer = withdrawalWrap->entity()->add(
 		Ui::CreateSkipWidget(withdrawalWrap->entity(), stButton.height),
 		st::boxRowPadding);
-	withdrawalWrap->toggle(withdrawalEnabled, anim::type::instant);
 
 	const auto button = Ui::CreateChild<Ui::RoundButton>(
 		buttonsContainer,
@@ -3088,11 +3087,23 @@ void AddWithdrawalWidget(
 
 	Ui::ToggleChildrenVisibility(buttonsContainer, true);
 
+	const auto updateButtonState = [=](bool disabled) {
+		button->setBrushOverride(disabled
+			? std::optional(st::windowSubTextFg)
+			: std::nullopt);
+		button->setAttribute(Qt::WA_TransparentForMouseEvents, disabled);
+	};
+
 	rpl::combine(
 		std::move(secondButtonUrl),
 		buttonsContainer->sizeValue()
 	) | rpl::start_with_next([=](const QString &url, const QSize &size) {
-		if (url.isEmpty()) {
+		const auto secondVisible = !url.isEmpty();
+		withdrawalWrap->toggle(
+			withdrawalEnabled || secondVisible,
+			anim::type::instant);
+		updateButtonState(!withdrawalEnabled);
+		if (!secondVisible) {
 			button->resize(size.width(), size.height());
 			buttonCredits->resize(0, 0);
 		} else {
@@ -3113,7 +3124,9 @@ void AddWithdrawalWidget(
 	rpl::duplicate(
 		lockedValue
 	) | rpl::start_with_next([=](bool v) {
-		button->setAttribute(Qt::WA_TransparentForMouseEvents, v);
+		if (withdrawalEnabled) {
+			updateButtonState(v);
+		}
 	}, button->lifetime());
 
 	const auto session = &controller->session();
