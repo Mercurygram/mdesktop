@@ -3084,6 +3084,20 @@ void AddWithdrawalWidget(
 		stButton);
 	buttonCredits->setTextTransform(
 		Ui::RoundButton::TextTransform::NoTransform);
+	{
+		const auto icon = Ui::CreateChild<Ui::RpWidget>(buttonCredits);
+		const auto &st = st::msgBotKbUrlIcon;
+		icon->resize(st.width(), st.height());
+		icon->paintRequest() | rpl::start_with_next([=] {
+			auto p = QPainter(icon);
+			st.paint(p, { 0, 0 }, icon->width(), stButton.textFg->c);
+		}, icon->lifetime());
+		buttonCredits->sizeValue(
+		) | rpl::start_with_next([=, padding = st::msgBotKbIconPadding] {
+			icon->moveToRight(padding, padding);
+		}, icon->lifetime());
+		icon->setAttribute(Qt::WA_TransparentForMouseEvents);
+	}
 
 	Ui::ToggleChildrenVisibility(buttonsContainer, true);
 
