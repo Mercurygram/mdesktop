@@ -26,7 +26,7 @@ namespace Media::View {
 
 class VideoStream::Delegate final : public Calls::GroupCall::Delegate {
 public:
-	Delegate();
+	explicit Delegate(Fn<void()> close);
 
 	void groupCallFinished(not_null<Calls::GroupCall*> call) override;
 	void groupCallFailed(not_null<Calls::GroupCall*> call) override;
@@ -37,6 +37,7 @@ public:
 	FnMut<void()> groupCallAddAsyncWaiter() override;
 
 private:
+	Fn<void()> _close;
 
 };
 
@@ -58,16 +59,17 @@ private:
 
 };
 
-VideoStream::Delegate::Delegate() {
+VideoStream::Delegate::Delegate(Fn<void()> close)
+: _close(std::move(close)) {
 }
 
 void VideoStream::Delegate::groupCallFinished(
 		not_null<Calls::GroupCall*> call) {
-	// #TODO videostreams
+	crl::on_main(call, _close);
 }
 
 void VideoStream::Delegate::groupCallFailed(not_null<Calls::GroupCall*> call) {
-	// #TODO videostreams
+	crl::on_main(call, _close);
 }
 
 void VideoStream::Delegate::groupCallRequestPermissionsOrFail(
@@ -83,7 +85,6 @@ auto VideoStream::Delegate::groupCallGetVideoCapture(const QString &deviceId)
 }
 
 FnMut<void()> VideoStream::Delegate::groupCallAddAsyncWaiter() {
-	// #TODO videostreams
 	return [] {};
 }
 
@@ -160,7 +161,7 @@ VideoStream::VideoStream(
 	QString callLinkSlug,
 	MsgId callJoinMessageId)
 : _show(std::move(show))
-, _delegate(std::make_unique<Delegate>())
+, _delegate(std::make_unique<Delegate>([=] { _closeRequests.fire({}); }))
 , _loading(std::make_unique<Loading>(parent, this))
 , _call(std::make_unique<Calls::GroupCall>(
 	_delegate.get(),
@@ -208,6 +209,10 @@ not_null<Calls::GroupCall*> VideoStream::call() const {
 	return _call.get();
 }
 
+rpl::producer<> VideoStream::closeRequests() const {
+	return _closeRequests.events();
+}
+
 void VideoStream::updateGeometry(int x, int y, int width, int height) {
 	const auto skip = st::groupCallMessageSkip;
 	_viewport->setGeometry(false, { x, y, width, height });
@@ -235,6 +240,10 @@ void VideoStream::borrowedPaint(QOpenGLFunctions &f) {
 
 void VideoStream::borrowedPaint(Painter &p, const QRegion &clip) {
 	_viewport->borrowedPaint(p, clip);
+}
+
+rpl::lifetime &VideoStream::lifetime() {
+	return _lifetime;
 }
 
 void VideoStream::setupMembers() {

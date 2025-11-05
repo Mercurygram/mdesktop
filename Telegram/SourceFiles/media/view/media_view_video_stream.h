@@ -52,6 +52,7 @@ public:
 	~VideoStream();
 
 	[[nodiscard]] not_null<Calls::GroupCall*> call() const;
+	[[nodiscard]] rpl::producer<> closeRequests() const;
 
 	void setVolume(float64 volume);
 	void updateGeometry(int x, int y, int width, int height);
@@ -61,6 +62,8 @@ public:
 	void ensureBorrowedCleared(QOpenGLFunctions *f);
 	void borrowedPaint(QOpenGLFunctions &f);
 	void borrowedPaint(Painter &p, const QRegion &clip);
+
+	[[nodiscard]] rpl::lifetime &lifetime();
 
 private:
 	class Delegate;
@@ -79,6 +82,9 @@ private:
 	std::unique_ptr<Calls::Group::Members> _members;
 	std::unique_ptr<Calls::Group::Viewport> _viewport;
 	std::unique_ptr<Calls::Group::MessagesUi> _messages;
+
+	rpl::event_stream<> _closeRequests;
+	rpl::lifetime _lifetime;
 
 };
 

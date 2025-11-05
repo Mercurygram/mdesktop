@@ -2421,6 +2421,9 @@ void OverlayWidget::assignMediaPointer(
 		std::move(call),
 		_callLinkSlug,
 		_callJoinMessageId);
+	_videoStream->closeRequests() | rpl::start_with_next([=] {
+		close();
+	}, _videoStream->lifetime());
 	if (const auto stories = _stories.get()) {
 		stories->updateVideoStream(_videoStream->call());
 		_videoStream->toggleCommentsOn(stories->commentsShownValue());
