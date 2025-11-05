@@ -96,10 +96,7 @@ base::unique_qptr<Ui::RpWidget> CreateEmptyPlaceholder(
 		container,
 		{
 			.name = u"my_gifts_empty"_q,
-			.sizeOverride = {
-				st::changePhoneIconSize,
-				st::changePhoneIconSize,
-			},
+			.sizeOverride = st::normalBoxLottieSize,
 		},
 		st::settingsBlockedListIconPadding);
 	const auto iconWidget = icon.widget.data();

@@ -4169,7 +4169,7 @@ void InnerWidget::refreshEmpty() {
 			_emptyList,
 			{
 				.name = u"no_chats"_q,
-				.sizeOverride = Size(st::changePhoneIconSize),
+				.sizeOverride = st::normalBoxLottieSize,
 			});
 		_emptyList->add(std::move(icon.widget), style::al_top);
 		Ui::AddSkip(_emptyList);

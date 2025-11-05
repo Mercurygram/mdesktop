@@ -55,10 +55,7 @@ void StartWithBox(
 			box->verticalLayout(),
 			{
 				.name = u"rtmp"_q,
-				.sizeOverride = {
-					st::changePhoneIconSize,
-					st::changePhoneIconSize,
-				},
+				.sizeOverride = st::normalBoxLottieSize,
 			},
 			{});
 		box->verticalLayout()->add(std::move(icon.widget), {}, style::al_top);

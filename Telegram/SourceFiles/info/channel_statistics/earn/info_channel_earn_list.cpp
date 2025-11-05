@@ -358,7 +358,7 @@ void InnerWidget::fill() {
 			container,
 			Dialogs::SearchEmptyIcon::NoResults,
 			tr::lng_search_tab_no_results(Ui::Text::Bold)));
-		empty->setMinimalHeight(st::changePhoneIconSize);
+		empty->setMinimalHeight(st::normalBoxLottieSize.height());
 		empty->animate();
 		return;
 	}
