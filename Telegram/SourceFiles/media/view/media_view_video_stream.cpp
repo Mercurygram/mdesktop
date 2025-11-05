@@ -17,7 +17,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/compose/compose_show.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "ui/effects/path_shift_gradient.h"
+#include "ui/painter.h"
 #include "styles/style_calls.h"
+#include "styles/style_media_view.h"
 
 namespace Media::View {
 
@@ -34,6 +37,24 @@ public:
 	FnMut<void()> groupCallAddAsyncWaiter() override;
 
 private:
+
+};
+
+class VideoStream::Loading final {
+public:
+	Loading(not_null<QWidget*> parent, not_null<VideoStream*> stream);
+
+	void lower();
+	void setGeometry(int x, int y, int width, int height);
+
+	[[nodiscard]] rpl::lifetime &lifetime();
+
+private:
+	void setup(not_null<QWidget*> parent);
+
+	const not_null<VideoStream*> _stream;
+	std::unique_ptr<Ui::RpWidget> _bg;
+	std::unique_ptr<Ui::PathShiftGradient> _gradient;
 
 };
 
@@ -66,6 +87,69 @@ FnMut<void()> VideoStream::Delegate::groupCallAddAsyncWaiter() {
 	return [] {};
 }
 
+VideoStream::Loading::Loading(
+	not_null<QWidget*> parent,
+	not_null<VideoStream*> stream)
+: _stream(stream) {
+	setup(parent);
+}
+
+void VideoStream::Loading::lower() {
+	_bg->lower();
+}
+
+void VideoStream::Loading::setGeometry(int x, int y, int width, int height) {
+	_bg->setGeometry(x, y, width, height);
+}
+
+rpl::lifetime &VideoStream::Loading::lifetime() {
+	return _bg->lifetime();
+}
+
+void VideoStream::Loading::setup(not_null<QWidget*> parent) {
+	_bg = std::make_unique<Ui::RpWidget>(parent);
+
+	_gradient = std::make_unique<Ui::PathShiftGradient>(
+		st::storiesComposeBg,
+		st::storiesComposeBgRipple,
+		[=] { _bg->update(); });
+
+	_bg->show();
+	_bg->paintRequest() | rpl::start_with_next([=] {
+		auto p = QPainter(_bg.get());
+		auto hq = PainterHighQualityEnabler(p);
+
+		_gradient->startFrame(0, _bg->width(), _bg->width() / 3);
+		_gradient->paint([&](const Ui::PathShiftGradient::Background &bg) {
+			const auto stroke = style::ConvertScaleExact(2);
+			if (const auto color = std::get_if<style::color>(&bg)) {
+				auto pen = (*color)->p;
+				pen.setWidthF(stroke);
+				p.setPen(pen);
+				p.setBrush(*color);
+			} else {
+				const auto gradient = v::get<QLinearGradient*>(bg);
+
+				auto copy = *gradient;
+				copy.setStops({
+					{ 0., st::storiesComposeBg->c },
+					{ 0.5, st::white->c },
+					{ 1., st::storiesComposeBg->c },
+				});
+				auto pen = QPen(QBrush(copy), stroke);
+				p.setPen(pen);
+				p.setBrush(*gradient);
+			}
+			const auto half = stroke / 2.;
+			const auto remove = QMarginsF(half, half, half, half);
+			const auto rect = QRectF(_bg->rect()).marginsRemoved(remove);
+			const auto radius = st::storiesRadius - half;
+			p.drawRoundedRect(rect, radius, radius);
+			return true;
+		});
+	}, _bg->lifetime());
+}
+
 VideoStream::VideoStream(
 	not_null<QWidget*> parent,
 	not_null<Ui::RpWidgetWrap*> borrowedRp,
@@ -77,6 +161,7 @@ VideoStream::VideoStream(
 	MsgId callJoinMessageId)
 : _show(std::move(show))
 , _delegate(std::make_unique<Delegate>())
+, _loading(std::make_unique<Loading>(parent, this))
 , _call(std::make_unique<Calls::GroupCall>(
 	_delegate.get(),
 	Calls::StartConferenceInfo{
@@ -127,6 +212,9 @@ void VideoStream::updateGeometry(int x, int y, int width, int height) {
 	const auto skip = st::groupCallMessageSkip;
 	_viewport->setGeometry(false, { x, y, width, height });
 	_messages->move(x + skip, y + height, width - 2 * skip, height / 2);
+	if (_loading) {
+		_loading->setGeometry(x, y, width, height);
+	}
 }
 
 void VideoStream::toggleCommentsOn(rpl::producer<bool> shown) {
@@ -203,8 +291,16 @@ void VideoStream::setupVideo() {
 		_call->requestVideoQuality(request.endpoint, request.quality);
 	}, _viewport->lifetime());
 
+	_loading->lower();
 	_viewport->widget()->lower();
 	_viewport->setControlsShown(0.);
+
+	_call->hasVideoWithFramesValue(
+	) | rpl::start_with_next([=](bool has) {
+		if (has) {
+			_loading = nullptr;
+		}
+	}, _loading->lifetime());
 
 	setVolume(Core::App().settings().videoVolume());
 }

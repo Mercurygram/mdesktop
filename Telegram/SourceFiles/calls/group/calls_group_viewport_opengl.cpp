@@ -427,9 +427,6 @@ void Viewport::RendererGL::paint(
 	_viewport = widget->size();
 
 	const auto defaultFramebufferObject = widget->defaultFramebufferObject();
-	if (_owner->_tiles.empty() && _owner->videoStream()) {
-
-	}
 
 	validateDatas();
 	auto index = 0;

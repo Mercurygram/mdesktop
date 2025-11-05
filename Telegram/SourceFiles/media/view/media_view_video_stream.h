@@ -64,6 +64,7 @@ public:
 
 private:
 	class Delegate;
+	class Loading;
 
 	void setupVideo();
 	void setupMembers();
@@ -73,6 +74,7 @@ private:
 
 	std::shared_ptr<ChatHelpers::Show> _show;
 	std::unique_ptr<Delegate> _delegate;
+	std::unique_ptr<Loading> _loading;
 	std::unique_ptr<Calls::GroupCall> _call;
 	std::unique_ptr<Calls::Group::Members> _members;
 	std::unique_ptr<Calls::Group::Viewport> _viewport;

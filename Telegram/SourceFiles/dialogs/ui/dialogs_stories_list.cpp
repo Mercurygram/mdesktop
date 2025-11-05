@@ -444,8 +444,15 @@ void List::paint(
 		return Single{ x, indexSmall, small, indexFull, full, y };
 	};
 	const auto hasUnread = [&](const Single &single) {
-		return (single.itemSmall && single.itemSmall->element.unreadCount)
-			|| (single.itemFull && single.itemFull->element.unreadCount);
+		const auto itemSmall = single.itemSmall;
+		const auto itemFull = single.itemFull;
+		return false
+			||(itemSmall
+				&& (itemSmall->element.unreadCount
+					|| itemSmall->element.hasVideoStream))
+			|| (itemFull
+				&& (itemFull->element.unreadCount
+					|| itemFull->element.hasVideoStream));
 	};
 	const auto enumerate = [&](auto &&paintGradient, auto &&paintOther) {
 		auto nextGradientPainted = false;
@@ -509,10 +516,15 @@ void List::paint(
 			photo);
 		const auto small = single.itemSmall;
 		const auto itemFull = single.itemFull;
-		const auto smallUnread = (small && small->element.unreadCount);
 		const auto smallHasVideoStream = small
 			&& small->element.hasVideoStream;
-		const auto fullUnreadCount = itemFull
+		const auto smallUnread = smallHasVideoStream
+			|| (small && small->element.unreadCount);
+		const auto fullHasVideoStream = itemFull
+			&& itemFull->element.hasVideoStream;
+		const auto fullUnreadCount = fullHasVideoStream
+			? 1
+			: itemFull
 			? itemFull->element.unreadCount
 			: 0;
 		const auto unreadOpacity = (smallUnread && fullUnreadCount)
@@ -558,10 +570,14 @@ void List::paint(
 			photo);
 		const auto small = single.itemSmall;
 		const auto itemFull = single.itemFull;
-		const auto smallUnread = small && small->element.unreadCount;
-		const auto fullUnreadCount = itemFull
-			? itemFull->element.unreadCount
-			: 0;
+		const auto smallUnread = small
+			&& (small->element.unreadCount
+				|| small->element.hasVideoStream);
+		const auto fullUnreadCount = !itemFull
+			? 0
+			: itemFull->element.hasVideoStream
+			? 1
+			: itemFull->element.unreadCount;
 		const auto fullCount = itemFull ? itemFull->element.count : 0;
 
 		// White circle with possible read gray line.
@@ -581,7 +597,9 @@ void List::paint(
 			p.setCompositionMode(QPainter::CompositionMode_SourceOver);
 		}
 		if (hasReadLine) {
-			if (small && !small->element.unreadCount) {
+			if (small
+				&& !small->element.unreadCount
+				&& !small->element.hasVideoStream) {
 				p.setOpacity(expandRatio);
 			}
 			validateSegments(
