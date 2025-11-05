@@ -662,7 +662,6 @@ bool ResolveUsernameOrPhone(
 		post = postId;
 	}
 	const auto storyParam = params.value(u"story"_q);
-	const auto storyId = storyParam.toInt();
 	const auto storyAlbumParam = params.value(u"album"_q);
 	const auto storyAlbumId = storyAlbumParam.toInt();
 	const auto giftCollectionParam = params.value(u"collection"_q);
@@ -694,7 +693,7 @@ bool ResolveUsernameOrPhone(
 		.usernameOrId = domain,
 		.phone = phone,
 		.messageId = post,
-		.storyId = storyId,
+		.storyParam = storyParam,
 		.storyAlbumId = storyAlbumId,
 		.giftCollectionId = giftCollectionId,
 		.videoTimestamp = (!videot.isEmpty()
@@ -1975,7 +1974,7 @@ QString TryConvertUrlToLocal(QString url) {
 				"/?$|"
 				"/[a-zA-Z0-9\\.\\_\\-]+/?(\\?|$)|"
 				"/\\d+/?(\\?|$)|"
-				"/s/\\d+/?(\\?|$)|"
+				"/s/(\\d+|live)/?(\\?|$)|"
 				"/a/\\d+/?(\\?|$)|"
 				"/c/\\d+/?(\\?|$)|"
 				"/\\d+/\\d+/?(\\?|$)"
@@ -1998,7 +1997,7 @@ QString TryConvertUrlToLocal(QString url) {
 				added = u"&topic=%1&post=%2"_q.arg(threadPostMatch->captured(1), threadPostMatch->captured(2));
 			} else if (const auto postMatch = regex_match(u"^/(\\d+)(/?\\?|/?$)"_q, usernameMatch->captured(2))) {
 				added = u"&post="_q + postMatch->captured(1);
-			} else if (const auto storyMatch = regex_match(u"^/s/(\\d+)(/?\\?|/?$)"_q, usernameMatch->captured(2))) {
+			} else if (const auto storyMatch = regex_match(u"^/s/(\\d+|live)(/?\\?|/?$)"_q, usernameMatch->captured(2))) {
 				added = u"&story="_q + storyMatch->captured(1);
 			} else if (const auto albumMatch = regex_match(u"^/a/(\\d+)(/?\\?|/?$)"_q, usernameMatch->captured(2))) {
 				added = u"&album="_q + albumMatch->captured(1);

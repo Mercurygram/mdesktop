@@ -6782,6 +6782,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_stealth_mode_already_about" = "The creators of stories you view in the next **{left}** won't see you in the viewers' lists.";
 
 "lng_stories_link_invalid" = "This link is broken or has expired.";
+"lng_stories_live_finished" = "The live story has ended.";
 
 "lng_stats_title" = "Statistics";
 "lng_stats_message_title" = "Message Statistic";

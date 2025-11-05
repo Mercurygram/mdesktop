@@ -661,19 +661,18 @@ void SessionNavigation::showPeerByLinkResolved(
 				info.messageId,
 				callback);
 		}
-	} else if (info.storyId) {
-		const auto storyId = FullStoryId{ peer->id, info.storyId };
+	} else if (info.storyParam == u"live"_q) {
+		parentController()->openPeerStories(peer->id, std::nullopt, true);
+	} else if (const auto storyId = info.storyParam.toInt()) {
+		const auto id = FullStoryId{ peer->id, storyId };
 		const auto context = (info.storyAlbumId > 0)
 			? Data::StoriesContext{ Data::StoriesContextAlbum{
 				info.storyAlbumId,
 			} }
 			: Data::StoriesContext{ Data::StoriesContextSingle() };
-		peer->owner().stories().resolve(storyId, crl::guard(this, [=] {
-			if (peer->owner().stories().lookup(storyId)) {
-				parentController()->openPeerStory(
-					peer,
-					storyId.story,
-					context);
+		peer->owner().stories().resolve(id, crl::guard(this, [=] {
+			if (peer->owner().stories().lookup(id)) {
+				parentController()->openPeerStory(peer, id.story, context);
 			} else {
 				showToast(tr::lng_stories_link_invalid(tr::now));
 			}
@@ -3514,7 +3513,9 @@ void SessionController::openPeerStory(
 
 void SessionController::openPeerStories(
 		PeerId peerId,
-		std::optional<Data::StorySourcesList> list) {
+		std::optional<Data::StorySourcesList> list,
+		bool onlyLive,
+		bool afterReload) {
 	using namespace Media::View;
 	using namespace Data;
 
@@ -3522,16 +3523,26 @@ void SessionController::openPeerStories(
 	auto &stories = session().data().stories();
 	if (const auto source = stories.source(peerId)) {
 		if (const auto idDates = source->toOpen()) {
+			if (onlyLive && !idDates.videoStream) {
+				showToast(tr::lng_stories_live_finished(tr::now));
+				return;
+			}
 			openPeerStory(
 				source->peer,
 				idDates.id,
 				(list
 					? StoriesContext{ *list }
 					: StoriesContext{ StoriesContextPeer() }));
+		} else if (onlyLive) {
+			showToast(tr::lng_stories_live_finished(tr::now));
+		}
+	} else if (afterReload) {
+		if (onlyLive) {
+			showToast(tr::lng_stories_live_finished(tr::now));
 		}
 	} else if (const auto peer = session().data().peerLoaded(peerId)) {
 		const auto done = crl::guard(&_storyOpenGuard, [=] {
-			openPeerStories(peerId, list);
+			openPeerStories(peerId, list, onlyLive, true);
 		});
 		stories.requestPeerStories(peer, done);
 	}

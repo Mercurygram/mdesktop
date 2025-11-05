@@ -655,7 +655,9 @@ public:
 		Data::StoriesContext context);
 	void openPeerStories(
 		PeerId peerId,
-		std::optional<Data::StorySourcesList> list = std::nullopt);
+		std::optional<Data::StorySourcesList> list = std::nullopt,
+		bool onlyLive = false,
+		bool afterReload = false);
 
 	[[nodiscard]] Ui::ChatPaintContext preparePaintContext(
 		Ui::ChatPaintContextArgs &&args);
