@@ -1285,6 +1285,16 @@ void ComposeControls::setToggleCommentsButton(
 		std::move(
 			state
 		) | rpl::start_with_next([=](ToggleCommentsState value) {
+			if (value == ToggleCommentsState::Empty) {
+				if (!_commentsShown->isHidden()) {
+					_commentsShown->hide();
+					updateControlsGeometry(_wrap->size());
+				}
+				return;
+			} else if (_commentsShown->isHidden()) {
+				_commentsShown->show();
+				updateControlsGeometry(_wrap->size());
+			}
 			const auto icon = (value == ToggleCommentsState::Shown)
 				? &_st.commentsShown
 				: nullptr;
@@ -3014,8 +3024,10 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 	// (_commentsShown) (_attachToggle|_replaceMedia) (_sendAs) -- _inlineResults ------ _tabbedPanel -- _fieldBarCancel (_starsReaction)
 	// (_attachDocument|_attachPhoto) _field (_ttlInfo) (_scheduled) (_silent|_botCommandStart) _tabbedSelectorToggle _send
 
+	const auto commentsShown = _commentsShown
+		&& !_commentsShown->isHidden();
 	const auto fieldWidth = size.width()
-		- (_commentsShown
+		- (commentsShown
 			? (_commentsShown->width() + _st.commentsSkip)
 			: 0)
 		- ((_attachToggle || _sendAs) ? _st.padding.left() : _st.fieldLeft)
@@ -3046,7 +3058,7 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 	const auto buttonsTop = size.height() - _st.attach.height;
 
 	auto left = 0;
-	if (_commentsShown) {
+	if (commentsShown) {
 		_commentsShown->moveToLeft(left, buttonsTop);
 		left += _commentsShown->width() + _st.commentsSkip;
 	}
@@ -3144,9 +3156,6 @@ void ComposeControls::updateControlsVisibility() {
 	}
 	if (_scheduled) {
 		_scheduled->setVisible(!isEditingMessage());
-	}
-	if (_commentsShown) {
-		_commentsShown->show();
 	}
 	if (_starsReaction) {
 		_starsReaction->show();
@@ -3275,7 +3284,9 @@ void ComposeControls::paintBackground(QPainter &p, QRect full, QRect clip) {
 		p.setBrush(_st.bg);
 		p.setPen(Qt::NoPen);
 		const auto r = _st.radius;
-		if (_commentsShown && !_wrap->isHidden()) {
+		if (_commentsShown
+			&& !_commentsShown->isHidden()
+			&& !_wrap->isHidden()) {
 			p.drawRoundedRect(_commentsShown->geometry(), r, r);
 			full.setLeft(full.left()
 				+ _commentsShown->width()

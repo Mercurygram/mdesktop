@@ -1744,18 +1744,22 @@ void Controller::setCommentsShownToggles(rpl::producer<> toggles) {
 	) | rpl::map([=] {
 		if (_commentsState.current() != CommentsState::Shown) {
 			_commentsLastReadId = _commentsLastId;
-			_commentsHasUnread = false;
+			if (_commentsHas.current() == CommentsHas::WithUnread) {
+				_commentsHas = CommentsHas::AllRead;
+			}
 		}
 		return (_commentsState.current() == CommentsState::Shown)
 			? CommentsState::Hidden
 			: CommentsState::Shown;
 	});
-	auto fromUnread = _commentsHasUnread.value(
-	) | rpl::map([=](bool hasUnread) {
+	auto fromUnread = _commentsHas.value(
+	) | rpl::map([=](CommentsHas value) {
 		const auto now = _commentsState.current();
-		return hasUnread
+		return (value == CommentsHas::None)
+			? CommentsState::Empty
+			: (value == CommentsHas::WithUnread)
 			? CommentsState::WithNew
-			: (now == CommentsState::Shown)
+			: (now == CommentsState::Shown || now == CommentsState::Empty)
 			? CommentsState::Shown
 			: CommentsState::Hidden;
 	});
@@ -1881,14 +1885,17 @@ void Controller::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
 	using namespace Calls::Group;
 	videoStream->messages()->listValue(
 	) | rpl::start_with_next([=](const std::vector<Message> &messages) {
-		if (_commentsState.current() == CommentsState::Shown) {
+		if (_commentsState.current() == CommentsState::Shown
+			|| _commentsState.current() == CommentsState::Empty) {
 			for (const auto &message : messages | ranges::views::reverse) {
 				if (message.id > 0) {
 					_commentsLastId = _commentsLastReadId = message.id;
 					break;
 				}
 			}
-			_commentsHasUnread = false;
+			_commentsHas = messages.empty()
+				? CommentsHas::None
+				: CommentsHas::AllRead;
 			return;
 		}
 		auto has = false;
@@ -1902,11 +1909,17 @@ void Controller::updateVideoStream(not_null<Calls::GroupCall*> videoStream) {
 				break;
 			}
 		}
-		_commentsHasUnread = has;
+		_commentsHas = messages.empty()
+			? CommentsHas::None
+			: has
+			? CommentsHas::WithUnread
+			: CommentsHas::AllRead;
 	}, _videoStreamLifetime);
 
 	videoStream->messages()->hiddenShowRequested(
-	) | rpl::map_to(
+	) | rpl::filter([=] {
+		return _commentsState.current() != CommentsState::Empty;
+	}) | rpl::map_to(
 		CommentsState::Shown
 	) | rpl::start_to_stream(
 		_commentsStateShowFromPinned,

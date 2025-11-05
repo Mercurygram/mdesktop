@@ -240,6 +240,11 @@ private:
 		ClickHandlerPtr handler;
 		std::unique_ptr<StoryAreaView> view;
 	};
+	enum class CommentsHas {
+		None,
+		AllRead,
+		WithUnread,
+	};
 
 	void initLayout();
 	bool changeShown(Data::Story *story);
@@ -344,7 +349,7 @@ private:
 
 	rpl::variable<CommentsState> _commentsState;
 	rpl::event_stream<CommentsState> _commentsStateShowFromPinned;
-	rpl::variable<bool> _commentsHasUnread;
+	rpl::variable<CommentsHas> _commentsHas;
 	MsgId _commentsLastReadId = 0;
 	MsgId _commentsLastId = 0;
 	rpl::variable<int> _starsReactions;

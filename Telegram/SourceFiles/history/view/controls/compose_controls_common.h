@@ -93,6 +93,7 @@ struct ReplyNextRequest {
 };
 
 enum class ToggleCommentsState {
+	Empty,
 	Shown,
 	Hidden,
 	WithNew,
