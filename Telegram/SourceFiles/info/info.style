@@ -413,7 +413,7 @@ infoProfileTopBarPhotoTop: 24px;
 infoProfileTopBarPhotoBgShift: 55px;
 infoProfileTopBarPhotoBgNoActionsShift: 30px;
 infoProfileTopBarPhotoSize: 80px;
-infoProfileTopBarLastSeenSkip: 8px;
+infoProfileTopBarLastSeenSkip: point(8px, 1px);
 
 infoProfileTopBarGiftSize: 20px;
 
@@ -475,6 +475,20 @@ infoProfileTopBarBoostFooterColored: FlatLabel(infoProfileTopBarBoostFooter) {
 		linkFg: groupCallIconFg;
 		selectLinkFg: groupCallIconFg;
 	}
+}
+
+infoProfileTopBarShowLastSeen: RoundButton(defaultActiveButton) {
+	textFg: windowBoldFg;
+	textFgOver: windowBoldFg;
+	textBg: windowBg;
+	textBgOver: windowBgOver;
+	width: -12px;
+	height: 18px;
+	textTop: 0px;
+	style: TextStyle(defaultTextStyle) {
+		font: font(12px);
+	}
+	ripple: universalRippleAnimation;
 }
 
 infoMinimalWidth: 324px;

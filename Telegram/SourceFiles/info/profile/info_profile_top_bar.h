@@ -82,6 +82,8 @@ namespace Info::Profile {
 class Badge;
 class StatusLabel;
 
+struct TopBarActionButtonStyle;
+
 class TopBar final : public Ui::RpWidget {
 public:
 	enum class Source {
@@ -188,6 +190,8 @@ private:
 	void updateStatusPosition(float64 progressCurrent);
 	[[nodiscard]] const style::FlatLabel &statusStyle() const;
 	void setupStatusWithRating();
+	[[nodiscard]] TopBarActionButtonStyle mapActionStyle(
+		std::optional<QColor> c) const;
 
 	[[nodiscard]] rpl::producer<QString> nameValue() const;
 

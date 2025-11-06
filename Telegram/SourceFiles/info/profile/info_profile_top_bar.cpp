@@ -283,7 +283,7 @@ TopBar::TopBar(
 , _showLastSeen(
 	this,
 	tr::lng_status_lastseen_when(),
-	st::infoProfileCover.showLastSeen)
+	st::infoProfileTopBarShowLastSeen)
 , _forumButton([&, controller = descriptor.controller] {
 	const auto topic = _key.topic();
 	if (!topic) {
@@ -465,6 +465,16 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 	_title->setTextColorOverride(shouldOverrideTitle
 		? std::optional<QColor>(st::groupCallMembersFg->c)
 		: std::nullopt);
+	if (!_showLastSeen->isHidden()) {
+		if (shouldOverrideTitle) {
+			const auto st = mapActionStyle(edgeColor);
+			_showLastSeen->setBrushOverride(st.bgColor);
+			_showLastSeen->setTextFgOverride(st.fgColor);
+		} else {
+			_showLastSeen->setBrushOverride(std::nullopt);
+			_showLastSeen->setTextFgOverride(std::nullopt);
+		}
+	}
 	{
 		const auto membersLinkCallback = _statusLabel->membersLinkCallback();
 		{
@@ -607,27 +617,7 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 	const auto topic = _key.topic();
 	const auto sublist = _key.sublist();
 	const auto isSide = (_wrap.current() == Wrap::Side);
-	const auto mapped = [=](std::optional<QColor> c) {
-		if (c) {
-			return TopBarActionButtonStyle{
-				.bgColor = Ui::BlendColors(
-					*c,
-					Qt::black,
-					st::infoProfileTopBarActionButtonBgOpacity),
-				.fgColor = std::make_optional(st::premiumButtonFg->c),
-				.shadowColor = std::nullopt,
-			};
-		} else {
-			return TopBarActionButtonStyle{
-				.bgColor = anim::with_alpha(
-					st::boxBg->c,
-					1. - st::infoProfileTopBarActionButtonBgOpacity),
-				.fgColor = std::nullopt,
-				.shadowColor = std::make_optional(
-					st::windowShadowFgFallback->c),
-			};
-		}
-	};
+
 	auto buttons = std::vector<not_null<TopBarActionButton*>>();
 	_actions = base::make_unique_q<Ui::HorizontalFitContainer>(
 		this,
@@ -663,7 +653,9 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 			const auto current = _edgeColor.current();
 			_edgeColor.force_assign(current);
 		}, _actions->lifetime());
-		_edgeColor.value() | rpl::map(mapped) | rpl::start_with_next([=](
+		_edgeColor.value() | rpl::map([=](std::optional<QColor> c) {
+			return mapActionStyle(c);
+		}) | rpl::start_with_next([=](
 				TopBarActionButtonStyle st) {
 			for (const auto &button : buttons) {
 				button->setStyle(st);
@@ -1450,8 +1442,8 @@ void TopBar::updateStatusPosition(float64 progressCurrent) {
 			statusLeft
 				+ statusShift
 				+ _status->textMaxWidth()
-				+ st::infoProfileTopBarLastSeenSkip,
-			statusTop);
+				+ st::infoProfileTopBarLastSeenSkip.x(),
+			statusTop + st::infoProfileTopBarLastSeenSkip.y());
 		if (_showLastSeenOpacity) {
 			_showLastSeenOpacity->setOpacity(progressCurrent);
 		}
@@ -2479,6 +2471,28 @@ rpl::producer<QString> TopBar::nameValue() const {
 		return Info::Profile::TitleValue(topic);
 	}
 	return Info::Profile::NameValue(_peer);
+}
+
+TopBarActionButtonStyle TopBar::mapActionStyle(
+		std::optional<QColor> c) const {
+	if (c) {
+		return TopBarActionButtonStyle{
+			.bgColor = Ui::BlendColors(
+				*c,
+				Qt::black,
+				st::infoProfileTopBarActionButtonBgOpacity),
+			.fgColor = std::make_optional(st::premiumButtonFg->c),
+			.shadowColor = std::nullopt,
+		};
+	} else {
+		return TopBarActionButtonStyle{
+			.bgColor = anim::with_alpha(
+				st::boxBg->c,
+				1. - st::infoProfileTopBarActionButtonBgOpacity),
+			.fgColor = std::nullopt,
+			.shadowColor = std::make_optional(st::windowShadowFgFallback->c),
+		};
+	}
 }
 
 } // namespace Info::Profile
