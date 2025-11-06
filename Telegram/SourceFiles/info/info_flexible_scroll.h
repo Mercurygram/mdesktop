@@ -13,6 +13,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Info {
 
+extern const char kAlternativeScrollProcessing[];
+
 struct FlexibleScrollData {
 	rpl::event_stream<int> contentHeightValue;
 	rpl::event_stream<int> fillerWidthValue;

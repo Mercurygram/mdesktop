@@ -9,12 +9,20 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "ui/widgets/scroll_area.h"
 #include "base/event_filter.h"
+#include "base/options.h"
 #include "styles/style_info.h"
 
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QScrollBar>
 
 namespace Info {
+
+base::options::toggle AlternativeScrollProcessing({
+	.id = kAlternativeScrollProcessing,
+	.name = "Use legacy scroll processing in profiles.",
+});
+
+const char kAlternativeScrollProcessing[] = "alternative-scroll-processing";
 
 FlexibleScrollHelper::FlexibleScrollHelper(
 	not_null<Ui::ScrollArea*> scroll,
@@ -30,8 +38,11 @@ FlexibleScrollHelper::FlexibleScrollHelper(
 , _setViewport(setViewport)
 , _data(data) {
 	setupScrollAnimation();
-	// setupScrollHandling();
-	setupScrollHandlingWithFilter();
+	if (AlternativeScrollProcessing.value()) {
+		setupScrollHandling();
+	} else {
+		setupScrollHandlingWithFilter();
+	}
 }
 
 void FlexibleScrollHelper::setupScrollAnimation() {
