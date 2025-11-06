@@ -334,11 +334,7 @@ boostReplaceUserpicsRow: UserpicsRow {
 	complex: true;
 }
 
-showOrIconLastSeen: icon{{ "settings/premium/large_lastseen", windowFgActive }};
-showOrIconReadTime: icon{{ "settings/premium/large_readtime", windowFgActive }};
-showOrIconBg: windowBgActive;
-showOrIconPadding: margins(12px, 12px, 12px, 12px);
-showOrIconMargin: margins(0px, 28px, 0px, 12px);
+showOrTitleIconMargin: 8px;
 showOrTitlePadding: margins(0px, 0px, 0px, 5px);
 showOrAboutPadding: margins(0px, 0px, 0px, 16px);
 showOrShowButton: RoundButton(defaultActiveButton) {
