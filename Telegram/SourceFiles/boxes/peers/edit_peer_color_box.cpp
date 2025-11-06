@@ -2582,7 +2582,6 @@ void SetupPeerColorSample(
 			- st::settingsButtonRightSkip;
 
 		const auto hasProfile = profileIndex.has_value();
-		const auto hasColor = (colorIndex != 0);
 
 		profileSample->setVisible(hasProfile);
 
@@ -2614,7 +2613,6 @@ void SetupPeerColorSample(
 			QSize inner,
 			int colorIndex,
 			std::optional<uint8> profileIndex) {
-		const auto hasProfile = profileIndex.has_value();
 		const auto hasColor = (colorIndex != 0);
 
 		const auto right = st::settingsColorButton.padding.right()

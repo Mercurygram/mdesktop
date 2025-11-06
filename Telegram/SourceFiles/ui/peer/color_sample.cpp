@@ -15,6 +15,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "styles/style_settings.h"
 
+#include <QtMath>
+
 namespace Ui {
 namespace {
 

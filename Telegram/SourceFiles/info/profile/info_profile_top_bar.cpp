@@ -1098,7 +1098,7 @@ void TopBar::setupUserpicButton(
 						auto result = Api::PeerPhoto::UserPhoto{
 							base::take(data.image),
 							data.id,
-							base::take(data.colors),
+							std::move(data.colors),
 						};
 						_peer->session().api().peerPhoto().upload(
 							_peer,

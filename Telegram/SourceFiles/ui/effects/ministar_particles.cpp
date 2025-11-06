@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/random.h"
 
 #include <QtGui/QPainterPath>
+#include <QtMath>
 
 namespace Ui {
 
