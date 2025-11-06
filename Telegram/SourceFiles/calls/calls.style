@@ -1707,9 +1707,9 @@ groupCallMessageBadge: RoundButton(defaultActiveButton) {
 	textBg: attentionButtonFg;
 	textBgOver: attentionButtonFg;
 	width: -6px;
-	height: 12px;
-	radius: 6px;
-	textTop: 1px;
+	height: 11px;
+	radius: 5px;
+	textTop: 0px;
 	style: TextStyle(semiboldTextStyle) {
 		font: font(8px semibold);
 	}

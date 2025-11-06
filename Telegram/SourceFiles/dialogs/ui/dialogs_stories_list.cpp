@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/event_filter.h"
 #include "base/qt_signal_producer.h"
 #include "lang/lang_keys.h"
+#include "ui/effects/round_checkbox.h"
 #include "ui/effects/outline_segments.h"
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
@@ -640,6 +641,19 @@ void List::paint(
 				p.drawImage(
 					userpic,
 					itemFull->element.thumbnail->image(size));
+			}
+		}
+
+		if (const auto full = single.itemFull) {
+			if (full->element.hasVideoStream && expandRatio > 0.) {
+				p.setOpacity(expandRatio);
+				const auto skip = std::ceil(line + lineRead);
+				Ui::PaintLiveBadge(
+					p,
+					std::ceil(userpic.x() - skip),
+					std::ceil(userpic.y() - skip),
+					std::ceil(userpic.width() + 2 * skip),
+					st::windowBg->c);
 			}
 		}
 		p.setOpacity(1.);

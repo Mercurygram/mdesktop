@@ -1006,9 +1006,8 @@ contactsWithStories: PeerList(peerListBox) {
 		statusPosition: point(70px, 27px);
 
 		checkbox: RoundImageCheckbox(defaultPeerListCheckbox) {
-			selectExtendTwice: 1px;
 			imageRadius: 21px;
-			imageSmallRadius: 19px;
+			imageSmallRadius: 18px;
 			check: RoundCheckbox(defaultPeerListCheck) {
 				size: 0px;
 			}

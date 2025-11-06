@@ -626,7 +626,8 @@ void PeerListStories::applyForRow(
 	_delegate->peerListSetRowChecked(row, counts.count > 0);
 	if (counts.count > 0) {
 		row->setCustomizedCheckSegments(
-			PeerListStoriesSegments(counts, _unreadBrush));
+			PeerListStoriesSegments(counts, _unreadBrush),
+			counts.videoStream);
 	}
 }
 
