@@ -228,7 +228,12 @@ void FlexibleScrollHelper::setupScrollHandlingWithFilter() {
 		if (std::abs(delta) != 120) {
 			return base::EventFilterResult::Continue;
 		}
-		const auto top = _scroll->scrollTop();
+		const auto actualTop = _scroll->scrollTop();
+		const auto animationActive = _scrollAnimation.animating()
+			&& (_lastScrollApplied != _scrollTopTo);
+		const auto top = animationActive
+			? (_lastScrollApplied ? _lastScrollApplied : actualTop)
+			: actualTop;
 		const auto diff = (delta > 0) ? -singleStep : singleStep;
 		const auto previousValue = top;
 		const auto targetTop = top + diff;
@@ -243,7 +248,7 @@ void FlexibleScrollHelper::setupScrollHandlingWithFilter() {
 				: (targetTop < step2)
 				? step1
 				: -1);
-		if (_scrollAnimation.animating()
+		if (animationActive
 			&& ((_scrollTopTo > _scrollTopFrom) != (diff > 0))) {
 			auto overriddenDirection = true;
 			if (_scrollTopTo > _scrollTopFrom) {
@@ -277,8 +282,8 @@ void FlexibleScrollHelper::setupScrollHandlingWithFilter() {
 				_lastScrollApplied = 0;
 			}
 		}
-		_scrollTopFrom = _lastScrollApplied ? _lastScrollApplied : top;
-		if (!_scrollAnimation.animating()) {
+		_scrollTopFrom = top;
+		if (!animationActive) {
 			_scrollTopTo = (nextStep != -1) ? nextStep : targetTop;
 			_scrollAnimation.start();
 		} else {
