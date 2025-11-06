@@ -447,6 +447,13 @@ paidReactTopMargin: margins(0px, 12px, 0px, 11px);
 paidReactTopUserpic: 42px;
 paidReactTopNameSkip: 47px;
 paidReactTopBadgeSkip: 32px;
+paidReactCrown: icon{{ "calls/filled_stream_crown-24x24", premiumButtonFg }};
+paidReactCrownTop: 7px;
+paidReactCrownSkip: 12px;
+paidReactCrownOutline: 1px;
+paidReactCrownSmall: icon{{ "calls/filled_stream_crown-20x20", premiumButtonFg }};
+paidReactCrownSmallTop: 4px;
+paidReactCrownMargin: margins(0px, 0px, 0px, 0px);
 paidReactToastLabel: FlatLabel(defaultFlatLabel) {
 	textFg: toastFg;
 	palette: defaultToastPalette;

@@ -26,6 +26,7 @@ class Show;
 
 namespace Data {
 class GroupCall;
+struct MessageReactionsTopPaid;
 } // namespace Data
 
 namespace Ui {
@@ -37,6 +38,9 @@ enum class Backend;
 } // namespace Ui::GL
 
 namespace Media::View {
+
+[[nodiscard]] auto TopVideoStreamDonors(not_null<Calls::GroupCall*> call)
+-> rpl::producer<std::vector<Data::MessageReactionsTopPaid>>;
 
 class VideoStream final {
 public:

@@ -243,6 +243,7 @@ Panel::Panel(not_null<GroupCall*> call, ConferencePanelMigration info)
 	uiShow(),
 	MessagesMode::GroupCall,
 	_call->messages()->listValue(),
+	nullptr,
 	_call->messages()->idUpdates(),
 	_call->canManageValue(),
 	_call->messagesEnabledValue()))

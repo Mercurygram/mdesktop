@@ -26,10 +26,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/dynamic_image.h"
 #include "ui/painter.h"
 #include "ui/vertical_list.h"
+#include "styles/style_calls.h"
 #include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h"
 #include "styles/style_credits.h"
 #include "styles/style_info.h"
+#include "styles/style_info_levels.h"
 #include "styles/style_layers.h"
 #include "styles/style_media_player.h"
 #include "styles/style_premium.h"
@@ -237,7 +239,8 @@ void PaidReactionSlider(
 					count
 				).bgLight)
 			: st::creditsBg3->c),
-		videoStream ? st::white->c : st::premiumButtonFg->c);
+		videoStream ? st::white->c : st::premiumButtonFg->c,
+		videoStream ? &st::groupCallTopReactorBadge : nullptr);
 }
 
 void AddArrowDown(not_null<RpWidget*> widget) {
@@ -267,10 +270,19 @@ void AddArrowDown(not_null<RpWidget*> widget) {
 [[nodiscard]] not_null<RpWidget*> MakeTopReactor(
 		not_null<QWidget*> parent,
 		const PaidReactionTop &data,
+		int place,
 		const std::vector<Calls::Group::Ui::StarsColoring> &colorings,
 		Fn<void()> selectShownPeer,
 		bool videoStream) {
+	auto top = 0;
+	auto height = st::paidReactTopNameSkip + st::normalFont->height;
+	if (videoStream) {
+		top += st::paidReactCrownSkip;
+		height += top;
+	}
+
 	const auto result = CreateChild<AbstractButton>(parent);
+	result->resize(0, height);
 	result->show();
 	if (data.click && !data.my) {
 		result->setClickedCallback(data.click);
@@ -300,7 +312,7 @@ void AddArrowDown(not_null<RpWidget*> widget) {
 	result->paintRequest() | rpl::start_with_next([=] {
 		auto p = Painter(result);
 		const auto left = (result->width() - st::paidReactTopUserpic) / 2;
-		p.drawImage(left, 0, photo->image(st::paidReactTopUserpic));
+		p.drawImage(left, top, photo->image(st::paidReactTopUserpic));
 
 		if (state->badge.isNull()) {
 			state->badge = GenerateBadgeImage(colorings, count, videoStream);
@@ -309,12 +321,36 @@ void AddArrowDown(not_null<RpWidget*> widget) {
 			/ state->badge.devicePixelRatio();
 		p.drawImage(
 			(result->width() - bwidth) / 2,
-			st::paidReactTopBadgeSkip,
+			top + st::paidReactTopBadgeSkip,
 			state->badge);
 
-		p.setPen(videoStream ? st::groupCallMembersFg : st::windowFg);
+		if (videoStream) {
+			const auto bg = Calls::Group::Ui::StarsColoringForCount(
+				colorings,
+				count
+			).bgLight;
+			const auto &icon = st::paidReactCrown;
+			const auto left = (result->width() - icon.width()) / 2;
+			const auto shift = st::paidReactCrownOutline;
+			const auto outline = st::groupCallMembersBg->c;
+			icon.paint(p, left - shift, shift, result->width(), outline);
+			icon.paint(p, left + shift, shift, result->width(), outline);
+			icon.paint(p, left, 0, result->width(), bg);
+
+			const auto top = st::paidReactCrownTop;
+			p.setPen(st::white);
+			p.setFont(st::levelStyle.font);
+			p.drawText(
+				QRect(left, top, icon.width(), icon.height()),
+				QString::number(place),
+				style::al_top);
+
+			p.setPen(st::groupCallMembersFg);
+		} else {
+			p.setPen(st::windowFg);
+		}
 		const auto skip = st::normalFont->spacew;
-		const auto nameTop = st::paidReactTopNameSkip;
+		const auto nameTop = top + st::paidReactTopNameSkip;
 		const auto available = result->width() - skip * 2;
 		state->name.draw(p, skip, nameTop, available, style::al_top);
 	}, result->lifetime());
@@ -388,11 +424,10 @@ void FillTopReactors(
 					[](QRect) { return st::creditsBg3->b; }),
 				st::boxRowPadding + st::paidReactTopTitleMargin),
 			style::al_top);
-	const auto height = st::paidReactTopNameSkip + st::normalFont->height;
 	const auto wrap = container->add(
 		object_ptr<SlideWrap<FixedHeightWidget>>(
 			container,
-			object_ptr<FixedHeightWidget>(container, height),
+			object_ptr<FixedHeightWidget>(container, 0),
 			st::paidReactTopMargin));
 	const auto parent = wrap->entity();
 	using Key = TopReactorKey;
@@ -461,6 +496,7 @@ void FillTopReactors(
 				widget->hide();
 			}
 			state->widgets.clear();
+			auto index = 0;
 			for (const auto &entry : list) {
 				const auto key = Key{
 					.photo = entry.photo,
@@ -473,6 +509,7 @@ void FillTopReactors(
 					: MakeTopReactor(
 						parent,
 						entry,
+						++index,
 						colorings,
 						selectShownPeer,
 						videoStream);
@@ -498,6 +535,9 @@ void FillTopReactors(
 		state->updated.events_starting_with({}),
 		wrap->widthValue()
 	) | rpl::start_with_next([=](auto, int width) {
+		if (!state->widgets.empty()) {
+			parent->resize(parent->width(), state->widgets.back()->height());
+		}
 		const auto single = width / 4;
 		if (single <= st::paidReactTopUserpic) {
 			return;
@@ -505,7 +545,7 @@ void FillTopReactors(
 		const auto count = int(state->widgets.size());
 		auto left = (width - single * count) / 2;
 		for (const auto &widget : state->widgets) {
-			widget->setGeometry(left, 0, single, height);
+			widget->setGeometry(left, 0, single, widget->height());
 			left += single;
 		}
 	}, wrap->lifetime());

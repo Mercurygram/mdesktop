@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/unique_qptr.h"
 #include "ui/effects/animations.h"
+#include "ui/text/custom_emoji_helper.h"
 #include "ui/round_rect.h"
 
 struct TextWithTags;
@@ -54,6 +55,7 @@ public:
 		std::shared_ptr<ChatHelpers::Show> show,
 		MessagesMode mode,
 		rpl::producer<std::vector<Message>> messages,
+		rpl::producer<std::vector<not_null<PeerData*>>> topDonorsValue,
 		rpl::producer<MessageIdUpdate> idUpdates,
 		rpl::producer<bool> canManageValue,
 		rpl::producer<bool> shown);
@@ -89,11 +91,8 @@ private:
 	void handleIdUpdates(rpl::producer<MessageIdUpdate> idUpdates);
 	void toggleMessage(MessageView &entry, bool shown);
 	void setContentFailed(MessageView &entry);
-	void setContent(
-		MessageView &entry,
-		const QString &name,
-		const TextWithEntities &text,
-		int stars);
+	void setContent(MessageView &entry);
+	void setContent(PinnedView &entry);
 	void updateMessageSize(MessageView &entry);
 	bool updateMessageHeight(MessageView &entry);
 	void updatePinnedSize(PinnedView &entry);
@@ -134,6 +133,11 @@ private:
 	void handleClick(const MessageView &entry, QPoint point);
 	void showContextMenu(const MessageView &entry, QPoint globalPoint);
 
+	[[nodiscard]] int donorPlace(not_null<PeerData*> peer) const;
+	[[nodiscard]] TextWithEntities nameText(
+		not_null<PeerData*> peer,
+		int place);
+
 	const not_null<QWidget*> _parent;
 	const std::shared_ptr<ChatHelpers::Show> _show;
 	const MessagesMode _mode;
@@ -168,6 +172,9 @@ private:
 	Ui::Text::String _liveBadge;
 	Ui::Text::String _adminBadge;
 
+	Ui::Text::CustomEmojiHelper _crownHelper;
+	base::flat_map<int, QString> _crownEmojiDataCache;
+	rpl::variable<std::vector<not_null<PeerData*>>> _topDonors;
 	//Ui::Animations::Simple _topFadeAnimation;
 	//Ui::Animations::Simple _bottomFadeAnimation;
 	//Ui::Animations::Simple _leftFadeAnimation;

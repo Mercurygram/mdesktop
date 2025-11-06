@@ -1721,6 +1721,11 @@ groupCallPinnedPadding: margins(10px, 4px, 10px, 2px);
 groupCallPinnedMaxWidth: 96px;
 groupCallPinnedUserpic: 22px;
 
+groupCallTopReactorBadge: RoundCheckbox(defaultRoundCheckbox) {
+	width: 1px;
+	border: groupCallMembersBg;
+}
+
 confcallLinkMenu: IconButton(boxTitleClose) {
 	icon: icon {{ "title_menu_dots", boxTitleCloseFg }};
 	iconOver: icon {{ "title_menu_dots", boxTitleCloseFgOver }};

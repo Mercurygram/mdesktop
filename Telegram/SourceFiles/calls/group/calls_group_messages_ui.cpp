@@ -51,6 +51,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_chat_helpers.h"
 #include "styles/style_chat.h"
 #include "styles/style_credits.h"
+#include "styles/style_info_levels.h"
 #include "styles/style_media_view.h"
 #include "styles/style_menu_icons.h"
 
@@ -245,6 +246,31 @@ void ShowDeleteMessageConfirmation(
 	}));
 }
 
+[[nodiscard]] QImage CrownMask(int place) {
+	const auto &icon = st::paidReactCrownSmall;
+	const auto size = icon.size();
+	const auto ratio = style::DevicePixelRatio();
+	const auto full = size * ratio;
+	auto result = QImage(full, QImage::Format_ARGB32_Premultiplied);
+	result.fill(Qt::transparent);
+	result.setDevicePixelRatio(ratio);
+
+	auto p = QPainter(&result);
+	icon.paint(p, 0, 0, size.width(), QColor(255, 255, 255));
+
+	const auto top = st::paidReactCrownSmallTop;
+	p.setCompositionMode(QPainter::CompositionMode_Source);
+	p.setPen(Qt::transparent);
+	p.setFont(st::levelStyle.font);
+	p.drawText(
+		QRect(0, top, icon.width(), icon.height()),
+		QString::number(place),
+		style::al_top);
+	p.end();
+
+	return result;
+}
+
 } // namespace
 
 struct MessagesUi::MessageView {
@@ -266,6 +292,7 @@ struct MessagesUi::MessageView {
 	Ui::Text::String price;
 	TimeId date = 0;
 	int stars = 0;
+	int place = 0;
 	int top = 0;
 	int width = 0;
 	int left = 0;
@@ -290,6 +317,7 @@ struct MessagesUi::PinnedView {
 	crl::time duration = 0;
 	crl::time end = 0;
 	int stars = 0;
+	int place = 0;
 	int top = 0;
 	int width = 0;
 	int left = 0;
@@ -313,6 +341,7 @@ MessagesUi::MessagesUi(
 	std::shared_ptr<ChatHelpers::Show> show,
 	MessagesMode mode,
 	rpl::producer<std::vector<Message>> messages,
+	rpl::producer<std::vector<not_null<PeerData*>>> topDonorsValue,
 	rpl::producer<MessageIdUpdate> idUpdates,
 	rpl::producer<bool> canManageValue,
 	rpl::producer<bool> shown)
@@ -326,6 +355,8 @@ MessagesUi::MessagesUi(
 	return result;
 })
 , _messageBgRect(CountMessageRadius(), _messageBg.color())
+, _crownHelper(Core::TextContext({ .session = &_show->session() }))
+, _topDonors(std::move(topDonorsValue))
 , _fadeHeight(st::normalFont->height * 2)
 , _fadeWidth(st::normalFont->height * 2)
 , _streamMode(_mode == MessagesMode::VideoStream) {
@@ -350,6 +381,27 @@ void MessagesUi::setupBadges() {
 		helper.context());
 
 	_adminBadge.setText(st::messageTextStyle, tr::lng_admin_badge(tr::now));
+
+	_topDonors.value(
+	) | rpl::start_with_next([=] {
+		for (auto &entry : _views) {
+			const auto place = donorPlace(entry.from);
+			if (entry.place != place) {
+				entry.place = place;
+				if (!entry.failed) {
+					setContent(entry);
+				}
+			}
+		}
+		for (auto &entry : _pinnedViews) {
+			const auto place = donorPlace(entry.from);
+			if (entry.place != place) {
+				entry.place = place;
+				setContent(entry);
+			}
+		}
+		applyGeometry();
+	}, _lifetime);
 }
 
 void MessagesUi::setupList(
@@ -577,17 +629,17 @@ void MessagesUi::setContentFailed(MessageView &entry) {
 	entry.price = Ui::Text::String();
 }
 
-void MessagesUi::setContent(
-		MessageView &entry,
-		const QString &name,
-		const TextWithEntities &text,
-		int stars) {
+void MessagesUi::setContent(MessageView &entry) {
+	const auto name = nameText(entry.from, entry.place);
 	entry.name = entry.admin
 		? Ui::Text::String(
 			st::messageTextStyle,
-			Ui::Text::Bold(name))
+			name,
+			kMarkupTextOptions,
+			Ui::kQFixedMax,
+			_crownHelper.context())
 		: Ui::Text::String();
-	if (stars) {
+	if (const auto stars = entry.stars) {
 		entry.price = Ui::Text::String(
 			st::whoReadDateStyle,
 			Ui::Text::IconEmoji(
@@ -598,17 +650,14 @@ void MessagesUi::setContent(
 		entry.price = Ui::Text::String();
 	}
 	const auto composed = entry.admin
-		? text
-		: Ui::Text::Link(Ui::Text::Bold(name), 1).append(' ').append(text);
+		? entry.original
+		: Ui::Text::Link(name, 1).append(' ').append(entry.original);
 	entry.text = Ui::Text::String(
 		st::messageTextStyle,
 		composed,
 		kMarkupTextOptions,
 		st::groupCallWidth / 8,
-		Core::TextContext({
-			.session = &_show->session(),
-			.repaint = [this, id = entry.id] { repaintMessage(id); },
-		}));
+		_crownHelper.context([this, id = entry.id] { repaintMessage(id); }));
 	if (!entry.price.isEmpty()) {
 		entry.text.updateSkipBlock(
 			entry.price.maxWidth(),
@@ -633,6 +682,15 @@ void MessagesUi::setContent(
 			return true;
 		});
 	}
+}
+
+void MessagesUi::setContent(PinnedView &entry) {
+	const auto text = nameText(entry.from, entry.place);
+	entry.text.setMarkedText(
+		st::messageTextStyle,
+		text,
+		kMarkupTextOptions,
+		_crownHelper.context());
 }
 
 void MessagesUi::toggleMessage(MessageView &entry, bool shown) {
@@ -711,6 +769,7 @@ void MessagesUi::appendMessage(const Message &data) {
 		.original = data.text,
 		.date = data.date,
 		.stars = data.stars,
+		.place = donorPlace(peer),
 		.top = top,
 		.sending = !data.date,
 		.admin = data.admin && _streamMode,
@@ -726,7 +785,7 @@ void MessagesUi::appendMessage(const Message &data) {
 	if (data.failed) {
 		setContentFailed(entry);
 	} else {
-		setContent(entry, data.peer->shortName(), data.text, data.stars);
+		setContent(entry);
 	}
 	updateMessageSize(entry);
 	if (entry.sending) {
@@ -755,13 +814,12 @@ void MessagesUi::togglePinned(PinnedView &entry, bool shown) {
 }
 
 void MessagesUi::repaintPinned(MsgId id) {
-	auto i = ranges::find(_pinnedViews, id, &PinnedView::id);
+	const auto i = ranges::find(_pinnedViews, id, &PinnedView::id);
 	if (i == end(_pinnedViews)) {
 		return;
 	} else if (i->removed && !i->toggleAnimation.animating()) {
 		const auto left = i->left;
-		i = _pinnedViews.erase(i);
-		recountWidths(i, left);
+		recountWidths(_pinnedViews.erase(i), left);
 		return;
 	}
 	if (i->toggleAnimation.animating() || i->width != i->realWidth) {
@@ -808,8 +866,6 @@ void MessagesUi::appendPinned(const Message &data, TimeId now) {
 			data.id,
 			&PinnedView::id)) {
 		return;
-	} else if (!_pinnedScroll) {
-		setupPinnedWidget();
 	}
 
 	const auto id = data.id;
@@ -821,7 +877,12 @@ void MessagesUi::appendPinned(const Message &data, TimeId now) {
 		if (i->end > finishes) {
 			return;
 		}
-		_pinnedViews.erase(i);
+		const auto left = i->left;
+		recountWidths(_pinnedViews.erase(i), left);
+	}
+
+	if (!_pinnedScroll) {
+		setupPinnedWidget();
 	}
 	const auto j = ranges::lower_bound(
 		_pinnedViews,
@@ -839,17 +900,45 @@ void MessagesUi::appendPinned(const Message &data, TimeId now) {
 		.duration = (data.pinFinishDate - data.date) * crl::time(1000),
 		.end = finishes,
 		.stars = data.stars,
+		.place = donorPlace(peer),
 		.left = left,
 	});
 	const auto repaint = [=] {
 		repaintPinned(id);
 	};
-	entry.text.setMarkedText(
-		st::messageTextStyle,
-		Ui::Text::Bold(data.peer->shortName()));
+	setContent(entry);
 	updatePinnedSize(entry);
 	entry.width = 0;
 	togglePinned(entry, true);
+}
+
+int MessagesUi::donorPlace(not_null<PeerData*> peer) const {
+	const auto &donors = _topDonors.current();
+	const auto i = ranges::find(donors, peer);
+	if (i == end(donors)) {
+		return 0;
+	}
+	return static_cast<int>(std::distance(begin(donors), i)) + 1;
+}
+
+TextWithEntities MessagesUi::nameText(
+		not_null<PeerData*> peer,
+		int place) {
+	auto result = TextWithEntities();
+	if (place > 0) {
+		auto i = _crownEmojiDataCache.find(place);
+		if (i == _crownEmojiDataCache.end()) {
+			i = _crownEmojiDataCache.emplace(
+				place,
+				_crownHelper.imageData(Ui::Text::ImageEmoji{
+					.image = CrownMask(place),
+					.margin = st::paidReactCrownMargin,
+				})).first;
+		}
+		result.append(Ui::Text::SingleCustomEmoji(i->second)).append(' ');
+	}
+	result.append(Ui::Text::Bold(peer->shortName()));
+	return result;
 }
 
 void MessagesUi::checkReactionContent(
@@ -1669,6 +1758,7 @@ void MessagesUi::applyGeometryToPinned() {
 	auto left = 0;
 	for (auto &entry : _pinnedViews) {
 		entry.left = left;
+		updatePinnedSize(entry);
 		updatePinnedWidth(entry);
 		left += entry.width;
 
