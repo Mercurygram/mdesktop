@@ -31,6 +31,7 @@ public:
 private:
 	void setupScrollAnimation();
 	void setupScrollHandling();
+	void setupScrollHandlingWithFilter();
 
 	const not_null<Ui::ScrollArea*> _scroll;
 	const not_null<Ui::RpWidget*> _inner;
@@ -46,6 +47,7 @@ private:
 	int _lastScrollApplied = 0;
 	int _scrollTopPrevious = 0;
 	bool _applyingFakeScrollState = false;
+	rpl::lifetime _filterLifetime;
 };
 
 } // namespace Info
