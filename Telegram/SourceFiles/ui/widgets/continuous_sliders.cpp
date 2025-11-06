@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/continuous_sliders.h"
 
 #include "ui/painter.h"
+#include "ui/rect.h"
 #include "base/timer.h"
 #include "base/platform/base_platform_info.h"
 #include "styles/style_widgets.h"
@@ -237,6 +238,8 @@ void MediaSlider::paintEvent(QPaintEvent *e) {
 	p.setOpacity(fadeOpacity());
 
 	const auto horizontal = isHorizontal();
+	const auto borderWidth = _st.borderWidth;
+	const auto borderHalf = borderWidth / 2;
 	const auto radius = _st.width / 2;
 	const auto disabled = isDisabled();
 	const auto over = getCurrentOverFactor();
@@ -279,16 +282,31 @@ void MediaSlider::paintEvent(QPaintEvent *e) {
 	const auto inactiveFg = disabled
 		? _st.inactiveFgDisabled
 		: anim::brush(_st.inactiveFg, _st.inactiveFgOver, over);
+	const auto borderFg = _st.borderFg;
 	if (mid > from) {
 		const auto fromClipRect = horizontal
 			? QRect(0, 0, mid, height())
 			: QRect(0, 0, width(), mid);
 		const auto till = std::min(mid + radius, end);
 		const auto fromRect = horizontal
-			? QRect(from, (height() - _st.width) / 2, till - from, _st.width)
-			: QRect((width() - _st.width) / 2, from, _st.width, till - from);
+			? QRect(
+				from + borderHalf,
+				(height() - _st.width) / 2 + borderHalf,
+				till - from - borderWidth,
+				_st.width - borderWidth)
+			: QRect(
+				(width() - _st.width) / 2 + borderHalf,
+				from + borderHalf,
+				_st.width - borderWidth,
+				till - from - borderWidth);
 		p.setClipRect(fromClipRect);
-		p.setBrush(horizontal ? activeFg : inactiveFg);
+		if (borderWidth > 0) {
+			p.setPen(QPen(borderFg, borderWidth));
+			p.setBrush(horizontal ? borderFg : inactiveFg);
+		} else {
+			p.setPen(Qt::NoPen);
+			p.setBrush(horizontal ? activeFg : inactiveFg);
+		}
 		p.drawRoundedRect(fromRect, radius, radius);
 	}
 	if (till > mid) {
@@ -312,16 +330,21 @@ void MediaSlider::paintEvent(QPaintEvent *e) {
 		const auto begin = std::max(till - radius, from);
 		const auto endRect = horizontal
 			? QRect(
-				begin,
-				(height() - _st.width) / 2,
-				end - begin,
-				_st.width)
+				begin + borderHalf,
+				(height() - _st.width) / 2 + borderHalf,
+				end - begin - borderWidth,
+				_st.width - borderWidth)
 			: QRect(
-				(width() - _st.width) / 2,
-				begin,
-				_st.width,
-				end - begin);
+				(width() - _st.width) / 2 + borderHalf,
+				begin + borderHalf,
+				_st.width - borderWidth,
+				end - begin - borderWidth);
 		p.setClipRect(endClipRect);
+		if (borderWidth > 0) {
+			p.setPen(QPen(borderFg, borderWidth));
+		} else {
+			p.setPen(Qt::NoPen);
+		}
 		p.setBrush(horizontal ? inactiveFg : activeFg);
 		p.drawRoundedRect(endRect, radius, radius);
 	}
@@ -378,7 +401,13 @@ void MediaSlider::paintEvent(QPaintEvent *e) {
 			((1. - markerSizeRatio) * size) / 2.);
 		if (remove * 2 < size) {
 			p.setClipRect(rect());
-			p.setBrush(activeFg);
+			if (borderWidth > 0) {
+				p.setPen(QPen(borderFg, borderWidth));
+				p.setBrush(activeFg);
+			} else {
+				p.setPen(Qt::NoPen);
+				p.setBrush(activeFg);
+			}
 			const auto xshift = horizontal
 				? std::max(
 					seekButton.x() + seekButton.width() - remove - width(),
@@ -389,9 +418,13 @@ void MediaSlider::paintEvent(QPaintEvent *e) {
 				: std::max(
 					seekButton.y() + seekButton.height() - remove - height(),
 					0) + std::min(seekButton.y() + remove, 0);
-			p.drawEllipse(seekButton.marginsRemoved(
-				QMargins(remove, remove, remove, remove)
-			).translated(-xshift, -yshift));
+			auto ellipseRect = (seekButton - Margins(remove)).translated(
+				-xshift,
+				-yshift);
+			if (borderWidth > 0) {
+				ellipseRect -= Margins(borderHalf);
+			}
+			p.drawEllipse(ellipseRect);
 		}
 	}
 }
