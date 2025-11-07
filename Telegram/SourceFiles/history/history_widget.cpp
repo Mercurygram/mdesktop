@@ -2045,9 +2045,6 @@ void HistoryWidget::activate() {
 }
 
 void HistoryWidget::setInnerFocus() {
-	if (!Ui::InFocusChain(this)) {
-		return;
-	}
 	if (_list) {
 		if (isSearching() && !_nonEmptySelection) {
 			_composeSearch->setInnerFocus();
