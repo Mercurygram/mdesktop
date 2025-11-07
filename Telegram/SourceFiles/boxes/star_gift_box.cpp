@@ -5221,6 +5221,9 @@ void RequestOurForm(
 			fail(Payments::CheckoutResult::Cancelled);
 		} else if (type == u"NO_PAYMENT_NEEDED"_q) {
 			fail(Payments::CheckoutResult::Free);
+		} else if (type == u"USER_DISALLOWED_STARGIFTS"_q) {
+			show->showToast(tr::lng_edit_privacy_gifts_restricted(tr::now));
+			fail(Payments::CheckoutResult::Cancelled);
 		} else {
 			show->showToast(type);
 			fail(Payments::CheckoutResult::Failed);

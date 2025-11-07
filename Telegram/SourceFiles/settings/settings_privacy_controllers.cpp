@@ -1739,6 +1739,7 @@ object_ptr<Ui::RpWidget> GiftsAutoSavePrivacyController::setupBelowWidget(
 		{ Type::Limited, tr::lng_edit_privacy_gifts_limited() },
 		{ Type::Unlimited, tr::lng_edit_privacy_gifts_unlimited() },
 		{ Type::Unique, tr::lng_edit_privacy_gifts_unique() },
+		{ Type::FromChannels, tr::lng_edit_privacy_gifts_channels() },
 		{ Type::Premium, tr::lng_edit_privacy_gifts_premium() },
 	};
 	for (const auto &[type, title] : types) {

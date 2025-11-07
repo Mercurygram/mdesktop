@@ -990,6 +990,9 @@ void ApplyUserUpdate(not_null<UserData*> user, const MTPDuserFull &update) {
 			| (data.is_disallow_premium_gifts()
 				? Api::DisallowedGiftType::Premium
 				: Api::DisallowedGiftType())
+			| (data.is_disallow_stargifts_from_channels()
+				? Api::DisallowedGiftType::FromChannels
+				: Api::DisallowedGiftType())
 			| (update.is_display_gifts_button()
 				? Api::DisallowedGiftType::SendHide
 				: Api::DisallowedGiftType()));

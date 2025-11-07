@@ -1409,6 +1409,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_edit_privacy_gifts_unlimited" = "Unlimited";
 "lng_edit_privacy_gifts_limited" = "Limited-Edition";
 "lng_edit_privacy_gifts_unique" = "Unique";
+"lng_edit_privacy_gifts_channels" = "From Channels";
 "lng_edit_privacy_gifts_types_about" = "Choose the types of gifts that you accept.";
 "lng_edit_privacy_gifts_show_icon" = "Show Gift Icon in Chats";
 "lng_edit_privacy_gifts_show_icon_about" = "Display the {emoji}Gift icon in the message input field for both participants in all chats.";
