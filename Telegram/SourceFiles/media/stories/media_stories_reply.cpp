@@ -242,7 +242,25 @@ void ReplyArea::send(Api::SendOptions options) {
 	auto text = _controls->getTextWithAppliedMarkdown();
 	const auto stars = _controls->chosenStarsForMessage();
 	if (const auto stream = _videoStream.get()) {
-		stream->messages()->send(std::move(text), stars);
+		if (stars > 0) {
+			const auto weak = _videoStream;
+			const auto done = [=](Settings::SmallBalanceResult result) {
+				if (result == Settings::SmallBalanceResult::Success
+					|| result == Settings::SmallBalanceResult::Already) {
+					if (const auto strong = weak.get()) {
+						strong->messages()->send(text, stars);
+					}
+				}
+			};
+			using namespace Settings;
+			MaybeRequestBalanceIncrease(
+				_controller->uiShow(),
+				stars,
+				SmallBalanceVideoStream{ stream->peer()->id },
+				done);
+		} else {
+			stream->messages()->send(std::move(text), stars);
+		}
 		_controls->clear();
 		return;
 	}
