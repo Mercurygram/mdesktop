@@ -319,7 +319,7 @@ void CodeInput::insertCodeAndSubmit(const QString &code) {
 		&& _digits[_currentIndex]->digit() != kDigitNone) {
 		requestCode();
 	}
-	accessibilityValueChanged(collectDigits());
+	accessibilityValueChanged();
 }
 
 QString CodeInput::collectDigits() const {

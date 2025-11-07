@@ -132,66 +132,52 @@ void ContinuousSlider::wheelEvent(QWheelEvent *e) {
 }
 
 void ContinuousSlider::keyPressEvent(QKeyEvent *e) {
-	const auto key = e->key();
-	auto newValue = _value;
+	const auto changeBy = [&](float64 step) {
+		Expects(step != 0.);
 
-	constexpr auto smallStep = 0.01;
-	constexpr auto largeStep = 0.10;
+		auto steps = 0;
+		while (true) {
+			++steps;
+			auto result = _value + (steps * step);
+			const auto stopping = (result <= 0.) || (result >= 1.);
+			if (_adjustCallback) {
+				result = _adjustCallback(result);
+			}
+			result = std::clamp(result, 0., 1.);
+			if (result != _value || stopping) {
+				return result;
+			}
+		}
+	};
 
-	switch (key) {
-	case Qt::Key_Right:
-	case Qt::Key_Up:
-		newValue = _value + smallStep;
-		break;
+	const auto newValue = [&] {
+		constexpr auto kSmallStep = 0.01;
+		constexpr auto kLargeStep = 0.10;
+		switch (e->key()) {
+		case Qt::Key_Right:
+		case Qt::Key_Up: return changeBy(kSmallStep);
+		case Qt::Key_Left:
+		case Qt::Key_Down: return changeBy(-kSmallStep);
+		case Qt::Key_PageUp: return changeBy(kLargeStep);
+		case Qt::Key_PageDown: return changeBy(-kLargeStep);
+		case Qt::Key_Home: return changeBy(-1.);
+		case Qt::Key_End: return changeBy(1.);
+		default: e->ignore();
+		}
+		return _value;
+	}();
 
-	case Qt::Key_Left:
-	case Qt::Key_Down:
-		newValue = _value - smallStep;
-		break;
-
-	case Qt::Key_PageUp:
-		newValue = _value + largeStep;
-		break;
-
-	case Qt::Key_PageDown:
-		newValue = _value - largeStep;
-		break;
-
-	case Qt::Key_Home:
-		newValue = 0.0;
-		break;
-
-	case Qt::Key_End:
-		newValue = 1.0;
-		break;
-
-	default:
-		RpWidget::keyPressEvent(e);
+	if (_value == newValue) {
 		return;
 	}
-
-	e->accept();
-
-	newValue = std::clamp(
-		_adjustCallback
-			? _adjustCallback(newValue)
-			: newValue,
-		0.0,
-		1.0);
-
-	if (newValue != _value) {
-		setValue(newValue);
-
-		if (_changeProgressCallback) {
-			_changeProgressCallback(_value);
-		}
-		if (_changeFinishedCallback) {
-			_changeFinishedCallback(_value);
-		}
-		const int percent = std::max(0, std::min(100, qRound(_value * 100.)));
-		const QString valueText = QString::number(percent) + '%';
-		accessibilityValueChanged(QVariant(valueText));
+	setValue(newValue);
+	if (_changeProgressCallback) {
+		_changeProgressCallback(_value);
 	}
+	if (_changeFinishedCallback) {
+		_changeFinishedCallback(_value);
+	}
+	accessibilityValueChanged();
 }
 
 void ContinuousSlider::updateDownValueFromPos(const QPoint &pos) {
