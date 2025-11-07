@@ -2612,6 +2612,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_edited" = "edited";
 "lng_commented" = "commented";
 "lng_approximate" = "appx.";
+"lng_repeated_daily" = "daily";
+"lng_repeated_weekly" = "weekly";
+"lng_repeated_biweekly" = "biweekly";
+"lng_repeated_monthly" = "monthly";
+"lng_repeated_every_month#one" = "{count}-monthly";
+"lng_repeated_every_month#other" = "{count}-monthly";
+"lng_repeated_yearly" = "yearly";
 "lng_edited_date" = "Edited: {date}";
 "lng_sent_date" = "Sent: {date}";
 "lng_approximate_about" = "Estimated date of video publishing.";
