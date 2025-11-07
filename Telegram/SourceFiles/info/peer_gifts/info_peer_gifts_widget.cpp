@@ -286,6 +286,7 @@ private:
 	DragState _dragging;
 	base::flat_map<int, ShiftAnimation> _shiftAnimations;
 	int _selected = -1;
+	int _pressedIndex = -1;
 
 	Ui::Animations::Basic _scrollAnimation;
 	base::unique_qptr<Ui::PopupMenu> _menu;
@@ -1903,6 +1904,7 @@ void InnerWidget::mousePressEvent(QMouseEvent *e) {
 	if (index < 0 || index >= _list->size()) {
 		return;
 	}
+	_pressedIndex = index;
 	const auto collectionId = _descriptor.current().collectionId;
 	const auto canDrag = _peer->canManageGifts()
 		&& _list->size() > 1
@@ -2090,6 +2092,7 @@ void InnerWidget::mouseMoveEvent(QMouseEvent *e) {
 }
 
 void InnerWidget::mouseReleaseEvent(QMouseEvent *e) {
+	const auto pressedIndex = base::take(_pressedIndex);
 	if (mouseGrabber() == this) {
 		releaseMouse();
 	}
@@ -2173,7 +2176,7 @@ void InnerWidget::mouseReleaseEvent(QMouseEvent *e) {
 		_dragging = {};
 		_shiftAnimations.clear();
 		_draggedView = nullptr;
-		if (index >= 0 && index < _list->size()) {
+		if (pressedIndex >= 0 && index == pressedIndex) {
 			showGift(index);
 		}
 		refreshButtons();
@@ -2308,6 +2311,7 @@ void InnerWidget::cancelDragging() {
 	}
 	_scrollAnimation.stop();
 	_dragging = {};
+	_pressedIndex = -1;
 	_shiftAnimations.clear();
 	if (_draggedView) {
 		_draggedView = nullptr;
