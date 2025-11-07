@@ -81,11 +81,8 @@ void ScheduleBox(
 		Fn<void(Api::SendOptions)> done,
 		TimeId time,
 		ScheduleBoxStyleArgs style) {
-	const auto repeat = (details.type == SendMenu::Type::Reminder
-		|| details.type == SendMenu::Type::Scheduled
-		|| details.type == SendMenu::Type::ScheduledToUser)
-		? std::make_shared<TimeId>(initialOptions.scheduleRepeatPeriod)
-		: nullptr;
+	const auto repeat = std::make_shared<TimeId>(
+		initialOptions.scheduleRepeatPeriod);
 	const auto submit = [=](Api::SendOptions options) {
 		if (!options.scheduled) {
 			return;
