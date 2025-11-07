@@ -759,6 +759,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_bio_privacy" = "Bio";
 "lng_settings_gifts_privacy" = "Gifts";
 "lng_settings_birthday_privacy" = "Date of Birth";
+"lng_settings_saved_music_privacy" = "Saved Music";
 "lng_settings_privacy_premium" = "Only subscribers of {link} can restrict receiving voice messages.";
 "lng_settings_privacy_premium_link" = "Telegram Premium";
 "lng_settings_passcode_disable" = "Disable passcode";
@@ -1466,6 +1467,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_edit_privacy_voices_exceptions" = "These users will or will not be able to send voice and video messages to you regardless of the settings above.";
 "lng_edit_privacy_voices_always_title" = "Always allow";
 "lng_edit_privacy_voices_never_title" = "Never Allow";
+
+"lng_edit_privacy_saved_music_title" = "Saved Music";
+"lng_edit_privacy_saved_music_header" = "Who can see my saved music in profile";
+"lng_edit_privacy_saved_music_always_empty" = "Always allow";
+"lng_edit_privacy_saved_music_never_empty" = "Never allow";
+"lng_edit_privacy_saved_music_exceptions" = "These users will or will not be able to see your saved music regardless of the settings above.";
+"lng_edit_privacy_saved_music_always_title" = "Always allow";
+"lng_edit_privacy_saved_music_never_title" = "Never allow";
 
 "lng_messages_privacy_title" = "Messages";
 "lng_messages_privacy_subtitle" = "Who can send me messages";

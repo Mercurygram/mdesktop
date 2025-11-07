@@ -459,6 +459,10 @@ void SetupPrivacy(
 		Key::About,
 		[] { return std::make_unique<AboutPrivacyController>(); });
 	add(
+		tr::lng_settings_saved_music_privacy(),
+		Key::SavedMusic,
+		[] { return std::make_unique<SavedMusicPrivacyController>(); });
+	add(
 		tr::lng_settings_groups_invite(),
 		Key::Invites,
 		[] { return std::make_unique<GroupsInvitePrivacyController>(); });
