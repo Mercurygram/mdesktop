@@ -400,3 +400,40 @@ uniqueGiftValueAvailableLink: FlatLabel(boxLabel) {
 	}
 }
 uniqueGiftValueAvailableMargin: margins(0px, 4px, 0px, 4px);
+
+videoStreamTopupRipple: RippleAnimation(defaultRippleAnimation) {
+	color: groupCallMembersBgRipple;
+}
+videoStreamTopupButton: SettingsButton(creditsTopupButton) {
+	textFg: groupCallMemberNotJoinedStatus;
+	textFgOver: groupCallMemberNotJoinedStatus;
+	textBg: groupCallMembersBg;
+	textBgOver: groupCallMembersBgOver;
+	ripple: videoStreamTopupRipple;
+}
+videoStreamTopupPrice: FlatLabel(creditsTopupPrice) {
+	textFg: groupCallMemberNotJoinedStatus;
+}
+videoStreamShowMoreButton: SettingsButton(defaultSettingsButton) {
+	textFg: groupCallActiveFg;
+	textFgOver: groupCallActiveFg;
+	textBg: groupCallMembersBg;
+	textBgOver: groupCallMembersBgOver;
+
+	padding: margins(70px, 10px, 22px, 8px);
+
+	ripple: videoStreamTopupRipple;
+}
+videoStreamStarsCover: PremiumCover(creditsLowBalancePremiumCover) {
+	bg: groupCallMembersBg;
+	titleFg: groupCallMembersFg;
+	about: FlatLabel(defaultFlatLabel) {
+		style: premiumAboutTextStyle;
+		palette: TextPalette(defaultTextPalette) {
+			linkFg: groupCallMembersFg;
+		}
+		align: align(top);
+		textFg: groupCallMembersFg;
+		minWidth: 190px;
+	}
+}

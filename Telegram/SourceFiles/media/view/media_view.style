@@ -914,8 +914,7 @@ storiesReportBox: ReportBox(defaultReportBox) {
 		textMargins: margins(1px, 26px, 1px, 4px);
 		heightMax: 116px;
 	}
-	dividerBg: groupCallBg;
-	dividerFg: groupCallVideoSubTextFg;
+	divider: groupCallDividerLabel;
 	spam: icon {{ "menu/delete", storiesComposeWhiteText }};
 	fake: icon {{ "menu/fake", storiesComposeWhiteText }};
 	violence: icon {{ "menu/violence", storiesComposeWhiteText }};

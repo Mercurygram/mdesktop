@@ -76,7 +76,8 @@ void FillCreditOptions(
 	Fn<void()> paid,
 	rpl::producer<> showFinishes,
 	rpl::producer<QString> subtitle,
-	std::vector<Data::CreditTopupOption> preloadedTopupOptions);
+	std::vector<Data::CreditTopupOption> preloadedTopupOptions,
+	bool dark = false);
 
 [[nodiscard]] not_null<Ui::RpWidget*> AddBalanceWidget(
 	not_null<Ui::RpWidget*> parent,

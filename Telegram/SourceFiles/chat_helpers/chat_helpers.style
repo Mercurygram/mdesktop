@@ -225,8 +225,7 @@ ReportBox {
 	noIconButton: SettingsButton;
 	label: FlatLabel;
 	field: InputField;
-	dividerBg: color;
-	dividerFg: color;
+	divider: DividerLabel;
 	spam: icon;
 	fake: icon;
 	violence: icon;
@@ -1470,8 +1469,7 @@ defaultReportBox: ReportBox {
 	}
 	label: boxLabel;
 	field: newGroupDescription;
-	dividerBg: boxDividerBg;
-	dividerFg: windowSubTextFg;
+	divider: defaultDividerLabel;
 	spam: menuIconDelete;
 	fake: menuIconFake;
 	violence: menuIconViolence;

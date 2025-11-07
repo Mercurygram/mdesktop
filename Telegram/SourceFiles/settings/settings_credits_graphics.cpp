@@ -454,7 +454,8 @@ void FillCreditOptions(
 		Fn<void()> paid,
 		rpl::producer<> showFinishes,
 		rpl::producer<QString> subtitle,
-		std::vector<Data::CreditTopupOption> preloadedTopupOptions) {
+		std::vector<Data::CreditTopupOption> preloadedTopupOptions,
+		bool dark) {
 	const auto options = container->add(
 		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 			container,
@@ -491,9 +492,15 @@ void FillCreditOptions(
 	const auto fillLoading = [=] {
 		Ui::AddSkip(content, st::settingsPremiumOptionsPadding.top());
 		if (subtitle) {
-			Ui::AddSubsectionTitle(content, std::move(subtitle));
+			Ui::AddSubsectionTitle(
+				content,
+				std::move(subtitle),
+				{},
+				dark ? &st::groupCallSubsectionTitle : nullptr);
 		}
-		const auto &st = st::creditsTopupButton;
+		const auto &st = dark
+			? st::videoStreamTopupButton
+			: st::creditsTopupButton;
 		const auto loadingList = content;
 		const auto isRtl = QLocale().textDirection() == Qt::RightToLeft;
 		using WidgetPtr = object_ptr<Ui::RpWidget>;
@@ -533,7 +540,11 @@ void FillCreditOptions(
 		}
 		Ui::AddSkip(content, st::settingsPremiumOptionsPadding.top());
 		if (subtitle) {
-			Ui::AddSubsectionTitle(content, std::move(subtitle));
+			Ui::AddSubsectionTitle(
+				content,
+				std::move(subtitle),
+				{},
+				dark ? &st::groupCallSubsectionTitle : nullptr);
 		}
 
 		const auto buttons = content->add(
@@ -545,14 +556,18 @@ void FillCreditOptions(
 				object_ptr<Ui::SettingsButton>(
 					content,
 					tr::lng_credits_more_options(),
-					st::statisticsShowMoreButton)));
+					(dark
+						? st::videoStreamShowMoreButton
+						: st::statisticsShowMoreButton))));
 		const auto showMore = showMoreWrap->entity();
 		showMore->setClickedCallback([=] {
 			showMoreWrap->toggle(false, anim::type::instant);
 		});
 		Ui::AddToggleUpDownArrowToMoreButton(showMore);
 
-		const auto &st = st::creditsTopupButton;
+		const auto &st = dark
+			? st::videoStreamTopupButton
+			: st::creditsTopupButton;
 		const auto diffBetweenTextAndStar = st.padding.left()
 			- st.iconLeft
 			- int(singleStarWidth * 1.5);
@@ -593,7 +608,7 @@ void FillCreditOptions(
 			const auto price = Ui::CreateChild<Ui::FlatLabel>(
 				button,
 				Ui::FillAmountAndCurrency(option.amount, option.currency),
-				st::creditsTopupPrice);
+				dark ? st::videoStreamTopupPrice : st::creditsTopupPrice);
 			const auto inner = Ui::CreateChild<Ui::RpWidget>(button);
 			const auto getStars = [=] {
 				const auto starIndex = i + 1;
@@ -665,7 +680,11 @@ void FillCreditOptions(
 				}),
 				Ui::Text::RichLangValue);
 			Ui::AddSkip(content);
-			Ui::AddDividerText(content, std::move(text));
+			Ui::AddDividerText(
+				content,
+				std::move(text),
+				st::defaultBoxDividerLabelPadding,
+				dark ? st::groupCallDividerLabel : st::defaultDividerLabel);
 		}
 
 		content->resizeToWidth(container->width());
@@ -2864,6 +2883,7 @@ void SmallBalanceBox(
 		paid();
 	};
 
+	auto dark = false;
 	const auto owner = &show->session().data();
 	const auto name = v::match(source, [&](SmallBalanceBot value) {
 		return value.botId
@@ -2896,7 +2916,9 @@ void SmallBalanceBox(
 	const auto content = [&]() -> Ui::Premium::TopBarAbstract* {
 		return box->setPinnedToTopContent(object_ptr<Ui::Premium::TopBar>(
 			box,
-			st::creditsLowBalancePremiumCover,
+			(dark
+				? st::videoStreamStarsCover
+				: st::creditsLowBalancePremiumCover),
 			Ui::Premium::TopBarDescriptor{
 				.title = tr::lng_credits_small_balance_title(
 					lt_count,
@@ -2961,7 +2983,8 @@ void SmallBalanceBox(
 		[=] { show->session().credits().load(true); },
 		box->showFinishes(),
 		tr::lng_credits_summary_options_subtitle(),
-		{});
+		{},
+		dark);
 
 	content->setMaximumHeight(st::creditsLowBalancePremiumCoverHeight);
 	content->setMinimumHeight(st::infoLayerTopBarHeight);
@@ -2982,7 +3005,9 @@ void SmallBalanceBox(
 			content,
 			&show->session(),
 			show->session().credits().balanceValue(),
-			true);
+			true,
+			nullptr,
+			dark);
 		show->session().credits().load(true);
 
 		rpl::combine(
@@ -3358,8 +3383,7 @@ void AddWithdrawalWidget(
 	container->add(object_ptr<Ui::DividerLabel>(
 		container,
 		std::move(about),
-		st::defaultBoxDividerLabelPadding,
-		RectPart::Top | RectPart::Bottom));
+		st::defaultBoxDividerLabelPadding));
 
 	Ui::AddSkip(container);
 }

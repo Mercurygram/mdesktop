@@ -607,8 +607,7 @@ void InnerWidget::fill() {
 		container->add(object_ptr<Ui::DividerLabel>(
 			container,
 			std::move(label),
-			st::defaultBoxDividerLabelPadding,
-			RectPart::Top | RectPart::Bottom));
+			st::defaultBoxDividerLabelPadding));
 	};
 	if (canViewCurrencyEarn) {
 		addAboutWithLearn(bot
