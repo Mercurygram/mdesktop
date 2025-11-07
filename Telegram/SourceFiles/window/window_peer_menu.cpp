@@ -1072,7 +1072,6 @@ void Filler::addTopicLink() {
 	if (!channel) {
 		return;
 	}
-	const auto id = _topic->rootId();
 	const auto controller = _controller;
 	_addAction(tr::lng_context_copy_topic_link(tr::now), [=] {
 		const auto link = Info::Profile::TopicLink(_topic, true);
