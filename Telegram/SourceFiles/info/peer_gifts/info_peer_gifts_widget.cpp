@@ -1145,7 +1145,8 @@ void InnerWidget::showMenuFor(not_null<GiftButton*> button, QPoint point) {
 	auto entry = ::Settings::SavedStarGiftEntry(
 		_peer,
 		(*_list)[index].gift);
-	entry.pinnedSavedGifts = pinnedSavedGifts();
+	const auto collectionId = _descriptor.current().collectionId;
+	entry.pinnedSavedGifts = collectionId > 0 ? nullptr : pinnedSavedGifts();
 	_menu = base::make_unique_q<Ui::PopupMenu>(this, st::popupMenuWithIcons);
 	if (_peer->canManageGifts() && !_collections.empty()) {
 		const auto &gift = (*_list)[index].gift;
@@ -1165,7 +1166,6 @@ void InnerWidget::showMenuFor(not_null<GiftButton*> button, QPoint point) {
 		entry,
 		::Settings::SavedStarGiftMenuType::List);
 
-	const auto collectionId = _descriptor.current().collectionId;
 	if (collectionId > 0 && _peer->canManageGifts()) {
 		const auto &gift = (*_list)[index].gift;
 		if (ranges::contains(gift.collectionIds, collectionId)) {
