@@ -726,7 +726,8 @@ not_null<Ui::RpWidget*> AddBalanceWidget(
 		not_null<Main::Session*> session,
 		rpl::producer<CreditsAmount> balanceValue,
 		bool rightAlign,
-		rpl::producer<float64> opacityValue) {
+		rpl::producer<float64> opacityValue,
+		bool dark) {
 	struct State final {
 		float64 opacity = 1.0;
 		Ui::Text::String label;
@@ -779,7 +780,7 @@ not_null<Ui::RpWidget*> AddBalanceWidget(
 		auto p = QPainter(balance);
 
 		p.setOpacity(state->opacity);
-		p.setPen(st::boxTextFg);
+		p.setPen(dark ? st::groupCallMembersFg : st::boxTextFg);
 
 		state->label.draw(p, {
 			.position = QPoint(

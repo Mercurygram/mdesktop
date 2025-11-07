@@ -156,19 +156,19 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 			result->add(std::move(buttons));
 		}
 	}
-	showDivider = rpl::combine(
+	auto showNext = rpl::combine(
 		std::move(showDivider),
 		sharedTracker.atLeastOneShownValue()
 	) | rpl::map([](bool show, bool shared) {
 		return show || shared;
 	}) | rpl::distinct_until_changed();
 	if (auto actions = SetupActions(_controller, result.data(), _peer)) {
-		addAboutVerificationOrDivider(result, rpl::duplicate(showDivider));
+		addAboutVerificationOrDivider(result, rpl::duplicate(showNext));
 		result->add(std::move(actions));
 	}
 	if (_peer->isChat() || _peer->isMegagroup()) {
 		if (!_peer->isMonoforum()) {
-			setupMembers(result.data(), rpl::duplicate(showDivider));
+			setupMembers(result.data(), rpl::duplicate(showNext));
 		}
 	}
 	return result;

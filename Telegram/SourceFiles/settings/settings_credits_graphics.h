@@ -84,7 +84,8 @@ void FillCreditOptions(
 	not_null<Main::Session*> session,
 	rpl::producer<CreditsAmount> balanceValue,
 	bool rightAlign,
-	rpl::producer<float64> opacityValue = nullptr);
+	rpl::producer<float64> opacityValue = nullptr,
+	bool dark = false);
 
 void AddWithdrawalWidget(
 	not_null<Ui::VerticalLayout*> container,

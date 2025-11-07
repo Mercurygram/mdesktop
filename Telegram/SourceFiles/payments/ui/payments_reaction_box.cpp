@@ -39,7 +39,8 @@ namespace Settings {
 	not_null<Main::Session*> session,
 	rpl::producer<CreditsAmount> balanceValue,
 	bool rightAlign,
-	rpl::producer<float64> opacityValue = nullptr);
+	rpl::producer<float64> opacityValue = nullptr,
+	bool dark = false);
 } // namespace Settings
 
 namespace Ui {
