@@ -395,6 +395,7 @@ void SendStarButton::paintEvent(QPaintEvent *e) {
 			.position = QPoint(
 				left + _counterSt.padding.left(),
 				top + _counterSt.padding.top()),
+			.availableWidth = _starsText.maxWidth(),
 		});
 	}
 

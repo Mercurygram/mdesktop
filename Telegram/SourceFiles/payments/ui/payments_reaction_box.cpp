@@ -748,7 +748,9 @@ void PaidReactionsBox(
 			) | rpl::map([](const QString &text, const QString &url) {
 				return Ui::Text::Link(text, url);
 			}),
-			Ui::Text::RichLangValue));
+			Ui::Text::RichLangValue),
+		st::defaultBoxDividerLabelPadding,
+		dark ? st::groupCallDividerLabel : st::defaultDividerLabel);
 
 	const auto button = box->addButton(rpl::single(QString()), [=] {
 		args.send(state->chosen.current(), state->shownPeer.current());
