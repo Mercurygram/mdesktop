@@ -144,7 +144,9 @@ void PaidReactionSlider(
 
 	const auto update = [=](int count) {
 		if (activeFgOverride) {
-			slider->setActiveFgOverride(activeFgOverride(count));
+			slider->setColorOverrides({
+				.activeFg = activeFgOverride(count),
+			});
 		}
 	};
 
