@@ -144,8 +144,13 @@ void PaidReactionSlider(
 
 	const auto update = [=](int count) {
 		if (activeFgOverride) {
+			const auto color = activeFgOverride(count);
 			slider->setColorOverrides({
-				.activeFg = activeFgOverride(count),
+				.activeBg = color,
+				.activeBorder = color,
+				.seekFg = st::groupCallMembersFg->c,
+				.seekBorder = color,
+				.inactiveBorder = Qt::transparent,
 			});
 		}
 	};
@@ -222,7 +227,9 @@ void PaidReactionSlider(
 		p.setClipping(false);
 
 		p.setClipPath(fullPath.intersected(circlePath.united(rightRect)));
-		state->particles.setColor(st::creditsBg3->c);
+		state->particles.setColor(activeFgOverride
+			? st::groupCallMemberInactiveIcon->c
+			: st::creditsBg3->c);
 		state->particles.paint(p, rect, crl::now());
 	}, stars->lifetime());
 }

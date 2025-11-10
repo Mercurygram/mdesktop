@@ -359,7 +359,9 @@ void BubbleWidget::setupParticles(not_null<Ui::RpWidget*> parent) {
 		p.setClipping(false);
 
 		p.setClipPath(fullRect.subtracted(bubblePath));
-		_particles->setColor(st::creditsBg3->c);
+		_particles->setColor(_brushOverride
+			? st::groupCallMemberInactiveIcon->c
+			: st::creditsBg3->c);
 		_particles->paint(p, _particlesWidget->rect(), crl::now());
 	}, _particlesWidget->lifetime());
 
