@@ -2289,7 +2289,7 @@ std::optional<Stories::PeerSourceState> Stories::peerSourceState(
 		const MTPRecentStory &recent) {
 	const auto &data = recent.data();
 	const auto maxId = data.vmax_id().value_or_empty();
-	const auto live = data.is_is_live();
+	const auto live = data.is_live();
 	const auto i = _readTill.find(peer->id);
 	if (_readTillReceived || (i != end(_readTill))) {
 		return PeerSourceState{
