@@ -291,6 +291,7 @@ private:
 	QBrush _storyOutlineBrush;
 	std::vector<Ui::OutlineSegment> _storySegments;
 	bool _hasStories = false;
+	bool _hasLiveStories = false;
 
 	std::optional<uint8> _localColorProfileIndex;
 	std::optional<DocumentId> _localPatternEmojiId;

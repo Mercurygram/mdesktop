@@ -70,6 +70,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/controls/userpic_button.h"
 #include "ui/effects/animations.h"
 #include "ui/effects/outline_segments.h"
+#include "ui/effects/round_checkbox.h"
 #include "ui/empty_userpic.h"
 #include "ui/layers/generic_box.h"
 #include "ui/painter.h"
@@ -2385,9 +2386,14 @@ void TopBar::updateStoryOutline(std::optional<QColor> edgeColor) {
 	const auto hasActiveStories = (_source == Source::Preview)
 		? true
 		: user->hasActiveStories();
+	const auto hasLiveStories = (_source == Source::Preview)
+		? false
+		: user->hasActiveVideoStream();
 
-	if (_hasStories != hasActiveStories) {
+	if (_hasStories != hasActiveStories
+		|| _hasLiveStories != hasLiveStories) {
 		_hasStories = hasActiveStories;
+		_hasLiveStories = hasLiveStories;
 		update();
 	}
 
@@ -2473,6 +2479,16 @@ void TopBar::paintStoryOutline(QPainter &p, const QRect &geometry) {
 		padding + outlineWidth / 2);
 
 	Ui::PaintOutlineSegments(p, outlineRect, _storySegments);
+
+	if (_hasLiveStories) {
+		const auto edgeColor = _edgeColor.current();
+		Ui::PaintLiveBadge(
+			p,
+			geometry.x(),
+			geometry.y() + outlineWidth + padding,
+			geometry.width(),
+			edgeColor);
+	}
 }
 
 void TopBar::setupStatusWithRating() {
