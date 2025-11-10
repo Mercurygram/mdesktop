@@ -31,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/storage_facade.h"
 #include "data/components/credits.h"
 #include "data/components/factchecks.h"
+#include "data/components/gift_auctions.h"
 #include "data/components/location_pickers.h"
 #include "data/components/promo_suggestions.h"
 #include "data/components/recent_peers.h"
@@ -112,6 +113,7 @@ Session::Session(
 , _attachWebView(std::make_unique<InlineBots::AttachWebView>(this))
 , _recentPeers(std::make_unique<Data::RecentPeers>(this))
 , _recentSharedGifts(std::make_unique<Data::RecentSharedMediaGifts>(this))
+, _giftAuctions(std::make_unique<Data::GiftAuctions>(this))
 , _scheduledMessages(std::make_unique<Data::ScheduledMessages>(this))
 , _sponsoredMessages(std::make_unique<Data::SponsoredMessages>(this))
 , _topPeers(std::make_unique<Data::TopPeers>(this, Data::TopPeerType::Chat))

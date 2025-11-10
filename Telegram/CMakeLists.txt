@@ -515,6 +515,8 @@ PRIVATE
     data/components/credits.h
     data/components/factchecks.cpp
     data/components/factchecks.h
+    data/components/gift_auctions.cpp
+    data/components/gift_auctions.h
     data/components/location_pickers.cpp
     data/components/location_pickers.h
     data/components/promo_suggestions.cpp
