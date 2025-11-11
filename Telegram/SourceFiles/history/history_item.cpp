@@ -6032,12 +6032,12 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 						Ui::Text::WithEntities);
 				} else {
 					result.text = tr::lng_action_gift_sent_self_channel(
-						tr::now,
-						lt_name,
-						Ui::Text::Link(channel->name(), 1),
-						lt_cost,
-						cost,
-						Ui::Text::WithEntities);
+							tr::now,
+							lt_name,
+							Ui::Text::Link(channel->name(), 1),
+							lt_cost,
+							cost,
+							Ui::Text::WithEntities);
 				}
 			} else {
 				result.links.push_back(from->createOpenLink());
@@ -6065,13 +6065,29 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 				}
 			}
 		} else if (anonymous || _history->peer->isSelf()) {
-			result.text = (anonymous
-				? tr::lng_action_gift_received_anonymous
-				: tr::lng_action_gift_self_bought)(
+			const auto to = (action.is_auction_acquired() && action.vto_id())
+				? peer->owner().peer(peerFromMTP(*action.vto_id())).get()
+				: nullptr;
+			result.text = to
+				? tr::lng_action_gift_auction(
 					tr::now,
+					lt_name,
+					Ui::Text::Link(to->shortName(), 1),
 					lt_cost,
 					cost,
-					Ui::Text::WithEntities);
+					Ui::Text::WithEntities)
+				: (action.is_auction_acquired()
+					? tr::lng_action_gift_self_auction
+					: anonymous
+					? tr::lng_action_gift_received_anonymous
+					: tr::lng_action_gift_self_bought)(
+						tr::now,
+						lt_cost,
+						cost,
+						Ui::Text::WithEntities);
+			if (to) {
+				result.links.push_back(to->createOpenLink());
+			}
 		} else if (upgradeGifted) {
 			// Who sent the gift.
 			const auto fromId = action.vfrom_id()
@@ -6128,7 +6144,8 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 				result.links.push_back(peer->createOpenLink());
 			}
 			result.text = isSelf
-				? tr::lng_action_gift_sent(tr::now,
+				? tr::lng_action_gift_sent(
+					tr::now,
 					lt_cost,
 					cost,
 					Ui::Text::WithEntities)
