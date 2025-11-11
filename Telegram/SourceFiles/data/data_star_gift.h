@@ -109,6 +109,7 @@ struct StarGift {
 	int64 starsResellMin = 0;
 	not_null<DocumentData*> document;
 	PeerData *releasedBy = nullptr;
+	QString auctionSlug;
 	QString resellTitle;
 	int resellCount = 0;
 	int limitedLeft = 0;
@@ -123,6 +124,7 @@ struct StarGift {
 	bool peerColorAvailable : 1 = false;
 	bool upgradable : 1 = false;
 	bool birthday : 1 = false;
+	bool auction : 1 = false;
 	bool soldOut : 1 = false;
 
 	friend inline bool operator==(

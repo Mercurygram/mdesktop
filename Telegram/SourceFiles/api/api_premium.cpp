@@ -856,6 +856,7 @@ std::optional<Data::StarGift> FromTL(
 			.starsResellMin = int64(resellPrice),
 			.document = document,
 			.releasedBy = releasedBy,
+			.auctionSlug = qs(data.vauction_slug().value_or_empty()),
 			.resellTitle = qs(data.vtitle().value_or_empty()),
 			.resellCount = int(data.vavailability_resale().value_or_empty()),
 			.limitedLeft = remaining.value_or_empty(),
@@ -869,6 +870,7 @@ std::optional<Data::StarGift> FromTL(
 			.peerColorAvailable = data.is_peer_color_available(),
 			.upgradable = data.vupgrade_stars().has_value(),
 			.birthday = data.is_birthday(),
+			.auction = data.is_auction(),
 			.soldOut = data.is_sold_out(),
 		});
 	}, [&](const MTPDstarGiftUnique &data) {

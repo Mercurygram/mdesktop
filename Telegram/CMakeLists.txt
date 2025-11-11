@@ -335,6 +335,8 @@ PRIVATE
     boxes/share_box.h
     boxes/star_gift_box.cpp
     boxes/star_gift_box.h
+    boxes/star_gift_resale_box.cpp
+    boxes/star_gift_resale_box.h
     boxes/sticker_set_box.cpp
     boxes/sticker_set_box.h
     boxes/stickers_box.cpp
