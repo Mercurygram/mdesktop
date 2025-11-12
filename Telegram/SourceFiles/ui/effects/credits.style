@@ -89,6 +89,9 @@ starIconEmojiLarge: IconEmoji {
 	icon: icon {{ "settings/premium/star", settingsIconFg }};
 	padding: margins(0px, -2px, 0px, 0px);
 }
+starIconEmojiInline: IconEmoji(starIconEmojiSmall) {
+	padding: margins(0px, 3px, 0px, 0px);
+}
 
 tonIconEmoji: IconEmoji {
 	icon: icon{{ "chat/mini_ton_bold", currencyFg }};
@@ -437,3 +440,7 @@ videoStreamStarsCover: PremiumCover(creditsLowBalancePremiumCover) {
 		minWidth: 190px;
 	}
 }
+
+auctionInfoPreviewMargin: margins(0px, 24px, 0px, 8px);
+auctionInfoSubtitleSkip: 8px;
+auctionInfoTableMargin: margins(0px, 12px, 0px, 12px);

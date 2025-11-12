@@ -333,6 +333,8 @@ PRIVATE
     boxes/send_files_box.h
     boxes/share_box.cpp
     boxes/share_box.h
+    boxes/star_gift_auction_box.cpp
+    boxes/star_gift_auction_box.h
     boxes/star_gift_box.cpp
     boxes/star_gift_box.h
     boxes/star_gift_resale_box.cpp
@@ -1644,6 +1646,8 @@ PRIVATE
     ui/controls/location_picker.h
     ui/controls/silent_toggle.cpp
     ui/controls/silent_toggle.h
+    ui/controls/table_rows.cpp
+    ui/controls/table_rows.h
     ui/controls/userpic_button.cpp
     ui/controls/userpic_button.h
     ui/effects/credits_graphics.cpp

@@ -277,7 +277,7 @@ void GiftButton::setDescriptor(const GiftDescriptor &descriptor, Mode mode) {
 				? tr::lng_gift_transfer_button(
 					tr::now,
 					Ui::Text::WithEntities)
-				: (data.info.auction && !data.info.soldOut)
+				: (data.info.auction() && !data.info.soldOut)
 				? tr::lng_gift_stars_auction_join(
 					tr::now,
 					Ui::Text::WithEntities)
@@ -646,7 +646,7 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 	const auto auction = stargift
 		&& !stargift->userpic
 		&& !stargift->info.unique
-		&& stargift->info.auction;
+		&& stargift->info.auction();
 	const auto hidden = stargift && stargift->hidden;
 	const auto soldOut = stargift
 		&& !(stargift->pinned || stargift->pinnedSelection)
@@ -807,7 +807,7 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 					? ('#' + QString::number(unique->number))
 					: data.resale
 					? tr::lng_gift_stars_resale(tr::now)
-					: (!unique && data.info.auction)
+					: (!unique && data.info.auction())
 					? tr::lng_gift_stars_auction(tr::now)
 					: soldOut
 					? tr::lng_gift_stars_sold_out(tr::now)
@@ -838,7 +838,7 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 					: soldOut
 					? st::attentionButtonFg->c
 					: (!data.userpic
-						&& (data.info.auction || data.info.requirePremium))
+						&& (data.info.auction() || data.info.requirePremium))
 					? st::creditsFg->c
 					: st::windowActiveTextFg->c),
 				.bg2 = (onsale

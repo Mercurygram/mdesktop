@@ -23,6 +23,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "mtproto/mtproto_dc_options.h"
 #include "data/business/data_shortcut_messages.h"
 #include "data/components/credits.h"
+#include "data/components/gift_auctions.h"
 #include "data/components/promo_suggestions.h"
 #include "data/components/scheduled_messages.h"
 #include "data/components/top_peers.h"
@@ -2789,6 +2790,15 @@ void Updates::feedUpdate(const MTPUpdate &update) {
 			Api::ParsePaidReactionShownPeer(_session, data.vprivate()));
 	} break;
 
+	case mtpc_updateStarGiftAuctionState: {
+		const auto &data = update.c_updateStarGiftAuctionState();
+		_session->giftAuctions().apply(data);
+	} break;
+
+	case mtpc_updateStarGiftAuctionUserState: {
+		const auto &data = update.c_updateStarGiftAuctionUserState();
+		_session->giftAuctions().apply(data);
+	} break;
 	}
 }
 

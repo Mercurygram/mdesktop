@@ -48,6 +48,7 @@ struct PaidReactionBoxArgs {
 	Fn<void(int, uint64)> send;
 	bool videoStreamChoosing = false;
 	bool videoStreamSending = false;
+	bool giftAuction = false;
 	bool dark = false;
 };
 

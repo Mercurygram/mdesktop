@@ -591,6 +591,7 @@ void PaidReactionsBox(
 	const auto colorings = args.colorings;
 	const auto videoStreamChoosing = args.videoStreamChoosing;
 	const auto videoStreamSending = args.videoStreamSending;
+	const auto giftAuction = args.giftAuction;
 	const auto videoStream = videoStreamChoosing || videoStreamSending;
 	const auto initialShownPeer = ranges::find(
 		args.top,
@@ -636,7 +637,7 @@ void PaidReactionsBox(
 		nullptr,
 		&st::paidReactBubbleIcon,
 		st::boxRowPadding);
-	if (videoStream) {
+	if (videoStream || giftAuction) {
 		state->chosen.value() | rpl::start_with_next([=](int count) {
 			bubble->setBrushOverride(activeFgOverride(count));
 		}, bubble->lifetime());
@@ -653,7 +654,7 @@ void PaidReactionsBox(
 		args.chosen,
 		args.max,
 		changed,
-		videoStream ? activeFgOverride : Fn<QColor(int)>());
+		(videoStream || giftAuction) ? activeFgOverride : Fn<QColor(int)>());
 
 	box->addTopButton(
 		dark ? st::darkEditStarsClose : st::boxTitleClose,
@@ -677,6 +678,7 @@ void PaidReactionsBox(
 		box->addRow(
 			VideoStreamStarsLevel(box, colorings, state->chosen.value()),
 			st::boxRowPadding + QMargins(0, st::paidReactTitleSkip, 0, 0));
+	} else if (giftAuction) {
 	} else if (videoStreamSending) {
 		addTopReactors();
 	}
@@ -688,45 +690,48 @@ void PaidReactionsBox(
 				? tr::lng_paid_comment_title()
 				: videoStreamSending
 				? tr::lng_paid_reaction_title()
+				: giftAuction
+				? tr::lng_auction_bid_title()
 				: tr::lng_paid_react_title()),
 			dark ? st::darkEditStarsCenteredTitle : st::boostCenteredTitle),
 		st::boxRowPadding + QMargins(0, st::paidReactTitleSkip, 0, 0),
 		style::al_top);
-	const auto labelWrap = box->addRow(
-		object_ptr<RpWidget>(box),
-		(st::boxRowPadding
-			+ QMargins(0, st::lineWidth, 0, st::boostBottomSkip)));
-	const auto label = CreateChild<FlatLabel>(
-		labelWrap,
-		(videoStream
-			? (videoStreamChoosing
-				? tr::lng_paid_comment_about
-				: tr::lng_paid_reaction_about)(
-					lt_name,
-					rpl::single(Text::Bold(args.name)),
+	if (!giftAuction) {
+		const auto labelWrap = box->addRow(
+			object_ptr<RpWidget>(box),
+			(st::boxRowPadding
+				+ QMargins(0, st::lineWidth, 0, st::boostBottomSkip)));
+		const auto label = CreateChild<FlatLabel>(
+			labelWrap,
+			(videoStream
+				? (videoStreamChoosing
+					? tr::lng_paid_comment_about
+					: tr::lng_paid_reaction_about)(
+						lt_name,
+						rpl::single(Text::Bold(args.name)),
+						Text::RichLangValue)
+				: already
+				? tr::lng_paid_react_already(
+					lt_count,
+					rpl::single(already) | tr::to_count(),
 					Text::RichLangValue)
-			: already
-			? tr::lng_paid_react_already(
-				lt_count,
-				rpl::single(already) | tr::to_count(),
-				Text::RichLangValue)
-			: tr::lng_paid_react_about(
-				lt_channel,
-				rpl::single(Text::Bold(args.name)),
-				Text::RichLangValue)),
-		dark ? st::darkEditStarsText : st::boostText);
-	label->setTryMakeSimilarLines(true);
-	labelWrap->widthValue() | rpl::start_with_next([=](int width) {
-		label->resizeToWidth(width);
-	}, label->lifetime());
-	label->heightValue() | rpl::start_with_next([=](int height) {
-		const auto min = 2 * st::normalFont->height;
-		const auto skip = std::max((min - height) / 2, 0);
-		labelWrap->resize(labelWrap->width(), 2 * skip + height);
-		label->moveToLeft(0, skip);
-	}, label->lifetime());
-
-	if (!videoStream) {
+				: tr::lng_paid_react_about(
+					lt_channel,
+					rpl::single(Text::Bold(args.name)),
+					Text::RichLangValue)),
+			dark ? st::darkEditStarsText : st::boostText);
+		label->setTryMakeSimilarLines(true);
+		labelWrap->widthValue() | rpl::start_with_next([=](int width) {
+			label->resizeToWidth(width);
+		}, label->lifetime());
+		label->heightValue() | rpl::start_with_next([=](int height) {
+			const auto min = 2 * st::normalFont->height;
+			const auto skip = std::max((min - height) / 2, 0);
+			labelWrap->resize(labelWrap->width(), 2 * skip + height);
+			label->moveToLeft(0, skip);
+		}, label->lifetime());
+	}
+	if (!videoStream && !giftAuction) {
 		addTopReactors();
 
 		const auto skip = st::defaultCheckbox.margin.bottom();
@@ -747,19 +752,21 @@ void PaidReactionsBox(
 	AddSkip(content);
 	AddSkip(content);
 
-	AddDividerText(
-		content,
-		tr::lng_paid_react_agree(
-			lt_link,
-			rpl::combine(
-				tr::lng_paid_react_agree_link(),
-				tr::lng_group_invite_subscription_about_url()
-			) | rpl::map([](const QString &text, const QString &url) {
-				return Ui::Text::Link(text, url);
-			}),
-			Ui::Text::RichLangValue),
-		st::defaultBoxDividerLabelPadding,
-		dark ? st::groupCallDividerLabel : st::defaultDividerLabel);
+	if (!giftAuction) {
+		AddDividerText(
+			content,
+			tr::lng_paid_react_agree(
+				lt_link,
+				rpl::combine(
+					tr::lng_paid_react_agree_link(),
+					tr::lng_group_invite_subscription_about_url()
+				) | rpl::map([](const QString &text, const QString &url) {
+					return Ui::Text::Link(text, url);
+				}),
+				Ui::Text::RichLangValue),
+			st::defaultBoxDividerLabelPadding,
+			dark ? st::groupCallDividerLabel : st::defaultDividerLabel);
+	}
 
 	const auto button = box->addButton(rpl::single(QString()), [=] {
 		args.send(state->chosen.current(), state->shownPeer.current());

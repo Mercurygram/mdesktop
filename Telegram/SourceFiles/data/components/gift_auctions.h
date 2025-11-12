@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "base/timer.h"
 #include "data/data_star_gift.h"
 
 namespace Main {
@@ -31,7 +32,7 @@ struct StarGiftAuctionMyState {
 };
 
 struct GiftAuctionState {
-	StarGift gift;
+	std::optional<StarGift> gift;
 	StarGiftAuctionMyState my;
 	std::vector<GiftAuctionBidLevel> bidLevels;
 	std::vector<not_null<UserData*>> topBidders;
@@ -45,6 +46,10 @@ struct GiftAuctionState {
 	int totalRounds = 0;
 	int giftsLeft = 0;
 	int version = 0;
+
+	[[nodiscard]] bool finished() const {
+		return (averagePrice != 0);
+	}
 };
 
 class GiftAuctions final {
@@ -52,12 +57,32 @@ public:
 	explicit GiftAuctions(not_null<Main::Session*> session);
 	~GiftAuctions();
 
-	//[[nodiscard]] rpl::producer<
+	[[nodiscard]] rpl::producer<GiftAuctionState> state(const QString &slug);
+
+	void apply(const MTPDupdateStarGiftAuctionState &data);
+	void apply(const MTPDupdateStarGiftAuctionUserState &data);
 
 private:
+	struct Entry {
+		GiftAuctionState state;
+		rpl::event_stream<> changes;
+		bool requested = false;
+	};
+
+	void request(const QString &slug);
+	Entry *find(uint64 giftId) const;
+	void apply(
+		not_null<Entry*> entry,
+		const MTPStarGiftAuctionState &state);
+	void apply(
+		not_null<Entry*> entry,
+		const MTPStarGiftAuctionUserState &state);
+	void checkSubscriptions();
+
 	const not_null<Main::Session*> _session;
 
-	base::flat_map<uint64, std::unique_ptr<GiftAuctionState>> _map;
+	base::Timer _timer;
+	base::flat_map<QString, std::unique_ptr<Entry>> _map;
 
 };
 

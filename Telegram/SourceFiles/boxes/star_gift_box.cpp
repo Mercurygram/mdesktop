@@ -24,6 +24,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/peer_list_controllers.h"
 #include "boxes/premium_preview_box.h"
 #include "boxes/send_credits_box.h"
+#include "boxes/star_gift_auction_box.h"
 #include "boxes/star_gift_resale_box.h"
 #include "boxes/transfer_gift_box.h"
 #include "chat_helpers/emoji_suggestions_widget.h"
@@ -2039,17 +2040,20 @@ void SendGiftBox(
 						id,
 						star->info.resellTitle,
 						[=] { state->resaleRequestingId = 0; });
-				} else if (star && star->info.auction) {
+				} else if (star && star->info.auction()) {
 					const auto id = star->info.id;
 					if (state->resaleRequestingId == id) {
 						return;
 					}
 					state->resaleRequestingId = id;
-					//state->resaleLifetime = ShowStarGiftAuction(
-					//	window,
-					//	peer,
-					//	star->info.auctionSlug,
-					//	[=] { state->resaleRequestingId = 0; });
+					state->resaleLifetime = ShowStarGiftAuction(
+						window,
+						peer,
+						star->info.auctionSlug,
+						[=] { state->resaleRequestingId = 0; },
+						crl::guard(raw, [=] {
+							state->resaleLifetime.destroy();
+						}));
 				} else if (star && IsSoldOut(star->info)) {
 					window->show(Box(SoldOutBox, window, *star));
 				} else if (star
