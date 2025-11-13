@@ -798,7 +798,7 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 		&& user
 		&& !user->sharedMediaInfo()
 		&& !user->isInaccessible()
-		&& user->hasCalls()) {
+		&& user->callsStatus() != UserData::CallsStatus::Disabled) {
 		const auto call = Ui::CreateChild<TopBarActionButton>(
 			this,
 			tr::lng_profile_action_short_call(tr::now),
