@@ -1324,22 +1324,26 @@ void TopBar::updateLabelsPosition() {
 		titleMostLeft,
 		rect::m::sum::h(st::boxRowPadding),
 		progressCurrent);
-	auto titleWidth = width() - interpolatedPadding - reservedRight;
 	const auto verifiedWidget = _verified ? _verified->widget() : nullptr;
 	const auto badgeWidget = _badge ? _badge->widget() : nullptr;
 	const auto botVerifyWidget = _botVerify ? _botVerify->widget() : nullptr;
+	auto badgesWidth = 0;
 	if (verifiedWidget) {
-		titleWidth -= verifiedWidget->width();
+		badgesWidth += verifiedWidget->width();
 	}
 	if (badgeWidget) {
-		titleWidth -= badgeWidget->width();
+		badgesWidth += badgeWidget->width();
 	}
 	if (botVerifyWidget) {
-		titleWidth -= botVerifyWidget->width();
+		badgesWidth += botVerifyWidget->width();
 	}
 	if (verifiedWidget || badgeWidget) {
-		titleWidth -= st::infoVerifiedCheckPosition.x();
+		badgesWidth += st::infoVerifiedCheckPosition.x();
 	}
+	const auto titleWidth = width()
+		- interpolatedPadding
+		- reservedRight
+		- badgesWidth;
 
 	if (titleWidth > 0 && _title->textMaxWidth() > titleWidth) {
 		_title->resizeToWidth(titleWidth);
