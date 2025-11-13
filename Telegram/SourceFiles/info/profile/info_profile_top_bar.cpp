@@ -316,6 +316,10 @@ TopBar::TopBar(
 	});
 	return owned;
 }()) {
+	_peer->updateFull();
+	if (const auto broadcast = _peer->monoforumBroadcast()) {
+		broadcast->updateFull();
+	}
 	const auto controller = descriptor.controller;
 
 	if (_peer->isMegagroup() || _peer->isChat()) {
@@ -908,18 +912,31 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 void TopBar::setupUserpicButton(
 		not_null<Window::SessionController*> controller) {
 	_userpicButton = base::make_unique_q<Ui::AbstractButton>(this);
+
+	const auto invalidate = [=] {
+		_userpicUniqueKey = InMemoryKey();
+		_userpicButton->setAttribute(
+			Qt::WA_TransparentForMouseEvents,
+			!_peer->userpicPhotoId() && !_hasStories);
+		updateVideoUserpic();
+	};
+
 	rpl::single(
 		rpl::empty_value()
 	) | rpl::then(
 		_peer->session().changes().peerFlagsValue(
 			_peer,
-			Data::PeerUpdate::Flag::Photo) | rpl::to_empty
-	) | rpl::start_with_next([=] {
-		_userpicButton->setAttribute(
-			Qt::WA_TransparentForMouseEvents,
-			!_peer->userpicPhotoId() && !_hasStories);
-		updateVideoUserpic();
-	}, lifetime());
+			Data::PeerUpdate::Flag::Photo
+				| Data::PeerUpdate::Flag::FullInfo) | rpl::to_empty
+	) | rpl::start_with_next(invalidate, lifetime());
+
+	if (const auto broadcast = _peer->monoforumBroadcast()) {
+		_peer->session().changes().peerFlagsValue(
+			broadcast,
+			Data::PeerUpdate::Flag::Photo
+				| Data::PeerUpdate::Flag::FullInfo
+		) | rpl::to_empty | rpl::start_with_next(invalidate, lifetime());
+	}
 
 	const auto openPhoto = [=, peer = _peer] {
 		if (const auto id = peer->userpicPhotoId()) {
