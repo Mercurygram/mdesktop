@@ -796,7 +796,8 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 	if (chechMax()) {
 		return;
 	}
-	if (const auto chat = channel ? channel->discussionLink() : nullptr) {
+	if (const auto chat = channel ? channel->discussionLink() : nullptr;
+			chat && chat->isMegagroup()) {
 		const auto discuss = Ui::CreateChild<TopBarActionButton>(
 			this,
 			tr::lng_profile_action_short_discuss(tr::now),
