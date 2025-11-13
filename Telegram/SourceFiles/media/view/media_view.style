@@ -1093,8 +1093,6 @@ storiesStealthFeatureAbout: FlatLabel(defaultFlatLabel) {
 }
 storiesStealthFeaturePastIcon: icon{{ "stories/stealth_5m", storiesComposeBlue }};
 storiesStealthFeatureNextIcon: icon{{ "stories/stealth_25m", storiesComposeBlue }};
-storiesStealthFeatureIconPosition: point(3px, 7px);
-storiesStealthFeatureMargin: margins(0px, 8px, 0px, 6px);
 storiesStealthFeatureLabelLeft: 46px;
 storiesStealthFeatureSkip: 2px;
 storiesStealthBoxBottom: 11px;

@@ -3676,19 +3676,6 @@ Webview::StorageId TonSiteStorageId() {
 	return result;
 }
 
-template <>
-std::optional<bool> Account::readPrefImpl<bool>(std::string_view key) {
-	if (const auto data = readPrefGeneric(key)) {
-		return !data->isEmpty();
-	}
-	return {};
-}
-
-template <>
-void Account::writePrefImpl<bool>(std::string_view key, bool value) {
-	writePrefGeneric(key, value ? "\x1"_q : QByteArray());
-}
-
 void Account::clearPref(std::string_view key) {
 	const auto i = _prefs.find(QByteArray(key.data(), key.size()));
 	if (i == end(_prefs)) {
@@ -3788,6 +3775,20 @@ void Account::readPrefs() {
 		map.emplace(std::move(key), std::move(value));
 	}
 	_prefs = std::move(map);
+}
+
+// Define your own pref types in the similar way.
+template <>
+std::optional<bool> Account::readPrefImpl<bool>(std::string_view key) {
+	if (const auto data = readPrefGeneric(key)) {
+		return !data->isEmpty();
+	}
+	return {};
+}
+
+template <>
+void Account::writePrefImpl<bool>(std::string_view key, bool value) {
+	writePrefGeneric(key, value ? "\x1"_q : QByteArray());
 }
 
 } // namespace Storage

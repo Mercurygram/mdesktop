@@ -1524,8 +1524,7 @@ inputInvoiceStarGiftResale#c39f5324 flags:# ton:flags.0?true slug:string to_id:I
 inputInvoiceStarGiftPrepaidUpgrade#9a0b48b8 peer:InputPeer hash:string = InputInvoice;
 inputInvoicePremiumAuthCode#3e77f614 purpose:InputStorePaymentPurpose = InputInvoice;
 inputInvoiceStarGiftDropOriginalDetails#923d8d1 stargift:InputSavedStarGift = InputInvoice;
-inputInvoiceStarGiftAuctionBid#77d28da6 flags:# hide_name:flags.0?true peer:InputPeer gift_id:long bid_amount:long message:flags.1?TextWithEntities = InputInvoice;
-inputInvoiceStarGiftAuctionUpdateBid#85275c98 gift_id:long bid_amount:long = InputInvoice;
+inputInvoiceStarGiftAuctionBid#1ecafa10 flags:# hide_name:flags.0?true update_bid:flags.2?true peer:flags.3?InputPeer gift_id:long bid_amount:long message:flags.1?TextWithEntities = InputInvoice;
 
 payments.exportedInvoice#aed0cbd9 url:string = payments.ExportedInvoice;
 

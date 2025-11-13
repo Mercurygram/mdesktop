@@ -1593,6 +1593,7 @@ confcallLinkButton: RoundButton(defaultActiveButton) {
 confcallLinkBoxInitial: Box(defaultBox) {
 	buttonPadding: margins(12px, 11px, 24px, 96px);
 	buttonHeight: 42px;
+	buttonWide: true;
 	button: confcallLinkButton;
 	shadowIgnoreTopSkip: true;
 }

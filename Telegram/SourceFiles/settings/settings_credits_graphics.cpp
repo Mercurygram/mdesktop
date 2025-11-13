@@ -2438,7 +2438,7 @@ void UniqueGiftValueBox(
 					platform(Ui::Text::WithEntities),
 					lt_arrow,
 					rpl::single(Ui::Text::IconEmoji(&st::textMoreIconEmoji)),
-					[](const QString &text) { return Ui::Text::Link(text); }),
+					tr::link),
 				st::uniqueGiftValueAvailableLink,
 				st::defaultPopupMenu,
 				Core::TextContext({ .session = &show->session() })),

@@ -9,7 +9,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/unixtime.h"
 #include "boxes/star_gift_box.h"
+#include "calls/group/calls_group_common.h"
 #include "core/credits_amount.h"
+#include "core/ui_integration.h"
 #include "data/components/credits.h"
 #include "data/components/gift_auctions.h"
 #include "data/data_message_reactions.h"
@@ -21,7 +23,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "payments/ui/payments_reaction_box.h"
 #include "payments/payments_checkout_process.h"
+#include "storage/storage_account.h"
 #include "ui/controls/button_labels.h"
+#include "ui/controls/feature_list.h"
 #include "ui/controls/table_rows.h"
 #include "ui/layers/generic_box.h"
 #include "ui/text/format_values.h"
@@ -31,12 +35,18 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/table_layout.h"
 #include "ui/dynamic_thumbnails.h"
 #include "window/window_session_controller.h"
+#include "styles/style_calls.h"
 #include "styles/style_chat.h"
-#include "styles/style_layers.h"
 #include "styles/style_credits.h"
+#include "styles/style_info.h"
+#include "styles/style_layers.h"
+#include "styles/style_menu_icons.h"
 
 namespace Ui {
 namespace {
+
+constexpr auto kAuctionAboutShownPref = "gift_auction_about_shown"_cs;
+constexpr auto kBidPlacedToastDuration = 5 * crl::time(1000);
 
 [[nodiscard]] rpl::producer<int> MinutesLeftTillValue(TimeId endDate) {
 	return [=](auto consumer) {
@@ -71,9 +81,9 @@ namespace {
 }
 
 struct AuctionBidBoxArgs {
+	not_null<PeerData*> peer;
 	std::shared_ptr<ChatHelpers::Show> show;
 	rpl::producer<Data::GiftAuctionState> state;
-	Fn<void(int)> save;
 };
 
 void PlaceAuctionBid(
@@ -87,16 +97,14 @@ void PlaceAuctionBid(
 			const MTPUpdates *updates) {
 		done(result);
 	};
-	const auto invoice = state.my.bid
-		? MTP_inputInvoiceStarGiftAuctionUpdateBid(
-			MTP_long(state.gift->id),
-			MTP_long(amount))
-		: MTP_inputInvoiceStarGiftAuctionBid(
-			MTP_flags(0),
-			to->input,
-			MTP_long(state.gift->id),
-			MTP_long(amount),
-			MTPTextWithEntities());
+	using Flag = MTPDinputInvoiceStarGiftAuctionBid::Flag;
+	const auto invoice = MTP_inputInvoiceStarGiftAuctionBid(
+		MTP_flags((state.my.bid ? Flag::f_update_bid : Flag())
+			| (state.my.bid ? Flag() : Flag::f_peer)),
+		state.my.bid ? MTP_inputPeerEmpty() : to->input,
+		MTP_long(state.gift->id),
+		MTP_long(amount),
+		MTPTextWithEntities());
 	RequestOurForm(show, invoice, [=](
 			uint64 formId,
 			CreditsAmount price,
@@ -135,6 +143,28 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 			.my = true,
 		}
 	};
+	const auto save = [=, peer = args.peer](int amount) {
+		const auto &now = state->current();
+		const auto was = (now.my.bid > 0);
+		const auto perRound = now.gift->auctionGiftsPerRound;
+		const auto done = [=](Payments::CheckoutResult result) {
+			if (result == Payments::CheckoutResult::Paid) {
+				show->showToast({
+					.title = (was
+						? tr::lng_auction_bid_increased_title
+						: tr::lng_auction_bid_placed_title)(
+							tr::now),
+					.text = tr::lng_auction_bid_done_text(
+						tr::now,
+						lt_count,
+						perRound,
+						tr::rich),
+					.duration = kBidPlacedToastDuration,
+				});
+			}
+		};
+		PlaceAuctionBid(show, peer, amount, now, done);
+	};
 	PaidReactionsBox(box, {
 		.min = int(state->current().my.bid
 			? state->current().my.minBidAmount
@@ -147,7 +177,7 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 		.submit = submit,
 		.colorings = session->appConfig().groupCallColorings(),
 		.balanceValue = session->credits().balanceValue(),
-		.send = [weak, save = args.save](int count, uint64 barePeerId) {
+		.send = [=](int count, uint64 barePeerId) {
 			save(count);
 			if (const auto strong = weak.get()) {
 				strong->closeBox();
@@ -290,8 +320,95 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 void AuctionAboutBox(
 		not_null<GenericBox*> box,
 		int rounds,
-		int giftsPerRound) {
+		int giftsPerRound,
+		Fn<void(Fn<void()> close)> understood) {
+	box->setStyle(st::confcallJoinBox);
+	box->setWidth(st::boxWideWidth);
+	box->setNoContentMargin(true);
+	box->addTopButton(st::boxTitleClose, [=] {
+		box->closeBox();
+	});
+	box->addRow(
+		Calls::Group::MakeRoundActiveLogo(
+			box, 
+			st::auctionAboutLogo, 
+			st::auctionAboutLogoPadding),
+		st::boxRowPadding + st::confcallLinkHeaderIconPadding);
 
+	box->addRow(
+		object_ptr<Ui::FlatLabel>(
+			box,
+			tr::lng_auction_about_title(),
+			st::boxTitle),
+		st::boxRowPadding + st::confcallLinkTitlePadding,
+		style::al_top);
+	box->addRow(
+		object_ptr<Ui::FlatLabel>(
+			box,
+			tr::lng_auction_about_subtitle(tr::rich),
+			st::confcallLinkCenteredText),
+		st::boxRowPadding,
+		style::al_top
+	)->setTryMakeSimilarLines(true);
+
+	const auto features = std::vector<FeatureListEntry>{
+		{
+			st::menuIconRatingGifts,
+			tr::lng_auction_about_top_title(
+				tr::now, 
+				lt_count, 
+				giftsPerRound),
+			tr::lng_auction_about_top_about(
+				tr::now,
+				lt_count,
+				giftsPerRound,
+				lt_rounds,
+				tr::lng_auction_about_top_rounds(
+					tr::now, 
+					lt_count, 
+					rounds,
+					tr::rich),
+				lt_bidders,
+				tr::lng_auction_about_top_bidders(
+					tr::now, 
+					lt_count, 
+					giftsPerRound,
+					tr::rich),
+				tr::rich),
+		},
+		{
+			st::menuIconRatingRefund,
+			tr::lng_auction_about_bid_title(tr::now),
+			tr::lng_auction_about_bid_about(
+				tr::now,
+				lt_count,
+				giftsPerRound,
+				tr::rich),
+		},
+		{
+			st::menuIconRatingUsers,
+			tr::lng_auction_about_missed_title(tr::now),
+			tr::lng_auction_about_missed_about(tr::now, tr::rich),
+		},
+	};
+	for (const auto &feature : features) {
+		box->addRow(Ui::MakeFeatureListEntry(box, feature));
+	}
+
+	const auto close = Fn<void()>([weak = base::make_weak(box)] {
+		if (const auto strong = weak.get()) {
+			strong->closeBox();
+		}
+	});
+	box->addButton(
+		rpl::single(QString()), 
+		understood ? [=] { understood(close); } : close
+	)->setText(rpl::single(Ui::Text::IconEmoji(
+		&st::infoStarsUnderstood
+	).append(' ').append(tr::lng_auction_about_understood(tr::now))));
+}
+
+void AuctionGotGiftsBox(not_null<GenericBox*> box, int count) {
 }
 
 void AuctionInfoBox(
@@ -375,7 +492,7 @@ void AuctionInfoBox(
 	box->resizeToWidth(box->widthNoMargins());
 
 	about->setClickHandlerFilter([=](const auto &...) {
-		show->show(Box(AuctionAboutBox, rounds, perRound));
+		show->show(Box(AuctionAboutBox, rounds, perRound, nullptr));
 		return false;
 	});
 
@@ -383,42 +500,46 @@ void AuctionInfoBox(
 		AuctionInfoTable(box, box->verticalLayout(), state->value.value()),
 		st::boxRowPadding + st::auctionInfoTableMargin);
 
+	state->value.value(
+	) | rpl::map([=](const Data::GiftAuctionState &state) {
+		return state.my.gotCount;
+	}) | rpl::filter(
+		rpl::mappers::_1 > 0
+	) | rpl::take(1) | rpl::start_with_next([=](int count) {
+		box->addRow(
+			object_ptr<Ui::FlatLabel>(
+				box,
+				tr::lng_auction_bought(
+					lt_count_decimal,
+					rpl::single(count * 1.),
+					lt_emoji,
+					rpl::single(Data::SingleCustomEmoji(
+						state->value.current().gift->document)),
+					lt_arrow,
+					rpl::single(Ui::Text::IconEmoji(&st::textMoreIconEmoji)),
+					tr::link),
+				st::uniqueGiftValueAvailableLink,
+				st::defaultPopupMenu,
+				Core::TextContext({ .session = &show->session() })),
+			st::boxRowPadding + st::uniqueGiftValueAvailableMargin,
+			style::al_top
+		)->setClickHandlerFilter([=](const auto &...) {
+			const auto now = state->value.current().my.gotCount;
+			show->show(Box(AuctionGotGiftsBox, now));
+			return false;
+		});
+	}, box->lifetime());
+
 	const auto button = box->addButton(rpl::single(QString()), [=] {
-		if (state->value.current().finished() || !state->minutesLeft.current()) {
+		if (state->value.current().finished()
+			|| !state->minutesLeft.current()) {
 			box->closeBox();
 			return;
 		}
-
-		const auto save = [=](int amount) {
-			const auto &now = state->value.current();
-			const auto was = (now.my.bid > 0);
-			const auto perRound = now.gift->auctionGiftsPerRound;
-			const auto done = [=](Payments::CheckoutResult result) {
-				if (result == Payments::CheckoutResult::Paid) {
-					show->showToast({
-						.title = (was
-							? tr::lng_auction_bid_increased_title
-							: tr::lng_auction_bid_placed_title)(
-								tr::now),
-						.text = tr::lng_auction_bid_done_text(
-							tr::now,
-							lt_count,
-							perRound,
-							tr::rich)
-					});
-				}
-			};
-			PlaceAuctionBid(
-				show,
-				peer,
-				amount,
-				now,
-				done);
-		};
 		const auto bidBox = show->show(MakeAuctionBidBox({
+			.peer = peer,
 			.show = show,
 			.state = state->value.value(),
-			.save = save,
 		}));
 		bidBox->boxClosing(
 		) | rpl::start_with_next([=] {
@@ -481,6 +602,59 @@ void AuctionInfoBox(
 			? st::attentionButtonFg->c
 			: std::optional<QColor>());
 	}, box->lifetime());
+
+	box->setNoContentMargin(true);
+	const auto close = CreateChild<IconButton>(
+		box->verticalLayout(),
+		st::boxTitleClose);
+	close->setClickedCallback([=] { box->closeBox(); });
+	box->verticalLayout()->widthValue() | rpl::start_with_next([=](int) {
+		close->moveToRight(0, 0);
+	}, close->lifetime());
+}
+
+void ChooseAndShowAuctionBox(
+		std::shared_ptr<ChatHelpers::Show> show,
+		not_null<PeerData*> peer,
+		std::shared_ptr<rpl::variable<Data::GiftAuctionState>> state,
+		Fn<void()> boxClosed) {
+	const auto local = &peer->session().local();
+	const auto &now = state->current();
+	const auto finished = now.finished()
+		|| (now.endDate <= base::unixtime::now());
+	const auto showBidBox = now.my.bid && !finished;
+	const auto showInfoBox = !showBidBox
+		&& (local->readPref<bool>(kAuctionAboutShownPref) || finished);
+	auto box = base::weak_qptr<BoxContent>();
+	if (showBidBox) {
+		box = show->show(MakeAuctionBidBox({
+			.peer = peer,
+			.show = show,
+			.state = state->value(),
+		}));
+	} else if (showInfoBox) {
+		box = show->show(Box(
+			AuctionInfoBox,
+			show,
+			peer,
+			state->value()));
+	} else {
+		local->writePref<bool>(kAuctionAboutShownPref, true);
+		const auto understood = [=](Fn<void()> close) {
+			ChooseAndShowAuctionBox(show, peer, state, close);
+		};
+		box = show->show(Box(
+			AuctionAboutBox,
+			now.totalRounds,
+			now.gift->auctionGiftsPerRound,
+			understood));
+	}
+	if (const auto strong = box.get()) {
+		strong->boxClosing(
+		) | rpl::start_with_next(boxClosed, strong->lifetime());
+	} else {
+		boxClosed();
+	}
 }
 
 } // namespace
@@ -506,13 +680,10 @@ rpl::lifetime ShowStarGiftAuction(
 		(*value) = std::move(state);
 		if (initial) {
 			if (const auto strong = weak.get()) {
-				const auto box = strong->show(Box(
-					AuctionInfoBox,
-					strong->uiShow(),
-					peer,
-					value->value()));
-				box->boxClosing(
-				) | rpl::start_with_next(boxClosed, box->lifetime());
+				const auto show = strong->uiShow();
+				ChooseAndShowAuctionBox(show, peer, value, boxClosed);
+			} else {
+				boxClosed();
 			}
 		}
 	});

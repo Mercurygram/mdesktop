@@ -4003,8 +4003,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_about_missed_title" = "Missed Bidders";
 "lng_auction_about_missed_about" = "If your bid doesn't win after the final round, your Stars will be fully refunded.";
 "lng_auction_about_understood" = "Understood";
-"lng_auction_text#one" = "Top **{count}** bidder will get 1 {name} this round. {link}";
-"lng_auction_text#other" = "Top **{count}** bidders will get 1 {name} this round. {link}";
+"lng_auction_text#one" = "Top **{count}** bidder will get {name} gifts this round. {link}";
+"lng_auction_text#other" = "Top **{count}** bidders will get {name} gifts this round. {link}";
 "lng_auction_text_link" = "Learn more {arrow}";
 "lng_auction_text_ended" = "Auction ended.";
 "lng_auction_start_label" = "Started";
