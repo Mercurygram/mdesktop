@@ -373,16 +373,12 @@ TopBar::TopBar(
 			std::move(badgeUpdates),
 			_botVerify->updated());
 	}
+	_title->naturalWidthValue() | rpl::start_with_next([=](int w) {
+		_title->resizeToWidth(w);
+	}, _title->lifetime());
 	badgeUpdates = rpl::merge(
 		std::move(badgeUpdates),
-		nameValue() | rpl::map([=](const QString &name) {
-			const auto emojiCount = ranges::count(name, true, [](QChar ch) {
-				return ch.isHighSurrogate();
-			});
-			_title->resizeToWidth(_title->st().style.font->width(name)
-				+ emojiCount);
-			return rpl::empty_value();
-		}),
+		nameValue() | rpl::to_empty,
 		rpl::duplicate(descriptor.backToggles) | rpl::to_empty);
 	std::move(badgeUpdates) | rpl::start_with_next([=] {
 		updateLabelsPosition();
