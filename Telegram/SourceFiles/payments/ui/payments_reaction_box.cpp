@@ -92,10 +92,15 @@ struct Discreter {
 		thresholds.emplace(1. / 8, 10);
 		thresholds.emplace(1. / 3, 100);
 		thresholds.emplace(1., max);
-	} else {
+	} else if (max <= 10000) {
 		thresholds.emplace(1. / 8, 10);
 		thresholds.emplace(1. / 3, 100);
 		thresholds.emplace(2. / 3, 1000);
+		thresholds.emplace(1., max);
+	} else {
+		thresholds.emplace(1. / 10, 10);
+		thresholds.emplace(1. / 6, 100);
+		thresholds.emplace(1. / 3, 1000);
 		thresholds.emplace(1., max);
 	}
 
@@ -131,12 +136,17 @@ void PaidReactionSlider(
 		not_null<VerticalLayout*> container,
 		const style::MediaSlider &st,
 		int min,
+		int explicitlyAllowed,
 		int current,
 		int max,
 		Fn<void(int)> changed,
 		Fn<QColor(int)> activeFgOverride = nullptr) {
 	Expects(current >= 1 && current <= max);
+	Expects(explicitlyAllowed <= max);
 
+	if (!explicitlyAllowed) {
+		explicitlyAllowed = min;
+	}
 	const auto slider = container->add(
 		object_ptr<MediaSlider>(container, st),
 		st::boxRowPadding + QMargins(0, st::paidReactSliderTop, 0, 0));
@@ -161,7 +171,9 @@ void PaidReactionSlider(
 	slider->setValue(discreter.valueToRatio(current));
 	const auto ratioToValue = [=](float64 ratio) {
 		const auto value = discreter.ratioToValue(ratio);
-		return std::max(value, min);
+		return (value <= explicitlyAllowed && explicitlyAllowed < min)
+			? explicitlyAllowed
+			: std::max(value, min);
 	};
 	slider->setAdjustCallback([=](float64 ratio) {
 		return discreter.valueToRatio(ratioToValue(ratio));
@@ -569,8 +581,17 @@ void PaidReactionsBox(
 
 	const auto dark = args.dark;
 	args.min = std::max(args.min, 1);
-	args.max = std::max(args.max, args.min + 1);
-	args.chosen = std::clamp(args.chosen, args.min, args.max);
+	args.max = std::max({
+		args.min + 1,
+		args.max,
+		args.explicitlyAllowed,
+		args.chosen,
+	});
+	
+	const auto allowed = args.explicitlyAllowed;
+	args.chosen = (allowed && args.chosen == allowed)
+		? allowed
+		: std::clamp(args.chosen, args.min, args.max);
 
 	box->setWidth(st::boxWideWidth);
 	box->setStyle(dark ? st::darkEditStarsBox : st::paidReactBox);
@@ -651,6 +672,7 @@ void PaidReactionsBox(
 		content,
 		(dark ? st::darkEditStarsSlider : st::paidReactSlider),
 		args.min,
+		args.explicitlyAllowed,
 		args.chosen,
 		args.max,
 		changed,
@@ -778,35 +800,7 @@ void PaidReactionsBox(
 		args.send(0, state->shownPeer.current());
 	}, box->lifetime());
 
-	{
-		const auto buttonLabel = CreateChild<FlatLabel>(
-			button,
-			rpl::single(QString()),
-			st::creditsBoxButtonLabel);
-		args.submit(
-			state->chosen.value()
-		) | rpl::start_with_next([=](const TextWithEntities &text) {
-			buttonLabel->setMarkedText(text);
-		}, buttonLabel->lifetime());
-		buttonLabel->setTextColorOverride(
-			box->getDelegate()->style().button.textFg->c);
-		button->sizeValue(
-		) | rpl::start_with_next([=](const QSize &size) {
-			buttonLabel->moveToLeft(
-				(size.width() - buttonLabel->width()) / 2,
-				(size.height() - buttonLabel->height()) / 2);
-		}, buttonLabel->lifetime());
-		buttonLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
-	}
-
-	box->widthValue(
-	) | rpl::start_with_next([=](int width) {
-		const auto &padding = st::paidReactBox.buttonPadding;
-		button->resizeToWidth(width
-			- padding.left()
-			- padding.right());
-		button->moveToLeft(padding.left(), button->y());
-	}, button->lifetime());
+	button->setText(args.submit(state->chosen.value()));
 
 	{
 		const auto balance = Settings::AddBalanceWidget(

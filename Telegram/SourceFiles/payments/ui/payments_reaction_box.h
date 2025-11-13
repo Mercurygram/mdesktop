@@ -35,6 +35,7 @@ struct PaidReactionTop {
 
 struct PaidReactionBoxArgs {
 	int min = 0;
+	int explicitlyAllowed = 0;
 	int chosen = 0;
 	int max = 0;
 

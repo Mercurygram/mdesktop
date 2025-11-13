@@ -4038,6 +4038,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_bid_your_winning" = "You're winning";
 "lng_auction_bid_winners_title" = "Top 3 Winners";
 "lng_auction_bid_place" = "Place a {stars} Bid";
+"lng_auction_bid_increase" = "Add {stars} to Your Bid";
 "lng_auction_bid_placed_title" = "Your bid has been placed";
 "lng_auction_bid_increased_title" = "Your bid has been increased";
 "lng_auction_bid_done_text#one" = "If you fall below the **top {count}**, your bid will roll over to the next round.";

@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/star_gift_auction_box.h"
 
 #include "base/unixtime.h"
+#include "boxes/send_credits_box.h" // CreditsEmojiSmall
 #include "boxes/star_gift_box.h"
 #include "calls/group/calls_group_common.h"
 #include "core/credits_amount.h"
@@ -47,6 +48,7 @@ namespace {
 
 constexpr auto kAuctionAboutShownPref = "gift_auction_about_shown"_cs;
 constexpr auto kBidPlacedToastDuration = 5 * crl::time(1000);
+constexpr auto kMaxShownBid = 30'000;
 
 [[nodiscard]] rpl::producer<int> MinutesLeftTillValue(TimeId endDate) {
 	return [=](auto consumer) {
@@ -128,9 +130,24 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 		rpl::variable<Data::GiftAuctionState>
 	>(std::move(args.state));
 	auto submit = [=](rpl::producer<int> amount) {
-		return std::move(amount) | rpl::map([=](int count) {
-			return TextWithEntities{ "Place a " + QString::number(count) + " Bid" };
-		});
+		return rpl::combine(
+			state->value(),
+			std::move(amount)
+		) | rpl::map([=](const Data::GiftAuctionState &state, int count) {
+			return !state.my.bid
+				? tr::lng_auction_bid_place(
+					lt_stars,
+					rpl::single(Ui::CreditsEmojiSmall().append(
+						Lang::FormatCountDecimal(count))),
+					tr::marked)
+				: (count <= state.my.bid)
+				? tr::lng_box_ok(tr::marked)
+				: tr::lng_auction_bid_increase(
+					lt_stars,
+					rpl::single(Ui::CreditsEmojiSmall().append(
+						Lang::FormatCountDecimal(count - state.my.bid))),
+					tr::marked);
+		}) | rpl::flatten_latest();
 	};
 	const auto show = args.show;
 	const auto session = &show->session();
@@ -165,15 +182,16 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 		};
 		PlaceAuctionBid(show, peer, amount, now, done);
 	};
+	const auto mine = state->current().my.bid;
 	PaidReactionsBox(box, {
-		.min = int(state->current().my.bid
+		.min = int(mine
 			? state->current().my.minBidAmount
 			: state->current().minBidAmount),
+		.explicitlyAllowed = int(mine),
 		.chosen = int(state->current().my.bid),
-		.max = 10'000,
+		.max = kMaxShownBid,
 		.top = std::move(top),
 		.session = session,
-		.name = u"hello"_q,
 		.submit = submit,
 		.colorings = session->appConfig().groupCallColorings(),
 		.balanceValue = session->credits().balanceValue(),

@@ -404,7 +404,6 @@ boostFeatureProfileIcon: icon{{ "settings/premium/features/feature_profile_cover
 
 paidReactBox: Box(boostBox) {
 	buttonPadding: margins(22px, 22px, 22px, 22px);
-	buttonHeight: 42px;
 	button: RoundButton(defaultActiveButton) {
 		height: 42px;
 		textTop: 12px;
