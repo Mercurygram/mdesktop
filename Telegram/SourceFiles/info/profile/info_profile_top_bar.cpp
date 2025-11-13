@@ -704,6 +704,18 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 		});
 		buttons.push_back(join);
 		_actions->add(join);
+	} else if (const auto channel = peer->monoforumBroadcast()) {
+		const auto message = Ui::CreateChild<TopBarActionButton>(
+			this,
+			tr::lng_profile_action_short_channel(tr::now),
+			st::infoProfileTopBarActionMessage);
+		message->setClickedCallback([=, window = controller] {
+			window->showPeerHistory(
+				channel,
+				Window::SectionShow::Way::Forward);
+		});
+		buttons.push_back(message);
+		_actions->add(message);
 	}
 	{
 		const auto notifications = Ui::CreateChild<TopBarActionButton>(
