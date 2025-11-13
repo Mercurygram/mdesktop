@@ -161,15 +161,15 @@ void RecentSharedMediaGifts::togglePinned(
 		auto manageIds = std::vector<Data::SavedStarGiftId>();
 
 		if (pinned) {
-			manageIds.push_back(manageId);
 			for (const auto &gift : gifts) {
 				if (gift.pinned && gift.manageId != manageId) {
 					manageIds.push_back(gift.manageId);
-					if (manageIds.size() >= limit) {
+					if (manageIds.size() >= limit - 1) {
 						break;
 					}
 				}
 			}
+			manageIds.push_back(manageId);
 		} else {
 			for (const auto &gift : gifts) {
 				if (gift.pinned && gift.manageId != manageId) {
@@ -219,19 +219,13 @@ void RecentSharedMediaGifts::togglePinned(
 					const auto &tlGift = result.data().vgifts().v.front();
 					if (auto parsed = Api::FromTL(peer, tlGift)) {
 						auto updatedGifts = std::vector<SavedStarGift>();
-						for (const auto &id : manageIds) {
-							if (parsed->manageId == id) {
-								parsed->pinned = true;
-								updatedGifts.push_back(*parsed);
-								continue;
-							}
-							for (const auto &gift : gifts) {
-								if (gift.manageId == id) {
-									updatedGifts.push_back(gift);
-									break;
-								}
+						for (const auto &gift : gifts) {
+							if (gift.pinned && gift.manageId != manageId) {
+								updatedGifts.push_back(gift);
 							}
 						}
+						parsed->pinned = true;
+						updatedGifts.push_back(*parsed);
 						updatePinnedOrder(
 							show,
 							peer,

@@ -521,8 +521,18 @@ void InnerWidget::markPinned(std::vector<Entry>::iterator i) {
 	}, [&](GiftTypeStars &data) {
 		data.pinned = true;
 	});
-	if (index) {
-		std::rotate(begin(*_list), i, i + 1);
+
+	auto lastPinnedIndex = 0;
+	for (auto j = begin(*_list); j != end(*_list); ++j) {
+		if (j->gift.pinned) {
+			lastPinnedIndex = int(j - begin(*_list));
+		} else {
+			break;
+		}
+	}
+
+	if (index != lastPinnedIndex) {
+		base::reorder(*_list, index, lastPinnedIndex);
 	}
 	auto unpin = end(*_list);
 	const auto session = &_window->session();
