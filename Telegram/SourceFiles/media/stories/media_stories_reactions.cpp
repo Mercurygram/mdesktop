@@ -884,7 +884,6 @@ void Reactions::Panel::create() {
 	if (reactions.recent.empty()
 		|| (_mode.current() == Mode::Message
 			&& _controller->videoStream())) {
-		AssertIsDebug();
 		return;
 	}
 	_parent = std::make_unique<Ui::RpWidget>(_controller->wrap().get());

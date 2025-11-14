@@ -3747,7 +3747,6 @@ void Account::writePrefs() {
 }
 
 void Account::readPrefs() {
-	return; AssertIsDebug();
 	FileReadDescriptor prefs;
 	if (!ReadEncryptedFile(prefs, _prefsKey, _basePath, _localKey)) {
 		ClearKey(_prefsKey, _basePath);

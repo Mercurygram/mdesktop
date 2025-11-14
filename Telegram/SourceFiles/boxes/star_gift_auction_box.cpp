@@ -59,7 +59,7 @@ namespace {
 
 constexpr auto kAuctionAboutShownPref = "gift_auction_about_shown"_cs;
 constexpr auto kBidPlacedToastDuration = 5 * crl::time(1000);
-constexpr auto kMaxShownBid = 30'000'00; AssertIsDebug()
+constexpr auto kMaxShownBid = 30'000;
 
 enum class BidType {
 	Setting,
@@ -489,10 +489,14 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 	const auto min = std::max(
 		int(mine ? now.my.minBidAmount : now.minBidAmount),
 		1);
+	const auto last = now.bidLevels.empty()
+		? 0
+		: now.bidLevels.front().amount;
 	const auto max = std::max({
 		min + 1,
 		kMaxShownBid,
-		mine,
+		int(base::SafeRound(mine * 1.2)),
+		int(base::SafeRound(last * 1.2)),
 	});
 	const auto chosen = mine ? mine : std::clamp(mine, min, max);
 	state->chosen = chosen;
