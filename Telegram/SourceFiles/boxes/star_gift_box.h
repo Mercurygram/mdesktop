@@ -22,6 +22,7 @@ struct UniqueGift;
 struct GiftCode;
 struct CreditsHistoryEntry;
 class SavedStarGiftId;
+struct GiftAuctionState;
 } // namespace Data
 
 namespace Info::PeerGifts {
@@ -161,5 +162,13 @@ struct GiftsDescriptor {
 	not_null<PeerData*> peer,
 	rpl::producer<GiftsDescriptor> gifts,
 	Fn<void()> loadMore);
+
+void SendGiftBox(
+	not_null<GenericBox*> box,
+	not_null<Window::SessionController*> window,
+	not_null<PeerData*> peer,
+	std::shared_ptr<Api::PremiumGiftCodeOptions> api,
+	const Info::PeerGifts::GiftDescriptor &descriptor,
+	rpl::producer<Data::GiftAuctionState> auctionState);
 
 } // namespace Ui

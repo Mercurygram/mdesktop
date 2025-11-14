@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/star_gift_auction_box.h"
 
+#include "api/api_text_entities.h"
 #include "base/unixtime.h"
 #include "boxes/send_credits_box.h" // CreditsEmojiSmall
 #include "boxes/star_gift_box.h"
@@ -26,6 +27,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "payments/payments_checkout_process.h"
 #include "settings/settings_credits_graphics.h"
 #include "storage/storage_account.h"
+#include "ui/boxes/confirm_box.h"
 #include "ui/controls/button_labels.h"
 #include "ui/controls/feature_list.h"
 #include "ui/controls/table_rows.h"
@@ -71,7 +73,7 @@ struct BidRowData {
 	BidType type = BidType::Setting;
 
 	friend inline bool operator==(
-		const BidRowData &, 
+		const BidRowData &,
 		const BidRowData &) = default;
 };
 
@@ -207,8 +209,8 @@ struct BidRowData {
 					crl::on_main(was, [=] { delete was; });
 				}
 				state->userpic = std::make_unique<UserpicButton>(
-					raw, 
-					state->user, 
+					raw,
+					state->user,
 					st::auctionBidUserpic);
 				state->userpic->show();
 				state->userpic->moveToLeft(userpicLeft, 0);
@@ -241,31 +243,34 @@ struct BidRowData {
 	return result;
 }
 
-struct AuctionBidBoxArgs {
-	not_null<PeerData*> peer;
-	std::shared_ptr<ChatHelpers::Show> show;
-	rpl::producer<Data::GiftAuctionState> state;
-};
-
 void PlaceAuctionBid(
 		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<PeerData*> to,
 		int64 amount,
 		const Data::GiftAuctionState &state,
+		std::unique_ptr<Info::PeerGifts::GiftSendDetails> details,
 		Fn<void(Payments::CheckoutResult)> done) {
 	auto paymentDone = [=](
 			Payments::CheckoutResult result,
 			const MTPUpdates *updates) {
 		done(result);
 	};
+	const auto passDetails = (details || !state.my.bid);
+	const auto hideName = passDetails && details && details->anonymous;
+	const auto text = details ? details->text : TextWithEntities();
+
 	using Flag = MTPDinputInvoiceStarGiftAuctionBid::Flag;
 	const auto invoice = MTP_inputInvoiceStarGiftAuctionBid(
 		MTP_flags((state.my.bid ? Flag::f_update_bid : Flag())
-			| (state.my.bid ? Flag() : Flag::f_peer)),
-		state.my.bid ? MTP_inputPeerEmpty() : to->input,
+			| (passDetails ? Flag::f_peer : Flag())
+			| (passDetails ? Flag::f_message : Flag())
+			| (hideName ? Flag::f_hide_name : Flag())),
+		passDetails ? to->input : MTP_inputPeerEmpty(),
 		MTP_long(state.gift->id),
 		MTP_long(amount),
-		MTPTextWithEntities());
+		MTP_textWithEntities(
+			MTP_string(text.text),
+			Api::EntitiesToMTP(&to->session(), text.entities)));
 	RequestOurForm(show, invoice, [=](
 			uint64 formId,
 			CreditsAmount price,
@@ -334,7 +339,7 @@ object_ptr<RpWidget> MakeAuctionInfoBlocks(
 		{
 			.title = std::move(bidTitle),
 			.subtext = tr::lng_auction_bid_minimal(
-				lt_count, 
+				lt_count,
 				std::move(minimal)),
 		},
 		{
@@ -349,9 +354,9 @@ object_ptr<RpWidget> MakeAuctionInfoBlocks(
 }
 
 void AddBidPlaces(
-		not_null<GenericBox*> box, 
-		std::shared_ptr<ChatHelpers::Show> show, 
-		rpl::producer<Data::GiftAuctionState> value, 
+		not_null<GenericBox*> box,
+		std::shared_ptr<ChatHelpers::Show> show,
+		rpl::producer<Data::GiftAuctionState> value,
 		rpl::producer<int> chosen) {
 	struct My {
 		BidType type;
@@ -408,8 +413,8 @@ void AddBidPlaces(
 
 		for (auto i = begin(levels), e = end(levels); i != e; ++i) {
 			if (i->amount < chosen
-				|| (!setting 
-					&& i->amount == chosen 
+				|| (!setting
+					&& i->amount == chosen
 					&& i->date > value.my.date)) {
 				top.push_back({ show->session().user(), chosen });
 				for (auto j = i; j != e; ++j) {
@@ -446,7 +451,7 @@ void AddBidPlaces(
 		return BidRowData{ user, stars, place, my.type };
 	});
 	box->addRow(MakeBidRow(box, show, std::move(bid)));
-	
+
 	AddSubsectionTitle(
 		box->verticalLayout(),
 		tr::lng_auction_bid_winners_title(),
@@ -468,6 +473,7 @@ void AddBidPlaces(
 void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 	const auto weak = base::make_weak(box);
 
+	using namespace Info::PeerGifts;
 	struct State {
 		State(rpl::producer<Data::GiftAuctionState> value)
 		: value(std::move(value)) {
@@ -492,6 +498,9 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 	state->chosen = chosen;
 
 	const auto show = args.show;
+	const auto details = args.details
+		? *args.details
+		: std::optional<GiftSendDetails>();
 	const auto save = [=, peer = args.peer](int amount) {
 		const auto &current = state->value.current();
 		if (amount > current.my.bid) {
@@ -513,7 +522,10 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 					});
 				}
 			};
-			PlaceAuctionBid(show, peer, amount, now, done);
+			auto owned = details
+				? std::make_unique<GiftSendDetails>(*details)
+				: nullptr;
+			PlaceAuctionBid(show, peer, amount, now, std::move(owned), done);
 		}
 		if (const auto strong = weak.get()) {
 			strong->closeBox();
@@ -562,7 +574,7 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 	box->addRow(
 		MakeAuctionInfoBlocks(box, &show->session(), state->value.value()),
 		st::boxRowPadding + QMargins(0, skip / 2, 0, skip));
-	
+
 	AddBidPlaces(box, show, state->value.value(), state->chosen.value());
 
 	AddSkip(content);
@@ -592,14 +604,9 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 	}) | rpl::flatten_latest());
 
 	AddStarSelectBalance(
-		box, 
-		&show->session(), 
+		box,
+		&show->session(),
 		show->session().credits().balanceValue());
-}
-
-[[nodiscard]] object_ptr<BoxContent> MakeAuctionBidBox(
-		AuctionBidBoxArgs &&args) {
-	return Box(AuctionBidBox, std::move(args));
 }
 
 [[nodiscard]] object_ptr<RpWidget> MakeAveragePriceValue(
@@ -740,8 +747,8 @@ void AuctionAboutBox(
 	});
 	box->addRow(
 		Calls::Group::MakeRoundActiveLogo(
-			box, 
-			st::auctionAboutLogo, 
+			box,
+			st::auctionAboutLogo,
 			st::auctionAboutLogoPadding),
 		st::boxRowPadding + st::confcallLinkHeaderIconPadding);
 
@@ -765,8 +772,8 @@ void AuctionAboutBox(
 		{
 			st::menuIconRatingGifts,
 			tr::lng_auction_about_top_title(
-				tr::now, 
-				lt_count, 
+				tr::now,
+				lt_count,
 				giftsPerRound),
 			tr::lng_auction_about_top_about(
 				tr::now,
@@ -774,14 +781,14 @@ void AuctionAboutBox(
 				giftsPerRound,
 				lt_rounds,
 				tr::lng_auction_about_top_rounds(
-					tr::now, 
-					lt_count, 
+					tr::now,
+					lt_count,
 					rounds,
 					tr::rich),
 				lt_bidders,
 				tr::lng_auction_about_top_bidders(
-					tr::now, 
-					lt_count, 
+					tr::now,
+					lt_count,
 					giftsPerRound,
 					tr::rich),
 				tr::rich),
@@ -811,7 +818,7 @@ void AuctionAboutBox(
 		}
 	});
 	box->addButton(
-		rpl::single(QString()), 
+		rpl::single(QString()),
 		understood ? [=] { understood(close); } : close
 	)->setText(rpl::single(Text::IconEmoji(
 		&st::infoStarsUnderstood
@@ -819,8 +826,8 @@ void AuctionAboutBox(
 }
 
 void AuctionGotGiftsBox(
-		not_null<GenericBox*> box, 
-		std::shared_ptr<ChatHelpers::Show> show, 
+		not_null<GenericBox*> box,
+		std::shared_ptr<ChatHelpers::Show> show,
 		const Data::StarGift &gift,
 		std::vector<Data::GiftAcquired> list) {
 	Expects(!list.empty());
@@ -830,7 +837,7 @@ void AuctionGotGiftsBox(
 		tr::lng_auction_bought_title(lt_count, rpl::single(count * 1.)));
 	box->setWidth(st::boxWideWidth);
 	box->setMaxHeight(st::boxWideWidth * 2);
-	
+
 	auto helper = Text::CustomEmojiHelper(Core::TextContext({
 		.session = &show->session(),
 	}));
@@ -858,7 +865,7 @@ void AuctionGotGiftsBox(
 
 		// Title "Round #n"
 		addFullWidth(tr::lng_auction_bought_round(
-			lt_n, 
+			lt_n,
 			rpl::single(tr::marked(QString::number(entry.round))),
 			tr::bold
 		) | rpl::map([=](const TextWithEntities &text) {
@@ -888,9 +895,9 @@ void AuctionGotGiftsBox(
 			helper.paletteDependent(
 				Text::CustomEmojiTextBadge(
 					tr::lng_auction_bought_top(
-						tr::now, 
-						lt_n, 
-						QString::number(entry.position)).toUpper(), 
+						tr::now,
+						lt_n,
+						QString::number(entry.position)).toUpper(),
 					st::defaultTableSmallButton)));
 		AddTableRow(
 			table,
@@ -907,7 +914,7 @@ void AuctionGotGiftsBox(
 
 void AuctionInfoBox(
 		not_null<GenericBox*> box,
-		std::shared_ptr<ChatHelpers::Show> show,
+		not_null<Window::SessionController*> window,
 		not_null<PeerData*> peer,
 		rpl::producer<Data::GiftAuctionState> value) {
 	using namespace Info::PeerGifts;
@@ -924,6 +931,7 @@ void AuctionInfoBox(
 		std::vector<Data::GiftAcquired> acquired;
 		bool acquiredRequested = false;
 	};
+	const auto show = window->uiShow();
 	const auto state = box->lifetime().make_state<State>(&show->session());
 	state->value = std::move(value);
 	state->minutesLeft = MinutesLeftTillValue(
@@ -1027,15 +1035,16 @@ void AuctionInfoBox(
 				return false;
 			} else if (state->acquired.size() == value.my.gotCount) {
 				show->show(Box(
-					AuctionGotGiftsBox, 
-					show, 
+					AuctionGotGiftsBox,
+					show,
 					gift,
 					state->acquired));
 			} else if (!state->acquiredRequested) {
 				state->acquiredRequested = true;
 				show->session().giftAuctions().requestAcquired(
 					value.gift->id,
-					crl::guard(box, [=](std::vector<Data::GiftAcquired> result) {
+					crl::guard(box, [=](
+							std::vector<Data::GiftAcquired> result) {
 						state->acquiredRequested = false;
 						state->acquired = std::move(result);
 						if (!state->acquired.empty()) {
@@ -1057,61 +1066,23 @@ void AuctionInfoBox(
 			box->closeBox();
 			return;
 		}
-		const auto bidBox = show->show(MakeAuctionBidBox({
-			.peer = peer,
-			.show = show,
-			.state = state->value.value(),
-		}));
-		bidBox->boxClosing(
+		const auto sendBox = show->show(Box(
+			SendGiftBox,
+			window,
+			peer,
+			nullptr,
+			GiftTypeStars{ .info = *state->value.current().gift },
+			state->value.value()));
+		sendBox->boxClosing(
 		) | rpl::start_with_next([=] {
 			box->closeBox();
 		}, box->lifetime());
 	});
 
-	auto buttonTitle = rpl::combine(
-		state->value.value(),
-		state->minutesLeft.value()
-	) | rpl::map([=](const Data::GiftAuctionState &state, int minutes) {
-		return (state.finished() || minutes <= 0)
-			? tr::lng_box_ok(tr::marked)
-			: tr::lng_auction_join_button(tr::marked);
-	}) | rpl::flatten_latest();
-
-	auto buttonSubtitle = rpl::combine(
-		state->value.value(),
-		state->minutesLeft.value()
-	) | rpl::map([=](const Data::GiftAuctionState &state, int minutes) {
-		if (state.finished() || minutes <= 0) {
-			return rpl::single(TextWithEntities());
-		}
-		const auto hours = (minutes / 60);
-		minutes -= (hours * 60);
-
-		auto value = [](int count) {
-			return rpl::single(tr::marked(QString::number(count)));
-		};
-		return tr::lng_auction_join_time_left(
-			lt_time,
-			(hours
-				? tr::lng_auction_join_time_medium(
-					lt_hours,
-					value(hours),
-					lt_minutes,
-					value(minutes),
-					tr::marked)
-				: tr::lng_auction_join_time_small(
-					lt_minutes,
-					value(minutes),
-					tr::marked)),
-			tr::marked);
-	}) | rpl::flatten_latest();
-
-	SetButtonTwoLabels(
+	SetAuctionButtonCountdownText(
 		button,
-		std::move(buttonTitle),
-		std::move(buttonSubtitle),
-		st::resaleButtonTitle,
-		st::resaleButtonSubtitle);
+		AuctionButtonCountdownType::Join,
+		state->value.value());
 
 	rpl::combine(
 		state->value.value(),
@@ -1135,7 +1106,7 @@ void AuctionInfoBox(
 }
 
 base::weak_qptr<BoxContent> ChooseAndShowAuctionBox(
-		std::shared_ptr<ChatHelpers::Show> show,
+		not_null<Window::SessionController*> window,
 		not_null<PeerData*> peer,
 		std::shared_ptr<rpl::variable<Data::GiftAuctionState>> state,
 		Fn<void()> boxClosed) {
@@ -1143,28 +1114,65 @@ base::weak_qptr<BoxContent> ChooseAndShowAuctionBox(
 	const auto &now = state->current();
 	const auto finished = now.finished()
 		|| (now.endDate <= base::unixtime::now());
-	const auto showBidBox = now.my.bid && !finished;
+	const auto showBidBox = now.my.bid
+		&& !finished
+		&& (!now.my.to || now.my.to == peer);
+	const auto showChangeRecipient = !showBidBox && now.my.bid && !finished;
 	const auto showInfoBox = !showBidBox
+		&& !showChangeRecipient
 		&& (local->readPref<bool>(kAuctionAboutShownPref) || finished);
 	auto box = base::weak_qptr<BoxContent>();
 	if (showBidBox) {
-		box = show->show(MakeAuctionBidBox({
+		box = window->show(MakeAuctionBidBox({
 			.peer = peer,
-			.show = show,
+			.show = window->uiShow(),
 			.state = state->value(),
 		}));
+	} else if (showChangeRecipient) {
+		const auto change = [=](Fn<void()> close) {
+			const auto sendBox = window->show(Box(
+				SendGiftBox,
+				window,
+				peer,
+				nullptr,
+				Info::PeerGifts::GiftTypeStars{
+					.info = *now.gift,
+				},
+				state->value()));
+			sendBox->boxClosing(
+			) | rpl::start_with_next(close, sendBox->lifetime());
+		};
+		const auto text = (now.my.to->isSelf()
+			? tr::lng_auction_change_already_me(tr::now, tr::rich)
+			: tr::lng_auction_change_already(
+				tr::now,
+				lt_name,
+				tr::bold(now.my.to->name()),
+				tr::rich)).append(' ').append(peer->isSelf()
+					? tr::lng_auction_change_to_me(tr::now, tr::rich)
+					: tr::lng_auction_change_to(
+						tr::now,
+						lt_name,
+						tr::bold(peer->name()),
+						tr::rich));
+		box = window->show(MakeConfirmBox({
+			.text = text,
+			.confirmed = change,
+			.confirmText = tr::lng_auction_change_button(),
+			.title = tr::lng_auction_change_title(),
+		}));
 	} else if (showInfoBox) {
-		box = show->show(Box(
+		box = window->show(Box(
 			AuctionInfoBox,
-			show,
+			window,
 			peer,
 			state->value()));
 	} else {
 		local->writePref<bool>(kAuctionAboutShownPref, true);
 		const auto understood = [=](Fn<void()> close) {
-			ChooseAndShowAuctionBox(show, peer, state, close);
+			ChooseAndShowAuctionBox(window, peer, state, close);
 		};
-		box = show->show(Box(
+		box = window->show(Box(
 			AuctionAboutBox,
 			now.totalRounds,
 			now.gift->auctionGiftsPerRound,
@@ -1205,17 +1213,16 @@ rpl::lifetime ShowStarGiftAuction(
 		state->value = std::move(value);
 		if (initial) {
 			if (const auto strong = weak.get()) {
-				const auto show = strong->uiShow();
 				const auto to = peer
-					? peer 
-					: already 
-					? already 
-					: show->session().user();
+					? peer
+					: already
+					? already
+					: strong->session().user();
 				state->box = ChooseAndShowAuctionBox(
-					show, 
-					to, 
+					strong,
+					to,
 					std::shared_ptr<rpl::variable<Data::GiftAuctionState>>(
-						state, 
+						state,
 						&state->value),
 					boxClosed);
 			} else {
@@ -1229,6 +1236,71 @@ rpl::lifetime ShowStarGiftAuction(
 		}
 	});
 	return result;
+}
+
+object_ptr<BoxContent> MakeAuctionBidBox(AuctionBidBoxArgs &&args) {
+	return Box(AuctionBidBox, std::move(args));
+}
+
+void SetAuctionButtonCountdownText(
+		not_null<RoundButton*> button,
+		AuctionButtonCountdownType type,
+		rpl::producer<Data::GiftAuctionState> value) {
+	struct State {
+		rpl::variable<Data::GiftAuctionState> value;
+		rpl::variable<int> minutesLeft;
+	};
+	const auto state = button->lifetime().make_state<State>();
+	state->value = std::move(value);
+	state->minutesLeft = MinutesLeftTillValue(
+		state->value.current().endDate);
+
+	auto buttonTitle = rpl::combine(
+		state->value.value(),
+		state->minutesLeft.value()
+	) | rpl::map([=](const Data::GiftAuctionState &state, int minutes) {
+		return (state.finished() || minutes <= 0)
+			? tr::lng_box_ok(tr::marked)
+			: (type == AuctionButtonCountdownType::Join)
+			? tr::lng_auction_join_button(tr::marked)
+			: tr::lng_auction_join_bid(tr::marked);
+	}) | rpl::flatten_latest();
+
+	auto buttonSubtitle = rpl::combine(
+		state->value.value(),
+		state->minutesLeft.value()
+	) | rpl::map([=](const Data::GiftAuctionState &state, int minutes) {
+		if (state.finished() || minutes <= 0) {
+			return rpl::single(TextWithEntities());
+		}
+		const auto hours = (minutes / 60);
+		minutes -= (hours * 60);
+
+		auto value = [](int count) {
+			return rpl::single(tr::marked(QString::number(count)));
+		};
+		return tr::lng_auction_join_time_left(
+			lt_time,
+			(hours
+				? tr::lng_auction_join_time_medium(
+					lt_hours,
+					value(hours),
+					lt_minutes,
+					value(minutes),
+					tr::marked)
+				: tr::lng_auction_join_time_small(
+					lt_minutes,
+					value(minutes),
+					tr::marked)),
+			tr::marked);
+	}) | rpl::flatten_latest();
+
+	SetButtonTwoLabels(
+		button,
+		std::move(buttonTitle),
+		std::move(buttonSubtitle),
+		st::resaleButtonTitle,
+		st::resaleButtonSubtitle);
 }
 
 } // namespace Ui

@@ -4018,6 +4018,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_bought#one" = "{count} {emoji} item bought {arrow}";
 "lng_auction_bought#other" = "{count} {emoji} items bought {arrow}";
 "lng_auction_join_button" = "Join Auction";
+"lng_auction_join_bid" = "Place a Bid";
 "lng_auction_join_time_left" = "{time} left";
 "lng_auction_join_time_medium" = "{hours} h {minutes} m";
 "lng_auction_join_time_small" = "{minutes} m";
@@ -4070,6 +4071,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_bought_bid" = "Accepted Bid";
 "lng_auction_bought_round" = "Round #{n}";
 "lng_auction_bought_top" = "Top {n}";
+"lng_auction_change_title" = "Change Recipient";
+"lng_auction_change_button" = "Change";
+"lng_auction_change_already" = "You've already placed a bid on this gift for {name}.";
+"lng_auction_change_to" = "Do you want to raise your bid and change the recipient to {name}?";
+"lng_auction_change_already_me" = "You've already placed a bid on this gift for yourself.";
+"lng_auction_change_to_me" =  "Do you want to raise your bid and change the recipient to yourself?";
 
 "lng_accounts_limit_title" = "Limit Reached";
 "lng_accounts_limit1#one" = "You have reached the limit of **{count}** connected account.";

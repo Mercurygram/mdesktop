@@ -35,6 +35,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/tabbed_selector.h"
 #include "core/application.h"
 #include "core/ui_integration.h"
+#include "data/components/gift_auctions.h"
 #include "data/components/promo_suggestions.h"
 #include "data/data_birthday.h"
 #include "data/data_changes.h"
@@ -157,15 +158,6 @@ using PickCallback = Fn<void(not_null<PeerData*>, PickType)>;
 struct PremiumGiftsDescriptor {
 	std::vector<GiftTypePremium> list;
 	std::shared_ptr<Api::PremiumGiftCodeOptions> api;
-};
-
-struct GiftDetails {
-	GiftDescriptor descriptor;
-	TextWithEntities text;
-	uint64 randomId = 0;
-	bool anonymous = false;
-	bool upgraded = false;
-	bool byStars = false;
 };
 
 struct SessionResalePrices {
@@ -291,14 +283,14 @@ public:
 	PreviewWrap(
 		not_null<QWidget*> parent,
 		not_null<PeerData*> recipient,
-		rpl::producer<GiftDetails> details);
+		rpl::producer<GiftSendDetails> details);
 	~PreviewWrap();
 
 private:
 	void paintEvent(QPaintEvent *e) override;
 
 	void resizeTo(int width);
-	void prepare(rpl::producer<GiftDetails> details);
+	void prepare(rpl::producer<GiftSendDetails> details);
 
 	const not_null<History*> _history;
 	const not_null<PeerData*> _recipient;
@@ -437,7 +429,7 @@ auto GenerateGiftMedia(
 	not_null<Element*> parent,
 	Element *replacing,
 	not_null<PeerData*> recipient,
-	const GiftDetails &data)
+	const GiftSendDetails &data)
 -> Fn<void(
 		not_null<MediaGeneric*>,
 		Fn<void(std::unique_ptr<MediaGenericPart>)>)> {
@@ -571,7 +563,7 @@ auto GenerateGiftMedia(
 PreviewWrap::PreviewWrap(
 	not_null<QWidget*> parent,
 	not_null<PeerData*> recipient,
-	rpl::producer<GiftDetails> details)
+	rpl::producer<GiftSendDetails> details)
 : RpWidget(parent)
 , _history(recipient->owner().history(recipient->session().userPeerId()))
 , _recipient(recipient)
@@ -603,7 +595,7 @@ PreviewWrap::PreviewWrap(
 void ShowSentToast(
 		not_null<Window::SessionController*> window,
 		const GiftDescriptor &descriptor,
-		const GiftDetails &details) {
+		const GiftSendDetails &details) {
 	const auto &st = st::historyPremiumToast;
 	const auto skip = st.padding.top();
 	const auto size = st.style.font->height * 2;
@@ -686,8 +678,8 @@ PreviewWrap::~PreviewWrap() {
 	_item = {};
 }
 
-void PreviewWrap::prepare(rpl::producer<GiftDetails> details) {
-	std::move(details) | rpl::start_with_next([=](GiftDetails details) {
+void PreviewWrap::prepare(rpl::producer<GiftSendDetails> details) {
+	std::move(details) | rpl::start_with_next([=](GiftSendDetails details) {
 		const auto &descriptor = details.descriptor;
 		const auto cost = v::match(descriptor, [&](GiftTypePremium data) {
 			const auto stars = (details.byStars && data.stars)
@@ -1234,7 +1226,7 @@ void SendGift(
 		not_null<Window::SessionController*> window,
 		not_null<PeerData*> peer,
 		std::shared_ptr<Api::PremiumGiftCodeOptions> api,
-		const GiftDetails &details,
+		const GiftSendDetails &details,
 		Fn<void(Payments::CheckoutResult)> done) {
 	const auto processNonPanelPaymentFormFactory
 		= Payments::ProcessNonPanelPaymentFormFactory(window, done);
@@ -1618,292 +1610,6 @@ void CheckMaybeGiftLocked(
 	})).send();
 }
 
-void SendGiftBox(
-		not_null<GenericBox*> box,
-		not_null<Window::SessionController*> window,
-		not_null<PeerData*> peer,
-		std::shared_ptr<Api::PremiumGiftCodeOptions> api,
-		const GiftDescriptor &descriptor) {
-	const auto stars = std::get_if<GiftTypeStars>(&descriptor);
-	const auto limited = stars
-		&& (stars->info.limitedCount > stars->info.limitedLeft)
-		&& (stars->info.limitedLeft > 0);
-	const auto costToUpgrade = stars ? stars->info.starsToUpgrade : 0;
-	const auto user = peer->asUser();
-	const auto disallowed = user
-		? user->disallowedGiftTypes()
-		: Api::DisallowedGiftTypes();
-	const auto disallowLimited = !peer->isSelf()
-		&& (disallowed & Api::DisallowedGiftType::Limited);
-	box->setStyle(limited ? st::giftLimitedBox : st::giftBox);
-	box->setWidth(st::boxWideWidth);
-	box->setTitle(tr::lng_gift_send_title());
-	box->addTopButton(st::boxTitleClose, [=] {
-		box->closeBox();
-	});
-
-	const auto session = &window->session();
-
-	struct State {
-		rpl::variable<GiftDetails> details;
-		rpl::variable<bool> messageAllowed;
-		std::shared_ptr<Data::DocumentMedia> media;
-		bool submitting = false;
-	};
-	const auto state = box->lifetime().make_state<State>();
-	state->details = GiftDetails{
-		.descriptor = descriptor,
-		.randomId = base::RandomValue<uint64>(),
-		.upgraded = disallowLimited && (costToUpgrade > 0),
-	};
-	peer->updateFull();
-	state->messageAllowed = peer->session().changes().peerFlagsValue(
-		peer,
-		Data::PeerUpdate::Flag::StarsPerMessage
-	) | rpl::map([=] {
-		return peer->starsPerMessageChecked() == 0;
-	});
-
-	auto cost = state->details.value(
-	) | rpl::map([](const GiftDetails &details) {
-		return v::match(details.descriptor, [&](const GiftTypePremium &data) {
-			const auto stars = (details.byStars && data.stars)
-				? data.stars
-				: (data.currency == kCreditsCurrency)
-				? data.cost
-				: 0;
-			if (stars) {
-				return CreditsEmojiSmall().append(
-					Lang::FormatCountDecimal(std::abs(stars)));
-			}
-			return TextWithEntities{
-				FillAmountAndCurrency(data.cost, data.currency),
-			};
-		}, [&](const GiftTypeStars &data) {
-			const auto amount = std::abs(data.info.stars)
-				+ (details.upgraded ? data.info.starsToUpgrade : 0);
-			return CreditsEmojiSmall().append(
-				Lang::FormatCountDecimal(amount));
-		});
-	});
-
-	const auto document = LookupGiftSticker(session, descriptor);
-	if ((state->media = document ? document->createMediaView() : nullptr)) {
-		state->media->checkStickerLarge();
-	}
-
-	const auto container = box->verticalLayout();
-	container->add(object_ptr<PreviewWrap>(
-		container,
-		peer,
-		state->details.value()));
-
-	const auto messageWrap = container->add(
-		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-			container,
-			object_ptr<Ui::VerticalLayout>(container)));
-	messageWrap->toggleOn(state->messageAllowed.value());
-	messageWrap->finishAnimating();
-	const auto messageInner = messageWrap->entity();
-	const auto limit = StarGiftMessageLimit(session);
-	const auto text = AddPartInput(
-		window,
-		messageInner,
-		box->getDelegate()->outerContainer(),
-		tr::lng_gift_send_message(),
-		QString(),
-		limit);
-	text->changes() | rpl::start_with_next([=] {
-		auto now = state->details.current();
-		auto textWithTags = text->getTextWithAppliedMarkdown();
-		now.text = TextWithEntities{
-			std::move(textWithTags.text),
-			TextUtilities::ConvertTextTagsToEntities(textWithTags.tags)
-		};
-		state->details = std::move(now);
-	}, text->lifetime());
-
-	box->setFocusCallback([=] {
-		text->setFocusFast();
-	});
-
-	const auto allow = [=](not_null<DocumentData*> emoji) {
-		return true;
-	};
-	InitMessageFieldHandlers({
-		.session = session,
-		.show = window->uiShow(),
-		.field = text,
-		.customEmojiPaused = [=] {
-			using namespace Window;
-			return window->isGifPausedAtLeastFor(GifPauseReason::Layer);
-		},
-		.allowPremiumEmoji = allow,
-		.allowMarkdownTags = {
-			InputField::kTagBold,
-			InputField::kTagItalic,
-			InputField::kTagUnderline,
-			InputField::kTagStrikeOut,
-			InputField::kTagSpoiler,
-		}
-	});
-	Emoji::SuggestionsController::Init(
-		box->getDelegate()->outerContainer(),
-		text,
-		session,
-		{ .suggestCustomEmoji = true, .allowCustomWithoutPremium = allow });
-	if (stars) {
-		if (costToUpgrade > 0 && !peer->isSelf() && !disallowLimited) {
-			const auto id = stars->info.id;
-			const auto showing = std::make_shared<bool>();
-			AddDivider(container);
-			AddSkip(container);
-			AddUpgradeButton(container, costToUpgrade, peer, [=](bool on) {
-				auto now = state->details.current();
-				now.upgraded = on;
-				state->details = std::move(now);
-			}, [=] {
-				if (*showing) {
-					return;
-				}
-				*showing = true;
-				ShowStarGiftUpgradeBox({
-					.controller = window,
-					.stargiftId = id,
-					.ready = [=](bool) { *showing = false; },
-					.peer = peer,
-					.cost = int(costToUpgrade),
-				});
-			});
-		} else {
-			AddDivider(container);
-		}
-		AddSkip(container);
-		container->add(
-			object_ptr<SettingsButton>(
-				container,
-				tr::lng_gift_send_anonymous(),
-				st::settingsButtonNoIcon)
-		)->toggleOn(rpl::single(peer->isSelf()))->toggledValue(
-		) | rpl::start_with_next([=](bool toggled) {
-			auto now = state->details.current();
-			now.anonymous = toggled;
-			state->details = std::move(now);
-		}, container->lifetime());
-		AddSkip(container);
-	}
-	v::match(descriptor, [&](const GiftTypePremium &data) {
-		AddDividerText(messageInner, tr::lng_gift_send_premium_about(
-			lt_user,
-			rpl::single(peer->shortName())));
-
-		if (const auto byStars = data.stars) {
-			const auto star = Ui::Text::IconEmoji(&st::starIconEmojiColored);
-			AddSkip(container);
-			container->add(
-				object_ptr<SettingsButton>(
-					container,
-					tr::lng_gift_send_pay_with_stars(
-						lt_amount,
-						rpl::single(base::duplicate(star).append(Lang::FormatCountDecimal(byStars))),
-						Ui::Text::WithEntities),
-						st::settingsButtonNoIcon)
-			)->toggleOn(rpl::single(false))->toggledValue(
-			) | rpl::start_with_next([=](bool toggled) {
-				auto now = state->details.current();
-				now.byStars = toggled;
-				state->details = std::move(now);
-			}, container->lifetime());
-			AddSkip(container);
-
-			const auto balance = AddDividerText(
-				container,
-				tr::lng_gift_send_stars_balance(
-					lt_amount,
-					peer->session().credits().balanceValue(
-					) | rpl::map([=](CreditsAmount amount) {
-						return base::duplicate(star).append(
-							Lang::FormatCreditsAmountDecimal(amount));
-					}),
-					lt_link,
-					tr::lng_gift_send_stars_balance_link(
-					) | Ui::Text::ToLink(),
-					Ui::Text::WithEntities));
-			struct State {
-				Settings::BuyStarsHandler buyStars;
-				rpl::variable<bool> loading;
-			};
-			const auto state = balance->lifetime().make_state<State>();
-			state->loading = state->buyStars.loadingValue();
-			balance->setClickHandlerFilter([=](const auto &...) {
-				if (!state->loading.current()) {
-					state->buyStars.handler(window->uiShow())();
-				}
-				return false;
-			});
-		}
-	}, [&](const GiftTypeStars &) {
-		AddDividerText(container, peer->isSelf()
-			? tr::lng_gift_send_anonymous_self()
-			: peer->isBroadcast()
-			? tr::lng_gift_send_anonymous_about_channel()
-			: rpl::conditional(
-				state->messageAllowed.value(),
-				tr::lng_gift_send_anonymous_about(
-					lt_user,
-					rpl::single(peer->shortName()),
-					lt_recipient,
-					rpl::single(peer->shortName())),
-				tr::lng_gift_send_anonymous_about_paid(
-					lt_user,
-					rpl::single(peer->shortName()),
-					lt_recipient,
-					rpl::single(peer->shortName()))));
-	});
-
-	const auto button = box->addButton(rpl::single(QString()), [=] {
-		if (state->submitting) {
-			return;
-		}
-		state->submitting = true;
-		auto details = state->details.current();
-		if (!state->messageAllowed.current()) {
-			details.text = {};
-		}
-		const auto copy = state->media; // Let media outlive the box.
-		const auto weak = base::make_weak(box);
-		const auto done = [=](Payments::CheckoutResult result) {
-			if (result == Payments::CheckoutResult::Paid) {
-				if (details.byStars
-					|| v::is<GiftTypeStars>(details.descriptor)) {
-					window->session().credits().load(true);
-				}
-				const auto another = copy; // Let media outlive the box.
-				window->showPeerHistory(peer);
-				ShowSentToast(window, details.descriptor, details);
-			}
-			if (const auto strong = weak.get()) {
-				strong->closeBox();
-			}
-		};
-		SendGift(window, peer, api, details, done);
-	});
-	if (limited) {
-		AddSoldLeftSlider(button, *stars);
-	}
-	SetButtonMarkedLabel(
-		button,
-		(peer->isSelf()
-			? tr::lng_gift_send_button_self
-			: tr::lng_gift_send_button)(
-				lt_cost,
-				std::move(cost),
-				Text::WithEntities),
-		session,
-		st::creditsBoxButtonLabel,
-		&st::giftBox.button.textFg);
-}
-
 [[nodiscard]] object_ptr<RpWidget> MakeGiftsList(
 		not_null<Window::SessionController*> window,
 		not_null<PeerData*> peer,
@@ -2012,7 +1718,8 @@ void SendGiftBox(
 						window,
 						peer,
 						state->api,
-						descriptor));
+						descriptor,
+						nullptr));
 				});
 				const auto unique = star ? star->info.unique : nullptr;
 				const auto premiumNeeded = star && star->info.requirePremium;
@@ -4443,12 +4150,6 @@ void UpgradeBox(
 	AddUniqueCloseButton(box, {});
 }
 
-
-
-
-
-
-
 void ShowStarGiftUpgradeBox(StarGiftUpgradeArgs &&args) {
 	const auto weak = base::make_weak(args.controller);
 	const auto session = &args.peer->session();
@@ -4740,6 +4441,318 @@ object_ptr<RpWidget> MakeGiftsSendList(
 		peer,
 		std::move(gifts),
 		std::move(loadMore));
+}
+
+void SendGiftBox(
+		not_null<GenericBox*> box,
+		not_null<Window::SessionController*> window,
+		not_null<PeerData*> peer,
+		std::shared_ptr<Api::PremiumGiftCodeOptions> api,
+		const GiftDescriptor &descriptor,
+		rpl::producer<Data::GiftAuctionState> auctionState) {
+	const auto stars = std::get_if<GiftTypeStars>(&descriptor);
+	const auto limited = stars
+		&& (stars->info.limitedCount > stars->info.limitedLeft)
+		&& (stars->info.limitedLeft > 0);
+	const auto costToUpgrade = stars ? stars->info.starsToUpgrade : 0;
+	const auto user = peer->asUser();
+	const auto disallowed = user
+		? user->disallowedGiftTypes()
+		: Api::DisallowedGiftTypes();
+	const auto disallowLimited = !peer->isSelf()
+		&& (disallowed & Api::DisallowedGiftType::Limited);
+	box->setStyle(limited ? st::giftLimitedBox : st::giftBox);
+	box->setWidth(st::boxWideWidth);
+	box->setTitle(tr::lng_gift_send_title());
+	box->addTopButton(st::boxTitleClose, [=] {
+		box->closeBox();
+	});
+
+	const auto session = &window->session();
+
+	struct State {
+		rpl::variable<GiftSendDetails> details;
+		rpl::variable<bool> messageAllowed;
+		std::shared_ptr<Data::DocumentMedia> media;
+		rpl::variable<Data::GiftAuctionState> auction;
+		bool submitting = false;
+	};
+	const auto state = box->lifetime().make_state<State>();
+	if (auctionState) {
+		state->auction = std::move(auctionState);
+	}
+	state->details = GiftSendDetails{
+		.descriptor = descriptor,
+		.randomId = base::RandomValue<uint64>(),
+		.upgraded = disallowLimited && (costToUpgrade > 0),
+	};
+	peer->updateFull();
+	state->messageAllowed = peer->session().changes().peerFlagsValue(
+		peer,
+		Data::PeerUpdate::Flag::StarsPerMessage
+	) | rpl::map([=] {
+		return peer->starsPerMessageChecked() == 0;
+	});
+
+	auto cost = state->details.value(
+	) | rpl::map([](const GiftSendDetails &details) {
+		return v::match(details.descriptor, [&](const GiftTypePremium &data) {
+			const auto stars = (details.byStars && data.stars)
+				? data.stars
+				: (data.currency == kCreditsCurrency)
+				? data.cost
+				: 0;
+			if (stars) {
+				return CreditsEmojiSmall().append(
+					Lang::FormatCountDecimal(std::abs(stars)));
+			}
+			return TextWithEntities{
+				FillAmountAndCurrency(data.cost, data.currency),
+			};
+		}, [&](const GiftTypeStars &data) {
+			const auto amount = std::abs(data.info.stars)
+				+ (details.upgraded ? data.info.starsToUpgrade : 0);
+			return CreditsEmojiSmall().append(
+				Lang::FormatCountDecimal(amount));
+		});
+	});
+
+	const auto document = LookupGiftSticker(session, descriptor);
+	if ((state->media = document ? document->createMediaView() : nullptr)) {
+		state->media->checkStickerLarge();
+	}
+
+	const auto container = box->verticalLayout();
+	container->add(object_ptr<PreviewWrap>(
+		container,
+		peer,
+		state->details.value()));
+
+	const auto messageWrap = container->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			container,
+			object_ptr<Ui::VerticalLayout>(container)));
+	messageWrap->toggleOn(state->messageAllowed.value());
+	messageWrap->finishAnimating();
+	const auto messageInner = messageWrap->entity();
+	const auto limit = StarGiftMessageLimit(session);
+	const auto text = AddPartInput(
+		window,
+		messageInner,
+		box->getDelegate()->outerContainer(),
+		tr::lng_gift_send_message(),
+		QString(),
+		limit);
+	text->changes() | rpl::start_with_next([=] {
+		auto now = state->details.current();
+		auto textWithTags = text->getTextWithAppliedMarkdown();
+		now.text = TextWithEntities{
+			std::move(textWithTags.text),
+			TextUtilities::ConvertTextTagsToEntities(textWithTags.tags)
+		};
+		state->details = std::move(now);
+	}, text->lifetime());
+
+	box->setFocusCallback([=] {
+		text->setFocusFast();
+	});
+
+	const auto allow = [=](not_null<DocumentData*> emoji) {
+		return true;
+	};
+	InitMessageFieldHandlers({
+		.session = session,
+		.show = window->uiShow(),
+		.field = text,
+		.customEmojiPaused = [=] {
+			using namespace Window;
+			return window->isGifPausedAtLeastFor(GifPauseReason::Layer);
+		},
+		.allowPremiumEmoji = allow,
+		.allowMarkdownTags = {
+			InputField::kTagBold,
+			InputField::kTagItalic,
+			InputField::kTagUnderline,
+			InputField::kTagStrikeOut,
+			InputField::kTagSpoiler,
+		}
+	});
+	Emoji::SuggestionsController::Init(
+		box->getDelegate()->outerContainer(),
+		text,
+		session,
+		{ .suggestCustomEmoji = true, .allowCustomWithoutPremium = allow });
+	if (stars) {
+		if (costToUpgrade > 0 && !peer->isSelf() && !disallowLimited) {
+			const auto id = stars->info.id;
+			const auto showing = std::make_shared<bool>();
+			AddDivider(container);
+			AddSkip(container);
+			AddUpgradeButton(container, costToUpgrade, peer, [=](bool on) {
+				auto now = state->details.current();
+				now.upgraded = on;
+				state->details = std::move(now);
+			}, [=] {
+				if (*showing) {
+					return;
+				}
+				*showing = true;
+				ShowStarGiftUpgradeBox({
+					.controller = window,
+					.stargiftId = id,
+					.ready = [=](bool) { *showing = false; },
+					.peer = peer,
+					.cost = int(costToUpgrade),
+				});
+			});
+		} else {
+			AddDivider(container);
+		}
+		AddSkip(container);
+		container->add(
+			object_ptr<SettingsButton>(
+				container,
+				tr::lng_gift_send_anonymous(),
+				st::settingsButtonNoIcon)
+		)->toggleOn(rpl::single(peer->isSelf()))->toggledValue(
+		) | rpl::start_with_next([=](bool toggled) {
+			auto now = state->details.current();
+			now.anonymous = toggled;
+			state->details = std::move(now);
+		}, container->lifetime());
+		AddSkip(container);
+	}
+	v::match(descriptor, [&](const GiftTypePremium &data) {
+		AddDividerText(messageInner, tr::lng_gift_send_premium_about(
+			lt_user,
+			rpl::single(peer->shortName())));
+
+		if (const auto byStars = data.stars) {
+			const auto star = Ui::Text::IconEmoji(&st::starIconEmojiColored);
+			AddSkip(container);
+			container->add(
+				object_ptr<SettingsButton>(
+					container,
+					tr::lng_gift_send_pay_with_stars(
+						lt_amount,
+						rpl::single(base::duplicate(star).append(Lang::FormatCountDecimal(byStars))),
+						Ui::Text::WithEntities),
+						st::settingsButtonNoIcon)
+			)->toggleOn(rpl::single(false))->toggledValue(
+			) | rpl::start_with_next([=](bool toggled) {
+				auto now = state->details.current();
+				now.byStars = toggled;
+				state->details = std::move(now);
+			}, container->lifetime());
+			AddSkip(container);
+
+			const auto balance = AddDividerText(
+				container,
+				tr::lng_gift_send_stars_balance(
+					lt_amount,
+					peer->session().credits().balanceValue(
+					) | rpl::map([=](CreditsAmount amount) {
+						return base::duplicate(star).append(
+							Lang::FormatCreditsAmountDecimal(amount));
+					}),
+					lt_link,
+					tr::lng_gift_send_stars_balance_link(
+					) | Ui::Text::ToLink(),
+					Ui::Text::WithEntities));
+			struct State {
+				Settings::BuyStarsHandler buyStars;
+				rpl::variable<bool> loading;
+			};
+			const auto state = balance->lifetime().make_state<State>();
+			state->loading = state->buyStars.loadingValue();
+			balance->setClickHandlerFilter([=](const auto &...) {
+				if (!state->loading.current()) {
+					state->buyStars.handler(window->uiShow())();
+				}
+				return false;
+			});
+		}
+	}, [&](const GiftTypeStars &) {
+		AddDividerText(container, peer->isSelf()
+			? tr::lng_gift_send_anonymous_self()
+			: peer->isBroadcast()
+			? tr::lng_gift_send_anonymous_about_channel()
+			: rpl::conditional(
+				state->messageAllowed.value(),
+				tr::lng_gift_send_anonymous_about(
+					lt_user,
+					rpl::single(peer->shortName()),
+					lt_recipient,
+					rpl::single(peer->shortName())),
+				tr::lng_gift_send_anonymous_about_paid(
+					lt_user,
+					rpl::single(peer->shortName()),
+					lt_recipient,
+					rpl::single(peer->shortName()))));
+	});
+
+	const auto button = box->addButton(rpl::single(QString()), [=] {
+		if (state->submitting) {
+			return;
+		}
+		state->submitting = true;
+		auto details = state->details.current();
+		if (!state->messageAllowed.current()) {
+			details.text = {};
+		}
+		const auto stars = std::get_if<GiftTypeStars>(&details.descriptor);
+		if (stars && stars->info.auction()) {
+			const auto bidBox = window->show(MakeAuctionBidBox({
+				.peer = peer,
+				.show = window->uiShow(),
+				.state = state->auction.value(),
+				.details = std::make_unique<GiftSendDetails>(details),
+			}));
+			bidBox->boxClosing(
+			) | rpl::start_with_next([=] {
+				box->closeBox();
+			}, box->lifetime());
+			return;
+		}
+		const auto copy = state->media; // Let media outlive the box.
+		const auto weak = base::make_weak(box);
+		const auto done = [=](Payments::CheckoutResult result) {
+			if (result == Payments::CheckoutResult::Paid) {
+				if (details.byStars
+					|| v::is<GiftTypeStars>(details.descriptor)) {
+					window->session().credits().load(true);
+				}
+				const auto another = copy; // Let media outlive the box.
+				window->showPeerHistory(peer);
+				ShowSentToast(window, details.descriptor, details);
+			}
+			if (const auto strong = weak.get()) {
+				strong->closeBox();
+			}
+		};
+		SendGift(window, peer, api, details, done);
+	});
+	if (limited) {
+		AddSoldLeftSlider(button, *stars);
+	}
+	if (stars && stars->info.auction()) {
+		SetAuctionButtonCountdownText(
+			button,
+			AuctionButtonCountdownType::Place,
+			state->auction.value());
+	} else {
+		SetButtonMarkedLabel(
+			button,
+			(peer->isSelf()
+				? tr::lng_gift_send_button_self
+				: tr::lng_gift_send_button)(
+					lt_cost,
+					std::move(cost),
+					Text::WithEntities),
+			session,
+			st::creditsBoxButtonLabel,
+			&st::giftBox.button.textFg);
+	}
 }
 
 } // namespace Ui
