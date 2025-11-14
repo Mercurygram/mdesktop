@@ -1020,7 +1020,7 @@ void AuctionInfoBox(
 	}, close->lifetime());
 }
 
-void ChooseAndShowAuctionBox(
+base::weak_qptr<BoxContent> ChooseAndShowAuctionBox(
 		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<PeerData*> peer,
 		std::shared_ptr<rpl::variable<Data::GiftAuctionState>> state,
@@ -1062,38 +1062,59 @@ void ChooseAndShowAuctionBox(
 	} else {
 		boxClosed();
 	}
+	return box;
 }
 
 } // namespace
 
 rpl::lifetime ShowStarGiftAuction(
 		not_null<Window::SessionController*> controller,
-		not_null<PeerData*> peer,
+		PeerData *peer,
 		QString slug,
 		Fn<void()> finishRequesting,
 		Fn<void()> boxClosed) {
 	const auto weak = base::make_weak(controller);
 	const auto session = &controller->session();
-	const auto value = std::make_shared<
-		rpl::variable<Data::GiftAuctionState>
-	>();
-	return session->giftAuctions().state(
+	struct State {
+		rpl::variable<Data::GiftAuctionState> value;
+		base::weak_qptr<BoxContent> box;
+	};
+	const auto state = std::make_shared<State>();
+	auto result = session->giftAuctions().state(
 		slug
-	) | rpl::start_with_next([=](Data::GiftAuctionState &&state) {
+	) | rpl::start_with_next([=](Data::GiftAuctionState &&value) {
 		if (const auto onstack = finishRequesting) {
 			onstack();
 		}
-		const auto initial = !value->current().gift.has_value();
-		(*value) = std::move(state);
+		const auto initial = !state->value.current().gift.has_value();
+		const auto already = value.my.to;
+		state->value = std::move(value);
 		if (initial) {
 			if (const auto strong = weak.get()) {
 				const auto show = strong->uiShow();
-				ChooseAndShowAuctionBox(show, peer, value, boxClosed);
+				const auto to = peer
+					? peer 
+					: already 
+					? already 
+					: show->session().user();
+				state->box = ChooseAndShowAuctionBox(
+					show, 
+					to, 
+					std::shared_ptr<rpl::variable<Data::GiftAuctionState>>(
+						state, 
+						&state->value),
+					boxClosed);
 			} else {
 				boxClosed();
 			}
 		}
 	});
+	result.add([=] {
+		if (const auto strong = state->box.get()) {
+			strong->closeBox();
+		}
+	});
+	return result;
 }
 
 } // namespace Ui

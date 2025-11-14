@@ -15,7 +15,7 @@ namespace Ui {
 
 [[nodiscard]] rpl::lifetime ShowStarGiftAuction(
 	not_null<Window::SessionController*> controller,
-	not_null<PeerData*> peer,
+	PeerData *peer,
 	QString slug,
 	Fn<void()> finishRequesting,
 	Fn<void()> boxClosed);

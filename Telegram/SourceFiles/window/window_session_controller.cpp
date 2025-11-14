@@ -8,11 +8,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_session_controller.h"
 
 #include "api/api_text_entities.h"
-#include "boxes/add_contact_box.h"
 #include "boxes/peers/add_bot_to_chat_box.h"
 #include "boxes/peers/edit_peer_info_box.h"
 #include "boxes/peers/replace_boost_box.h"
+#include "boxes/add_contact_box.h"
 #include "boxes/delete_messages_box.h"
+#include "boxes/star_gift_auction_box.h"
 #include "window/window_chat_preview.h"
 #include "window/window_chat_switch_process.h"
 #include "window/window_controller.h"
@@ -3637,6 +3638,16 @@ auto SessionController::restoreSubsectionTabsFor(
 void SessionController::dropSubsectionTabs() {
 	_savedSubsectionTabsLifetime.destroy();
 	base::take(_savedSubsectionTabs);
+}
+
+void SessionController::showStarGiftAuction(const QString &slug) {
+	_starGiftAuctionLifetime.destroy();
+	_starGiftAuctionLifetime = Ui::ShowStarGiftAuction(
+		this,
+		nullptr,
+		slug,
+		[] {},
+		[=] { _starGiftAuctionLifetime.destroy(); });
 }
 
 SessionController::~SessionController() {

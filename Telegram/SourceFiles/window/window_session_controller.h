@@ -696,6 +696,8 @@ public:
 		-> std::unique_ptr<HistoryView::SubsectionTabs>;
 	void dropSubsectionTabs();
 
+	void showStarGiftAuction(const QString &slug);
+
 	[[nodiscard]] rpl::lifetime &lifetime() {
 		return _lifetime;
 	}
@@ -814,6 +816,8 @@ private:
 	QString _premiumRef;
 	std::unique_ptr<HistoryView::SubsectionTabs> _savedSubsectionTabs;
 	rpl::lifetime _savedSubsectionTabsLifetime;
+
+	rpl::lifetime _starGiftAuctionLifetime;
 
 	rpl::lifetime _lifetime;
 
