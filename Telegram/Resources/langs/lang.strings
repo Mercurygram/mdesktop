@@ -4070,7 +4070,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_bought_date" = "Date";
 "lng_auction_bought_bid" = "Accepted Bid";
 "lng_auction_bought_round" = "Round #{n}";
-"lng_auction_bought_top" = "Top {n}";
 "lng_auction_change_title" = "Change Recipient";
 "lng_auction_change_button" = "Change";
 "lng_auction_change_already" = "You've already placed a bid on this gift for {name}.";

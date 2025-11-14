@@ -898,10 +898,7 @@ void AuctionGotGiftsBox(
 		).append(' ').append(
 			helper.paletteDependent(
 				Text::CustomEmojiTextBadge(
-					tr::lng_auction_bought_top(
-						tr::now,
-						lt_n,
-						QString::number(entry.position)).toUpper(),
+					'#' + QString::number(entry.position),
 					st::defaultTableSmallButton)));
 		AddTableRow(
 			table,
