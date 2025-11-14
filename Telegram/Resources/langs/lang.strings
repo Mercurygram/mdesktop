@@ -4064,6 +4064,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_bar_bid_ranked" = "Your bid **{stars}** is ranked **#{n}**";
 "lng_auction_bar_bid_outbid" = "Your bid **{stars}** is outbid";
 "lng_auction_bar_raise_bid" = "Raise Bid";
+"lng_auction_bought_title#one" = "{count} Item Bought";
+"lng_auction_bought_title#other" = "{count} Items Bought";
+"lng_auction_bought_date" = "Date";
+"lng_auction_bought_bid" = "Accepted Bid";
+"lng_auction_bought_round" = "Round #{n}";
+"lng_auction_bought_top" = "Top {n}";
 
 "lng_accounts_limit_title" = "Limit Reached";
 "lng_accounts_limit1#one" = "You have reached the limit of **{count}** connected account.";

@@ -32,6 +32,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/controls/userpic_button.h"
 #include "ui/effects/premium_bubble.h"
 #include "ui/layers/generic_box.h"
+#include "ui/text/custom_emoji_helper.h"
+#include "ui/text/custom_emoji_text_badge.h"
 #include "ui/text/format_values.h"
 #include "ui/text/text_utilities.h"
 #include "ui/toast/toast.h"
@@ -44,6 +46,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_calls.h"
 #include "styles/style_chat.h"
 #include "styles/style_credits.h"
+#include "styles/style_giveaway.h"
 #include "styles/style_info.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
@@ -815,7 +818,91 @@ void AuctionAboutBox(
 	).append(' ').append(tr::lng_auction_about_understood(tr::now))));
 }
 
-void AuctionGotGiftsBox(not_null<GenericBox*> box, int count) {
+void AuctionGotGiftsBox(
+		not_null<GenericBox*> box, 
+		std::shared_ptr<ChatHelpers::Show> show, 
+		const Data::StarGift &gift,
+		std::vector<Data::GiftAcquired> list) {
+	Expects(!list.empty());
+
+	const auto count = int(list.size());
+	box->setTitle(
+		tr::lng_auction_bought_title(lt_count, rpl::single(count * 1.)));
+	box->setWidth(st::boxWideWidth);
+	box->setMaxHeight(st::boxWideWidth * 2);
+	
+	auto helper = Text::CustomEmojiHelper(Core::TextContext({
+		.session = &show->session(),
+	}));
+	const auto emoji = Data::SingleCustomEmoji(gift.document);
+	const auto container = box->verticalLayout();
+	ranges::sort(list, ranges::less(), &Data::GiftAcquired::round);
+	for (const auto &entry : list) {
+		const auto table = container->add(
+			object_ptr<Ui::TableLayout>(
+				container,
+				st::giveawayGiftCodeTable),
+			st::giveawayGiftCodeTableMargin);
+		const auto addFullWidth = [&](rpl::producer<TextWithEntities> text) {
+			table->addRow(
+				object_ptr<Ui::FlatLabel>(
+					table,
+					std::move(text),
+					st::giveawayGiftMessage,
+					st::defaultPopupMenu,
+					helper.context()),
+				nullptr,
+				st::giveawayGiftCodeLabelMargin,
+				st::giveawayGiftCodeValueMargin);
+		};
+
+		// Title "Round #n"
+		addFullWidth(tr::lng_auction_bought_round(
+			lt_n, 
+			rpl::single(tr::marked(QString::number(entry.round))),
+			tr::bold
+		) | rpl::map([=](const TextWithEntities &text) {
+			return TextWithEntities{ emoji }.append(' ').append(text);
+		}));
+
+		// Recipient
+		AddTableRow(
+			table,
+			tr::lng_credits_box_history_entry_peer(),
+			show,
+			entry.to->id);
+
+		// Date
+		AddTableRow(
+			table,
+			tr::lng_auction_bought_date(),
+			rpl::single(tr::marked(
+				langDateTime(base::unixtime::parse(entry.date)))));
+
+		// Accepted Bid
+		auto accepted = helper.paletteDependent(
+			Ui::Earn::IconCreditsEmoji()
+		).append(
+			Lang::FormatCountDecimal(entry.bidAmount)
+		).append(' ').append(
+			helper.paletteDependent(
+				Text::CustomEmojiTextBadge(
+					tr::lng_auction_bought_top(
+						tr::now, 
+						lt_n, 
+						QString::number(entry.position)).toUpper(), 
+					st::defaultTableSmallButton)));
+		AddTableRow(
+			table,
+			tr::lng_auction_bought_bid(),
+			rpl::single(accepted),
+			helper.context());
+
+		// Message
+		if (!entry.message.empty()) {
+			addFullWidth(rpl::single(entry.message));
+		}
+	}
 }
 
 void AuctionInfoBox(
@@ -833,6 +920,9 @@ void AuctionInfoBox(
 		Delegate delegate;
 		rpl::variable<Data::GiftAuctionState> value;
 		rpl::variable<int> minutesLeft;
+
+		std::vector<Data::GiftAcquired> acquired;
+		bool acquiredRequested = false;
 	};
 	const auto state = box->lifetime().make_state<State>(&show->session());
 	state->value = std::move(value);
@@ -908,8 +998,8 @@ void AuctionInfoBox(
 		st::boxRowPadding + st::auctionInfoTableMargin);
 
 	state->value.value(
-	) | rpl::map([=](const Data::GiftAuctionState &state) {
-		return state.my.gotCount;
+	) | rpl::map([=](const Data::GiftAuctionState &value) {
+		return value.my.gotCount;
 	}) | rpl::filter(
 		rpl::mappers::_1 > 0
 	) | rpl::take(1) | rpl::start_with_next([=](int count) {
@@ -931,8 +1021,32 @@ void AuctionInfoBox(
 			st::boxRowPadding + st::uniqueGiftValueAvailableMargin,
 			style::al_top
 		)->setClickHandlerFilter([=](const auto &...) {
-			const auto now = state->value.current().my.gotCount;
-			show->show(Box(AuctionGotGiftsBox, now));
+			const auto &value = state->value.current();
+			const auto &gift = *value.gift;
+			if (!value.my.gotCount) {
+				return false;
+			} else if (state->acquired.size() == value.my.gotCount) {
+				show->show(Box(
+					AuctionGotGiftsBox, 
+					show, 
+					gift,
+					state->acquired));
+			} else if (!state->acquiredRequested) {
+				state->acquiredRequested = true;
+				show->session().giftAuctions().requestAcquired(
+					value.gift->id,
+					crl::guard(box, [=](std::vector<Data::GiftAcquired> result) {
+						state->acquiredRequested = false;
+						state->acquired = std::move(result);
+						if (!state->acquired.empty()) {
+							show->show(Box(
+								AuctionGotGiftsBox,
+								show,
+								gift,
+								state->acquired));
+						}
+					}));
+			}
 			return false;
 		});
 	}, box->lifetime());

@@ -52,6 +52,16 @@ struct GiftAuctionState {
 	}
 };
 
+struct GiftAcquired {
+	not_null<PeerData*> to;
+	TextWithEntities message;
+	TimeId date = 0;
+	int64 bidAmount = 0;
+	int round = 0;
+	int position = 0;
+	bool nameHidden = false;
+};
+
 class GiftAuctions final {
 public:
 	explicit GiftAuctions(not_null<Main::Session*> session);
@@ -61,6 +71,10 @@ public:
 
 	void apply(const MTPDupdateStarGiftAuctionState &data);
 	void apply(const MTPDupdateStarGiftAuctionUserState &data);
+
+	void requestAcquired(
+		uint64 giftId, 
+		Fn<void(std::vector<Data::GiftAcquired>)> done);
 
 private:
 	struct Entry {

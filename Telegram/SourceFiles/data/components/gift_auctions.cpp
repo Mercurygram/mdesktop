@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/gift_auctions.h"
 
 #include "api/api_premium.h"
+#include "api/api_text_entities.h"
 #include "apiwrap.h"
 #include "data/data_session.h"
 #include "main/main_session.h"
@@ -57,6 +58,50 @@ void GiftAuctions::apply(const MTPDupdateStarGiftAuctionUserState &data) {
 	if (const auto entry = find(data.vgift_id().v)) {
 		apply(entry, data.vuser_state());
 	}
+}
+
+void GiftAuctions::requestAcquired(
+		uint64 giftId,
+		Fn<void(std::vector<Data::GiftAcquired>)> done) {
+	Expects(done != nullptr);
+
+	_session->api().request(MTPpayments_GetStarGiftAuctionAcquiredGifts(
+		MTP_long(giftId)
+	)).done([=](const MTPpayments_StarGiftAuctionAcquiredGifts &result) {
+		const auto &data = result.data();
+
+		const auto owner = &_session->data();
+		owner->processUsers(data.vusers());
+		owner->processChats(data.vchats());
+
+		const auto &list = data.vgifts().v;
+		auto gifts = std::vector<Data::GiftAcquired>();
+		gifts.reserve(list.size());
+		for (const auto &gift : list) {
+			const auto &data = gift.data();
+			gifts.push_back({
+				.to = owner->peer(peerFromMTP(data.vpeer())),
+				.message = (data.vmessage()
+					? Api::ParseTextWithEntities(_session, *data.vmessage())
+					: TextWithEntities()),
+				.date = data.vdate().v,
+				.bidAmount = int64(data.vbid_amount().v),
+				.round = data.vround().v,
+				.position = data.vpos().v,
+				.nameHidden = data.is_name_hidden(),
+			});
+		}
+		if (const auto entry = find(giftId)) {
+			const auto count = int(gifts.size());
+			if (entry->state.my.gotCount != count) {
+				entry->state.my.gotCount = count;
+				entry->changes.fire({});
+			}
+		}
+		done(std::move(gifts));
+	}).fail([=] {
+		done({});
+	}).send();
 }
 
 void GiftAuctions::checkSubscriptions() {
