@@ -4036,7 +4036,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_bid_your_title" = "Your bid will be";
 "lng_auction_bid_your_outbid" = "You've been outbid";
 "lng_auction_bid_your_winning" = "You're winning";
-"lng_auction_bid_winners_title" = "Top 3 Winners";
+"lng_auction_bid_winners_title" = "Top winners";
 "lng_auction_bid_place" = "Place a {stars} Bid";
 "lng_auction_bid_increase" = "Add {stars} to Your Bid";
 "lng_auction_bid_placed_title" = "Your bid has been placed";

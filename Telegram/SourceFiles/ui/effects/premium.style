@@ -560,20 +560,26 @@ starrefPopupMenu: PopupMenu(defaultPopupMenu) {
 	}
 }
 
-videoStreamInfoPadding: margins(12px, 8px, 12px, 8px);
-videoStreamInfoTitle: FlatLabel(defaultFlatLabel) {
+starSelectInfoPadding: margins(12px, 8px, 12px, 8px);
+starSelectInfoTitle: FlatLabel(defaultFlatLabel) {
 	minWidth: 40px;
-	textFg: groupCallMembersFg;
+	textFg: windowBoldFg;
 	align: align(top);
 	style: TextStyle(boxTextStyle) {
 		font: font(18px semibold);
 	}
 }
-videoStreamInfoSubtext: FlatLabel(defaultFlatLabel) {
+starSelectInfoSubtext: FlatLabel(defaultFlatLabel) {
 	minWidth: 40px;
-	textFg: groupCallMembersFg;
+	textFg: windowFg;
 	align: align(top);
 	style: TextStyle(defaultTextStyle) {
-		font: font(12px);
+		font: font(10px);
 	}
+}
+videoStreamInfoTitle: FlatLabel(starSelectInfoTitle) {
+	textFg: groupCallMembersFg;
+}
+videoStreamInfoSubtext: FlatLabel(starSelectInfoSubtext) {
+	textFg: groupCallMembersFg;
 }

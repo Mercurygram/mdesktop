@@ -446,3 +446,20 @@ auctionInfoSubtitleSkip: 8px;
 auctionInfoTableMargin: margins(0px, 12px, 0px, 12px);
 auctionAboutLogo: icon {{ "calls/group_call_logo", windowFgActive }};
 auctionAboutLogoPadding: margins(8px, 8px, 8px, 8px);
+
+auctionBidPlace: FlatLabel(defaultFlatLabel) {
+	style: semiboldTextStyle;
+	textFg: windowActiveTextFg;
+}
+auctionBidUserpic: UserpicButton(defaultUserpicButton) {
+	size: size(28px, 36px);
+	photoSize: 28px;
+	photoPosition: point(0px, 4px);
+}
+auctionBidName: FlatLabel(defaultFlatLabel) {
+	style: semiboldTextStyle;
+}
+auctionBidStars: FlatLabel(defaultFlatLabel) {
+	textFg: windowSubTextFg;
+}
+auctionBidSkip: 10px;

@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/object_ptr.h"
 #include "lang/lang_keys.h"
+#include "payments/ui/payments_reaction_box.h"
 #include "ui/widgets/labels.h"
 #include "ui/emoji_config.h"
 #include "ui/painter.h"
@@ -18,57 +19,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_premium.h"
 
 namespace Calls::Group::Ui {
-namespace {
-
-[[nodiscard]] not_null<Ui::RpWidget*> MakeInfoBlock(
-		not_null<Ui::RpWidget*> parent,
-		rpl::producer<QString> title,
-		rpl::producer<QString> subtext) {
-	const auto result = CreateChild<Ui::RpWidget>(parent);
-
-	const auto titleHeight = st::videoStreamInfoTitle.style.font->height;
-	const auto subtextHeight = st::videoStreamInfoSubtext.style.font->height;
-	const auto height = titleHeight + subtextHeight;
-
-	result->paintRequest() | rpl::start_with_next([=] {
-		auto p = QPainter(result);
-		auto hq = PainterHighQualityEnabler(p);
-		p.setPen(Qt::NoPen);
-		p.setBrush(st::groupCallMembersBgOver);
-		const auto radius = st::boxRadius;
-		p.drawRoundedRect(result->rect(), radius, radius);
-	}, result->lifetime());
-
-	result->resize(
-		result ->width(),
-		QSize(height, height).grownBy(st::videoStreamInfoPadding).height());
-
-	const auto titleLabel = CreateChild<Ui::FlatLabel>(
-		result,
-		std::move(title),
-		st::videoStreamInfoTitle);
-	const auto subtextLabel = CreateChild<Ui::FlatLabel>(
-		result,
-		std::move(subtext),
-		st::videoStreamInfoSubtext);
-
-	rpl::combine(
-		result->widthValue(),
-		titleLabel->widthValue(),
-		subtextLabel->widthValue()
-	) | rpl::start_with_next([=](int width, int titlew, int subtextw) {
-		const auto padding = st::videoStreamInfoPadding;
-		titleLabel->moveToLeft((width - titlew) / 2, padding.top(), width);
-		subtextLabel->moveToLeft(
-			(width - subtextw) / 2,
-			padding.top() + titleHeight,
-			width);
-	}, result->lifetime());
-
-	return result;
-}
-
-} // namespace
 
 StarsColoring StarsColoringForCount(
 		const std::vector<StarsColoring> &colorings,
@@ -92,7 +42,7 @@ int StarsRequiredForMessage(
 	auto view = QStringView(text.text);
 	const auto length = int(view.size());
 	while (!view.isEmpty()) {
-		if (Ui::Emoji::Find(view, &outLength)) {
+		if (Emoji::Find(view, &outLength)) {
 			view = view.mid(outLength);
 			++emojis;
 		} else {
@@ -107,26 +57,22 @@ int StarsRequiredForMessage(
 	return colorings.back().fromStars + 1;
 }
 
-object_ptr<Ui::RpWidget> VideoStreamStarsLevel(
-		not_null<Ui::RpWidget*> box,
+object_ptr<RpWidget> VideoStreamStarsLevel(
+		not_null<RpWidget*> box,
 		const std::vector<StarsColoring> &colorings,
 		rpl::producer<int> starsValue) {
-	auto result = object_ptr<Ui::RpWidget>(box.get());
-	const auto raw = result.data();
-
 	struct State {
 		rpl::variable<int> stars;
 		rpl::variable<StarsColoring> coloring;
-		std::vector<not_null<Ui::RpWidget*>> blocks;
 	};
-	const auto state = raw->lifetime().make_state<State>();
+	const auto state = box->lifetime().make_state<State>();
 	state->stars = std::move(starsValue);
 	state->coloring = state->stars.value(
 	) | rpl::map([=](int stars) {
 		return StarsColoringForCount(colorings, stars);
 	});
 
-	state->blocks.push_back(MakeInfoBlock(raw, state->coloring.value(
+	auto pinTitle = state->coloring.value(
 	) | rpl::map([=](const StarsColoring &value) {
 		const auto seconds = value.secondsPin;
 		return (seconds >= 3600)
@@ -134,46 +80,43 @@ object_ptr<Ui::RpWidget> VideoStreamStarsLevel(
 			: (seconds >= 60)
 			? tr::lng_minutes_tiny(tr::now, lt_count, seconds / 60)
 			: tr::lng_seconds_tiny(tr::now, lt_count, seconds);
-	}), tr::lng_paid_comment_pin_about()));
-
-	state->blocks.push_back(MakeInfoBlock(raw, state->coloring.value(
+	});
+	auto limitTitle = state->coloring.value(
 	) | rpl::map([=](const StarsColoring &value) {
 		return QString::number(value.charactersMax);
-	}), state->coloring.value() | rpl::map([=](const StarsColoring &value) {
+	});
+	auto limitSubtext = state->coloring.value(
+	) | rpl::map([=](const StarsColoring &value) {
 		return tr::lng_paid_comment_limit_about(
 			tr::now,
 			lt_count,
 			value.charactersMax);
-	})));
-
-	state->blocks.push_back(MakeInfoBlock(raw, state->coloring.value(
+	});
+	auto emojiTitle = state->coloring.value(
 	) | rpl::map([=](const StarsColoring &value) {
 		return QString::number(value.emojiLimit);
-	}), state->coloring.value() | rpl::map([=](const StarsColoring &value) {
+	});
+	auto emojiSubtext = state->coloring.value(
+	) | rpl::map([=](const StarsColoring &value) {
 		return tr::lng_paid_comment_emoji_about(
 			tr::now,
 			lt_count,
 			value.emojiLimit);
-	})));
-
-	raw->resize(raw->width(), state->blocks.front()->height());
-	raw->widthValue() | rpl::start_with_next([=](int width) {
-		const auto count = int(state->blocks.size());
-		const auto skip = (st::boxRowPadding.left() / 2);
-		const auto single = (width - skip * (count - 1)) / float64(count);
-		if (single < 1.) {
-			return;
-		}
-		auto x = 0.;
-		const auto w = int(base::SafeRound(single));
-		for (const auto &block : state->blocks) {
-			block->resizeToWidth(w);
-			block->moveToLeft(int(base::SafeRound(x)), 0);
-			x += single + skip;
-		}
-	}, raw->lifetime());
-
-	return result;
+	});
+	return MakeStarSelectInfoBlocks(box, {
+		{
+			.title = std::move(pinTitle) | Text::ToWithEntities(),
+			.subtext = tr::lng_paid_comment_pin_about(),
+		},
+		{
+			.title = std::move(limitTitle) | Text::ToWithEntities(),
+			.subtext = std::move(limitSubtext),
+		},
+		{
+			.title = std::move(emojiTitle) | Text::ToWithEntities(),
+			.subtext = std::move(emojiSubtext),
+		},
+	}, {}, true);
 }
 
 } // namespace Calls::Group::Ui
