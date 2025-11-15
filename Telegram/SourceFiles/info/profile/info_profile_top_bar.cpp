@@ -1153,7 +1153,7 @@ void TopBar::setupUserpicButton(
 }
 
 void TopBar::setupUniqueBadgeTooltip() {
-	if (!_badge) {
+	if (!_badge || _source == Source::Preview) {
 		return;
 	}
 	base::timer_once(kWaitBeforeGiftBadge) | rpl::then(
@@ -2436,21 +2436,30 @@ void TopBar::updateStoryOutline(std::optional<QColor> edgeColor) {
 	const auto baseColor = edgeColor
 		? Ui::BlendColors(*edgeColor, Qt::white, .5)
 		: _storyOutlineBrush.color();
-	const auto unreadBrush = edgeColor
+	const auto unreadBrush = _hasLiveStories
+		? st::attentionButtonFg->b
+		: edgeColor
 		? QBrush(baseColor)
 		: _storyOutlineBrush;
 	const auto readBrush = edgeColor
 		? QBrush(anim::with_alpha(baseColor, 0.5))
 		: QBrush(st::dialogsUnreadBgMuted->b);
 
-	const auto readTill = source->readTill;
-	const auto widthSmall = widthBig / 2.;
-	for (const auto &storyIdDates : source->ids) {
-		const auto isUnread = (storyIdDates.id > readTill);
+	if (_hasLiveStories) {
 		_storySegments.push_back({
-			.brush = isUnread ? unreadBrush : readBrush,
-			.width = !isUnread ? widthSmall : widthBig,
+			.brush = unreadBrush,
+			.width = widthBig,
 		});
+	} else {
+		const auto readTill = source->readTill;
+		const auto widthSmall = widthBig / 2.;
+		for (const auto &storyIdDates : source->ids) {
+			const auto isUnread = (storyIdDates.id > readTill);
+			_storySegments.push_back({
+				.brush = isUnread ? unreadBrush : readBrush,
+				.width = !isUnread ? widthSmall : widthBig,
+			});
+		}
 	}
 }
 
@@ -2481,13 +2490,14 @@ void TopBar::paintStoryOutline(QPainter &p, const QRect &geometry) {
 	Ui::PaintOutlineSegments(p, outlineRect, _storySegments);
 
 	if (_hasLiveStories) {
-		const auto edgeColor = _edgeColor.current();
+		const auto outline = _edgeColor.current().value_or(
+			_solidBg.value_or(st::boxDividerBg->c));
 		Ui::PaintLiveBadge(
 			p,
 			geometry.x(),
 			geometry.y() + outlineWidth + padding,
 			geometry.width(),
-			edgeColor);
+			outline);
 	}
 }
 
