@@ -2214,15 +2214,15 @@ void EditPeerProfileColorSection(
 
 	const auto setIndex = [=](uint8 index) {
 		state->index = index;
+		if (index != kUnsetColorIndex) {
+			resetUnique();
+		}
 		preview->setColorProfileIndex(index == kUnsetColorIndex
 			? std::nullopt
 			: std::make_optional(index));
 		preview->setPatternEmojiId(index == kUnsetColorIndex
 			? std::nullopt
 			: std::make_optional(state->patternEmojiId.current()));
-		if (index != kUnsetColorIndex) {
-			resetUnique();
-		}
 	};
 	setIndex(peer->colorProfileIndex().value_or(kUnsetColorIndex));
 

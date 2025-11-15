@@ -1250,7 +1250,7 @@ void TopBar::setPatternEmojiId(std::optional<DocumentId> patternEmojiId) {
 
 void TopBar::setLocalEmojiStatusId(EmojiStatusId emojiStatusId) {
 	_localCollectible = emojiStatusId.collectible;
-	if (emojiStatusId) {
+	if (!emojiStatusId.collectible) {
 		_badgeContent = Badge::Content{ BadgeType::Premium, emojiStatusId };
 	} else {
 		_badgeContent = BadgeContentForPeer(_peer);
@@ -1271,6 +1271,8 @@ auto TopBar::effectiveCollectible() const
 -> std::shared_ptr<Data::EmojiStatusCollectible> {
 	return _localCollectible
 		? _localCollectible
+		: _localColorProfileIndex
+		? nullptr
 		: _peer->emojiStatusId().collectible;
 }
 
