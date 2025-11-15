@@ -1616,6 +1616,7 @@ not_null<Info::Profile::TopBar*> CreateProfilePreview(
 	preview->resize(
 		container->width(),
 		st::infoProfileTopBarNoActionsHeightMax);
+	preview->setAttribute(Qt::WA_TransparentForMouseEvents);
 	return preview;
 }
 
@@ -2211,7 +2212,9 @@ void EditPeerProfileColorSection(
 		preview->setColorProfileIndex(index == kUnsetColorIndex
 			? std::nullopt
 			: std::make_optional(index));
-		preview->setPatternEmojiId(state->patternEmojiId.current());
+		preview->setPatternEmojiId(index == kUnsetColorIndex
+			? std::nullopt
+			: std::make_optional(state->patternEmojiId.current()));
 		resetUnique();
 	};
 	setIndex(peer->colorProfileIndex().value_or(kUnsetColorIndex));
