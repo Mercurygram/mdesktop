@@ -1073,6 +1073,9 @@ void ComposeControls::setHistory(SetHistoryArgs &&args) {
 	session().local().readDraftsWithCursors(_history);
 	applyDraft();
 	orderControls();
+	_field->setMode(args.videoStream
+		? Ui::InputField::Mode::NoNewlines
+		: Ui::InputField::Mode::MultiLine);
 }
 
 void ComposeControls::initLikeButton() {
