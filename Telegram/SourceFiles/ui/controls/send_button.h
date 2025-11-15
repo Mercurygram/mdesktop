@@ -39,7 +39,7 @@ public:
 		int slowmodeDelay = 0;
 		int starsToSend = 0;
 
-		friend inline constexpr bool operator==(State, State) = default;
+		friend inline bool operator==(State, State) = default;
 	};
 	[[nodiscard]] Type type() const {
 		return _state.type;

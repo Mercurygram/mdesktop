@@ -2838,7 +2838,7 @@ std::unique_ptr<HistoryView::Media> MediaStory::createView(
 			return std::make_unique<HistoryView::Gif>(
 				message,
 				realParent,
-				story->document(),
+				document,
 				spoiler);
 		}
 		return nullptr;
