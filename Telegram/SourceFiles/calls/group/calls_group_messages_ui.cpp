@@ -649,9 +649,12 @@ void MessagesUi::setContent(MessageView &entry) {
 	} else {
 		entry.price = Ui::Text::String();
 	}
-	const auto composed = entry.admin
+	auto composed = entry.admin
 		? entry.original
 		: Ui::Text::Link(name, 1).append(' ').append(entry.original);
+	if (!entry.admin) {
+		composed.text.replace(QChar('\n'), QChar(' '));
+	}
 	entry.text = Ui::Text::String(
 		st::messageTextStyle,
 		composed,
