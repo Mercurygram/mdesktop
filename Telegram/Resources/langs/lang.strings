@@ -1001,6 +1001,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_color_changed_profile" = "Your profile style has been updated!";
 "lng_settings_color_changed_profile_channel" = "Your channel profile style has been updated!";
 "lng_settings_color_apply" = "Apply Style";
+"lng_settings_color_wear" = "Wear Collectible";
 "lng_settings_color_profile_emoji" = "Add icons to Profile";
 "lng_settings_color_profile_emoji_channel" = "Profile Logo";
 "lng_settings_color_reset" = "Reset Profile Color";
