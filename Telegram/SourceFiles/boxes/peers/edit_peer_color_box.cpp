@@ -2681,8 +2681,6 @@ void SetupPeerColorSample(
 			std::optional<uint8> profileIndex,
 			EmojiStatusId emojiStatusId) {
 		const auto hasColor = (colorIndex != 0);
-		const auto hasEmojiStatus = emojiStatusId
-			&& emojiStatusId.collectible;
 
 		const auto right = st::settingsColorButton.padding.right()
 			- st::settingsColorSampleSkip
