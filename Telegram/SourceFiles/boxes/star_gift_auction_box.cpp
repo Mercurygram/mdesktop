@@ -774,7 +774,7 @@ void AuctionAboutBox(
 
 	const auto features = std::vector<FeatureListEntry>{
 		{
-			st::menuIconRatingGifts,
+			st::menuIconAuctionDrop,
 			tr::lng_auction_about_top_title(
 				tr::now,
 				lt_count,
@@ -798,7 +798,7 @@ void AuctionAboutBox(
 				tr::rich),
 		},
 		{
-			st::menuIconRatingRefund,
+			st::menuIconStarsCarryover,
 			tr::lng_auction_about_bid_title(tr::now),
 			tr::lng_auction_about_bid_about(
 				tr::now,
@@ -807,7 +807,7 @@ void AuctionAboutBox(
 				tr::rich),
 		},
 		{
-			st::menuIconRatingUsers,
+			st::menuIconStarsRefund,
 			tr::lng_auction_about_missed_title(tr::now),
 			tr::lng_auction_about_missed_about(tr::now, tr::rich),
 		},

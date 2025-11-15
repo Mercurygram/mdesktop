@@ -444,7 +444,7 @@ videoStreamStarsCover: PremiumCover(creditsLowBalancePremiumCover) {
 auctionInfoPreviewMargin: margins(0px, 24px, 0px, 8px);
 auctionInfoSubtitleSkip: 8px;
 auctionInfoTableMargin: margins(0px, 12px, 0px, 12px);
-auctionAboutLogo: icon {{ "calls/group_call_logo", windowFgActive }};
+auctionAboutLogo: icon {{ "settings/large_auctions", windowFgActive }};
 auctionAboutLogoPadding: margins(8px, 8px, 8px, 8px);
 
 auctionBidPlace: FlatLabel(defaultFlatLabel) {
