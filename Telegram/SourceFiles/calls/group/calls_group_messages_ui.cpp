@@ -871,7 +871,6 @@ void MessagesUi::appendPinned(const Message &data, TimeId now) {
 		return;
 	}
 
-	const auto id = data.id;
 	const auto peer = data.peer;
 	const auto finishes = crl::now()
 		+ (data.pinFinishDate - now) * crl::time(1000);
@@ -906,9 +905,6 @@ void MessagesUi::appendPinned(const Message &data, TimeId now) {
 		.place = donorPlace(peer),
 		.left = left,
 	});
-	const auto repaint = [=] {
-		repaintPinned(id);
-	};
 	setContent(entry);
 	updatePinnedSize(entry);
 	entry.width = 0;
@@ -1597,9 +1593,6 @@ void MessagesUi::setupPinnedWidget() {
 			const auto position = QPoint(
 				x + userpicPadding.left(),
 				y + userpicPadding.top());
-			const auto rect = QRect(
-				position,
-				QSize(userpicSize, userpicSize));
 			entry.from->paintUserpic(p, entry.view, {
 				.position = position,
 				.size = userpicSize,

@@ -68,7 +68,6 @@ auto TopVideoStreamDonors(not_null<Calls::GroupCall*> call)
 		messages->starsValueChanges()
 	) | rpl::map([=] {
 		const auto &list = messages->starsTop().topDonors;
-		const auto peer = call->peer();
 		auto still = Ui::MaxTopPaidDonorsShown();
 		auto result = std::vector<Data::MessageReactionsTopPaid>();
 		result.reserve(list.size());

@@ -1456,7 +1456,6 @@ rpl::producer<Api::SendOptions> ComposeControls::sendRequests() const {
 		const auto count = *_chosenStarsCount;
 		const auto &appConfig = _show->session().appConfig();
 		const auto &colorings = appConfig.groupCallColorings();
-		const auto coloring = StarsColoringForCount(colorings, count);
 		const auto required = StarsRequiredForMessage(
 			colorings,
 			getTextWithAppliedMarkdown());

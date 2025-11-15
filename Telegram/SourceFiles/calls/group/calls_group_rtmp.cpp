@@ -239,8 +239,6 @@ void StartRtmpProcess::FillRtmpRows(
 
 	const auto &rowPadding = st::boxRowPadding;
 
-	const auto passChar = QChar(container->style()->styleHint(
-		QStyle::SH_LineEdit_PasswordCharacter));
 	const auto state = container->lifetime().make_state<State>();
 	state->key = rpl::duplicate(
 		data
