@@ -1117,7 +1117,7 @@ auto Reactions::attachToMenu(
 	using namespace HistoryView::Reactions;
 
 	const auto story = _controller->story();
-	if (!story || story->peer()->isSelf()) {
+	if (!story || story->peer()->isSelf() || story->call()) {
 		return AttachStripResult::Skipped;
 	}
 
