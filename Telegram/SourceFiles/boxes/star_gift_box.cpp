@@ -1721,9 +1721,7 @@ void CheckMaybeGiftLocked(
 				});
 				const auto unique = star ? star->info.unique : nullptr;
 				const auto premiumNeeded = star && star->info.requirePremium;
-				if (premiumNeeded && !peer->session().premium()) {
-					Settings::ShowPremiumGiftPremium(window, star->info);
-				} else if (unique && star->resale) {
+				if (unique && star->resale) {
 					window->show(Box(
 						Settings::GlobalStarGiftBox,
 						window->uiShow(),
@@ -1746,21 +1744,29 @@ void CheckMaybeGiftLocked(
 						star->info.resellTitle,
 						[=] { state->resaleRequestingId = 0; });
 				} else if (star && star->info.auction()) {
-					const auto id = star->info.id;
-					if (state->resaleRequestingId == id) {
-						return;
+					if (!IsSoldOut(star->info)
+						&& premiumNeeded
+						&& !peer->session().premium()) {
+						Settings::ShowPremiumGiftPremium(window, star->info);
+					} else {
+						const auto id = star->info.id;
+						if (state->resaleRequestingId == id) {
+							return;
+						}
+						state->resaleRequestingId = id;
+						state->resaleLifetime = ShowStarGiftAuction(
+							window,
+							peer,
+							star->info.auctionSlug,
+							[=] { state->resaleRequestingId = 0; },
+							crl::guard(raw, [=] {
+								state->resaleLifetime.destroy();
+							}));
 					}
-					state->resaleRequestingId = id;
-					state->resaleLifetime = ShowStarGiftAuction(
-						window,
-						peer,
-						star->info.auctionSlug,
-						[=] { state->resaleRequestingId = 0; },
-						crl::guard(raw, [=] {
-							state->resaleLifetime.destroy();
-						}));
 				} else if (star && IsSoldOut(star->info)) {
 					window->show(Box(SoldOutBox, window, *star));
+				} else if (premiumNeeded && !peer->session().premium()) {
+					Settings::ShowPremiumGiftPremium(window, star->info);
 				} else if (star
 					&& star->info.lockedUntilDate
 					&& star->info.lockedUntilDate > base::unixtime::now()) {
