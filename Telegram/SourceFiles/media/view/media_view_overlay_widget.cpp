@@ -1110,6 +1110,9 @@ QSize OverlayWidget::flipSizeByRotation(QSize size) const {
 
 bool OverlayWidget::hasCopyMediaRestriction(bool skipPremiumCheck) const {
 	if (const auto story = _stories ? _stories->story() : nullptr) {
+		if (story->call()) {
+			return true;
+		}
 		return skipPremiumCheck
 			? !story->canDownloadIfPremium()
 			: !story->canDownloadChecked();
@@ -1853,7 +1856,8 @@ void OverlayWidget::fillContextMenuActions(
 	if (_stories
 		&& _stories->allowStealthMode()
 		&& story
-		&& story->peer()->isUser()) {
+		&& story->peer()->isUser()
+		&& !story->call()) {
 		const auto now = base::unixtime::now();
 		const auto stealth = _session->data().stories().stealthMode();
 		addAction(tr::lng_stealth_mode_menu_item(tr::now), [=] {
