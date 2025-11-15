@@ -474,10 +474,10 @@ auto GenerateGiftMedia(
 				tr::now,
 				lt_count,
 				gift.months,
-				Text::Bold);
+				tr::bold);
 		}, [&](const GiftTypeStars &gift) {
 			return recipient->isSelf()
-				? tr::lng_action_gift_self_subtitle(tr::now, Text::Bold)
+				? tr::lng_action_gift_self_subtitle(tr::now, tr::bold)
 				: tr::lng_action_gift_got_subtitle(
 					tr::now,
 					lt_user,
@@ -488,25 +488,23 @@ auto GenerateGiftMedia(
 									recipient->session().user())))
 						.append(' ')
 						.append(recipient->session().user()->shortName()),
-					Text::Bold);
+					tr::bold);
 		});
 		auto textFallback = v::match(descriptor, [&](GiftTypePremium gift) {
 			return tr::lng_action_gift_premium_about(
 				tr::now,
-				Text::RichLangValue);
+				tr::rich);
 		}, [&](const GiftTypeStars &gift) {
 			return data.upgraded
-				? tr::lng_action_gift_got_upgradable_text(
-					tr::now,
-					Text::RichLangValue)
+				? tr::lng_action_gift_got_upgradable_text(tr::now, tr::rich)
 				: (recipient->isSelf() && gift.info.starsToUpgrade)
-				? tr::lng_action_gift_self_about_unique(
-					tr::now,
-					Text::RichLangValue)
+				? tr::lng_action_gift_self_about_unique(tr::now, tr::rich)
 				: (recipient->isBroadcast() && gift.info.starsToUpgrade)
-				? tr::lng_action_gift_channel_about_unique(
-					tr::now,
-					Text::RichLangValue)
+				? tr::lng_action_gift_channel_about_unique(tr::now, tr::rich)
+				: gift.info.auction()
+				? (recipient->isBroadcast()
+					? tr::lng_action_gift_got_gift_channel(tr::now, tr::rich)
+					: tr::lng_action_gift_got_gift_text(tr::now, tr::rich))
 				: (recipient->isSelf()
 					? tr::lng_action_gift_self_about
 					: recipient->isBroadcast()
@@ -515,7 +513,7 @@ auto GenerateGiftMedia(
 						tr::now,
 						lt_count,
 						gift.info.starsConverted,
-						Text::RichLangValue);
+						tr::rich);
 		});
 		auto description = data.text.empty()
 			? std::move(textFallback)
