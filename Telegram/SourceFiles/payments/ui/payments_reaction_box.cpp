@@ -262,7 +262,8 @@ void FillTopReactors(
 					container,
 					tr::lng_paid_react_top_title(),
 					[](QRect) { return st::creditsBg3->b; }),
-				st::boxRowPadding + st::paidReactTopTitleMargin),
+				st::paidReactTopTitleMargin),
+			st::boxRowPadding,
 			style::al_top);
 	const auto wrap = container->add(
 		object_ptr<SlideWrap<FixedHeightWidget>>(
@@ -458,7 +459,7 @@ void PaidReactionsBox(
 		args.explicitlyAllowed,
 		args.chosen,
 	});
-	
+
 	const auto allowed = args.explicitlyAllowed;
 	args.chosen = (allowed && args.chosen == allowed)
 		? allowed
@@ -644,7 +645,7 @@ void PaidReactionsBox(
 	button->setText(args.submit(state->chosen.value()));
 
 	AddStarSelectBalance(
-		box, 
+		box,
 		args.session,
 		std::move(args.balanceValue),
 		dark);
