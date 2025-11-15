@@ -225,15 +225,15 @@ struct BidRowData {
 		raw->widthValue(),
 		state->stars->widthValue()
 	) | rpl::start_with_next([=](int outer, int stars) {
-		const auto userpicHeight = st::auctionBidUserpic.size.height();
-		const auto top = (userpicHeight - st::normalFont->height) / 2;
+		const auto userpicSize = st::auctionBidUserpic.size;
+		const auto top = (userpicSize.height() - st::normalFont->height) / 2;
 		state->place->moveToLeft(0, top, outer);
 		if (state->userpic) {
 			state->userpic->moveToLeft(userpicLeft, 0, outer);
 		}
 		state->stars->moveToRight(0, top, outer);
 
-		const auto userpicRight = userpicLeft + state->userpic->width();
+		const auto userpicRight = userpicLeft + userpicSize.width();
 		const auto nameLeft = userpicRight + st::auctionBidSkip;
 		const auto nameRight = stars + st::auctionBidSkip;
 		state->name->resizeToWidth(outer - nameLeft - nameRight);
