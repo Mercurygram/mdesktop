@@ -1270,7 +1270,9 @@ void SetAuctionButtonCountdownText(
 	auto buttonSubtitle = rpl::combine(
 		state->value.value(),
 		state->minutesLeft.value()
-	) | rpl::map([=](const Data::GiftAuctionState &state, int minutes) {
+	) | rpl::map([=](
+			const Data::GiftAuctionState &state,
+			int minutes) -> rpl::producer<TextWithEntities> {
 		if (state.finished() || minutes <= 0) {
 			return rpl::single(TextWithEntities());
 		}

@@ -963,7 +963,9 @@ void ReplyArea::show(
 		) | rpl::map([](const Data::ReactionId &id) {
 			return !id.empty();
 		}),
-		.minStarsCount = (stream ? _starsForMessage.value() : nullptr),
+		.minStarsCount = (stream
+			? _starsForMessage.value()
+			: rpl::producer<int>()),
 		.writeRestriction = std::move(writeRestriction),
 	});
 	_controls->clear();
