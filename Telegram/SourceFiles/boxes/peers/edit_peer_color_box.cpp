@@ -2557,6 +2557,12 @@ void SetupPeerColorSample(
 	) | rpl::map([=] {
 		return peer->colorProfileIndex();
 	});
+	auto emojiStatusIdValue = peer->session().changes().peerFlagsValue(
+		peer,
+		Data::PeerUpdate::Flag::EmojiStatus
+	) | rpl::map([=] {
+		return peer->emojiStatusId();
+	});
 	const auto name = peer->shortName();
 
 	const auto sampleSize = st::settingsColorSampleSize;
@@ -2571,36 +2577,77 @@ void SetupPeerColorSample(
 		name);
 	sample->show();
 
+	struct ProfileSampleState {
+		Data::ColorProfileSet colorSet;
+	};
+	const auto profileState
+		= button->lifetime().make_state<ProfileSampleState>();
+
 	const auto profileSample = Ui::CreateChild<Ui::ColorSample>(
 		button.get(),
-		[=, peerColors = &peer->session().api().peerColors()](uint8 index) {
-			return peerColors->colorProfileFor(peer).value_or(
-				Data::ColorProfileSet{});
-		},
+		[=](uint8 index) { return profileState->colorSet; },
 		0,
 		false);
 	profileSample->hide();
 	profileSample->resize(sampleSize, sampleSize);
 
+	const auto emojiStatusWidget = Ui::CreateChild<Ui::RpWidget>(
+		button.get());
+	emojiStatusWidget->hide();
+	emojiStatusWidget->resize(sampleSize, sampleSize);
+	button->lifetime().make_state<std::unique_ptr<Ui::Text::CustomEmoji>>();
+
+	struct EmojiStatusState {
+		std::unique_ptr<Ui::Text::CustomEmoji> emoji;
+	};
+	const auto emojiState = button->lifetime().make_state<EmojiStatusState>();
+
 	rpl::combine(
 		button->widthValue(),
 		rpl::duplicate(label),
 		rpl::duplicate(colorIndexValue),
-		rpl::duplicate(colorProfileIndexValue)
+		rpl::duplicate(colorProfileIndexValue),
+		rpl::duplicate(emojiStatusIdValue)
 	) | rpl::start_with_next([=](
 			int width,
 			const QString &buttonText,
 			int colorIndex,
-			std::optional<uint8> profileIndex) {
+			std::optional<uint8> profileIndex,
+			EmojiStatusId emojiStatusId) {
 		const auto available = width
 			- st::settingsButton.padding.left()
 			- (st::settingsColorButton.padding.right() - sampleSize)
 			- st::settingsButton.style.font->width(buttonText)
 			- st::settingsButtonRightSkip;
 
-		const auto hasProfile = profileIndex.has_value();
+		const auto hasEmojiStatus = emojiStatusId
+			&& emojiStatusId.collectible;
+		const auto hasProfile = profileIndex.has_value() || hasEmojiStatus;
+
+		if (hasEmojiStatus && emojiStatusId.collectible) {
+			const auto color = emojiStatusId.collectible->centerColor;
+			profileState->colorSet.palette = { color };
+			profileState->colorSet.bg = { color };
+			profileState->colorSet.story = { color };
+		} else if (hasProfile) {
+			const auto peerColors = &peer->session().api().peerColors();
+			profileState->colorSet
+				= peerColors->colorProfileFor(peer).value_or(
+					Data::ColorProfileSet{});
+		}
 
 		profileSample->setVisible(hasProfile);
+		emojiStatusWidget->setVisible(hasEmojiStatus);
+
+		if (hasEmojiStatus && !emojiState->emoji) {
+			emojiState->emoji
+				= peer->session().data().customEmojiManager().create(
+					Data::EmojiStatusCustomId(emojiStatusId),
+					[raw = emojiStatusWidget] { raw->update(); },
+					Data::CustomEmojiSizeTag::Normal);
+		} else if (!hasEmojiStatus) {
+			emojiState->emoji = nullptr;
+		}
 
 		sample->setForceCircle(hasProfile);
 		if (style->colorPatternIndex(colorIndex) || hasProfile) {
@@ -2618,19 +2665,24 @@ void SetupPeerColorSample(
 			? st::settingsColorSampleCutout
 			: 0);
 		profileSample->update();
+		emojiStatusWidget->update();
 	}, sample->lifetime());
 
 	rpl::combine(
 		button->sizeValue(),
 		sample->sizeValue(),
 		rpl::duplicate(colorIndexValue),
-		rpl::duplicate(colorProfileIndexValue)
+		rpl::duplicate(colorProfileIndexValue),
+		rpl::duplicate(emojiStatusIdValue)
 	) | rpl::start_with_next([=](
 			QSize outer,
 			QSize inner,
 			int colorIndex,
-			std::optional<uint8> profileIndex) {
+			std::optional<uint8> profileIndex,
+			EmojiStatusId emojiStatusId) {
 		const auto hasColor = (colorIndex != 0);
+		const auto hasEmojiStatus = emojiStatusId
+			&& emojiStatusId.collectible;
 
 		const auto right = st::settingsColorButton.padding.right()
 			- st::settingsColorSampleSkip
@@ -2641,18 +2693,34 @@ void SetupPeerColorSample(
 		sample->move(
 			outer.width() - right - inner.width(),
 			(outer.height() - inner.height()) / 2);
-		profileSample->move(
-			sample->pos().x()
-				+ (hasColor
-					? (st::settingsColorProfileSampleShift
-						- st::settingsColorSampleSize
-						- st::lineWidth)
-					: 0),
-			sample->pos().y());
+		const auto profilePos = sample->pos()
+			+ (hasColor
+				? QPoint(st::settingsColorProfileSampleShift
+					- st::settingsColorSampleSize
+					- st::lineWidth, 0)
+				: QPoint());
+		profileSample->move(profilePos);
+		emojiStatusWidget->move(profilePos);
 	}, sample->lifetime());
+
+	constexpr auto kScale = 0.7;
+	emojiStatusWidget->paintOn([=](QPainter &p) {
+		if (!emojiState->emoji) {
+			return;
+		}
+		const auto size = emojiStatusWidget->size();
+		const auto offset = (size * (1.0 - kScale)) / 2.0;
+		p.translate(offset.width(), offset.height());
+		p.scale(kScale, kScale);
+		emojiState->emoji->paint(p, {
+			.textColor = st::windowFg->c,
+			.now = crl::now(),
+		});
+	});
 
 	sample->setAttribute(Qt::WA_TransparentForMouseEvents);
 	profileSample->setAttribute(Qt::WA_TransparentForMouseEvents);
+	emojiStatusWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
 }
 
 void AddPeerColorButton(
