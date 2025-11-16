@@ -598,6 +598,12 @@ void InnerWidget::setupList() {
 	const auto albumId = _albumId.current();
 	if (albumId && albumId != Data::kStoriesAlbumIdArchive) {
 		raw->setReorderDescriptor({
+			// .filter = [=](HistoryItem *item) {
+			// 	const auto stories = &_peer->owner().stories();
+			// 	const auto &albumIds = stories->albumIds(_peer->id, albumId);
+			// 	const auto storyId = StoryIdFromMsgId(item->id);
+			// 	return !ranges::contains(albumIds.pinnedToTop, storyId);
+			// },
 			.save = [=](
 					int oldPosition,
 					int newPosition,

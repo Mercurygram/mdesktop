@@ -2291,6 +2291,12 @@ void ListWidget::startReorder(const QPoint &globalPos) {
 	if (!found.exact) {
 		return;
 	}
+	if (_reorderDescriptor.filter) {
+		const auto item = found.layout->getItem();
+		if (!_reorderDescriptor.filter(item)) {
+			return;
+		}
+	}
 	_reorderState.enabled = true;
 	_reorderState.index = index;
 	_reorderState.targetIndex = index;

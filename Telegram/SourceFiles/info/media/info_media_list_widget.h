@@ -72,6 +72,7 @@ public:
 
 	struct ReorderDescriptor {
 		Fn<void(int old, int pos, Fn<void()> done, Fn<void()> fail)> save;
+		Fn<bool(HistoryItem*)> filter;
 	};
 
 	void setReorderDescriptor(ReorderDescriptor descriptor);
