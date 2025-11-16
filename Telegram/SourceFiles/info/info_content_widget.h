@@ -161,7 +161,30 @@ protected:
 			FlexibleData &flexibleScroll,
 			Fn<void(Ui::RpWidget*)> customSetup = nullptr) {
 		if (inner->hasFlexibleTopBar()) {
-			auto filler = setInnerWidget(object_ptr<Ui::RpWidget>(this));
+			class Filler final : public Ui::RpWidget {
+			public:
+				using Ui::RpWidget::RpWidget;
+				void setTargetWidget(Ui::RpWidget *widget) {
+					_targetWidget = widget;
+				}
+
+			protected:
+				void visibleTopBottomUpdated(
+					int visibleTop,
+					int visibleBottom) override {
+					if (_targetWidget) {
+						_targetWidget->setVisibleTopBottom(
+							visibleTop,
+							visibleBottom);
+					}
+				}
+
+			private:
+				Ui::RpWidget *_targetWidget = nullptr;
+
+			};
+
+			auto filler = setInnerWidget(object_ptr<Filler>(this));
 			filler->resize(1, 1);
 
 			flexibleScroll.contentHeightValue.events(
@@ -181,9 +204,10 @@ protected:
 			// ScrollArea -> PaddingWrap -> RpWidget.
 			inner->setParent(filler->parentWidget()->parentWidget());
 			inner->raise();
+			filler->setTargetWidget(inner.get());
 
 			using InnerPtr = base::unique_qptr<Widget>;
-			auto owner = filler->lifetime().make_state<InnerPtr>(
+			auto owner = filler->lifetime().template make_state<InnerPtr>(
 				std::move(inner.release()));
 			return owner->get();
 		} else {
