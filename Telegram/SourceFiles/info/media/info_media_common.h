@@ -55,6 +55,7 @@ struct ListContext {
 	not_null<ListSelectedMap*> selected;
 	not_null<ListSelectedMap*> dragSelected;
 	ListDragSelectAction dragSelectAction = ListDragSelectAction::None;
+	BaseLayout *draggedItem = nullptr;
 };
 
 struct ListScrollTopState {

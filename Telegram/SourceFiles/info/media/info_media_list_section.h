@@ -30,8 +30,10 @@ public:
 	[[nodiscard]] int height() const;
 
 	[[nodiscard]] int bottom() const;
+	[[nodiscard]] bool isOneColumn() const;
 
 	bool removeItem(not_null<const HistoryItem*> item);
+	void reorderItems(int oldPosition, int newPosition);
 	[[nodiscard]] std::optional<ListFoundItem> findItemByItem(
 		not_null<const HistoryItem*> item) const;
 	[[nodiscard]] ListFoundItem findItemDetails(

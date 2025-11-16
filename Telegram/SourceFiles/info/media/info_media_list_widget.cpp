@@ -48,6 +48,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/chat_style.h"
 #include "ui/cached_round_corners.h"
 #include "ui/painter.h"
+#include "ui/rect.h"
 #include "ui/ui_utility.h"
 #include "ui/inactive_press.h"
 #include "lang/lang_keys.h"
@@ -362,6 +363,13 @@ void ListWidget::selectionAction(SelectionAction action) {
 		toggleStoryInProfileSelected(false);
 		return;
 	case SelectionAction::ToggleStoryPin: toggleStoryPinSelected(); return;
+	}
+}
+
+void ListWidget::setReorderDescriptor(ReorderDescriptor descriptor) {
+	_reorderDescriptor = std::move(descriptor);
+	if (!_reorderDescriptor.save) {
+		cancelReorder();
 	}
 }
 
@@ -940,12 +948,16 @@ void ListWidget::paintEvent(QPaintEvent *e) {
 	const auto paused = window->isGifPausedAtLeastFor(
 		Window::GifPauseReason::Layer);
 	const auto selecting = hasSelectedItems() || _storiesAddToAlbumId;
+	auto paintContext = Overview::Layout::PaintContext(ms, selecting, paused);
 	auto context = ListContext{
-		Overview::Layout::PaintContext(ms, selecting, paused),
+		paintContext,
 		&_selected,
 		&_dragSelected,
 		_dragSelectAction
 	};
+	if (_mouseAction == MouseAction::Reordering && _reorderState.item) {
+		context.draggedItem = _reorderState.item;
+	}
 	for (auto it = fromSectionIt; it != tillSectionIt; ++it) {
 		auto top = it->top();
 		p.translate(0, top);
@@ -954,6 +966,21 @@ void ListWidget::paintEvent(QPaintEvent *e) {
 	}
 	if (fromSectionIt != _sections.end()) {
 		fromSectionIt->paintFloatingHeader(p, _visibleTop, outerWidth);
+	}
+
+	if (_mouseAction == MouseAction::Reordering && _reorderState.item) {
+		auto o = ScopedPainterOpacity(p, 0.8);
+		p.translate(_reorderState.currentPos);
+		_reorderState.item->paint(
+			p,
+			QRect(
+				0,
+				0,
+				_reorderState.item->maxWidth(),
+				_reorderState.item->minHeight()),
+			FullSelection,
+			&context.layoutContext);
+		p.translate(-_reorderState.currentPos);
 	}
 
 	if (_dateBadge->goodType && clip.intersects(_dateBadge->rect)) {
@@ -1718,7 +1745,9 @@ QPoint ListWidget::clampMousePosition(QPoint position) const {
 }
 
 void ListWidget::mouseActionUpdate(const QPoint &globalPosition) {
-	if (_sections.empty() || _visibleBottom <= _visibleTop) {
+	if (_sections.empty()
+		|| _visibleBottom <= _visibleTop
+		|| _returnAnimation.animating()) {
 		return;
 	}
 
@@ -1760,7 +1789,12 @@ void ListWidget::mouseActionUpdate(const QPoint &globalPosition) {
 				InvokeQueued(this, [this] { performDrag(); });
 			} else if (_mouseAction == MouseAction::PrepareSelect) {
 				_mouseAction = MouseAction::Selecting;
+			} else if (_mouseAction == MouseAction::PrepareReorder) {
+				updateReorder(_mousePosition);
 			}
+		}
+		if (_mouseAction == MouseAction::Reordering) {
+			updateReorder(_mousePosition);
 		}
 		StateRequest request;
 		if (_mouseAction == MouseAction::Selecting) {
@@ -1909,6 +1943,9 @@ void ListWidget::mouseActionStart(
 
 	if (ClickHandler::getPressed() && !hasSelected()) {
 		_mouseAction = MouseAction::PrepareDrag;
+		if (canReorder()) {
+			startReorder(globalPosition);
+		}
 	} else if (hasSelectedItems()) {
 		if (isItemUnderPressSelected() && ClickHandler::getPressed()) {
 			// In shared media overview drag only by click handlers.
@@ -1986,6 +2023,7 @@ void ListWidget::mouseActionCancel() {
 	_mouseAction = MouseAction::None;
 	clearDragSelection();
 	_wasSelectedText = false;
+	cancelReorder();
 //	_widget->noSelectingScroll(); // #TODO scroll by drag
 }
 
@@ -2088,6 +2126,11 @@ void ListWidget::mouseActionFinish(
 		&& (button != Qt::RightButton)
 		&& (_mouseAction == MouseAction::PrepareDrag
 			|| _mouseAction == MouseAction::PrepareSelect);
+	if (_mouseAction == MouseAction::Reordering
+		|| _mouseAction == MouseAction::PrepareReorder) {
+		finishReorder();
+		return;
+	}
 	auto needSelectionToggle = simpleSelectionChange && selectionMode;
 	auto needSelectionClear = simpleSelectionChange && hasSelectedText();
 
@@ -2233,6 +2276,335 @@ auto ListWidget::findSectionAfterBottom(
 		bottom,
 		std::less<>(),
 		[](const Section &section) { return section.top(); });
+}
+
+void ListWidget::startReorder(const QPoint &globalPos) {
+	if (!canReorder() || _mouseAction == MouseAction::Selecting) {
+		return;
+	}
+	const auto mapped = mapFromGlobal(globalPos);
+	const auto index = itemIndexFromPoint(mapped);
+	if (index < 0) {
+		return;
+	}
+	const auto found = findItemByPoint(mapped);
+	if (!found.exact) {
+		return;
+	}
+	_reorderState.enabled = true;
+	_reorderState.index = index;
+	_reorderState.targetIndex = index;
+	_reorderState.startPos = globalPos;
+	_reorderState.dragPoint = mapped - found.geometry.topLeft();
+	_reorderState.item = found.layout;
+	_mouseAction = MouseAction::PrepareReorder;
+}
+
+void ListWidget::updateReorder(const QPoint &globalPos) {
+	if (!_reorderState.enabled || _returnAnimation.animating()) {
+		return;
+	}
+	const auto distance
+		= (globalPos - _reorderState.startPos).manhattanLength();
+	if (_mouseAction == MouseAction::PrepareReorder
+		&& distance > QApplication::startDragDistance()) {
+		_mouseAction = MouseAction::Reordering;
+	}
+	if (_mouseAction == MouseAction::Reordering) {
+		const auto mapped = mapFromGlobal(globalPos);
+		auto localPos = mapped - _reorderState.dragPoint;
+
+		auto currentIndex = 0;
+		for (const auto &section : _sections) {
+			const auto sectionSize = int(section.items().size());
+			if (_reorderState.index >= currentIndex
+				&& _reorderState.index < currentIndex + sectionSize) {
+				if (section.isOneColumn()) {
+					localPos.setX(_reorderState.item
+						? itemGeometryByIndex(_reorderState.index).x()
+						: localPos.x());
+				}
+				break;
+			}
+			currentIndex += sectionSize;
+		}
+
+		_reorderState.currentPos = localPos;
+		const auto newIndex = itemIndexFromPoint(mapped);
+		if (newIndex >= 0 && newIndex != _reorderState.targetIndex) {
+			_reorderState.targetIndex = newIndex;
+			updateShiftAnimations();
+		}
+		update();
+	}
+}
+
+void ListWidget::finishReorder() {
+	if (_returnAnimation.animating()) {
+		return;
+	}
+	if (!_reorderState.enabled || _mouseAction != MouseAction::Reordering) {
+		cancelReorder();
+		return;
+	}
+	finishShiftAnimations();
+	if (_reorderState.index != _reorderState.targetIndex) {
+		reorderItemsInSections(
+			_reorderState.index,
+			_reorderState.targetIndex);
+		if (_reorderDescriptor.save) {
+			_reorderDescriptor.save(
+				_reorderState.index,
+				_reorderState.targetIndex,
+				[=] { /* done */ },
+				[=] { /* fail */ }
+			);
+		}
+	}
+
+	const auto targetIndex = _reorderState.targetIndex;
+	const auto draggedItem = _reorderState.item;
+	if (draggedItem) {
+		const auto targetGeometry = itemGeometryByIndex(targetIndex);
+		if (!targetGeometry.isEmpty()) {
+			const auto startPos = _reorderState.currentPos;
+			const auto endPos = targetGeometry.topLeft()
+				+ rect::m::pos::tl(padding());
+			auto callback = [=](float64 progress) {
+				const auto currentPos = QPoint(
+					startPos.x() + (endPos.x() - startPos.x()) * progress,
+					startPos.y() + (endPos.y() - startPos.y()) * progress);
+				_reorderState.currentPos = currentPos;
+				update();
+				if (progress == 1.) {
+					cancelReorder();
+				}
+			};
+			_returnAnimation.start(
+				std::move(callback),
+				0.,
+				1.,
+				st::slideWrapDuration);
+			return;
+		}
+	}
+	cancelReorder();
+}
+
+void ListWidget::cancelReorder() {
+	_reorderState = {};
+	finishShiftAnimations();
+	_mouseAction = MouseAction::None;
+	update();
+}
+
+void ListWidget::updateShiftAnimations() {
+	if (_reorderState.index < 0 || _reorderState.targetIndex < 0) {
+		return;
+	}
+	const auto fromIndex = _reorderState.index;
+	const auto toIndex = _reorderState.targetIndex;
+	auto itemIndex = 0;
+	for (const auto &section : _sections) {
+		for (const auto &item : section.items()) {
+			if (itemIndex == fromIndex) {
+				++itemIndex;
+				continue;
+			}
+			auto targetShift = 0;
+			if (fromIndex < toIndex
+				&& itemIndex > fromIndex
+				&& itemIndex <= toIndex) {
+				targetShift = -1;
+			} else if (fromIndex > toIndex
+				&& itemIndex >= toIndex
+				&& itemIndex < fromIndex) {
+				targetShift = 1;
+			}
+			auto &animation = _shiftAnimations[itemIndex];
+			if (animation.targetShift != targetShift) {
+				animation.targetShift = targetShift;
+				const auto fromGeometry = itemGeometryByIndex(itemIndex);
+				const auto toGeometry = itemGeometryByIndex(itemIndex
+					+ targetShift);
+				if (!fromGeometry.isEmpty() && !toGeometry.isEmpty()) {
+					const auto deltaX = toGeometry.x() - fromGeometry.x();
+					const auto deltaY = toGeometry.y() - fromGeometry.y();
+					animation.xAnimation.start(
+						[=](float64 progress) {
+							item->setShiftX(progress);
+							update();
+						},
+						0,
+						deltaX,
+						st::slideWrapDuration);
+					animation.yAnimation.start(
+						[=](float64 progress) {
+							item->setShiftY(progress);
+							update();
+						},
+						0,
+						deltaY,
+						st::slideWrapDuration);
+				}
+				animation.shift = targetShift;
+			}
+			++itemIndex;
+		}
+	}
+}
+
+int ListWidget::itemIndexFromPoint(QPoint point) const {
+	if (_sections.empty()) {
+		return -1;
+	}
+	const auto found = findItemByPoint(point);
+	if (!found.exact) {
+		return -1;
+	}
+	auto index = 0;
+	for (const auto &section : _sections) {
+		for (const auto &item : section.items()) {
+			if (item == found.layout) {
+				return index;
+			}
+			++index;
+		}
+	}
+	return -1;
+}
+
+QRect ListWidget::itemGeometryByIndex(int index) {
+	if (index < 0) {
+		return QRect();
+	}
+	auto currentIndex = 0;
+	for (const auto &section : _sections) {
+		for (const auto &item : section.items()) {
+			if (currentIndex == index) {
+				return section.findItemDetails(item).geometry;
+			}
+			++currentIndex;
+		}
+	}
+	return QRect();
+}
+
+BaseLayout* ListWidget::itemByIndex(int index) {
+	if (index < 0) {
+		return nullptr;
+	}
+	auto currentIndex = 0;
+	for (const auto &section : _sections) {
+		for (const auto &item : section.items()) {
+			if (currentIndex == index) {
+				return item;
+			}
+			++currentIndex;
+		}
+	}
+	return nullptr;
+}
+
+bool ListWidget::canReorder() const {
+	return !!_reorderDescriptor.save;
+}
+
+void ListWidget::reorderItemsInSections(int oldIndex, int newIndex) {
+	if (oldIndex == newIndex || _sections.empty()) {
+		return;
+	}
+
+	auto currentIndex = 0;
+	auto oldSection = (Section*)(nullptr);
+	auto newSection = (Section*)(nullptr);
+	auto oldSectionIndex = -1;
+	auto newSectionIndex = -1;
+
+	for (auto &section : _sections) {
+		const auto sectionSize = int(section.items().size());
+		if (oldIndex >= currentIndex
+			&& oldIndex < currentIndex + sectionSize) {
+			oldSection = &section;
+			oldSectionIndex = oldIndex - currentIndex;
+		}
+		if (newIndex >= currentIndex
+			&& newIndex < currentIndex + sectionSize) {
+			newSection = &section;
+			newSectionIndex = newIndex - currentIndex;
+		}
+		currentIndex += sectionSize;
+	}
+
+	if (!oldSection || !newSection) {
+		return;
+	}
+
+	if (oldSection == newSection) {
+		oldSection->reorderItems(oldSectionIndex, newSectionIndex);
+		refreshHeight();
+	}
+}
+
+void ListWidget::resetAllItemShifts() {
+	for (auto &section : _sections) {
+		for (const auto &item : section.items()) {
+			item->setShiftX(0);
+			item->setShiftY(0);
+		}
+	}
+}
+
+void ListWidget::finishShiftAnimations() {
+	for (auto &[index, animation] : _shiftAnimations) {
+		const auto item = itemByIndex(index);
+		if (!item) {
+			continue;
+		}
+		const auto animating = animation.xAnimation.animating()
+			|| animation.yAnimation.animating();
+		const auto geometry = itemGeometryByIndex(index);
+		animation.xAnimation.stop();
+		animation.yAnimation.stop();
+		if (animating) {
+			++_activeShiftAnimations;
+			animation.xAnimation.start(
+				[=](float64 progress) {
+					if (item) item->setShiftX(progress);
+					update();
+					if (progress == 1.) {
+						--_activeShiftAnimations;
+						if (_activeShiftAnimations == 0) {
+							_shiftAnimations.clear();
+						}
+					}
+				},
+				animation.xAnimation.value(0),
+				0,
+				st::slideWrapDuration);
+			++_activeShiftAnimations;
+			animation.yAnimation.start(
+				[=](float64 progress) {
+					if (item) item->setShiftY(progress);
+					update();
+					if (progress == 1.) {
+						--_activeShiftAnimations;
+						if (_activeShiftAnimations == 0) {
+							_shiftAnimations.clear();
+						}
+					}
+				},
+				(animation.targetShift < 0)
+					? (item->shift().y() + geometry.height())
+					: (item->shift().y() - geometry.height()),
+				0,
+				st::slideWrapDuration);
+		}
+	}
+	if (_activeShiftAnimations == 0) {
+		_shiftAnimations.clear();
+	}
+	resetAllItemShifts();
 }
 
 ListWidget::~ListWidget() {

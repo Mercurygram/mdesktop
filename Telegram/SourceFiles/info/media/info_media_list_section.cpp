@@ -53,6 +53,10 @@ int ListSection::bottom() const {
 	return top() + height();
 }
 
+bool ListSection::isOneColumn() const {
+	return _itemsInRow == 1;
+}
+
 bool ListSection::addItem(not_null<BaseLayout*> item) {
 	if (_items.empty() || belongsHere(item)) {
 		if (_items.empty()) {
@@ -101,6 +105,11 @@ bool ListSection::removeItem(not_null<const HistoryItem*> item) {
 		return true;
 	}
 	return false;
+}
+
+void ListSection::reorderItems(int oldPosition, int newPosition) {
+	base::reorder(_items, oldPosition, newPosition);
+	refreshHeight();
 }
 
 QRect ListSection::findItemRect(
@@ -253,7 +262,11 @@ void ListSection::paint(
 		clip.y() + clip.height());
 	for (auto it = fromIt; it != tillIt; ++it) {
 		auto item = *it;
+		if (item == context.draggedItem) {
+			continue;
+		}
 		auto rect = findItemRect(item);
+		rect.translate(item->shift());
 		localContext.skipBorder = (rect.y() <= header + _itemsTop);
 		if (rect.intersects(clip)) {
 			p.translate(rect.topLeft());

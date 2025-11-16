@@ -70,6 +70,12 @@ public:
 	rpl::producer<SelectedItems> selectedListValue() const;
 	void selectionAction(SelectionAction action);
 
+	struct ReorderDescriptor {
+		Fn<void(int old, int pos, Fn<void()> done, Fn<void()> fail)> save;
+	};
+
+	void setReorderDescriptor(ReorderDescriptor descriptor);
+
 	QRect getCurrentSongGeometry();
 	rpl::producer<> checkForHide() const {
 		return _checkForHide.events();
@@ -113,6 +119,23 @@ private:
 		Dragging,
 		PrepareSelect,
 		Selecting,
+		PrepareReorder,
+		Reordering,
+	};
+	struct ReorderState {
+		bool enabled = false;
+		int index = -1;
+		int targetIndex = -1;
+		QPoint startPos;
+		QPoint dragPoint;
+		QPoint currentPos;
+		BaseLayout *item = nullptr;
+	};
+	struct ShiftAnimation {
+		Ui::Animations::Simple xAnimation;
+		Ui::Animations::Simple yAnimation;
+		int shift = 0;
+		int targetShift = 0;
 	};
 	struct MouseState {
 		HistoryItem *item = nullptr;
@@ -279,6 +302,19 @@ private:
 
 	void setupStoriesTrackIds();
 
+	void startReorder(const QPoint &globalPos);
+	void updateReorder(const QPoint &globalPos);
+	void finishReorder();
+	void cancelReorder();
+	void updateShiftAnimations();
+	[[nodiscard]] int itemIndexFromPoint(QPoint point) const;
+	[[nodiscard]] QRect itemGeometryByIndex(int index);
+	[[nodiscard]] BaseLayout *itemByIndex(int index);
+	[[nodiscard]] bool canReorder() const;
+	void reorderItemsInSections(int oldIndex, int newIndex);
+	void resetAllItemShifts();
+	void finishShiftAnimations();
+
 	const not_null<AbstractController*> _controller;
 	const std::unique_ptr<ListProvider> _provider;
 
@@ -326,6 +362,12 @@ private:
 	crl::time _trippleClickStartTime = 0;
 
 	base::flat_map<not_null<Main::Session*>, rpl::lifetime> _trackedSessions;
+
+	ReorderState _reorderState;
+	base::flat_map<int, ShiftAnimation> _shiftAnimations;
+	int _activeShiftAnimations = 0;
+	Ui::Animations::Simple _returnAnimation;
+	ReorderDescriptor _reorderDescriptor;
 
 };
 
