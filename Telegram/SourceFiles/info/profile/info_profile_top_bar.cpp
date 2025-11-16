@@ -462,7 +462,7 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 			&& (kMinContrast > Ui::CountContrast(color->c, *edgeColor));
 	};
 	const auto shouldOverrideTitle = shouldOverride(_title->st().textFg);
-	const auto shouldOverrideStatus = shouldOverride(_status->st().textFg);
+	const auto shouldOverrideStatus = shouldOverrideTitle; // shouldOverride(_status->st().textFg);
 	_title->setTextColorOverride(shouldOverrideTitle
 		? std::optional<QColor>(st::groupCallMembersFg->c)
 		: std::nullopt);
