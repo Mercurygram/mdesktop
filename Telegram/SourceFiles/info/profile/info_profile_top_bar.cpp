@@ -910,31 +910,6 @@ void TopBar::setupUserpicButton(
 		not_null<Window::SessionController*> controller) {
 	_userpicButton = base::make_unique_q<Ui::AbstractButton>(this);
 
-	const auto invalidate = [=] {
-		_userpicUniqueKey = InMemoryKey();
-		_userpicButton->setAttribute(
-			Qt::WA_TransparentForMouseEvents,
-			!_peer->userpicPhotoId() && !_hasStories);
-		updateVideoUserpic();
-	};
-
-	rpl::single(
-		rpl::empty_value()
-	) | rpl::then(
-		_peer->session().changes().peerFlagsValue(
-			_peer,
-			Data::PeerUpdate::Flag::Photo
-				| Data::PeerUpdate::Flag::FullInfo) | rpl::to_empty
-	) | rpl::start_with_next(invalidate, lifetime());
-
-	if (const auto broadcast = _peer->monoforumBroadcast()) {
-		_peer->session().changes().peerFlagsValue(
-			broadcast,
-			Data::PeerUpdate::Flag::Photo
-				| Data::PeerUpdate::Flag::FullInfo
-		) | rpl::to_empty | rpl::start_with_next(invalidate, lifetime());
-	}
-
 	const auto openPhoto = [=, peer = _peer] {
 		if (const auto id = peer->userpicPhotoId()) {
 			if (const auto photo = peer->owner().photo(id); photo->date()) {
@@ -967,12 +942,18 @@ void TopBar::setupUserpicButton(
 		return true;
 	};
 
-	const auto isContact = [=, peer = _peer] {
+	const auto canChangePhoto = [=, peer = _peer] {
 		if (const auto user = peer->asUser()) {
 			return user->isContact()
 				&& !user->isSelf()
 				&& !user->isInaccessible()
 				&& !user->isServiceUser();
+		}
+		if (const auto chat = peer->asChat()) {
+			return chat->canEditInformation();
+		}
+		if (const auto channel = peer->asChannel()) {
+			return channel->canEditInformation();
 		}
 		return false;
 	};
@@ -987,9 +968,53 @@ void TopBar::setupUserpicButton(
 		return false;
 	};
 
-	const auto choosePhotoCallback = [=](Ui::UserpicButton::ChosenType type) {
+	const auto hasMenu = [=] {
+		if (canChangePhoto()) {
+			return true;
+		}
+		if (canSuggestPhoto()) {
+			return true;
+		}
+		if (_hasStories || canReport()) {
+			return !!_peer->userpicPhotoId();
+		}
+		return false;
+	};
+
+	const auto invalidate = [=] {
+		_userpicUniqueKey = InMemoryKey();
+		const auto hasLeftButton = _peer->userpicPhotoId() || _hasStories;
+		_userpicButton->setAttribute(
+			Qt::WA_TransparentForMouseEvents,
+			!hasLeftButton && !hasMenu());
+		_userpicButton->setPointerCursor(hasLeftButton);
+		updateVideoUserpic();
+		Ui::PostponeCall(this, [=] {
+			update();
+		});
+	};
+
+	rpl::single(
+		rpl::empty_value()
+	) | rpl::then(
+		_peer->session().changes().peerFlagsValue(
+			_peer,
+			Data::PeerUpdate::Flag::Photo
+				| Data::PeerUpdate::Flag::FullInfo) | rpl::to_empty
+	) | rpl::start_with_next(invalidate, lifetime());
+
+	if (const auto broadcast = _peer->monoforumBroadcast()) {
+		_peer->session().changes().peerFlagsValue(
+			broadcast,
+			Data::PeerUpdate::Flag::Photo
+				| Data::PeerUpdate::Flag::FullInfo
+		) | rpl::to_empty | rpl::start_with_next(invalidate, lifetime());
+	}
+
+	using ChosenType = Ui::UserpicButton::ChosenType;
+
+	const auto choosePhotoCallback = [=](ChosenType type) {
 		return [=](QImage &&image) {
-			using ChosenType = Ui::UserpicButton::ChosenType;
 			auto result = Api::PeerPhoto::UserPhoto{
 				std::move(image),
 				0,
@@ -1010,12 +1035,12 @@ void TopBar::setupUserpicButton(
 		};
 	};
 
-	const auto editorData = [=](Ui::UserpicButton::ChosenType type) {
+	const auto editorData = [=](ChosenType type) {
 		const auto user = _peer->asUser();
 		const auto name = (user && !user->firstName.isEmpty())
 			? user->firstName
 			: _peer->name();
-		const auto phrase = (type == Ui::UserpicButton::ChosenType::Suggest)
+		const auto phrase = (type == ChosenType::Suggest)
 			? &tr::lng_profile_suggest_sure
 			: &tr::lng_profile_set_personal_sure;
 		return Editor::EditorData{
@@ -1024,7 +1049,7 @@ void TopBar::setupUserpicButton(
 				lt_user,
 				Ui::Text::Bold(name),
 				Ui::Text::WithEntities),
-			.confirm = ((type == Ui::UserpicButton::ChosenType::Suggest)
+			.confirm = ((type == ChosenType::Suggest)
 				? tr::lng_profile_suggest_button(tr::now)
 				: tr::lng_profile_set_photo_button(tr::now)),
 			.cropType = Editor::EditorData::CropType::Ellipse,
@@ -1032,7 +1057,7 @@ void TopBar::setupUserpicButton(
 		};
 	};
 
-	const auto chooseFile = [=](Ui::UserpicButton::ChosenType type) {
+	const auto chooseFile = [=](ChosenType type) {
 		base::call_delayed(
 			st::defaultRippleAnimation.hideDuration,
 			crl::guard(this, [=] {
@@ -1046,7 +1071,7 @@ void TopBar::setupUserpicButton(
 
 	const auto addFromClipboard = [=](
 			Ui::PopupMenu *menu,
-			Ui::UserpicButton::ChosenType type,
+			ChosenType type,
 			tr::phrase<> text) {
 		if (const auto data = QGuiApplication::clipboard()->mimeData()) {
 			if (data->hasImage()) {
@@ -1068,9 +1093,7 @@ void TopBar::setupUserpicButton(
 
 	_userpicButton->clicks() | rpl::start_with_next([=](
 			Qt::MouseButton button) {
-		if (button == Qt::RightButton
-			&& (_hasStories || canReport() || isContact())
-			&& _peer->userpicPhotoId()) {
+		if (button == Qt::RightButton && hasMenu()) {
 			*menu = base::make_unique_q<Ui::PopupMenu>(
 				this,
 				st::popupMenuWithIcons);
@@ -1095,32 +1118,48 @@ void TopBar::setupUserpicButton(
 					&st::menuIconReport);
 			}
 
-			if (isContact()) {
+			if (canChangePhoto()) {
 				if (!(*menu)->empty()) {
 					(*menu)->addSeparator(&st::expandedMenuSeparator);
 				}
-				(*menu)->addAction(
-					tr::lng_profile_set_photo_for(tr::now),
-					[=] { chooseFile(Ui::UserpicButton::ChosenType::Set); },
-					&st::menuIconPhotoSet);
-				addFromClipboard(
-					menu->get(),
-					Ui::UserpicButton::ChosenType::Set,
-					tr::lng_profile_set_photo_for_from_clipboard);
-				if (canSuggestPhoto()) {
+				const auto isUser = _peer->asUser();
+				if (isUser) {
 					(*menu)->addAction(
-						tr::lng_profile_suggest_photo(tr::now),
-						[=] {
-							chooseFile(
-								Ui::UserpicButton::ChosenType::Suggest);
-						},
-						&st::menuIconPhotoSuggest);
+						tr::lng_profile_set_photo_for(tr::now),
+						[=] { chooseFile(ChosenType::Set); },
+						&st::menuIconPhotoSet);
 					addFromClipboard(
 						menu->get(),
-						Ui::UserpicButton::ChosenType::Suggest,
-						tr::lng_profile_suggest_photo_from_clipboard);
+						ChosenType::Set,
+						tr::lng_profile_set_photo_for_from_clipboard);
+					if (canSuggestPhoto()) {
+						(*menu)->addAction(
+							tr::lng_profile_suggest_photo(tr::now),
+							[=] {
+								chooseFile(
+									ChosenType::Suggest);
+							},
+							&st::menuIconPhotoSuggest);
+						addFromClipboard(
+								menu->get(),
+								ChosenType::Suggest,
+								tr::lng_profile_suggest_photo_from_clipboard);
+					}
+				} else {
+					const auto channel = _peer->asChannel();
+					const auto isChannel = channel && !channel->isMegagroup();
+					(*menu)->addAction(
+						isChannel
+							? tr::lng_profile_set_photo_for_channel(tr::now)
+							: tr::lng_profile_set_photo_for_group(tr::now),
+						[=] { chooseFile(ChosenType::Set); },
+						&st::menuIconPhotoSet);
+					addFromClipboard(
+						menu->get(),
+						ChosenType::Set,
+						tr::lng_profile_set_photo_for_from_clipboard);
 				}
-				if (controller) {
+				if (controller && isUser) {
 					const auto done = [=](UserpicBuilder::Result data) {
 						auto result = Api::PeerPhoto::UserPhoto{
 							base::take(data.image),
