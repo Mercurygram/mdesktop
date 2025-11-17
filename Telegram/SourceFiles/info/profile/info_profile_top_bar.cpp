@@ -84,6 +84,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/labels.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
 #include "ui/widgets/popup_menu.h"
+#include "ui/widgets/tooltip.h"
 #include "ui/wrap/fade_wrap.h"
 #include "window/themes/window_theme.h"
 #include "window/window_peer_menu.h"
@@ -102,6 +103,41 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Info::Profile {
 namespace {
+
+class Userpic final
+	: public Ui::AbstractButton
+	, public Ui::AbstractTooltipShower {
+public:
+	Userpic(QWidget *parent, Fn<bool()> hasStories)
+	: Ui::AbstractButton(parent)
+	, _hasStories(std::move(hasStories)) {
+		installEventFilter(this);
+	}
+
+	QString tooltipText() const override {
+		return _hasStories() ? tr::lng_view_button_story(tr::now) : QString();
+	}
+
+	QPoint tooltipPos() const override {
+		return QCursor::pos();
+	}
+
+	bool tooltipWindowActive() const override {
+		return Ui::AppInFocus() && Ui::InFocusChain(window());
+	}
+
+protected:
+	bool eventFilter(QObject *obj, QEvent *e) override {
+		if (obj == this && e->type() == QEvent::Enter && _hasStories()) {
+			Ui::Tooltip::Show(1000, this);
+		}
+		return Ui::AbstractButton::eventFilter(obj, e);
+	}
+
+private:
+	Fn<bool()> _hasStories;
+
+};
 
 constexpr auto kWaitBeforeGiftBadge = crl::time(1000);
 constexpr auto kGiftBadgeGlares = 3;
@@ -908,7 +944,9 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 
 void TopBar::setupUserpicButton(
 		not_null<Window::SessionController*> controller) {
-	_userpicButton = base::make_unique_q<Ui::AbstractButton>(this);
+	_userpicButton = base::make_unique_q<Userpic>(
+		this,
+		[=] { return _hasStories; });
 
 	const auto openPhoto = [=, peer = _peer] {
 		if (const auto id = peer->userpicPhotoId()) {
