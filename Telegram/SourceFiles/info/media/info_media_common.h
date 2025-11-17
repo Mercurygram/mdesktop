@@ -70,6 +70,11 @@ struct ListFoundItem {
 	bool exact = false;
 };
 
+struct ListFoundItemWithSection {
+	ListFoundItem item;
+	not_null<const ListSection*> section;
+};
+
 struct CachedItem {
 	CachedItem(std::unique_ptr<BaseLayout> item) : item(std::move(item)) {
 	};

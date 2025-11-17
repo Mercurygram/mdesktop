@@ -720,7 +720,8 @@ int ListWidget::resizeGetHeight(int newWidth) {
 	return recountHeight();
 }
 
-auto ListWidget::findItemByPoint(QPoint point) const -> FoundItem {
+auto ListWidget::findSectionAndItem(QPoint point) const
+		-> std::pair<std::vector<Section>::const_iterator, FoundItem> {
 	Expects(!_sections.empty());
 
 	auto sectionIt = findSectionAfterTop(point.y());
@@ -728,9 +729,22 @@ auto ListWidget::findItemByPoint(QPoint point) const -> FoundItem {
 		--sectionIt;
 	}
 	auto shift = QPoint(0, sectionIt->top());
-	return foundItemInSection(
-		sectionIt->findItemByPoint(point - shift),
-		*sectionIt);
+	return {
+		sectionIt,
+		foundItemInSection(
+			sectionIt->findItemByPoint(point - shift),
+			*sectionIt)
+	};
+}
+
+auto ListWidget::findItemByPoint(QPoint point) const -> FoundItem {
+	return findSectionAndItem(point).second;
+}
+
+auto ListWidget::findItemByPointWithSection(QPoint point) const
+		-> ListFoundItemWithSection {
+	auto [sectionIt, item] = findSectionAndItem(point);
+	return { item, &(*sectionIt) };
 }
 
 auto ListWidget::findItemByItem(const HistoryItem *item)
