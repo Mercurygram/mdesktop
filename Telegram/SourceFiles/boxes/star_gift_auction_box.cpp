@@ -300,9 +300,13 @@ object_ptr<RpWidget> MakeAuctionInfoBlocks(
 	auto bidTitle = rpl::duplicate(
 		stateValue
 	) | rpl::map([=](const Data::GiftAuctionState &state) {
-		return TextWithEntities{
-			star
-		}.append(' ').append(Lang::FormatCountDecimal(state.minBidAmount));
+		const auto count = int(state.minBidAmount);
+		const auto text = (count >= 10'000'000)
+			? Lang::FormatCountToShort(count).string
+			: (count >= 1000'000)
+			? Lang::FormatCountToShort(count, true).string
+			: Lang::FormatCountDecimal(count);
+		return tr::marked(star).append(' ').append(text);
 	});
 	auto minimal = rpl::duplicate(
 		stateValue
