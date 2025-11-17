@@ -173,7 +173,7 @@ void SavedMusic::reorder(int oldPosition, int newPosition) {
 	base::reorder(entry.list, oldPosition, newPosition);
 
 	const auto afterDocument = (newPosition > 0)
-		? ItemDocument(entry.list[newPosition - 1])
+		? ItemDocument(entry.list[newPosition - 1]).get()
 		: nullptr;
 
 	_owner->session().api().request(MTPaccount_SaveMusic(
