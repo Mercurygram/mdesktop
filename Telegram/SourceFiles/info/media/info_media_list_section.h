@@ -26,11 +26,13 @@ public:
 
 	void setTop(int top);
 	[[nodiscard]] int top() const;
+	void setCanReorder(bool);
 	void resizeToWidth(int newWidth);
 	[[nodiscard]] int height() const;
 
 	[[nodiscard]] int bottom() const;
 	[[nodiscard]] bool isOneColumn() const;
+	[[nodiscard]] int oneColumnRightPadding() const;
 
 	bool removeItem(not_null<const HistoryItem*> item);
 	void reorderItems(int oldPosition, int newPosition);
@@ -89,6 +91,7 @@ private:
 	mutable int _rowsCount = 0;
 	int _top = 0;
 	int _height = 0;
+	bool _canReorder = false;
 
 	Mosaic::Layout::MosaicLayout<BaseLayout> _mosaic;
 

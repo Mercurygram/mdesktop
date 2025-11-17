@@ -132,6 +132,7 @@ private:
 		QPoint dragPoint;
 		QPoint currentPos;
 		BaseLayout *item = nullptr;
+		const Section *section = nullptr;
 	};
 	struct ShiftAnimation {
 		Ui::Animations::Simple xAnimation;
@@ -373,6 +374,7 @@ private:
 	int _activeShiftAnimations = 0;
 	Ui::Animations::Simple _returnAnimation;
 	ReorderDescriptor _reorderDescriptor;
+	bool _inDragArea = false;
 
 };
 

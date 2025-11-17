@@ -73,6 +73,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_menu_icons.h"
 #include "styles/style_chat.h"
 #include "styles/style_credits.h" // giftBoxHiddenMark
+#include "styles/style_chat_helpers.h"
 
 #include <QtWidgets/QApplication>
 #include <QtGui/QClipboard>
@@ -395,6 +396,8 @@ void ListWidget::restart() {
 	_heavyLayouts.clear();
 
 	_provider->restart();
+
+	_reorderState = {};
 }
 
 void ListWidget::itemRemoved(not_null<const HistoryItem*> item) {
@@ -404,6 +407,10 @@ void ListWidget::itemRemoved(not_null<const HistoryItem*> item) {
 
 	if (_contextItem == item) {
 		_contextItem = nullptr;
+	}
+
+	if (_reorderState.item && _reorderState.item->getItem() == item) {
+		_reorderState = {};
 	}
 
 	auto needHeightRefresh = false;
@@ -673,6 +680,7 @@ void ListWidget::markStoryMsgsSelected() {
 void ListWidget::refreshRows() {
 	saveScrollState();
 
+	_reorderState = {};
 	_sections.clear();
 	_sections = _provider->fillSections(this);
 
@@ -714,6 +722,7 @@ void ListWidget::restoreState(not_null<Memento*> memento) {
 int ListWidget::resizeGetHeight(int newWidth) {
 	if (newWidth > 0) {
 		for (auto &section : _sections) {
+			section.setCanReorder(canReorder());
 			section.resizeToWidth(newWidth);
 		}
 	}
@@ -985,6 +994,8 @@ void ListWidget::paintEvent(QPaintEvent *e) {
 	if (_mouseAction == MouseAction::Reordering && _reorderState.item) {
 		auto o = ScopedPainterOpacity(p, 0.8);
 		p.translate(_reorderState.currentPos);
+		const auto isOneColumn = _reorderState.section
+			&& _reorderState.section->isOneColumn();
 		_reorderState.item->paint(
 			p,
 			QRect(
@@ -992,8 +1003,18 @@ void ListWidget::paintEvent(QPaintEvent *e) {
 				0,
 				_reorderState.item->maxWidth(),
 				_reorderState.item->minHeight()),
-			FullSelection,
+			isOneColumn ? TextSelection{} : FullSelection,
 			&context.layoutContext);
+
+		if (isOneColumn) {
+			st::stickersReorderIcon.paint(
+				p,
+				width()
+					- _reorderState.section->oneColumnRightPadding() * 2,
+				(_reorderState.item->minHeight()
+					- st::stickersReorderIcon.height()) / 2,
+				outerWidth);
+		}
 		p.translate(-_reorderState.currentPos);
 	}
 
@@ -1769,7 +1790,11 @@ void ListWidget::mouseActionUpdate(const QPoint &globalPosition) {
 
 	auto local = mapFromGlobal(_mousePosition);
 	auto point = clampMousePosition(local);
-	auto [layout, geometry, inside] = findItemByPoint(point);
+	auto [foundItem, section] = findItemByPointWithSection(point);
+	auto [layout, geometry, inside] = std::tie(
+		foundItem.layout,
+		foundItem.geometry,
+		foundItem.exact);
 	auto state = MouseState{
 		layout->getItem(),
 		geometry.size(),
@@ -1782,6 +1807,19 @@ void ListWidget::mouseActionUpdate(const QPoint &globalPosition) {
 		repaintItem(geometry);
 	}
 	_overState = state;
+
+	const auto inDragArea = canReorder()
+		&& section
+		&& section->isOneColumn()
+		&& point.y() >= geometry.y()
+		&& point.y() < geometry.bottom()
+		&& ((point.x() - geometry.x())
+			>= (geometry.width()
+				- section->oneColumnRightPadding()
+				- st::stickersReorderSkip));
+	if (_inDragArea != inDragArea) {
+		_inDragArea = inDragArea;
+	}
 
 	TextState dragState;
 	ClickHandlerHost *lnkhost = nullptr;
@@ -1870,7 +1908,9 @@ void ListWidget::mouseActionUpdate(const QPoint &globalPosition) {
 }
 
 style::cursor ListWidget::computeMouseCursor() const {
-	if (ClickHandler::getPressed() || ClickHandler::getActive()) {
+	if (_inDragArea && canReorder()) {
+		return style::cur_sizeall;
+	} else if (ClickHandler::getPressed() || ClickHandler::getActive()) {
 		return style::cur_pointer;
 	} else if (!hasSelectedItems()
 		&& (_mouseCursorState == CursorState::Text)) {
@@ -1953,6 +1993,13 @@ void ListWidget::mouseActionStart(
 		Ui::MarkInactivePress(
 			_controller->parentController()->widget(),
 			false);
+	}
+
+	if (_inDragArea && canReorder() && !hasSelected()) {
+		startReorder(globalPosition);
+		if (_mouseAction == MouseAction::PrepareReorder) {
+			return;
+		}
 	}
 
 	if (ClickHandler::getPressed() && !hasSelected()) {
@@ -2297,16 +2344,23 @@ void ListWidget::startReorder(const QPoint &globalPos) {
 		return;
 	}
 	const auto mapped = mapFromGlobal(globalPos);
-	const auto index = itemIndexFromPoint(mapped);
+	const auto foundWithSection = findItemByPointWithSection(mapped);
+	if (!foundWithSection.section) {
+		return;
+	}
+	if (foundWithSection.section->isOneColumn()
+		? !_inDragArea
+		: !foundWithSection.item.exact) {
+		return;
+	}
+	const auto index = itemIndexFromPoint(mapped
+		- QPoint(foundWithSection.section->oneColumnRightPadding(), 0));
 	if (index < 0) {
 		return;
 	}
-	const auto found = findItemByPoint(mapped);
-	if (!found.exact) {
-		return;
-	}
+
 	if (_reorderDescriptor.filter) {
-		const auto item = found.layout->getItem();
+		const auto item = foundWithSection.item.layout->getItem();
 		if (!_reorderDescriptor.filter(item)) {
 			return;
 		}
@@ -2315,8 +2369,10 @@ void ListWidget::startReorder(const QPoint &globalPos) {
 	_reorderState.index = index;
 	_reorderState.targetIndex = index;
 	_reorderState.startPos = globalPos;
-	_reorderState.dragPoint = mapped - found.geometry.topLeft();
-	_reorderState.item = found.layout;
+	_reorderState.dragPoint = mapped
+		- foundWithSection.item.geometry.topLeft();
+	_reorderState.item = foundWithSection.item.layout;
+	_reorderState.section = foundWithSection.section;
 	_mouseAction = MouseAction::PrepareReorder;
 }
 

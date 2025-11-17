@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "storage/storage_shared_media.h"
 #include "layout/layout_selection.h"
+#include "ui/rect.h"
 #include "ui/painter.h"
 #include "styles/style_chat_helpers.h"
 #include "styles/style_info.h"
@@ -43,6 +44,10 @@ void ListSection::setTop(int top) {
 
 int ListSection::top() const {
 	return _top;
+}
+
+void ListSection::setCanReorder(bool value) {
+	_canReorder = value;
 }
 
 int ListSection::height() const {
@@ -276,6 +281,15 @@ void ListSection::paint(
 				itemSelection(item, context),
 				&localContext);
 			p.translate(-rect.topLeft());
+
+			if (_canReorder && isOneColumn()) {
+				st::stickersReorderIcon.paint(
+					p,
+					rect::right(rect) - oneColumnRightPadding(),
+					(rect.height() - st::stickersReorderIcon.height()) / 2
+						+ rect.y(),
+					outerWidth);
+			}
 		}
 	}
 }
@@ -334,6 +348,14 @@ int ListSection::headerHeight() const {
 	return _header.isEmpty() ? 0 : st::infoMediaHeaderHeight;
 }
 
+int ListSection::oneColumnRightPadding() const {
+	return !isOneColumn()
+		? 0
+		: _canReorder
+		? st::stickersReorderIcon.width() + st::infoMediaLeft
+		: 0;
+}
+
 void ListSection::resizeToWidth(int newWidth) {
 	auto minWidth = st::infoMediaMinGridSize + st::infoMediaSkip * 2;
 	if (newWidth < minWidth) {
@@ -341,12 +363,13 @@ void ListSection::resizeToWidth(int newWidth) {
 	}
 
 	auto resizeOneColumn = [&](int itemsLeft, int itemWidth) {
+		const auto rightPadding = oneColumnRightPadding();
 		_itemsLeft = itemsLeft;
 		_itemsTop = 0;
 		_itemsInRow = 1;
-		_itemWidth = itemWidth;
+		_itemWidth = itemWidth - rightPadding;
 		for (auto &item : _items) {
-			item->resizeGetHeight(_itemWidth);
+			item->resizeGetHeight(_itemWidth - rightPadding);
 		}
 	};
 	switch (_type) {
