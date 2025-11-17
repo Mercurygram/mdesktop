@@ -2343,7 +2343,8 @@ void TopBar::paintPinnedToTopGifts(
 
 void TopBar::setupStoryOutline(const QRect &geometry) {
 	const auto user = _peer->asUser();
-	if (!user) {
+	const auto channel = _peer->asChannel();
+	if (!user && !channel) {
 		return;
 	}
 
@@ -2352,18 +2353,18 @@ void TopBar::setupStoryOutline(const QRect &geometry) {
 		rpl::merge(
 			rpl::single(rpl::empty_value()),
 			style::PaletteChanged(),
-			user->session().changes().peerUpdates(
+			_peer->session().changes().peerUpdates(
 				Data::PeerUpdate::Flag::StoriesState
 					| Data::PeerUpdate::Flag::ColorProfile
 			) | rpl::filter([=](const Data::PeerUpdate &update) {
-				return update.peer == user;
+				return update.peer == _peer;
 			}) | rpl::to_empty)
 	) | rpl::start_with_next([=](
 			std::optional<QColor> edgeColor,
 			rpl::empty_value) {
 		const auto geometry = QRectF(userpicGeometry());
 		const auto colorProfile
-			= user->session().api().peerColors().colorProfileFor(user);
+			= _peer->session().api().peerColors().colorProfileFor(_peer);
 		const auto hasProfileColor = colorProfile
 			&& colorProfile->story.size() > 1;
 		if (hasProfileColor) {
@@ -2381,16 +2382,17 @@ void TopBar::setupStoryOutline(const QRect &geometry) {
 
 void TopBar::updateStoryOutline(std::optional<QColor> edgeColor) {
 	const auto user = _peer->asUser();
-	if (!user) {
+	const auto channel = _peer->asChannel();
+	if (!user && !channel) {
 		return;
 	}
 
 	const auto hasActiveStories = (_source == Source::Preview)
 		? true
-		: user->hasActiveStories();
+		: (user ? user->hasActiveStories() : channel->hasActiveStories());
 	const auto hasLiveStories = (_source == Source::Preview)
 		? false
-		: user->hasActiveVideoStream();
+		: (user ? user->hasActiveVideoStream() : false);
 
 	if (_hasStories != hasActiveStories
 		|| _hasLiveStories != hasLiveStories) {
@@ -2429,8 +2431,8 @@ void TopBar::updateStoryOutline(std::optional<QColor> edgeColor) {
 		return;
 	}
 
-	const auto &stories = user->owner().stories();
-	const auto source = stories.source(user->id);
+	const auto &stories = _peer->owner().stories();
+	const auto source = stories.source(_peer->id);
 	if (!source) {
 		return;
 	}
