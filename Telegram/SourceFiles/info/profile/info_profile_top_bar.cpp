@@ -1027,6 +1027,13 @@ void TopBar::setupUserpicButton(
 			!hasLeftButton && !hasMenu());
 		_userpicButton->setPointerCursor(hasLeftButton);
 		updateVideoUserpic();
+		_peer->session().downloaderTaskFinished(
+		) | rpl::filter([=] {
+			return !Ui::PeerUserpicLoading(_userpicView);
+		}) | rpl::start_with_next([=] {
+			update();
+			_userpicLoadingLifetime.destroy();
+		}, _userpicLoadingLifetime);
 		Ui::PostponeCall(this, [=] {
 			update();
 		});
