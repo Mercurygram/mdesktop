@@ -444,7 +444,7 @@ void ContentWidget::refreshSearchField(bool shown) {
 		view->show();
 		_searchField->setFocus();
 		setScrollTopSkip(view->heightNoMargins() - st::lineWidth);
-	} else {
+	} else if (_searchWrap) {
 		if (Ui::InFocusChain(this)) {
 			setFocus();
 		}
