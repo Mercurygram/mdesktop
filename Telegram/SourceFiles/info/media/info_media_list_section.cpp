@@ -119,13 +119,13 @@ void ListSection::reorderItems(int oldPosition, int newPosition) {
 
 QRect ListSection::findItemRect(
 		not_null<const BaseLayout*> item) const {
-	auto position = item->position();
+	const auto position = item->position();
 	if (!_mosaic.empty()) {
 		return _mosaic.findRect(position);
 	}
-	auto top = position / _itemsInRow;
-	auto indexInRow = position % _itemsInRow;
-	auto left = _itemsLeft
+	const auto top = position / _itemsInRow;
+	const auto indexInRow = position % _itemsInRow;
+	const auto left = _itemsLeft
 		+ indexInRow * (_itemWidth + st::infoMediaSkip);
 	return QRect(left, top, _itemWidth, item->height());
 }
@@ -236,7 +236,7 @@ void ListSection::paint(
 		const ListContext &context,
 		QRect clip,
 		int outerWidth) const {
-	auto header = headerHeight();
+	const auto header = headerHeight();
 	if (QRect(0, 0, outerWidth, header).intersects(clip)) {
 		p.setPen(st::infoMediaHeaderFg);
 		_header.drawLeftElided(
@@ -248,7 +248,7 @@ void ListSection::paint(
 	}
 	auto localContext = context.layoutContext;
 	if (!_mosaic.empty()) {
-		auto paintItem = [&](not_null<BaseLayout*> item, QPoint point) {
+		const auto paintItem = [&](not_null<BaseLayout*> item, QPoint point) {
 			p.translate(point.x(), point.y());
 			item->paint(
 				p,
@@ -261,12 +261,12 @@ void ListSection::paint(
 		return;
 	}
 
-	auto fromIt = findItemAfterTop(clip.y());
-	auto tillIt = findItemAfterBottom(
+	const auto fromIt = findItemAfterTop(clip.y());
+	const auto tillIt = findItemAfterBottom(
 		fromIt,
 		clip.y() + clip.height());
 	for (auto it = fromIt; it != tillIt; ++it) {
-		auto item = *it;
+		const auto item = *it;
 		if (item == context.draggedItem) {
 			continue;
 		}
@@ -329,16 +329,16 @@ TextSelection ListSection::itemSelection(
 		not_null<const BaseLayout*> item,
 		const ListContext &context) const {
 	const auto parent = item->getItem();
-	auto dragSelectAction = context.dragSelectAction;
+	const auto dragSelectAction = context.dragSelectAction;
 	if (dragSelectAction != ListDragSelectAction::None) {
-		auto i = context.dragSelected->find(parent);
+		const auto i = context.dragSelected->find(parent);
 		if (i != context.dragSelected->end()) {
 			return (dragSelectAction == ListDragSelectAction::Selecting)
 				? FullSelection
 				: TextSelection();
 		}
 	}
-	auto i = context.selected->find(parent);
+	const auto i = context.selected->find(parent);
 	return (i == context.selected->cend())
 		? TextSelection()
 		: i->second.text;
@@ -357,12 +357,12 @@ int ListSection::oneColumnRightPadding() const {
 }
 
 void ListSection::resizeToWidth(int newWidth) {
-	auto minWidth = st::infoMediaMinGridSize + st::infoMediaSkip * 2;
+	const auto minWidth = st::infoMediaMinGridSize + st::infoMediaSkip * 2;
 	if (newWidth < minWidth) {
 		return;
 	}
 
-	auto resizeOneColumn = [&](int itemsLeft, int itemWidth) {
+	const auto resizeOneColumn = [&](int itemsLeft, int itemWidth) {
 		const auto rightPadding = oneColumnRightPadding();
 		_itemsLeft = itemsLeft;
 		_itemsTop = 0;
@@ -401,8 +401,8 @@ void ListSection::resizeToWidth(int newWidth) {
 		break;
 	case Type::File:
 	case Type::Link: {
-		auto itemsLeft = st::infoMediaHeaderPosition.x();
-		auto itemWidth = newWidth - 2 * itemsLeft;
+		const auto itemsLeft = st::infoMediaHeaderPosition.x();
+		const auto itemWidth = newWidth - 2 * itemsLeft;
 		resizeOneColumn(itemsLeft, itemWidth);
 	} break;
 	}
@@ -418,7 +418,7 @@ int ListSection::recountHeight() {
 	case Type::Video:
 	case Type::PhotoVideo:
 	case Type::RoundFile: {
-		auto itemHeight = _itemHeight + st::infoMediaSkip;
+		const auto itemHeight = _itemHeight + st::infoMediaSkip;
 		auto index = 0;
 		result += _itemsTop;
 		for (auto &item : _items) {
