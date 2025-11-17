@@ -845,6 +845,8 @@ void AuctionGotGiftsBox(
 		tr::lng_auction_bought_title(lt_count, rpl::single(count * 1.)));
 	box->setWidth(st::boxWideWidth);
 	box->setMaxHeight(st::boxWideWidth * 2);
+	box->addButton(tr::lng_box_ok(), [=] { box->closeBox(); });
+	box->addTopButton(st::boxTitleClose, [=] { box->closeBox(); });
 
 	auto helper = Text::CustomEmojiHelper(Core::TextContext({
 		.session = &show->session(),
