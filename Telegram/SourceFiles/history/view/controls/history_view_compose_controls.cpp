@@ -30,6 +30,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/notify/data_notify_settings.h"
 #include "data/data_changes.h"
 #include "data/data_drafts.h"
+#include "data/data_group_call.h"
 #include "data/data_messages.h"
 #include "data/data_message_reactions.h"
 #include "data/data_saved_sublist.h"
@@ -1090,9 +1091,12 @@ void ComposeControls::initLikeButton() {
 }
 
 void ComposeControls::initEditStarsButton() {
-	if (!_features.editMessageStars) {
+	if (!editStarsButtonShown()) {
 		delete base::take(_editStars);
-		_chosenStarsCount = std::nullopt;
+		if (_chosenStarsCount) {
+			_chosenStarsCount = std::nullopt;
+			updateSendButtonType();
+		}
 		return;
 	}
 	if (_chosenStarsCount.value_or(0) < _minStarsCount.current()) {
@@ -1908,7 +1912,7 @@ bool ComposeControls::showRecordButton() const {
 }
 
 bool ComposeControls::showEditStarsButton() const {
-	return _features.editMessageStars
+	return editStarsButtonShown()
 		&& !HasSendText(_field)
 		&& !readyToForward()
 		&& !isEditingMessage()
@@ -1925,13 +1929,17 @@ void ComposeControls::clearListenState() {
 }
 
 void ComposeControls::clearChosenStarsForMessage() {
-	const auto empty = _features.editMessageStars
+	const auto empty = editStarsButtonShown()
 		? _minStarsCount.current()
 		: std::optional<int>();
 	if (_chosenStarsCount != empty) {
 		_chosenStarsCount = empty;
 		updateSendButtonType();
 	}
+}
+
+bool ComposeControls::editStarsButtonShown() const {
+	return _features.editMessageStars && !_videoStreamAdmin.current();
 }
 
 int ComposeControls::chosenStarsForMessage() const {
@@ -3254,6 +3262,7 @@ bool ComposeControls::updateSendAsButton(
 		if (!_sendAs) {
 			return false;
 		}
+		_videoStreamAdmin = false;
 		_sendAs = nullptr;
 		return true;
 	} else if (_sendAs) {
@@ -3263,8 +3272,18 @@ bool ComposeControls::updateSendAsButton(
 	_sendAs = std::make_unique<Ui::SendAsButton>(_wrap.get(), st.button);
 	if (videoStream) {
 		Ui::SetupSendAsButton(_sendAs.get(), st, videoStream, _show);
+		_videoStreamAdmin = videoStream->sendAsValue(
+		) | rpl::map([=](not_null<PeerData*> peer) {
+			return (videoStream->peer() == peer)
+				|| (videoStream->creator() && peer->isSelf());
+		}) | rpl::distinct_until_changed(
+		) | rpl::after_next([=](bool admin) {
+			initEditStarsButton();
+			updateControlsGeometry(_wrap->size());
+		});
 	} else {
 		Ui::SetupSendAsButton(_sendAs.get(), st, rpl::single(peer), _show);
+		_videoStreamAdmin = false;
 	}
 	return true;
 }
