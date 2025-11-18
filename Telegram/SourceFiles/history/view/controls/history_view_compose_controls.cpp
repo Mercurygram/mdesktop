@@ -1128,22 +1128,27 @@ void ComposeControls::editStarsFrom(int selected) {
 	}));
 }
 
-void ComposeControls::updateLikeParent() {
-	if (_like) {
-		using namespace Controls;
-		const auto hidden = _like->isHidden();
-		const auto &restriction = _writeRestriction.current();
-		if (_writeRestricted
-			&& restriction.type == WriteRestrictionType::PremiumRequired) {
-			_like->setParent(_writeRestricted.get());
+void ComposeControls::updateControlsParents() {
+	const auto toggle = [&](auto &&control, bool inRestriction) {
+		if (!control) {
+			return;
+		}
+		const auto hidden = control->isHidden();
+		if (_writeRestricted && inRestriction) {
+			control->setParent(_writeRestricted.get());
 		} else {
-			_like->setParent(_wrap.get());
+			control->setParent(_wrap.get());
 		}
 		if (!hidden) {
-			_like->show();
+			control->show();
 			updateControlsGeometry(_wrap->size());
 		}
-	}
+	};
+	using Type = Controls::WriteRestrictionType;
+	const auto &restriction = _writeRestriction.current();
+	toggle(_like, restriction.type == Type::PremiumRequired);
+	toggle(_commentsShown, restriction.type != Type::None);
+	toggle(_starsReaction, restriction.type != Type::None);
 }
 
 void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
@@ -1156,7 +1161,7 @@ void ComposeControls::updateFeatures(ChatHelpers::ComposeFeatures features) {
 		} else {
 			_like = Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.like);
 			initLikeButton();
-			updateLikeParent();
+			updateControlsParents();
 			if (updateLikeShown()) {
 				updateControlsVisibility();
 			}
@@ -1285,19 +1290,26 @@ void ComposeControls::setToggleCommentsButton(
 		_commentsShown->setClickedCallback([=] {
 			_commentsShownToggles.fire({});
 		});
+		updateControlsParents();
+		_commentsShownHidden.value(
+		) | rpl::start_with_next([=](bool hidden) {
+			if (_commentsShown->isHidden() != hidden) {
+				if (hidden) {
+					_commentsShown->hide();
+				} else {
+					_commentsShown->show();
+					updateControlsGeometry(_wrap->size());
+				}
+			}
+		}, _commentsShown->lifetime());
 		std::move(
 			state
 		) | rpl::start_with_next([=](ToggleCommentsState value) {
 			if (value == ToggleCommentsState::Empty) {
-				if (!_commentsShown->isHidden()) {
-					_commentsShown->hide();
-					updateControlsGeometry(_wrap->size());
-				}
+				_commentsShownHidden = true;
 				return;
-			} else if (_commentsShown->isHidden()) {
-				_commentsShown->show();
-				updateControlsGeometry(_wrap->size());
 			}
+			_commentsShownHidden = false;
 			const auto icon = (value == ToggleCommentsState::Shown)
 				? &_st.commentsShown
 				: nullptr;
@@ -1328,6 +1340,7 @@ void ComposeControls::setStarsReactionCounter(
 			_st.attach,
 			_st.starsReactionCounter,
 			std::move(count));
+		updateControlsParents();
 		updateControlsVisibility();
 
 		_starsReaction->widthValue(
@@ -2817,7 +2830,7 @@ void ComposeControls::initWriteRestriction() {
 	}, _writeRestricted->lifetime());
 	_writeRestricted->resize(
 		_writeRestricted->width(),
-		st::historyUnblock.height);
+		_st.send.inner.height);
 	const auto background = [=](QPainter &p, QRect clip) {
 		paintBackground(p, _writeRestricted->rect(), clip);
 	};
@@ -2949,7 +2962,7 @@ void ComposeControls::updateWrappingVisibility() {
 		_writeRestricted->setVisible(!hidden && restricted);
 	}
 	_wrap->setVisible(!hidden && !restricted);
-	updateLikeParent();
+	updateControlsParents();
 	if (!hidden && !restricted) {
 		updateControlsGeometry(_wrap->size());
 		_wrap->raise();
@@ -3159,6 +3172,9 @@ void ComposeControls::updateControlsVisibility() {
 	if (_scheduled) {
 		_scheduled->setVisible(!isEditingMessage());
 	}
+	if (_commentsShown) {
+		_commentsShown->setVisible(!_commentsShownHidden.current());
+	}
 	if (_starsReaction) {
 		_starsReaction->show();
 	}
@@ -3286,15 +3302,13 @@ void ComposeControls::paintBackground(QPainter &p, QRect full, QRect clip) {
 		p.setBrush(_st.bg);
 		p.setPen(Qt::NoPen);
 		const auto r = _st.radius;
-		if (_commentsShown
-			&& !_commentsShown->isHidden()
-			&& !_wrap->isHidden()) {
+		if (_commentsShown && !_commentsShown->isHidden()) {
 			p.drawRoundedRect(_commentsShown->geometry(), r, r);
 			full.setLeft(full.left()
 				+ _commentsShown->width()
 				+ _st.commentsSkip);
 		}
-		if (_starsReaction && !_wrap->isHidden()) {
+		if (_starsReaction) {
 			full.setWidth(full.width()
 				- _starsReaction->width()
 				- _st.starsSkip);

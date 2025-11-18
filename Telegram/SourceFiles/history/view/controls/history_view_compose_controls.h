@@ -308,7 +308,7 @@ private:
 	void initKeyHandler();
 	void initLikeButton();
 	void initEditStarsButton();
-	void updateLikeParent();
+	void updateControlsParents();
 	void updateSubmitSettings();
 	void updateSendButtonType();
 	void updateMessagesTTLShown();
@@ -423,6 +423,7 @@ private:
 	rpl::variable<int> _minStarsCount;
 	std::optional<int> _chosenStarsCount;
 	Ui::IconButton *_commentsShown = nullptr;
+	rpl::variable<bool> _commentsShownHidden;
 	Ui::RpWidget *_commentsShownNewDot = nullptr;
 	Ui::IconButton *_attachToggle = nullptr;
 	Ui::AbstractButton *_starsReaction = nullptr;
