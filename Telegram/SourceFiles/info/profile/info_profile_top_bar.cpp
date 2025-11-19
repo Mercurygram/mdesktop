@@ -1396,6 +1396,17 @@ int TopBar::statusMostLeft() const {
 		: _st.subtitlePosition.x();
 }
 
+int TopBar::calculateRightButtonsWidth() const {
+	auto width = 0;
+	if (_close) {
+		width += _close->width();
+	}
+	if (_topBarButton) {
+		width += _topBarButton->width();
+	}
+	return width;
+}
+
 void TopBar::updateLabelsPosition() {
 	_progress = [&] {
 		const auto max = QWidget::maximumHeight();
@@ -1407,13 +1418,7 @@ void TopBar::updateLabelsPosition() {
 	}();
 	const auto progressCurrent = _progress.current();
 
-	auto rightButtonsWidth = 0;
-	if (_close) {
-		rightButtonsWidth += _close->width();
-	}
-	if (_topBarButton) {
-		rightButtonsWidth += _topBarButton->width();
-	}
+	const auto rightButtonsWidth = calculateRightButtonsWidth();
 
 	const auto reservedRight = anim::interpolate(
 		0,
@@ -1520,8 +1525,21 @@ void TopBar::updateStatusPosition(float64 progressCurrent) {
 			_st.subtitlePosition.y(),
 			st::infoProfileTopBarStatusTop,
 			progressCurrent);
+		const auto mostLeft = statusMostLeft();
+		const auto buttonMostLeft = anim::interpolate(
+			mostLeft,
+			st::infoProfileTopBarActionButtonsPadding.left(),
+			progressCurrent);
+		const auto buttonMostRight = anim::interpolate(
+			calculateRightButtonsWidth(),
+			st::infoProfileTopBarActionButtonsPadding.right(),
+			progressCurrent);
+		const auto maxWidth = width() - buttonMostLeft - buttonMostRight;
+		if (maxWidth > 0) {
+			_forumButton->setFullWidth(maxWidth);
+		}
 		const auto buttonLeft = anim::interpolate(
-			statusMostLeft(),
+			mostLeft,
 			(width() - _forumButton->width()) / 2,
 			progressCurrent);
 		_forumButton->moveToLeft(buttonLeft, buttonTop);
