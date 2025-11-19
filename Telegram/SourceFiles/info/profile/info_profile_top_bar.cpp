@@ -501,9 +501,12 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 		return edgeColor
 			&& (kMinContrast > Ui::CountContrast(color->c, *edgeColor));
 	};
+	const auto collectible = effectiveCollectible();
 	const auto shouldOverrideTitle = shouldOverride(_title->st().textFg);
 	const auto shouldOverrideStatus = shouldOverrideTitle; // shouldOverride(_status->st().textFg);
-	_title->setTextColorOverride(shouldOverrideTitle
+	_title->setTextColorOverride(collectible
+		? collectible->textColor
+		: shouldOverrideTitle
 		? std::optional<QColor>(st::groupCallMembersFg->c)
 		: std::nullopt);
 	if (!_showLastSeen->isHidden()) {
@@ -543,7 +546,9 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 		}, _status->lifetime());
 		_statusLabel = std::make_unique<StatusLabel>(_status.data(), _peer);
 		_statusLabel->setMembersLinkCallback(membersLinkCallback);
-		_status->setTextColorOverride(shouldOverrideStatus
+		_status->setTextColorOverride(collectible
+			? collectible->textColor
+			: shouldOverrideStatus
 			? std::optional<QColor>(st::groupCallVideoSubTextFg->c)
 			: std::nullopt);
 		_statusLabel->setColorized(!shouldOverrideStatus);
