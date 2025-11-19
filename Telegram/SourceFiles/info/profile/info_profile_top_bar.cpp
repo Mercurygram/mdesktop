@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer.h"
 #include "base/unixtime.h"
 #include "boxes/peers/edit_peer_info_box.h" // EditPeerInfoBox::Available.
+#include "boxes/peers/edit_forum_topic_box.h"
 #include "boxes/moderate_messages_box.h"
 #include "boxes/report_messages_box.h"
 #include "boxes/star_gift_box.h"
@@ -873,13 +874,21 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 	if (chechMax()) {
 		return;
 	}
-	if (EditPeerInfoBox::Available(peer)) {
+	if ((topic && topic->canEdit()) || EditPeerInfoBox::Available(peer)) {
 		const auto manage = Ui::CreateChild<TopBarActionButton>(
 			this,
 			tr::lng_profile_action_short_manage(tr::now),
 			st::infoProfileTopBarActionManage);
 		manage->setClickedCallback([=, window = controller] {
-			window->showEditPeerBox(peer);
+			if (topic) {
+				window->show(Box(
+					EditForumTopicBox,
+					window,
+					peer->owner().history(peer),
+					topic->rootId()));
+			} else {
+				window->showEditPeerBox(peer);
+			}
 		});
 		buttons.push_back(manage);
 		_actions->add(manage);
@@ -987,6 +996,9 @@ void TopBar::setupUserpicButton(
 	};
 
 	const auto canChangePhoto = [=, peer = _peer] {
+		if (_topicIconView) {
+			return false;
+		}
 		if (const auto user = peer->asUser()) {
 			return user->isContact()
 				&& !user->isSelf()
