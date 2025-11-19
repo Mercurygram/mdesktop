@@ -17,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/credits.h"
 #include "data/components/gift_auctions.h"
 #include "data/data_message_reactions.h"
+#include "data/data_session.h"
 #include "data/data_user.h"
 #include "history/view/controls/history_view_suggest_options.h"
 #include "info/channel_statistics/earn/earn_icons.h"
@@ -407,7 +408,9 @@ void AddBidPlaces(
 		top.reserve(3);
 		const auto pushTop = [&](auto i) {
 			const auto index = int(i - begin(levels));
-			if (top.size() < 3 && index < value.topBidders.size()) {
+			if (top.size() < 3
+				&& index < value.topBidders.size()
+				&& !value.topBidders[index]->isSelf()) {
 				top.push_back({ value.topBidders[index], int(i->amount) });
 				return true;
 			}
@@ -553,7 +556,19 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 	const auto chosen = mine ? mine : std::clamp(mine, min, max);
 	state->chosen = chosen;
 
+	const auto giftId = now.gift->id;
 	const auto show = args.show;
+	args.peer->owner().giftAuctionGots(
+	) | rpl::start_with_next([=](const Data::GiftAuctionGot &update) {
+		if (update.giftId == giftId) {
+			box->closeBox();
+
+			if (const auto window = show->resolveWindow()) {
+				window->showPeer(update.to, ShowAtTheEndMsgId);
+			}
+		}
+	}, box->lifetime());
+
 	const auto details = args.details
 		? *args.details
 		: std::optional<GiftSendDetails>();

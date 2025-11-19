@@ -78,6 +78,7 @@ TextWithEntities PremiumGift::title() {
 			Ui::Text::WithEntities);
 	} else if (starGift()) {
 		const auto peer = _parent->history()->peer;
+		const auto to = _data.auctionTo ? _data.auctionTo : peer.get();
 		return peer->isSelf()
 			? tr::lng_action_gift_self_subtitle(tr::now, WithEntities)
 			: (peer->isServiceUser() && _data.channelFrom)
@@ -91,7 +92,7 @@ TextWithEntities PremiumGift::title() {
 					.append(' ')
 					.append(_data.channelFrom->shortName()),
 				WithEntities)
-			: peer->isServiceUser()
+			: (!_data.auctionTo && peer->isServiceUser())
 			? tr::lng_gift_link_label_gift(tr::now, WithEntities)
 			: (outgoingGift()
 				? tr::lng_action_gift_sent_subtitle
@@ -100,10 +101,10 @@ TextWithEntities PremiumGift::title() {
 					lt_user,
 					WithEntities({})
 						.append(SingleCustomEmoji(
-							peer->owner().customEmojiManager(
-								).peerUserpicEmojiData(peer)))
+							to->owner().customEmojiManager(
+								).peerUserpicEmojiData(to)))
 						.append(' ')
-						.append(peer->shortName()),
+						.append(to->shortName()),
 					WithEntities);
 	} else if (creditsPrize()) {
 		return tr::lng_prize_title(tr::now, WithEntities);
@@ -144,7 +145,17 @@ TextWithEntities PremiumGift::subtitle() {
 			: _data.refunded
 			? tr::lng_action_gift_refunded(tr::now, Ui::Text::RichLangValue)
 			: outgoingGift()
-			? (_data.starsUpgradedBySender
+			? (_data.auctionTo
+				? tr::lng_action_gift_self_auction(
+					tr::now,
+					lt_cost,
+					tr::lng_action_gift_for_stars(
+						tr::now,
+						lt_count,
+						_data.starsBid,
+						tr::marked),
+					tr::rich)
+				: _data.starsUpgradedBySender
 				? tr::lng_action_gift_sent_upgradable(
 					tr::now,
 					lt_user,
@@ -423,12 +434,12 @@ void PremiumGift::unloadHeavyPart() {
 
 bool PremiumGift::incomingGift() const {
 	const auto out = _parent->data()->out();
-	return gift() && (starGiftUpgrade() ? out : !out);
+	return gift() && !_data.auctionTo && (starGiftUpgrade() ? out : !out);
 }
 
 bool PremiumGift::outgoingGift() const {
 	const auto out = _parent->data()->out();
-	return gift() && (starGiftUpgrade() ? !out : out);
+	return gift() && (_data.auctionTo || (starGiftUpgrade() ? !out : out));
 }
 
 bool PremiumGift::gift() const {
