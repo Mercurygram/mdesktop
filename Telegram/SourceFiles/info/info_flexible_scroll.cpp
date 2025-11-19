@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/info_flexible_scroll.h"
 
+#include "ui/effects/animation_value.h"
 #include "ui/widgets/scroll_area.h"
 #include "base/event_filter.h"
 #include "base/options.h"
@@ -218,7 +219,17 @@ void FlexibleScrollHelper::setupScrollHandlingWithFilter() {
 		_pinnedToTop->heightValue(),
 		_inner->heightValue()
 	) | rpl::start_with_next([=](int, int h) {
-		_data.contentHeightValue.fire(h + heightDiff());
+		const auto max = _pinnedToTop->maximumHeight();
+		const auto min = _pinnedToTop->minimumHeight();
+		const auto diff = max - min;
+		const auto progress = (diff > 0)
+			? std::clamp(
+				(_pinnedToTop->height() - min) / float64(diff),
+				0.,
+				1.)
+			: 1.;
+		_data.contentHeightValue.fire(h
+			+ anim::interpolate(diff, 0, progress));
 	}, _pinnedToTop->lifetime());
 
 	const auto singleStep = _scroll->verticalScrollBar()->singleStep()
