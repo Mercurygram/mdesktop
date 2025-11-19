@@ -578,6 +578,9 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 }
 
 void TopBar::updateCollectibleStatus() {
+	if (width() <= 0) {
+		return;
+	}
 	const auto collectible = effectiveCollectible();
 	const auto colorProfile = effectiveColorProfile();
 	_hasGradientBg = (collectible != nullptr)
@@ -1408,6 +1411,9 @@ int TopBar::calculateRightButtonsWidth() const {
 }
 
 void TopBar::updateLabelsPosition() {
+	if (width() <= 0) {
+		return;
+	}
 	_progress = [&] {
 		const auto max = QWidget::maximumHeight();
 		const auto min = _minForProgress;
@@ -1520,6 +1526,9 @@ void TopBar::updateLabelsPosition() {
 }
 
 void TopBar::updateStatusPosition(float64 progressCurrent) {
+	if (width() <= 0) {
+		return;
+	}
 	if (_forumButton) {
 		const auto buttonTop = anim::interpolate(
 			_st.subtitlePosition.y(),
@@ -1535,7 +1544,7 @@ void TopBar::updateStatusPosition(float64 progressCurrent) {
 			st::infoProfileTopBarActionButtonsPadding.right(),
 			progressCurrent);
 		const auto maxWidth = width() - buttonMostLeft - buttonMostRight;
-		if (maxWidth > 0) {
+		if (_forumButton->contentWidth() > maxWidth) {
 			_forumButton->setFullWidth(maxWidth);
 		}
 		const auto buttonLeft = anim::interpolate(
@@ -1618,6 +1627,9 @@ QRect TopBar::userpicGeometry() const {
 void TopBar::updateGiftButtonsGeometry(
 		float64 progressCurrent,
 		const QRect &userpicRect) {
+	if (width() <= 0) {
+		return;
+	}
 	const auto sz = st::infoProfileTopBarGiftSize;
 	const auto halfSz = sz / 2.;
 	for (const auto &gift : _pinnedToTopGifts) {
@@ -1914,6 +1926,9 @@ void TopBar::fillTopBarMenu(
 }
 
 void TopBar::updateVideoUserpic() {
+	if (width() <= 0) {
+		return;
+	}
 	const auto id = _peer->userpicPhotoId();
 	if (!id) {
 		_videoUserpicPlayer = nullptr;
@@ -2483,6 +2498,9 @@ void TopBar::setupStoryOutline(const QRect &geometry) {
 }
 
 void TopBar::updateStoryOutline(std::optional<QColor> edgeColor) {
+	if (width() <= 0) {
+		return;
+	}
 	const auto user = _peer->asUser();
 	const auto channel = _peer->asChannel();
 	if (!user && !channel) {
