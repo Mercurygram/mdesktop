@@ -89,6 +89,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/themes/window_theme.h"
 #include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
+#include "ui/text/text_utilities.h"
+#include "ui/toast/toast.h"
+#include "boxes/sticker_set_box.h"
 #include "styles/style_boxes.h"
 #include "styles/style_chat_helpers.h"
 #include "styles/style_chat.h"
@@ -1230,7 +1233,39 @@ void TopBar::setupUserpicButton(
 
 			(*menu)->popup(QCursor::pos());
 		} else if (button == Qt::LeftButton) {
-			if (_hasStories) {
+			if (_topicIconView && _topic && _topic->iconId()) {
+				const auto document = _peer->owner().document(
+					_topic->iconId());
+				if (const auto sticker = document->sticker()) {
+					const auto packName
+						= _peer->owner().customEmojiManager().lookupSetName(
+							sticker->set.id);
+					if (!packName.isEmpty()) {
+						const auto text = tr::lng_profile_topic_toast(
+							tr::now,
+							lt_name,
+							Ui::Text::Link(packName, u"internal:"_q),
+							Ui::Text::WithEntities);
+						const auto weak = base::make_weak(controller);
+						controller->showToast(Ui::Toast::Config{
+							.text = text,
+							.filter = [=, set = sticker->set](
+									const ClickHandlerPtr &handler,
+									Qt::MouseButton) {
+								if (const auto strong = weak.get()) {
+									strong->show(
+										Box<StickerSetBox>(
+											strong->uiShow(),
+											set,
+											Data::StickersType::Emoji));
+								}
+								return false;
+							},
+							.duration = crl::time(3000),
+						});
+					}
+				}
+			} else if (_hasStories) {
 				controller->openPeerStories(_peer->id);
 			} else {
 				openPhoto();
