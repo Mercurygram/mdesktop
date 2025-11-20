@@ -536,6 +536,7 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 
 		rpl::variable<Data::GiftAuctionState> value;
 		rpl::variable<int> chosen;
+		rpl::variable<QString> subtext;
 	};
 	const auto state = box->lifetime().make_state<State>(
 		std::move(args.state));
@@ -555,6 +556,23 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 	});
 	const auto chosen = mine ? mine : std::clamp(mine, min, max);
 	state->chosen = chosen;
+
+	state->subtext = rpl::combine(
+		state->value.value(),
+		state->chosen.value()
+	) | rpl::map([=](
+			const Data::GiftAuctionState &state,
+			int chosen) {
+		if (state.my.bid == chosen) {
+			return tr::lng_auction_bid_your(tr::now);
+		} else if (chosen == max) {
+			return tr::lng_auction_bid_custom(tr::now);
+		} else if (state.my.bid && chosen > state.my.bid) {
+			const auto delta = chosen - state.my.bid;
+			return '+' + Lang::FormatCountDecimal(delta);
+		}
+		return QString();
+	});
 
 	const auto giftId = now.gift->id;
 	const auto show = args.show;
@@ -634,6 +652,9 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 			state->chosen = value;
 		}), std::move(min), state->chosen.current()));
 	});
+	state->subtext.value() | rpl::start_with_next([=](QString &&text) {
+		bubble->setSubtext(std::move(text));
+	}, bubble->lifetime());
 
 	PaidReactionSlider(
 		content,

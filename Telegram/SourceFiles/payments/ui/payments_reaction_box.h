@@ -19,6 +19,10 @@ namespace Main {
 class Session;
 } // namespace Main
 
+namespace Ui::Premium {
+class BubbleWidget;
+} // namespace Ui::Premium
+
 namespace Ui {
 
 class AbstractButton;
@@ -94,7 +98,7 @@ void AddStarSelectBalance(
 	rpl::producer<CreditsAmount> balanceValue,
 	bool dark = false);
 
-not_null<AbstractButton*> AddStarSelectBubble(
+not_null<Premium::BubbleWidget*> AddStarSelectBubble(
 	not_null<GenericBox*> box,
 	rpl::producer<int> value,
 	int max,

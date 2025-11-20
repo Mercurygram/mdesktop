@@ -937,7 +937,7 @@ void AddStarSelectBalance(
 	}, balance->lifetime());
 }
 
-not_null<AbstractButton*> AddStarSelectBubble(
+not_null<Premium::BubbleWidget*> AddStarSelectBubble(
 		not_null<GenericBox*> box,
 		rpl::producer<int> value,
 		int max,
