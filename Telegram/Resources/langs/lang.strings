@@ -1688,6 +1688,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_profile_set_photo_for_from_clipboard" = "Set From Clipboard";
 "lng_profile_set_photo_for_about" = "You can replace {user}'s photo with another photo that only you will see.";
 "lng_profile_photo_reset" = "Reset to Original";
+"lng_profile_photo_reset_button" = "Reset";
 "lng_profile_photo_reset_sure" = "Are you sure you want to reset {user}'s photo to the original?";
 "lng_profile_photo_from_clipboard" = "From clipboard";
 "lng_profile_suggest_sure" = "You can suggest {user} to set this photo for their Telegram profile.";
