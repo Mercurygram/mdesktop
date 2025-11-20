@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "api/api_text_entities.h"
 #include "base/unixtime.h"
+#include "boxes/peers/replace_boost_box.h"
 #include "boxes/send_credits_box.h" // CreditsEmojiSmall
 #include "boxes/star_gift_box.h"
 #include "calls/group/calls_group_common.h"
@@ -1236,12 +1237,13 @@ base::weak_qptr<BoxContent> ChooseAndShowAuctionBox(
 			sendBox->boxClosing(
 			) | rpl::start_with_next(close, sendBox->lifetime());
 		};
-		const auto text = (now.my.to->isSelf()
+		const auto from = now.my.to;
+		const auto text = (from->isSelf()
 			? tr::lng_auction_change_already_me(tr::now, tr::rich)
 			: tr::lng_auction_change_already(
 				tr::now,
 				lt_name,
-				tr::bold(now.my.to->name()),
+				tr::bold(from->name()),
 				tr::rich)).append(' ').append(peer->isSelf()
 					? tr::lng_auction_change_to_me(tr::now, tr::rich)
 					: tr::lng_auction_change_to(
@@ -1249,11 +1251,22 @@ base::weak_qptr<BoxContent> ChooseAndShowAuctionBox(
 						lt_name,
 						tr::bold(peer->name()),
 						tr::rich));
-		box = window->show(MakeConfirmBox({
-			.text = text,
-			.confirmed = change,
-			.confirmText = tr::lng_auction_change_button(),
-			.title = tr::lng_auction_change_title(),
+		box = window->show(Box([=](not_null<GenericBox*> box) {
+			box->addRow(
+				CreateUserpicsTransfer(
+					box,
+					rpl::single(std::vector{ not_null<PeerData*>(from) }),
+					peer,
+					UserpicsTransferType::AuctionRecipient),
+				st::boxRowPadding + st::auctionChangeRecipientPadding
+			)->setAttribute(Qt::WA_TransparentForMouseEvents);
+
+			ConfirmBox(box, {
+				.text = text,
+				.confirmed = change,
+				.confirmText = tr::lng_auction_change_button(),
+				.title = tr::lng_auction_change_title(),
+			});
 		}));
 	} else if (showInfoBox) {
 		box = window->show(Box(
