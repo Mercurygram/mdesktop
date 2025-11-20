@@ -600,8 +600,10 @@ auto AuctionBg(
 	struct State {
 		std::unique_ptr<Ui::Text::CustomEmoji> pattern;
 		base::flat_map<float64, QImage> cache;
-		base::Timer timer;
 		std::optional<Ui::StarParticles> particles;
+		std::unique_ptr<base::Timer> timer;
+		crl::time pausedAt = 0;
+		crl::time pauseOffset = 0;
 	};
 	const auto state = std::make_shared<State>();
 	if (gift->unique && gift->unique->pattern.document) {
@@ -616,10 +618,6 @@ auto AuctionBg(
 		st::lineWidth * 8);
 	state->particles->setSpeed(0.05);
 	state->particles->setColor(backdrop.textColor);
-	if (gift->document->sticker() && gift->document->sticker()->isStatic()) {
-		state->timer.setCallback([=] { view->repaint(); });
-		state->timer.callEach(crl::time(1000));
-	}
 
 	return [=](
 			Painter &p,
@@ -660,14 +658,35 @@ auto AuctionBg(
 		}*/
 
 		if (state->particles) {
-			state->particles->paint(p, full, context.now);
+			p.setClipRect(full);
+			if (context.paused) {
+				if (!state->pausedAt) {
+					state->pausedAt = crl::now();
+				}
+				const auto diff = state->pausedAt - state->pauseOffset;
+				state->particles->paint(p, full, diff);
+			} else {
+				if (state->pausedAt) {
+					state->pauseOffset += crl::now() - state->pausedAt;
+					state->pausedAt = 0;
+				}
+				const auto diff = context.now - state->pauseOffset;
+				state->particles->paint(p, full, diff);
+			}
+			p.setClipping(false);
 		}
 
 		const auto now = base::unixtime::now();
 		const auto left = std::max(endDate - now, 0);
-		if (left <= 0 && state->timer.isActive()) {
-			state->timer.cancel();
-			state->timer.setCallback(nullptr);
+		if (left > 0) {
+			if (!state->timer) {
+				state->timer = std::make_unique<base::Timer>([=] {
+					view->repaint();
+				});
+			}
+			state->timer->callOnce(1000);
+		} else if (left <= 0 && state->timer) {
+			state->timer = nullptr;
 		}
 		const auto text = left > 0
 			? QString("%1:%2:%3")
