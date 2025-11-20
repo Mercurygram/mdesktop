@@ -75,6 +75,8 @@ enum class BidType {
 struct BidRowData {
 	UserData *user = nullptr;
 	int stars = 0;
+	int position = 0;
+	int winners = 0;
 	QString place;
 	BidType type = BidType::Setting;
 
@@ -83,13 +85,16 @@ struct BidRowData {
 		const BidRowData &) = default;
 };
 
-[[nodiscard]] std::optional<QColor> BidColorOverride(BidType type) {
-	switch (type) {
-	case BidType::Setting: return {};
-	case BidType::Winning: return st::boxTextFgGood->c;
-	case BidType::Loosing: return st::attentionButtonFg->c;
-	}
-	Unexpected("Type in BidType.");
+[[nodiscard]] std::optional<QColor> BidColorOverride(int position, int per) {
+	return (position <= per)
+		? st::boxTextFgGood->c
+		: st::attentionButtonFg->c;
+	//switch (type) {
+	//case BidType::Setting: return {};
+	//case BidType::Winning: return st::boxTextFgGood->c;
+	//case BidType::Loosing: return st::attentionButtonFg->c;
+	//}
+	//Unexpected("Type in BidType.");
 }
 
 [[nodiscard]] rpl::producer<int> MinutesLeftTillValue(TimeId endDate) {
@@ -192,7 +197,7 @@ struct BidRowData {
 	}));
 	const auto star = helper.paletteDependent(Ui::Earn::IconCreditsEmoji());
 	auto stars = rpl::duplicate(data) | rpl::map([=](const BidRowData &bid) {
-		return TextWithEntities{ star }.append(' ').append(
+		return tr::marked(star).append(' ').append(
 			Lang::FormatCountDecimal(bid.stars));
 	});
 	state->stars = std::make_unique<FlatLabel>(
@@ -206,7 +211,8 @@ struct BidRowData {
 	const auto userpicLeft = st::auctionBidPlace.style.font->width(kHuge);
 
 	std::move(data) | rpl::start_with_next([=](BidRowData bid) {
-		state->place->setTextColorOverride(BidColorOverride(bid.type));
+		state->place->setTextColorOverride(
+			BidColorOverride(bid.position, bid.winners));
 		if (state->user != bid.user) {
 			state->user = bid.user;
 			if (state->user) {
@@ -384,6 +390,7 @@ void AddBidPlaces(
 		rpl::variable<My> my;
 		rpl::variable<std::vector<BidRowData>> top;
 		std::vector<Ui::PeerUserpicView> cache;
+		int winners = 0;
 	};
 	const auto state = box->lifetime().make_state<State>();
 
@@ -395,6 +402,7 @@ void AddBidPlaces(
 		for (const auto &user : value.topBidders) {
 			cache.push_back(user->createUserpicView());
 		}
+		state->winners = value.gift->auctionGiftsPerRound;
 		state->cache = std::move(cache);
 	}, box->lifetime());
 
@@ -459,15 +467,18 @@ void AddBidPlaces(
 		box->verticalLayout(),
 		std::move(myLabelText));
 	state->my.value() | rpl::start_with_next([=](My my) {
-		myLabel->setTextColorOverride(BidColorOverride(my.type));
+		myLabel->setTextColorOverride(
+			BidColorOverride(my.position, state->winners));
 	}, myLabel->lifetime());
 
 	auto bid = rpl::combine(
 		state->my.value(),
 		rpl::duplicate(chosen)
 	) | rpl::map([=, user = show->session().user()](My my, int stars) {
-		const auto place = QString::number(my.position);
-		return BidRowData{ user, stars, place, my.type };
+		const auto position = my.position;
+		const auto winners = state->winners;
+		const auto place = QString::number(position);
+		return BidRowData{ user, stars, position, winners, place, my.type };
 	});
 	box->addRow(MakeBidRow(box, show, std::move(bid)));
 
