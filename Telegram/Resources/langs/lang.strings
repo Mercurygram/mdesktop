@@ -4030,6 +4030,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_menu_copy_link" = "Copy Link";
 "lng_auction_menu_share" = "Share";
 "lng_auction_bid_title" = "Place a Bid";
+"lng_auction_bid_subtitle#one" = "Top {count} bidder will win";
+"lng_auction_bid_subtitle#other" = "Top {count} bidders will win";
 "lng_auction_bid_your" = "your bid";
 "lng_auction_bid_custom" = "click to bid more";
 "lng_auction_bid_threshold#one" = "TOP {count}";

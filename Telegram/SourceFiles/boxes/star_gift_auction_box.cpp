@@ -65,6 +65,7 @@ namespace {
 constexpr auto kAuctionAboutShownPref = "gift_auction_about_shown"_cs;
 constexpr auto kBidPlacedToastDuration = 5 * crl::time(1000);
 constexpr auto kMaxShownBid = 30'000;
+constexpr auto kShowTopPlaces = 3;
 
 enum class BidType {
 	Setting,
@@ -405,16 +406,16 @@ void AddBidPlaces(
 		const auto &levels = value.bidLevels;
 
 		auto top = std::vector<BidRowData>();
-		top.reserve(3);
+		top.reserve(kShowTopPlaces);
 		const auto pushTop = [&](auto i) {
 			const auto index = int(i - begin(levels));
-			if (top.size() < 3
-				&& index < value.topBidders.size()
-				&& !value.topBidders[index]->isSelf()) {
+			if (top.size() >= kShowTopPlaces
+				|| index >= value.topBidders.size()) {
+				return false;
+			} else if (!value.topBidders[index]->isSelf()) {
 				top.push_back({ value.topBidders[index], int(i->amount) });
-				return true;
 			}
-			return false;
+			return true;
 		};
 
 		const auto setting = (chosen > my);
@@ -474,7 +475,7 @@ void AddBidPlaces(
 		box->verticalLayout(),
 		tr::lng_auction_bid_winners_title(),
 		{ 0, st::paidReactTitleSkip / 2, 0, 0 });
-	for (auto i = 0; i != 3; ++i) {
+	for (auto i = 0; i != kShowTopPlaces; ++i) {
 		auto icon = QString::fromUtf8("\xf0\x9f\xa5\x87");
 		icon.back().unicode() += i;
 
@@ -676,7 +677,20 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 			box,
 			tr::lng_auction_bid_title(),
 			st::boostCenteredTitle),
-		st::boxRowPadding + QMargins(0, skip, 0, 0),
+		st::boxRowPadding + QMargins(0, skip / 2, 0, 0),
+		style::al_top);
+
+	auto subtitle = tr::lng_auction_bid_subtitle(
+		lt_count,
+		state->value.value(
+		) | rpl::map([=](const Data::GiftAuctionState &state) {
+			return state.gift->auctionGiftsPerRound * 1.;
+		}));
+	box->addRow(
+		object_ptr<FlatLabel>(
+			box,
+			std::move(subtitle),
+			st::auctionCenteredSubtitle),
 		style::al_top);
 
 	const auto setMinimal = [=] {
