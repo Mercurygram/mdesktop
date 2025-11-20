@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unixtime.h"
 #include "boxes/peers/replace_boost_box.h"
 #include "boxes/send_credits_box.h" // CreditsEmojiSmall
+#include "boxes/share_box.h"
 #include "boxes/star_gift_box.h"
 #include "calls/group/calls_group_common.h"
 #include "core/credits_amount.h"
@@ -42,8 +43,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/format_values.h"
 #include "ui/text/text_utilities.h"
 #include "ui/toast/toast.h"
-#include "ui/widgets/buttons.h"
 #include "ui/widgets/fields/number_input.h"
+#include "ui/widgets/buttons.h"
+#include "ui/widgets/popup_menu.h"
 #include "ui/wrap/table_layout.h"
 #include "ui/color_int_conversion.h"
 #include "ui/dynamic_thumbnails.h"
@@ -59,6 +61,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_menu_icons.h"
 #include "styles/style_premium.h"
 #include "styles/style_settings.h"
+
+#include <QtWidgets/QApplication>
+#include <QtGui/QClipboard>
 
 namespace Ui {
 namespace {
@@ -264,6 +269,37 @@ struct BidSliderValues {
 	}, raw->lifetime());
 
 	return result;
+}
+
+Fn<void()> MakeAuctionMenuCallback(
+		not_null<QWidget*> parent,
+		std::shared_ptr<ChatHelpers::Show> show,
+		const Data::GiftAuctionState &state) {
+	const auto url = show->session().createInternalLinkFull(
+		u"auction/"_q + state.gift->auctionSlug);
+	const auto rounds = state.totalRounds;
+	const auto perRound = state.gift->auctionGiftsPerRound;;
+	const auto menu = std::make_shared<base::unique_qptr<PopupMenu>>();
+	return [=] {
+		*menu = base::make_unique_q<Ui::PopupMenu>(
+			parent,
+			st::popupMenuWithIcons);
+
+		(*menu)->addAction(tr::lng_auction_menu_about(tr::now), [=] {
+			show->show(Box(AuctionAboutBox, rounds, perRound, nullptr));
+		}, &st::menuIconInfo);
+
+		(*menu)->addAction(tr::lng_auction_menu_copy_link(tr::now), [=] {
+			QApplication::clipboard()->setText(url);
+			show->showToast(tr::lng_username_copied(tr::now));
+		}, &st::menuIconLink);
+
+		(*menu)->addAction(tr::lng_auction_menu_share(tr::now), [=] {
+			FastShareLink(show, url);
+		}, &st::menuIconShare);
+
+		(*menu)->popup(QCursor::pos());
+	};
 }
 
 void PlaceAuctionBid(
@@ -692,6 +728,11 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 	box->addTopButton(
 		st::boxTitleClose,
 		[=] { box->closeBox(); });
+	if (const auto now = state->value.current(); !now.finished()) {
+		box->addTopButton(
+			st::boxTitleMenu,
+			MakeAuctionMenuCallback(box, show, now));
+	}
 
 	const auto skip = st::paidReactTitleSkip;
 	box->addRow(
@@ -1025,16 +1066,19 @@ void AuctionInfoBox(
 
 		std::vector<Data::GiftAcquired> acquired;
 		bool acquiredRequested = false;
+
+		base::unique_qptr<PopupMenu> menu;
 	};
 	const auto show = window->uiShow();
 	const auto state = box->lifetime().make_state<State>(&show->session());
 	state->value = std::move(value);
-	state->minutesLeft = MinutesLeftTillValue(
-		state->value.current().endDate);
+	const auto &now = state->value.current();
+
+	state->minutesLeft = MinutesLeftTillValue(now.endDate);
 
 	box->setStyle(st::giftBox);
 
-	const auto name = state->value.current().gift->resellTitle;
+	const auto name = now.gift->resellTitle;
 	const auto extend = st::defaultDropdownMenu.wrap.shadow.extend;
 	const auto side = st::giftBoxGiftSmall;
 	const auto size = QSize(side, side).grownBy(extend);
@@ -1044,7 +1088,7 @@ void AuctionInfoBox(
 	const auto gift = CreateChild<GiftButton>(preview, &state->delegate);
 	gift->setAttribute(Qt::WA_TransparentForMouseEvents);
 	gift->setDescriptor(GiftTypeStars{
-		.info = *state->value.current().gift,
+		.info = *now.gift,
 	}, GiftButtonMode::Minimal);
 
 	preview->widthValue() | rpl::start_with_next([=](int width) {
@@ -1179,25 +1223,39 @@ void AuctionInfoBox(
 		AuctionButtonCountdownType::Join,
 		state->value.value());
 
+	box->setNoContentMargin(true);
+	const auto close = CreateChild<IconButton>(
+		box->verticalLayout(),
+		st::boxTitleClose);
+	close->setClickedCallback([=] { box->closeBox(); });
+
+	const auto menu = CreateChild<IconButton>(
+		box->verticalLayout(),
+		st::boxTitleMenu);
+	menu->setClickedCallback(MakeAuctionMenuCallback(menu, show, now));
+	const auto weakMenu = base::make_weak(menu);
+
+	box->verticalLayout()->widthValue() | rpl::start_with_next([=](int) {
+		close->moveToRight(0, 0);
+		if (const auto strong = weakMenu.get()) {
+			strong->moveToRight(close->width(), 0);
+		}
+	}, close->lifetime());
+
 	rpl::combine(
 		state->value.value(),
 		state->minutesLeft.value()
 	) | rpl::start_with_next([=](
 			const Data::GiftAuctionState &state,
 			int minutes) {
-		about->setTextColorOverride((state.finished() || minutes <= 0)
+		const auto finished = state.finished() || (minutes <= 0);
+		about->setTextColorOverride(finished
 			? st::attentionButtonFg->c
 			: std::optional<QColor>());
+		if (const auto strong = finished ? weakMenu.get() : nullptr) {
+			delete strong;
+		}
 	}, box->lifetime());
-
-	box->setNoContentMargin(true);
-	const auto close = CreateChild<IconButton>(
-		box->verticalLayout(),
-		st::boxTitleClose);
-	close->setClickedCallback([=] { box->closeBox(); });
-	box->verticalLayout()->widthValue() | rpl::start_with_next([=](int) {
-		close->moveToRight(0, 0);
-	}, close->lifetime());
 }
 
 base::weak_qptr<BoxContent> ChooseAndShowAuctionBox(
