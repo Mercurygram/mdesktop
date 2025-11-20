@@ -524,7 +524,9 @@ QSize WebPage::countOptimalSize() {
 				_data->uniqueGift),
 				MediaGenericDescriptor{
 					.maxWidth = st::msgServiceGiftPreview,
-					.paintBg = UniqueGiftBg(_parent, _data->uniqueGift),
+					.paintBgFactory = [=] {
+						return UniqueGiftBg(_parent, _data->uniqueGift);
+					},
 				});
 	} else if (!_attach && _data->auction) {
 		const auto &gift = _data->auction->auctionGift;
@@ -544,7 +546,13 @@ QSize WebPage::countOptimalSize() {
 				_data->auction->endDate),
 			MediaGenericDescriptor{
 				.maxWidth = st::msgServiceGiftPreview,
-				.paintBg = AuctionBg(_parent, backdrop, gift, _data->auction->endDate),
+				.paintBgFactory = [=] {
+					return AuctionBg(
+						_parent,
+						backdrop,
+						gift,
+						_data->auction->endDate);
+				},
 			});
 	} else if (!_attach && !_asArticle) {
 		_attach = CreateAttach(
