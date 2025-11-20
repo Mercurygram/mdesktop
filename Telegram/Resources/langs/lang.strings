@@ -4003,6 +4003,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_about_top_bidders#other" = "top {count} bidders";
 "lng_auction_about_top_about#one" = "{count} gift is dropped in {rounds} to the {bidders} by bid amount.";
 "lng_auction_about_top_about#other" = "{count} gifts are dropped in {rounds} to the {bidders} by bid amount.";
+"lng_auction_about_top_short#one" = "{count} gift is dropped to the {bidders} by bid amount. {link}";
+"lng_auction_about_top_short#other" = "{count} gifts are dropped to the {bidders} by bid amount. {link}";
 "lng_auction_about_bid_title" = "Bid Carryover";
 "lng_auction_about_bid_about#one" = "If your bid leaves the top {count}, it will automatically join the next round.";
 "lng_auction_about_bid_about#other" = "If your bid leaves the top {count}, it will automatically join the next round.";

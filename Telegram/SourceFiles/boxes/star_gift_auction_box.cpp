@@ -878,97 +878,6 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 	return result;
 }
 
-void AuctionAboutBox(
-		not_null<GenericBox*> box,
-		int rounds,
-		int giftsPerRound,
-		Fn<void(Fn<void()> close)> understood) {
-	box->setStyle(st::confcallJoinBox);
-	box->setWidth(st::boxWideWidth);
-	box->setNoContentMargin(true);
-	box->addTopButton(st::boxTitleClose, [=] {
-		box->closeBox();
-	});
-	box->addRow(
-		Calls::Group::MakeRoundActiveLogo(
-			box,
-			st::auctionAboutLogo,
-			st::auctionAboutLogoPadding),
-		st::boxRowPadding + st::confcallLinkHeaderIconPadding);
-
-	box->addRow(
-		object_ptr<FlatLabel>(
-			box,
-			tr::lng_auction_about_title(),
-			st::boxTitle),
-		st::boxRowPadding + st::confcallLinkTitlePadding,
-		style::al_top);
-	box->addRow(
-		object_ptr<FlatLabel>(
-			box,
-			tr::lng_auction_about_subtitle(tr::rich),
-			st::confcallLinkCenteredText),
-		st::boxRowPadding,
-		style::al_top
-	)->setTryMakeSimilarLines(true);
-
-	const auto features = std::vector<FeatureListEntry>{
-		{
-			st::menuIconAuctionDrop,
-			tr::lng_auction_about_top_title(
-				tr::now,
-				lt_count,
-				giftsPerRound),
-			tr::lng_auction_about_top_about(
-				tr::now,
-				lt_count,
-				giftsPerRound,
-				lt_rounds,
-				tr::lng_auction_about_top_rounds(
-					tr::now,
-					lt_count,
-					rounds,
-					tr::rich),
-				lt_bidders,
-				tr::lng_auction_about_top_bidders(
-					tr::now,
-					lt_count,
-					giftsPerRound,
-					tr::rich),
-				tr::rich),
-		},
-		{
-			st::menuIconStarsCarryover,
-			tr::lng_auction_about_bid_title(tr::now),
-			tr::lng_auction_about_bid_about(
-				tr::now,
-				lt_count,
-				giftsPerRound,
-				tr::rich),
-		},
-		{
-			st::menuIconStarsRefund,
-			tr::lng_auction_about_missed_title(tr::now),
-			tr::lng_auction_about_missed_about(tr::now, tr::rich),
-		},
-	};
-	for (const auto &feature : features) {
-		box->addRow(MakeFeatureListEntry(box, feature));
-	}
-
-	const auto close = Fn<void()>([weak = base::make_weak(box)] {
-		if (const auto strong = weak.get()) {
-			strong->closeBox();
-		}
-	});
-	box->addButton(
-		rpl::single(QString()),
-		understood ? [=] { understood(close); } : close
-	)->setText(rpl::single(Text::IconEmoji(
-		&st::infoStarsUnderstood
-	).append(' ').append(tr::lng_auction_about_understood(tr::now))));
-}
-
 void AuctionGotGiftsBox(
 		not_null<GenericBox*> box,
 		std::shared_ptr<ChatHelpers::Show> show,
@@ -1446,6 +1355,97 @@ void SetAuctionButtonCountdownText(
 		std::move(buttonSubtitle),
 		st::resaleButtonTitle,
 		st::resaleButtonSubtitle);
+}
+
+void AuctionAboutBox(
+		not_null<GenericBox*> box,
+		int rounds,
+		int giftsPerRound,
+		Fn<void(Fn<void()> close)> understood) {
+	box->setStyle(st::confcallJoinBox);
+	box->setWidth(st::boxWideWidth);
+	box->setNoContentMargin(true);
+	box->addTopButton(st::boxTitleClose, [=] {
+		box->closeBox();
+	});
+	box->addRow(
+		Calls::Group::MakeRoundActiveLogo(
+			box,
+			st::auctionAboutLogo,
+			st::auctionAboutLogoPadding),
+		st::boxRowPadding + st::confcallLinkHeaderIconPadding);
+
+	box->addRow(
+		object_ptr<FlatLabel>(
+			box,
+			tr::lng_auction_about_title(),
+			st::boxTitle),
+		st::boxRowPadding + st::confcallLinkTitlePadding,
+		style::al_top);
+	box->addRow(
+		object_ptr<FlatLabel>(
+			box,
+			tr::lng_auction_about_subtitle(tr::rich),
+			st::confcallLinkCenteredText),
+		st::boxRowPadding,
+		style::al_top
+	)->setTryMakeSimilarLines(true);
+
+	const auto features = std::vector<FeatureListEntry>{
+		{
+			st::menuIconAuctionDrop,
+			tr::lng_auction_about_top_title(
+				tr::now,
+				lt_count,
+				giftsPerRound),
+			tr::lng_auction_about_top_about(
+				tr::now,
+				lt_count,
+				giftsPerRound,
+				lt_rounds,
+				tr::lng_auction_about_top_rounds(
+					tr::now,
+					lt_count,
+					rounds,
+					tr::rich),
+				lt_bidders,
+				tr::lng_auction_about_top_bidders(
+					tr::now,
+					lt_count,
+					giftsPerRound,
+					tr::rich),
+				tr::rich),
+		},
+		{
+			st::menuIconStarsCarryover,
+			tr::lng_auction_about_bid_title(tr::now),
+			tr::lng_auction_about_bid_about(
+				tr::now,
+				lt_count,
+				giftsPerRound,
+				tr::rich),
+		},
+		{
+			st::menuIconStarsRefund,
+			tr::lng_auction_about_missed_title(tr::now),
+			tr::lng_auction_about_missed_about(tr::now, tr::rich),
+		},
+	};
+	for (const auto &feature : features) {
+		box->addRow(MakeFeatureListEntry(box, feature));
+	}
+
+	const auto close = Fn<void()>([weak = base::make_weak(box)] {
+		if (const auto strong = weak.get()) {
+			strong->closeBox();
+		}
+	});
+	box->addButton(
+		rpl::single(QString()),
+		understood ? [=] { understood(close); } : close
+	)->setText(rpl::single(Text::IconEmoji(
+		&st::infoStarsUnderstood
+	).append(' ').append(tr::lng_auction_about_understood(tr::now))));
 }
 
 } // namespace Ui
