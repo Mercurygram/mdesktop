@@ -1599,10 +1599,6 @@ ManyAuctionsState ActiveAuctionsState(const Data::ActiveAuctions &auctions) {
 			? position
 			: 0;
 	};
-	PROFILE_LOG(("GOT: POSITION %1, PERROUND: %2, WINNING: %3"
-		).arg(MyAuctionPosition(*list.front())
-		).arg(list.front()->gift->auctionGiftsPerRound
-		).arg(winning(list.front())));
 	if (list.size() == 1) {
 		const auto auction = list.front();
 		const auto position = winning(auction);

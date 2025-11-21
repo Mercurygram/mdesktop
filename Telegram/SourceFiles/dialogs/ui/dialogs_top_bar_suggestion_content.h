@@ -40,7 +40,9 @@ public:
 		Arrow,
 	};
 
-	TopBarSuggestionContent(not_null<Ui::RpWidget*>);
+	TopBarSuggestionContent(
+		not_null<Ui::RpWidget*> parent,
+		Fn<bool()> emojiPaused = nullptr);
 
 	void setContent(
 		TextWithEntities title,
@@ -79,6 +81,7 @@ private:
 	base::unique_qptr<Ui::IconButton> _rightArrow;
 	base::unique_qptr<Ui::RoundButton> _rightButton;
 	Fn<void()> _hideCallback;
+	Fn<bool()> _emojiPaused;
 
 	int _leftPadding = 0;
 

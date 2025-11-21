@@ -196,8 +196,11 @@ rpl::producer<Ui::SlideWrap<Ui::RpWidget>*> TopBarSuggestionValue(
 			rpl::single(st::dialogsTopBarLeftPadding));
 		const auto ensureContent = [=] {
 			if (!state->content) {
+				const auto window = FindSessionController(parent);
 				state->content = Ui::CreateChild<TopBarSuggestionContent>(
-					parent);
+					parent,
+					[=] { return window->isGifPausedAtLeastFor(
+						Window::GifPauseReason::Layer); });
 				rpl::combine(
 					parent->widthValue(),
 					state->content->desiredHeightValue()

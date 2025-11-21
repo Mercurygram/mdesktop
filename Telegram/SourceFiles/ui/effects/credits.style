@@ -446,7 +446,7 @@ auctionInfoSubtitleSkip: 8px;
 auctionInfoTableMargin: margins(0px, 12px, 0px, 12px);
 auctionBidEmoji: IconEmoji {
 	icon: icon {{ "settings/button_auction", windowFg }};
-	padding: margins(-4px, -1px, -4px, 0px);
+	padding: margins(-4px, -2px, -4px, 0px);
 }
 auctionBidToast: Toast(defaultToast) {
 	padding: margins(54px, 13px, 19px, 12px);

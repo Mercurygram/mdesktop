@@ -156,11 +156,14 @@ not_null<Ui::SlideWrap<Ui::VerticalLayout>*> CreateUnconfirmedAuthContent(
 	return wrap;
 }
 
-TopBarSuggestionContent::TopBarSuggestionContent(not_null<Ui::RpWidget*> p)
-: Ui::RippleButton(p, st::defaultRippleAnimationBgOver)
+TopBarSuggestionContent::TopBarSuggestionContent(
+	not_null<Ui::RpWidget*> parent,
+	Fn<bool()> emojiPaused)
+: Ui::RippleButton(parent, st::defaultRippleAnimationBgOver)
 , _titleSt(st::semiboldTextStyle)
 , _contentTitleSt(st::dialogsTopBarSuggestionTitleStyle)
-, _contentTextSt(st::dialogsTopBarSuggestionAboutStyle) {
+, _contentTextSt(st::dialogsTopBarSuggestionAboutStyle)
+, _emojiPaused(std::move(emojiPaused)) {
 	setRightIcon(RightIcon::Close);
 }
 
@@ -256,6 +259,8 @@ void TopBarSuggestionContent::draw(QPainter &p) {
 		- (_rightHide ? _rightHide->width() : 0);
 	const auto titleRight = leftPadding;
 	const auto hasSecondLineTitle = availableWidth < _contentTitle.maxWidth();
+	const auto paused = On(PowerSaving::kEmojiChat)
+		|| (_emojiPaused && _emojiPaused());
 	p.setPen(st::windowActiveTextFg);
 	p.setPen(st::windowFg);
 	{
@@ -267,7 +272,7 @@ void TopBarSuggestionContent::draw(QPainter &p) {
 				? availableWidth
 				: (availableWidth - titleRight),
 			.availableWidth = availableWidth,
-			.pausedEmoji = On(PowerSaving::kEmojiChat),
+			.pausedEmoji = paused,
 			.elisionLines = hasSecondLineTitle ? 2 : 1,
 		});
 	}
@@ -308,7 +313,7 @@ void TopBarSuggestionContent::draw(QPainter &p) {
 			.geometry = Ui::Text::GeometryDescriptor{
 				.layout = std::move(lineLayout),
 			},
-			.pausedEmoji = On(PowerSaving::kEmojiChat),
+			.pausedEmoji = paused,
 		});
 		_lastPaintedContentTop = top;
 		_lastPaintedContentLineAmount = lastContentLineAmount;
