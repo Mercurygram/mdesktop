@@ -165,6 +165,7 @@ TopBarSuggestionContent::TopBarSuggestionContent(not_null<Ui::RpWidget*> p)
 }
 
 void TopBarSuggestionContent::setRightIcon(RightIcon icon) {
+	_rightButton = nullptr;
 	if (icon == _rightIcon) {
 		return;
 	}
@@ -199,6 +200,35 @@ void TopBarSuggestionContent::setRightIcon(RightIcon icon) {
 		}, arrow->lifetime());
 		arrow->show();
 	}
+}
+
+void TopBarSuggestionContent::setRightButton(
+		rpl::producer<TextWithEntities> text,
+		Fn<void()> callback) {
+	_rightHide = nullptr;
+	_rightArrow = nullptr;
+	_rightIcon = RightIcon::None;
+	if (!text) {
+		_rightButton = nullptr;
+		return;
+	}
+	using namespace Ui;
+	_rightButton = base::make_unique_q<RoundButton>(
+		this,
+		rpl::single(QString()),
+		st::dialogsTopBarRightButton);
+	_rightButton->setText(std::move(text));
+	rpl::combine(
+		sizeValue(),
+		_rightButton->sizeValue()
+	) | rpl::start_with_next([=](QSize outer, QSize inner) {
+		const auto top = (outer.height() - inner.height()) / 2;
+		_rightButton->moveToRight(top, top, outer.width());
+	}, _rightButton->lifetime());
+	_rightButton->setFullRadius(true);
+	_rightButton->setTextTransform(RoundButton::TextTransform::NoTransform);
+	_rightButton->setClickedCallback(std::move(callback));
+	_rightButton->show();
 }
 
 void TopBarSuggestionContent::draw(QPainter &p) {
@@ -270,7 +300,7 @@ void TopBarSuggestionContent::draw(QPainter &p) {
 					: availableWidth,
 			};
 		};
-		p.setPen(st::windowSubTextFg);
+		p.setPen(_descriptionColorOverride.value_or(st::windowSubTextFg->c));
 		_contentText.draw(p, {
 			.position = QPoint(left, top),
 			.outerWidth = availableWidth,
@@ -288,7 +318,9 @@ void TopBarSuggestionContent::draw(QPainter &p) {
 void TopBarSuggestionContent::setContent(
 		TextWithEntities title,
 		TextWithEntities description,
-		std::optional<Ui::Text::MarkedContext> context) {
+		std::optional<Ui::Text::MarkedContext> context,
+		std::optional<QColor> descriptionColorOverride) {
+	_descriptionColorOverride = descriptionColorOverride;
 	if (context) {
 		context->repaint = [=] { update(); };
 		_contentTitle.setMarkedText(
@@ -305,6 +337,7 @@ void TopBarSuggestionContent::setContent(
 		_contentTitle.setMarkedText(_contentTitleSt, std::move(title));
 		_contentText.setMarkedText(_contentTextSt, std::move(description));
 	}
+	update();
 }
 
 void TopBarSuggestionContent::paintEvent(QPaintEvent *) {

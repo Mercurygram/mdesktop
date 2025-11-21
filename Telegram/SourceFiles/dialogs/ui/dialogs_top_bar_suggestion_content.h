@@ -45,12 +45,16 @@ public:
 	void setContent(
 		TextWithEntities title,
 		TextWithEntities description,
-		std::optional<Ui::Text::MarkedContext> context = std::nullopt);
+		std::optional<Ui::Text::MarkedContext> context = std::nullopt,
+		std::optional<QColor> descriptionColorOverride = std::nullopt);
 
 	[[nodiscard]] rpl::producer<int> desiredHeightValue() const override;
 
 	void setHideCallback(Fn<void()>);
 	void setRightIcon(RightIcon);
+	void setRightButton(
+		rpl::producer<TextWithEntities> text,
+		Fn<void()> callback);
 	void setLeftPadding(rpl::producer<int>);
 
 	[[nodiscard]] const style::TextStyle &contentTitleSt() const;
@@ -69,9 +73,11 @@ private:
 	Ui::Text::String _contentText;
 	rpl::variable<int> _lastPaintedContentLineAmount = 0;
 	rpl::variable<int> _lastPaintedContentTop = 0;
+	std::optional<QColor> _descriptionColorOverride;
 
 	base::unique_qptr<Ui::IconButton> _rightHide;
 	base::unique_qptr<Ui::IconButton> _rightArrow;
+	base::unique_qptr<Ui::RoundButton> _rightButton;
 	Fn<void()> _hideCallback;
 
 	int _leftPadding = 0;
