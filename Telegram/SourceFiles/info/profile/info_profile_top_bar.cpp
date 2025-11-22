@@ -356,7 +356,8 @@ TopBar::TopBar(
 		}
 	});
 	return owned;
-}()) {
+}())
+, _backToggles(std::move(descriptor.backToggles)) {
 	_peer->updateFull();
 	if (const auto broadcast = _peer->monoforumBroadcast()) {
 		broadcast->updateFull();
@@ -420,16 +421,13 @@ TopBar::TopBar(
 	badgeUpdates = rpl::merge(
 		std::move(badgeUpdates),
 		nameValue() | rpl::to_empty,
-		rpl::duplicate(descriptor.backToggles) | rpl::to_empty);
+		_backToggles.value() | rpl::to_empty);
 	std::move(badgeUpdates) | rpl::start_with_next([=] {
 		updateLabelsPosition();
 	}, _title->lifetime());
 
 	setupUniqueBadgeTooltip();
-	setupButtons(
-		controller,
-		rpl::duplicate(descriptor.backToggles),
-		descriptor.source);
+	setupButtons(controller, descriptor.source);
 	setupUserpicButton(controller);
 	if (_hasActions) {
 		_peer->session().changes().peerFlagsValue(
@@ -1822,7 +1820,6 @@ void TopBar::paintEvent(QPaintEvent *e) {
 
 void TopBar::setupButtons(
 		not_null<Window::SessionController*> controller,
-		rpl::producer<bool> backToggles,
 		Source source) {
 	if (source == Source::Preview) {
 		setRoundEdges(false);
@@ -1831,7 +1828,7 @@ void TopBar::setupButtons(
 	rpl::combine(
 		_wrap.value(),
 		_edgeColor.value()
-	) | rpl::start_with_next([=, backToggles = std::move(backToggles)](
+	) | rpl::start_with_next([=](
 			Wrap wrap,
 			std::optional<QColor> edgeColor) mutable {
 		const auto isLayer = (wrap == Wrap::Layer);
@@ -1858,7 +1855,7 @@ void TopBar::setupButtons(
 		_back->QWidget::show();
 		_back->setDuration(0);
 		_back->toggleOn(isLayer || isSide
-			? rpl::duplicate(backToggles)
+			? _backToggles.value()
 			: rpl::single(wrap == Wrap::Narrow));
 		_back->entity()->clicks() | rpl::to_empty | rpl::start_to_stream(
 			_backClicks,
