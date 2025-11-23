@@ -656,8 +656,9 @@ BottomInfo::Data BottomInfoDataFromMessage(not_null<Message*> message) {
 		result.scheduleRepeatPeriod = item->scheduleRepeatPeriod();
 	}
 	if (forwarded
-			&& forwarded->savedFromPeer
-			&& forwarded->savedFromMsgId
+			&& ((forwarded->savedFromPeer && forwarded->savedFromMsgId)
+				|| forwarded->savedFromHiddenSenderInfo
+				|| forwarded->originalHiddenSenderInfo)
 			&& !item->externalReply()) {
 		result.date = base::unixtime::parse(forwarded->originalDate);
 		result.flags |= Flag::ForwardedDate;
