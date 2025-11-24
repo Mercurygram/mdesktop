@@ -65,14 +65,18 @@ Viewport::Viewport(
 }
 
 Viewport::~Viewport() {
-	if (_borrowed && _opengl) {
-		const auto w = static_cast<QOpenGLWidget*>(widget().get());
-		w->makeCurrent();
-		const auto context = w->context();
-		const auto valid = w->isValid()
-			&& context
-			&& (QOpenGLContext::currentContext() == context);
-		ensureBorrowedCleared(valid ? context->functions() : nullptr);
+	if (_borrowed) {
+		if (_opengl) {
+			const auto w = static_cast<QOpenGLWidget*>(widget().get());
+			w->makeCurrent();
+			const auto context = w->context();
+			const auto valid = w->isValid()
+				&& context
+				&& (QOpenGLContext::currentContext() == context);
+			ensureBorrowedCleared(valid ? context->functions() : nullptr);
+		} else {
+			ensureBorrowedCleared();
+		}
 	}
 }
 
@@ -925,6 +929,7 @@ rpl::producer<bool> Viewport::mouseInsideValue() const {
 
 void Viewport::ensureBorrowedRenderer(QOpenGLFunctions &f) {
 	Expects(_borrowed != nullptr);
+	Expects(_opengl);
 
 	if (_borrowedRenderer) {
 		return;
@@ -935,6 +940,7 @@ void Viewport::ensureBorrowedRenderer(QOpenGLFunctions &f) {
 
 void Viewport::ensureBorrowedCleared(QOpenGLFunctions *f) {
 	Expects(_borrowed != nullptr);
+	Expects(_opengl);
 
 	if (const auto renderer = base::take(_borrowedRenderer)) {
 		renderer->deinit(f);
@@ -946,6 +952,23 @@ void Viewport::borrowedPaint(QOpenGLFunctions &f) {
 	Expects(_opengl);
 
 	_borrowedRenderer->paint(static_cast<QOpenGLWidget*>(widget().get()), f);
+}
+
+void Viewport::ensureBorrowedRenderer() {
+	Expects(_borrowed != nullptr);
+	Expects(!_opengl);
+
+	if (_borrowedRenderer) {
+		return;
+	}
+	_borrowedRenderer = makeRenderer();
+}
+
+void Viewport::ensureBorrowedCleared() {
+	Expects(_borrowed != nullptr);
+	Expects(!_opengl);
+
+	base::take(_borrowedRenderer);
 }
 
 void Viewport::borrowedPaint(Painter &p, const QRegion &clip) {
