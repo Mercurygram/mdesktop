@@ -476,7 +476,8 @@ void FillPeerQrBox(
 	const auto userpicMedia = Ui::MakeUserpicThumbnail(peer
 		? peer
 		: controller->session().user().get());
-	userpicMedia->subscribeToUpdates([=] { userpic->update(); });
+	userpicMedia->subscribeToUpdates(
+		crl::guard(userpic, [=] { userpic->update(); }));
 	userpic->paintRequest() | rpl::start_with_next([=] {
 		auto p = QPainter(userpic);
 		p.drawImage(0, 0, userpicMedia->image(userpicSize));
