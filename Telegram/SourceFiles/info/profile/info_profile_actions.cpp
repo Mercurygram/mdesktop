@@ -1516,13 +1516,20 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 		rpl::combine(
 			container->widthValue(),
 			label->geometryValue(),
-			button->sizeValue()
-		) | rpl::start_with_next([=](int width, QRect, QSize buttonSize) {
+			button->sizeValue(),
+			button->shownValue()
+		) | rpl::start_with_next([=](
+				int width,
+				QRect,
+				QSize buttonSize,
+				bool buttonShown) {
 			button->moveToRight(
 				rightSkip,
 				(parent->height() - buttonSize.height()) / 2);
 			const auto x = Ui::MapFrom(container, label, QPoint(0, 0)).x();
-			const auto s = Ui::MapFrom(container, button, QPoint(0, 0)).x();
+			const auto s = buttonShown
+				? Ui::MapFrom(container, button, QPoint(0, 0)).x()
+				: width;
 			label->resizeToWidth(s - x);
 		}, button->lifetime());
 	};
@@ -1642,6 +1649,9 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 		const auto qrButton = Ui::CreateChild<Ui::IconButton>(
 			usernameLine.text->parentWidget(),
 			st::infoProfileLabeledButtonQr);
+		UsernamesValue(_peer) | rpl::start_with_next([=](const auto &u) {
+			qrButton->setVisible(!u.empty());
+		}, qrButton->lifetime());
 		const auto rightSkip = st::infoProfileLabeledButtonQrRightSkip;
 		fitLabelToButton(qrButton, usernameLine.text, rightSkip);
 		fitLabelToButton(qrButton, usernameLine.subtext, rightSkip);
@@ -1719,6 +1729,9 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 			const auto qr = Ui::CreateChild<Ui::IconButton>(
 				linkLine.text->parentWidget(),
 				st::infoProfileLabeledButtonQr);
+			UsernamesValue(_peer) | rpl::start_with_next([=](const auto &u) {
+				qr->setVisible(!u.empty());
+			}, qr->lifetime());
 			const auto rightSkip = st::infoProfileLabeledButtonQrRightSkip;
 			fitLabelToButton(qr, linkLine.text, rightSkip);
 			fitLabelToButton(qr, linkLine.subtext, rightSkip);
