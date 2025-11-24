@@ -791,13 +791,13 @@ void Viewport::updateTilesGeometryColumn(int outerWidth) {
 			top += height + st::groupCallVideoSmallSkip;
 		}
 	};
-	const auto topPeer = _large ? _large->row()->peer().get() : nullptr;
+	const auto topPeer = _large ? _large->peer().get() : nullptr;
 	const auto reorderNeeded = [&] {
 		if (!topPeer) {
 			return false;
 		}
 		for (const auto &tile : _tiles) {
-			if (tile.get() != _large && tile->row()->peer() == topPeer) {
+			if (tile.get() != _large && tile->peer() == topPeer) {
 				return (tile.get() != _tiles.front().get())
 					&& !tile->trackOrUserpicSize().isEmpty();
 			}
@@ -813,7 +813,7 @@ void Viewport::updateTilesGeometryColumn(int outerWidth) {
 		ranges::stable_partition(
 			_tilesForOrder,
 			[&](not_null<VideoTile*> tile) {
-				return (tile->row()->peer() == topPeer);
+				return (tile->peer() == topPeer);
 			});
 		for (const auto &tile : _tilesForOrder) {
 			layoutNext(tile);

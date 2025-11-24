@@ -82,7 +82,7 @@ void Viewport::RendererSW::validateUserpicFrame(
 	const auto size = tile->trackOrUserpicSize();
 	data.userpicFrame = Images::BlurLargeImage(
 		PeerData::GenerateUserpicImage(
-			tile->row()->peer(),
+			tile->peer(),
 			tile->row()->ensureUserpicView(),
 			size.width(),
 			0),
