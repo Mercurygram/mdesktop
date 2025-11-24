@@ -1507,14 +1507,14 @@ void AuctionAboutBox(
 			box,
 			tr::lng_auction_about_title(),
 			st::boxTitle),
-		st::boxRowPadding + st::confcallLinkTitlePadding,
+		st::boxRowPadding,
 		style::al_top);
 	box->addRow(
 		object_ptr<FlatLabel>(
 			box,
 			tr::lng_auction_about_subtitle(tr::rich),
 			st::confcallLinkCenteredText),
-		st::boxRowPadding,
+		st::boxRowPadding + st::auctionAboutTextPadding,
 		style::al_top
 	)->setTryMakeSimilarLines(true);
 
