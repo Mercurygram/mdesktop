@@ -154,6 +154,16 @@ base::options::toggle ShowChannelJoinedBelowAbout({
 	});
 }
 
+[[nodiscard]] rpl::producer<TextWithEntities> TopicSubtext(
+		not_null<PeerData*> peer) {
+	return rpl::conditional(
+		UsernamesValue(peer) | rpl::map([](std::vector<TextWithEntities> v) {
+			return !v.empty();
+		}),
+		tr::lng_filters_link_subtitle(Ui::Text::WithEntities),
+		tr::lng_info_link_topic_label(Ui::Text::WithEntities));
+}
+
 [[nodiscard]] Fn<void(QString)> UsernamesLinkCallback(
 		not_null<PeerData*> peer,
 		not_null<Window::SessionController*> controller,
@@ -1692,7 +1702,7 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 		});
 		const auto linkLine = addInfoOneLine(
 			(topicRootId
-				? tr::lng_info_link_topic_label(Ui::Text::WithEntities)
+				? TopicSubtext(_peer)
 				: UsernamesSubtext(_peer, tr::lng_info_link_label())),
 			std::move(linkText),
 			QString());
