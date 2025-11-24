@@ -1635,9 +1635,8 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 		const auto rightSkip = st::infoProfileLabeledButtonQrRightSkip;
 		fitLabelToButton(qrButton, usernameLine.text, rightSkip);
 		fitLabelToButton(qrButton, usernameLine.subtext, rightSkip);
-		qrButton->setClickedCallback([=] {
-			controller->show(
-				Box(Ui::FillPeerQrBox, user, std::nullopt, nullptr));
+		qrButton->setClickedCallback([=, show = controller->uiShow()] {
+			Ui::DefaultShowFillPeerQrBoxCallback(show, user);
 			return false;
 		});
 
@@ -1713,9 +1712,9 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 			const auto rightSkip = st::infoProfileLabeledButtonQrRightSkip;
 			fitLabelToButton(qr, linkLine.text, rightSkip);
 			fitLabelToButton(qr, linkLine.subtext, rightSkip);
-			qr->setClickedCallback([=, peer = _peer] {
-				controller->show(
-					Box(Ui::FillPeerQrBox, peer, std::nullopt, nullptr));
+			const auto peer = _peer;
+			qr->setClickedCallback([=, show = controller->uiShow()] {
+				Ui::DefaultShowFillPeerQrBoxCallback(show, peer);
 				return false;
 			});
 		}

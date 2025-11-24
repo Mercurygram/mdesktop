@@ -969,4 +969,12 @@ void FillPeerQrBox(
 	box->addTopButton(st::boxTitleClose, [=] { box->closeBox(); });
 }
 
+void DefaultShowFillPeerQrBoxCallback(
+		std::shared_ptr<Ui::Show> show,
+		PeerData *peer) {
+	if (peer && !peer->username().isEmpty()) {
+		show->show(Box(Ui::FillPeerQrBox, peer, std::nullopt, nullptr));
+	}
+}
+
 } // namespace Ui
