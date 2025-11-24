@@ -6806,6 +6806,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_stories_my_name" = "My Story";
 "lng_stories_archive" = "Hide Stories";
 "lng_stories_unarchive" = "Unhide Stories";
+"lng_stories_view_anonymously" = "View Anonymously";
 "lng_stories_row_count#one" = "{count} Story";
 "lng_stories_row_count#other" = "{count} Stories";
 "lng_stories_views#one" = "{count} view";
@@ -6900,6 +6901,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_stealth_mode_next_about" = "Hide my views for the next 25 minutes.";
 "lng_stealth_mode_unlock" = "Unlock Stealth Mode";
 "lng_stealth_mode_enable" = "Enable Stealth Mode";
+"lng_stealth_mode_enable_and_open" = "Enable and open the story";
 "lng_stealth_mode_cooldown_in" = "Available in {left}";
 "lng_stealth_mode_cooldown_tip" = "Please wait until **Stealth Mode** is ready to use again.";
 "lng_stealth_mode_enabled_tip_title" = "Stealth Mode On";
