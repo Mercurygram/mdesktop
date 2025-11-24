@@ -585,9 +585,6 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 }
 
 void TopBar::updateCollectibleStatus() {
-	if (width() <= 0) {
-		return;
-	}
 	const auto collectible = effectiveCollectible();
 	const auto colorProfile = effectiveColorProfile();
 	_hasGradientBg = (collectible != nullptr)
@@ -606,10 +603,14 @@ void TopBar::updateCollectibleStatus() {
 		: _peer->profileBackgroundEmojiId();
 	if (patternEmojiId) {
 		const auto document = _peer->owner().document(patternEmojiId);
-		_patternEmoji = document->owner().customEmojiManager().create(
-			document,
-			[=] { update(); },
-			Data::CustomEmojiSizeTag::Normal);
+		if (!_patternEmoji
+			|| _patternEmoji->entityData()
+				!= Data::SerializeCustomEmojiId(document)) {
+			_patternEmoji = document->owner().customEmojiManager().create(
+				document,
+				[=] { update(); },
+				Data::CustomEmojiSizeTag::Normal);
+		}
 	} else {
 		_patternEmoji = nullptr;
 	}
