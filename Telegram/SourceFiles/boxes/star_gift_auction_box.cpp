@@ -581,7 +581,7 @@ void EditCustomBid(
 		starsField->setFocusFast();
 	});
 
-	box->addButton(tr::lng_settings_save(), [=] {
+	const auto submit = [=] {
 		const auto value = starsField->getLastText().toLongLong();
 		if (value <= min->current() || value > 1'000'000'000) {
 			starsField->showError();
@@ -589,7 +589,10 @@ void EditCustomBid(
 		}
 		save(value);
 		box->closeBox();
-	});
+	};
+	QObject::connect(starsField, &Ui::NumberInput::submitted, submit);
+
+	box->addButton(tr::lng_settings_save(), submit);
 	box->addButton(tr::lng_cancel(), [=] {
 		box->closeBox();
 	});
