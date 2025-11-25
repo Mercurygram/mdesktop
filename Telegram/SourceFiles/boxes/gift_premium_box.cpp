@@ -1616,11 +1616,30 @@ void AddCreditsHistoryEntryTable(
 			: entry.giftUpgraded
 			? tr::lng_credits_box_history_entry_gift_from()
 			: tr::lng_credits_box_history_entry_peer();
+		const auto targetId = actorId ? actorId : peerId;
+		const auto isPeerDefault = !entry.starrefCommission
+			&& !entry.in
+			&& !entry.giftResale
+			&& !entry.giftUpgraded;
+		const auto user = isPeerDefault
+			? session->data().peer(targetId)->asUser()
+			: nullptr;
+		const auto withSendButton = user
+			&& !user->isInaccessible()
+			&& !user->isBot();
+		auto send = withSendButton ? tr::lng_gift_send_small() : nullptr;
+		auto handler = send
+			? Fn<void()>([=] {
+				if (const auto window = show->resolveWindow()) {
+					Ui::ShowStarGiftBox(window, user);
+				}
+			})
+			: nullptr;
 		AddTableRow(
 			table,
 			std::move(text),
-			show,
-			actorId ? actorId : peerId);
+			MakePeerTableValue(table, show, targetId, send, handler),
+			st::giveawayGiftCodePeerMargin);
 	}
 	if (const auto msgId = MsgId(peerId ? entry.bareMsgId : 0)) {
 		const auto peer = session->data().peer(peerId);
