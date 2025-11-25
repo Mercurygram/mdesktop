@@ -3558,15 +3558,9 @@ bool ComposeControls::updateSendAsButton(
 	_sendAs = std::make_unique<Ui::SendAsButton>(_wrap.get(), st.button);
 	if (videoStream) {
 		Ui::SetupSendAsButton(_sendAs.get(), st, videoStream, _show);
-		_videoStreamAdmin = videoStream->sendAsValue(
-		) | rpl::map([=](not_null<PeerData*> peer) {
-			return (videoStream->peer() == peer)
-				|| (videoStream->creator() && peer->isSelf());
-		}) | rpl::distinct_until_changed(
-		) | rpl::after_next([=](bool admin) {
-			initEditStarsButton();
-			updateControlsGeometry(_wrap->size());
-		});
+		_videoStreamAdmin = videoStream->creator();
+		initEditStarsButton();
+		updateControlsGeometry(_wrap->size());
 	} else {
 		Ui::SetupSendAsButton(_sendAs.get(), st, rpl::single(peer), _show);
 		_videoStreamAdmin = false;
