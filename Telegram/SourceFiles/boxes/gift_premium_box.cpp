@@ -1780,6 +1780,19 @@ void AddCreditsHistoryEntryTable(
 			rpl::single(
 				Ui::Text::Link(entry.successLink, entry.successLink)));
 	}
+	if (entry.limitedCount > 0 && entry.limitedLeft >= 0) {
+		AddTableRow(
+			table,
+			tr::lng_gift_availability(),
+			tr::lng_gift_availability_left(
+				lt_count_decimal,
+				rpl::single(entry.limitedLeft) | tr::to_count(),
+				lt_amount,
+				rpl::single(TextWithEntities{
+					Lang::FormatCountDecimal(entry.limitedCount)
+				}),
+				Ui::Text::WithEntities));
+	}
 }
 
 void AddSubscriptionEntryTable(

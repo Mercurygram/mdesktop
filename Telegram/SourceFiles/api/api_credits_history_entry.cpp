@@ -130,6 +130,8 @@ Data::CreditsHistoryEntry CreditsHistoryEntryFromTL(
 		}, [](const MTPDstarsTransactionPeerAPI &) {
 			return Data::CreditsHistoryEntry::PeerType::API;
 		}),
+		.limitedCount = parsedGift ? parsedGift->limitedCount : 0,
+		.limitedLeft = parsedGift ? parsedGift->limitedLeft : 0,
 		.subscriptionUntil = tl.data().vsubscription_period()
 			? base::unixtime::parse(base::unixtime::now()
 				+ tl.data().vsubscription_period()->v)
