@@ -27,7 +27,8 @@ void Manager::start(not_null<PeerData*> peer) {
 
 void Manager::startTopic(
 		not_null<PeerData*> peer,
-		MsgId topicRootId) {
+		MsgId topicRootId,
+		const QString &topicTitle) {
 	if (_panel) {
 		_panel->activatePanel();
 		return;
@@ -36,7 +37,8 @@ void Manager::startTopic(
 		&peer->session().mtp(),
 		peer->input,
 		int32(topicRootId.bare),
-		uint64(peer->id.value));
+		uint64(peer->id.value),
+		topicTitle);
 	setupPanel(&peer->session());
 }
 

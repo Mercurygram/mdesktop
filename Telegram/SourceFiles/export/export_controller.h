@@ -121,7 +121,8 @@ public:
 		QPointer<MTP::Instance> mtproto,
 		const MTPInputPeer &peer,
 		int32 topicRootId,
-		uint64 peerId);
+		uint64 peerId,
+		const QString &topicTitle);
 
 	rpl::producer<State> state() const;
 

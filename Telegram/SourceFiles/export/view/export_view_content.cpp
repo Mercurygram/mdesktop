@@ -142,7 +142,9 @@ Content ContentFromState(
 		pushMain(tr::lng_export_state_chats(tr::now));
 		push(
 			"topic",
-			u"Topic"_q,
+			state.entityName.isEmpty()
+				? tr::lng_deleted(tr::now)
+				: state.entityName,
 			(state.itemCount > 0
 				? (QString::number(state.itemIndex)
 					+ " / "

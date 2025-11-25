@@ -1759,7 +1759,9 @@ void PeerMenuExportTopic(
 		not_null<PeerData*> peer,
 		MsgId topicRootId) {
 	base::call_delayed(st::defaultPopupMenu.showDuration, [=] {
-		Core::App().exportManager().startTopic(peer, topicRootId);
+		const auto topic = peer->forumTopicFor(topicRootId);
+		const auto topicTitle = topic ? topic->title() : QString();
+		Core::App().exportManager().startTopic(peer, topicRootId, topicTitle);
 	});
 }
 

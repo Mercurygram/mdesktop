@@ -36,7 +36,8 @@ public:
 		const MTPInputPeer &singlePeer = MTP_inputPeerEmpty());
 	void startTopic(
 		not_null<PeerData*> peer,
-		MsgId topicRootId);
+		MsgId topicRootId,
+		const QString &topicTitle);
 
 	[[nodiscard]] rpl::producer<View::PanelController*> currentView() const;
 	[[nodiscard]] bool inProgress() const;

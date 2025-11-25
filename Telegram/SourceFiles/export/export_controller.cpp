@@ -42,7 +42,8 @@ public:
 		QPointer<MTP::Instance> mtproto,
 		const MTPInputPeer &peer,
 		int32 topicRootId,
-		uint64 peerId);
+		uint64 peerId,
+		const QString &topicTitle);
 
 	rpl::producer<State> state() const;
 
@@ -149,6 +150,7 @@ private:
 
 	int32 _topicRootId = 0;
 	uint64 _topicPeerId = 0;
+	QString _topicTitle;
 
 	rpl::lifetime _lifetime;
 
@@ -183,11 +185,13 @@ ControllerObject::ControllerObject(
 	QPointer<MTP::Instance> mtproto,
 	const MTPInputPeer &peer,
 	int32 topicRootId,
-	uint64 peerId)
+	uint64 peerId,
+	const QString &topicTitle)
 : _api(mtproto, weak.runner())
 , _state(PasswordCheckState{})
 , _topicRootId(topicRootId)
-, _topicPeerId(peerId) {
+, _topicPeerId(peerId)
+, _topicTitle(topicTitle) {
 	_api.errors(
 	) | rpl::start_with_next([=](const MTP::Error &error) {
 		setState(ApiErrorState{ error });
@@ -760,7 +764,7 @@ int ControllerObject::substepsInStep(Step step) const {
 void ControllerObject::exportTopic() {
 	auto topicInfo = Data::DialogInfo();
 	topicInfo.type = Data::DialogInfo::Type::PublicSupergroup;
-	topicInfo.name = "Topic";
+	topicInfo.name = _topicTitle.toUtf8();
 	topicInfo.peerId = PeerId(_topicPeerId);
 	topicInfo.relativePath = QString();
 
@@ -807,6 +811,7 @@ ProcessingState ControllerObject::stateTopic(
 		const DownloadProgress &progress) const {
 	return prepareState(Step::Topic, [&](ProcessingState &result) {
 		result.entityType = ProcessingState::EntityType::Topic;
+		result.entityName = _topicTitle;
 		result.entityIndex = 0;
 		result.entityCount = 1;
 		result.itemIndex = _messagesWritten + progress.itemIndex;
@@ -838,12 +843,14 @@ Controller::Controller(
 	QPointer<MTP::Instance> mtproto,
 	const MTPInputPeer &peer,
 	int32 topicRootId,
-	uint64 peerId)
+	uint64 peerId,
+	const QString &topicTitle)
 : _wrapped(
 	std::move(mtproto),
 	peer,
 	static_cast<int32>(topicRootId),
-	static_cast<uint64>(peerId)) {
+	static_cast<uint64>(peerId),
+	topicTitle) {
 }
 
 rpl::producer<State> Controller::state() const {

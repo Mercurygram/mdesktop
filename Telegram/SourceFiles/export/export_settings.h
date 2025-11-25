@@ -90,6 +90,7 @@ struct Settings {
 
 	int32 singleTopicRootId = 0;
 	uint64 singleTopicPeerId = 0;
+	QString singleTopicTitle;
 
 	TimeId availableAt = 0;
 
