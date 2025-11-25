@@ -202,6 +202,8 @@ struct BidSliderValues {
 	auto result = object_ptr<RpWidget>(parent.get());
 	const auto raw = result.data();
 
+	raw->setAttribute(Qt::WA_TransparentForMouseEvents);
+
 	struct State {
 		std::unique_ptr<FlatLabel> place;
 		std::unique_ptr<UserpicButton> userpic;

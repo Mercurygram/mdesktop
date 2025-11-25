@@ -307,7 +307,7 @@ HistoryWidget::HistoryWidget(
 , _paidReactionToast(std::make_unique<HistoryView::PaidReactionToast>(
 	this,
 	&session().data(),
-	rpl::single(st::topBarHeight),
+	rpl::single(0),
 	[=](not_null<const HistoryView::Element*> view) {
 		return _list && _list->itemTop(view) >= 0;
 	}))
