@@ -34,6 +34,9 @@ public:
 	void start(
 		not_null<Main::Session*> session,
 		const MTPInputPeer &singlePeer = MTP_inputPeerEmpty());
+	void startTopic(
+		not_null<PeerData*> peer,
+		MsgId topicRootId);
 
 	[[nodiscard]] rpl::producer<View::PanelController*> currentView() const;
 	[[nodiscard]] bool inProgress() const;
@@ -42,6 +45,8 @@ public:
 	void stop();
 
 private:
+	void setupPanel(not_null<Main::Session*> session);
+
 	std::unique_ptr<Controller> _controller;
 	std::unique_ptr<View::PanelController> _panel;
 	rpl::event_stream<View::PanelController*> _viewChanges;

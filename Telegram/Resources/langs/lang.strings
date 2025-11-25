@@ -1735,6 +1735,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_profile_block_user" = "Block user";
 "lng_profile_unblock_user" = "Unblock user";
 "lng_profile_export_chat" = "Export chat history";
+"lng_profile_export_topic" = "Export topic history";
 "lng_profile_gift_premium" = "Gift Premium";
 "lng_media_selected_photo#one" = "{count} Photo";
 "lng_media_selected_photo#other" = "{count} Photos";
@@ -6312,6 +6313,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_export_option_other" = "Miscellaneous data";
 "lng_export_option_other_about" = "Other types of data not mentioned above (beta).";
 "lng_export_header_chats" = "Chat export settings";
+"lng_export_header_topic" = "Topic export settings";
 "lng_export_option_personal_chats" = "Personal chats";
 "lng_export_option_bot_chats" = "Bot chats";
 "lng_export_option_private_groups" = "Private groups";
