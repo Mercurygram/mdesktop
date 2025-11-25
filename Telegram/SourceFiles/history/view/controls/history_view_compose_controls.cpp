@@ -1448,7 +1448,7 @@ void ComposeControls::setStarsReactionCounter(
 		_starsReaction->setAcceptBoth();
 		_starsReaction->clicks(
 		) | rpl::start_with_next([=](Qt::MouseButton button) {
-			if (button == Qt::LeftButton) {
+			if (_chosenStarsCount && button == Qt::LeftButton) {
 				_starsReactionIncrements.fire({ .count = 1 });
 				startStarsSendEffect();
 			} else {
@@ -1457,6 +1457,7 @@ void ComposeControls::setStarsReactionCounter(
 					.top = _starsReactionTop.current(),
 					.current = 0,
 					.sending = true,
+					.admin = !_chosenStarsCount,
 					.save = crl::guard(_starsReaction, [=](int count) {
 						_starsReactionIncrements.fire({
 							.count = count,
@@ -1465,7 +1466,6 @@ void ComposeControls::setStarsReactionCounter(
 					}),
 					.name = _history ? _history->peer->shortName() : QString(),
 				}));
-
 			}
 		}, _starsReaction->lifetime());
 

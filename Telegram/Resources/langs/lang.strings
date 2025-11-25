@@ -4791,6 +4791,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_paid_react_send" = "Send {price}";
 "lng_paid_react_agree" = "By sending stars, you agree to the {link}.";
 "lng_paid_react_agree_link" = "Terms of Service";
+"lng_paid_react_admin_cant" = "You can't send Stars to your own Live Story.";
 "lng_paid_react_toast#one" = "Star Sent!";
 "lng_paid_react_toast#other" = "Stars Sent!";
 "lng_paid_react_toast_anonymous#one" = "Star sent anonymously!";
@@ -4812,6 +4813,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_paid_reaction_title" = "React with Stars";
 "lng_paid_reaction_about" = "Highlight and pin your message by sending Stars to {name}.";
 "lng_paid_reaction_button" = "Send {stars}";
+"lng_paid_admin_title" = "Receive Stars from Viewers";
+"lng_paid_admin_about" = "Viewers can send you Star Reactions.";
 
 "lng_sensitive_tag" = "18+";
 "lng_sensitive_title" = "18+";
