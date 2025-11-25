@@ -882,7 +882,9 @@ void CreditsRow::init() {
 	const auto name = !isSpecial
 		? PeerListRow::generateName()
 		: Ui::GenerateEntryName(_entry).text;
-	_name = _entry.paidMessagesCount
+	_name = _entry.isLiveStoryReaction()
+		? tr::lng_credits_paid_messages_fee_live_reaction(tr::now)
+		: _entry.paidMessagesCount
 		? tr::lng_credits_paid_messages_fee(
 			tr::now,
 			lt_count,

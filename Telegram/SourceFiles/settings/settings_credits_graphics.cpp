@@ -1475,6 +1475,8 @@ void GenericCreditsEntryBox(
 					? tr::lng_credits_box_history_entry_giveaway_name(tr::now)
 					: (!e.subscriptionUntil.isNull() && e.title.isEmpty())
 					? tr::lng_credits_box_history_entry_subscription(tr::now)
+					: e.isLiveStoryReaction()
+					? tr::lng_credits_paid_messages_fee_live_reaction(tr::now)
 					: e.paidMessagesCount
 					? tr::lng_credits_paid_messages_fee(
 						tr::now,
