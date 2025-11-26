@@ -515,7 +515,7 @@ void PaidReactionsBox(
 			count);
 		return Ui::ColorFromSerialized(coloring.bgLight);
 	};
-	const auto bubble = AddStarSelectBubble(
+	AddStarSelectBubble(
 		content,
 		BoxShowFinishes(box),
 		state->chosen.value(),
@@ -547,10 +547,10 @@ void PaidReactionsBox(
 			colorings,
 			(videoStreamAdmin
 				? rpl::single(state->chosen.current())
-				: state->chosen.value()),
+				: state->chosen.value() | rpl::type_erased()),
 			(videoStreamAdmin
 				? rpl::single(state->shownPeer.current())
-				: state->shownPeer.value()),
+				: state->shownPeer.value() | rpl::type_erased()),
 			[=](uint64 barePeerId) {
 				state->shownPeer = state->savedShownPeer = barePeerId;
 			},

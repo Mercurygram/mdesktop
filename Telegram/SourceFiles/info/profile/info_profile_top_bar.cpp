@@ -1856,7 +1856,7 @@ void TopBar::setupButtons(
 		_back->QWidget::show();
 		_back->setDuration(0);
 		_back->toggleOn(isLayer || isSide
-			? _backToggles.value()
+			? (_backToggles.value() | rpl::type_erased())
 			: rpl::single(wrap == Wrap::Narrow));
 		_back->entity()->clicks() | rpl::to_empty | rpl::start_to_stream(
 			_backClicks,
