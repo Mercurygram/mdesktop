@@ -707,14 +707,7 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 			}
 		}
 
-		const auto bubble = AddStarSelectBubble(
-			sliderWrap,
-			initial ? BoxShowFinishes(box) : nullptr,
-			state->chosen.value(),
-			values.max,
-			activeFgOverride);
-		bubble->setAttribute(Qt::WA_TransparentForMouseEvents, false);
-		bubble->setClickedCallback([=] {
+		const auto setCustom = [=] {
 			auto min = state->value.value(
 			) | rpl::map([=](const Data::GiftAuctionState &state) {
 				return std::max(1, int(state.my.minBidAmount
@@ -724,7 +717,16 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 			show->show(Box(EditCustomBid, show, crl::guard(box, [=](int v) {
 				state->chosen = v;
 			}), std::move(min), state->chosen.current()));
-		});
+		};
+
+		const auto bubble = AddStarSelectBubble(
+			sliderWrap,
+			initial ? BoxShowFinishes(box) : nullptr,
+			state->chosen.value(),
+			values.max,
+			activeFgOverride);
+		bubble->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+		bubble->setClickedCallback(setCustom);
 		state->subtext.value() | rpl::start_with_next([=](QString &&text) {
 			bubble->setSubtext(std::move(text));
 		}, bubble->lifetime());
@@ -740,6 +742,29 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 			activeFgOverride);
 
 		sliderWrap->resizeToWidth(st::boxWideWidth);
+
+		const auto custom = CreateChild<AbstractButton>(sliderWrap);
+		state->chosen.changes() | rpl::start_with_next([=] {
+			custom->update();
+		}, custom->lifetime());
+		custom->show();
+		custom->setClickedCallback(setCustom);
+		custom->resize(st::paidReactSlider.width, st::paidReactSlider.width);
+		custom->paintOn([=](QPainter &p) {
+			const auto rem = st::paidReactSlider.borderWidth * 2;
+			const auto inner = custom->width() - 2 * rem;
+			const auto sub = (inner - 1) / 2;
+			const auto stroke = inner - (2 * sub);
+			const auto color = activeFgOverride(state->chosen.current());
+			p.fillRect(rem + sub, rem, stroke, sub, color);
+			p.fillRect(rem, rem + sub, inner, stroke, color);
+			p.fillRect(rem + sub, rem + inner - sub, stroke, sub, color);
+		});
+		sliderWrap->sizeValue() | rpl::start_with_next([=](QSize size) {
+			custom->move(
+				size.width() - st::boxRowPadding.right() - custom->width(),
+				size.height() - custom->height());
+		}, custom->lifetime());
 	}, sliderWrap->lifetime());
 
 	box->addTopButton(
