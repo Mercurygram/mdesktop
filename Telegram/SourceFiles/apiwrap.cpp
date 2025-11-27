@@ -3483,6 +3483,9 @@ void ApiWrap::forwardMessages(
 		flags |= MessageFlag::ShortcutMessage;
 		sendFlags |= SendFlag::f_quick_reply_shortcut;
 	}
+	if (action.options.effectId) {
+		sendFlags |= SendFlag::f_effect;
+	}
 	if (draft.options != Data::ForwardOptions::PreserveInfo) {
 		sendFlags |= SendFlag::f_drop_author;
 	}
@@ -3548,7 +3551,7 @@ void ApiWrap::forwardMessages(
 				MTP_int(action.options.scheduleRepeatPeriod),
 				(sendAs ? sendAs->input : MTP_inputPeerEmpty()),
 				Data::ShortcutIdToMTP(_session, action.options.shortcutId),
-				MTP_long(0), // effect
+				MTP_long(action.options.effectId),
 				MTPint(), // video_timestamp
 				MTP_long(starsPaid),
 				Api::SuggestToMTP(action.options.suggest)
