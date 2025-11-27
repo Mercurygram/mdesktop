@@ -1792,6 +1792,7 @@ ShareBox::SubmitCallback ShareBox::DefaultForwardCallback(
 						MTP_int(options.scheduleRepeatPeriod),
 						MTP_inputPeerEmpty(), // send_as
 						Data::ShortcutIdToMTP(session, options.shortcutId),
+						MTP_long(0), // effect
 						MTP_int(videoTimestamp.value_or(0)),
 						MTP_long(starsPaid),
 						Api::SuggestToMTP(options.suggest)

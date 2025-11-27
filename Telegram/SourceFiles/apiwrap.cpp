@@ -3548,6 +3548,7 @@ void ApiWrap::forwardMessages(
 				MTP_int(action.options.scheduleRepeatPeriod),
 				(sendAs ? sendAs->input : MTP_inputPeerEmpty()),
 				Data::ShortcutIdToMTP(_session, action.options.shortcutId),
+				MTP_long(0), // effect
 				MTPint(), // video_timestamp
 				MTP_long(starsPaid),
 				Api::SuggestToMTP(action.options.suggest)
