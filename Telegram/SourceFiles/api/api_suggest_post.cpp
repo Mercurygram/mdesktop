@@ -365,7 +365,7 @@ void SendSuggest(
 		std::shared_ptr<Main::SessionShow> show,
 		not_null<HistoryItem*> item,
 		std::shared_ptr<SendSuggestState> state,
-		Fn<void(SuggestPostOptions&)> modify,
+		Fn<void(SuggestOptions&)> modify,
 		Fn<void()> done = nullptr,
 		int starsApproved = 0) {
 	const auto suggestion = item->Get<HistoryMessageSuggestedPost>();
@@ -437,7 +437,7 @@ void SuggestApprovalDate(
 			show,
 			item,
 			state,
-			[=](SuggestPostOptions &options) { options.date = result; },
+			[=](SuggestOptions &options) { options.date = result; },
 			close);
 	};
 	using namespace HistoryView;
@@ -454,12 +454,12 @@ void SuggestApprovalDate(
 void SuggestOfferForMessage(
 		std::shared_ptr<Main::SessionShow> show,
 		not_null<HistoryItem*> item,
-		SuggestPostOptions values,
+		SuggestOptions values,
 		HistoryView::SuggestMode mode) {
 	const auto id = item->fullId();
 	const auto state = std::make_shared<SendSuggestState>();
 	const auto weak = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
-	const auto done = [=](SuggestPostOptions result) {
+	const auto done = [=](SuggestOptions result) {
 		const auto item = show->session().data().message(id);
 		if (!item) {
 			return;
@@ -473,7 +473,7 @@ void SuggestOfferForMessage(
 			show,
 			item,
 			state,
-			[=](SuggestPostOptions &options) { options = result; },
+			[=](SuggestOptions &options) { options = result; },
 			close);
 	};
 	using namespace HistoryView;
@@ -594,7 +594,7 @@ std::shared_ptr<ClickHandler> SuggestChangesClickHandler(
 						.messageId = FullMsgId(history->peer->id, item->id),
 						.monoforumPeerId = monoforumPeerId,
 					},
-					SuggestPostOptions{
+					SuggestOptions{
 						.exists = uint32(1),
 						.priceWhole = uint32(suggestion->price.whole()),
 						.priceNano = uint32(suggestion->price.nano()),

@@ -207,7 +207,7 @@ struct FullReplyTo {
 	friend inline bool operator==(FullReplyTo, FullReplyTo) = default;
 };
 
-struct SuggestPostOptions {
+struct SuggestOptions {
 	uint32 exists : 1 = 0;
 	uint32 priceWhole : 31 = 0;
 	uint32 priceNano : 31 = 0;
@@ -227,11 +227,11 @@ struct SuggestPostOptions {
 	}
 
 	friend inline auto operator<=>(
-		SuggestPostOptions,
-		SuggestPostOptions) = default;
+		SuggestOptions,
+		SuggestOptions) = default;
 	friend inline bool operator==(
-		SuggestPostOptions,
-		SuggestPostOptions) = default;
+		SuggestOptions,
+		SuggestOptions) = default;
 };
 
 struct GlobalMsgId {

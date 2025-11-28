@@ -3563,7 +3563,7 @@ void ShowUniqueGiftSellBox(
 void SendOfferBuyGift(
 		std::shared_ptr<ChatHelpers::Show> show,
 		std::shared_ptr<Data::UniqueGift> unique,
-		SuggestPostOptions options,
+		SuggestOptions options,
 		Fn<void()> done) {
 	const auto randomId = base::RandomValue<uint64>();
 	const auto owner = show->session().data().peer(unique->ownerId);
@@ -3595,7 +3595,7 @@ void ShowOfferBuyBox(
 	Expects(unique->starsMinOffer >= 0);
 
 	const auto weak = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
-	const auto done = [=](SuggestPostOptions result) {
+	const auto done = [=](SuggestOptions result) {
 		SendOfferBuyGift(show, unique, result, [=] {
 			if (const auto strong = weak->get()) {
 				strong->closeBox();
@@ -3603,7 +3603,7 @@ void ShowOfferBuyBox(
 		});
 	};
 	using namespace HistoryView;
-	const auto options = SuggestPostOptions{
+	const auto options = SuggestOptions{
 		.exists = 1,
 		.priceWhole = uint32(unique->starsMinOffer),
 	};

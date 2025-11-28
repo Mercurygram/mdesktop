@@ -933,10 +933,10 @@ void InsufficientTonBox(
 	}, button->lifetime());
 }
 
-SuggestOptions::SuggestOptions(
+SuggestOptionsBar::SuggestOptionsBar(
 	std::shared_ptr<ChatHelpers::Show> show,
 	not_null<PeerData*> peer,
-	SuggestPostOptions values,
+	SuggestOptions values,
 	SuggestMode mode)
 : _show(std::move(show))
 , _peer(peer)
@@ -945,21 +945,29 @@ SuggestOptions::SuggestOptions(
 	updateTexts();
 }
 
-SuggestOptions::~SuggestOptions() = default;
+SuggestOptionsBar::~SuggestOptionsBar() = default;
 
-void SuggestOptions::paintIcon(QPainter &p, int x, int y, int outerWidth) {
+void SuggestOptionsBar::paintIcon(
+		QPainter &p,
+		int x,
+		int y,
+		int outerWidth) {
 	st::historySuggestIconActive.paint(
 		p,
 		QPoint(x, y) + st::historySuggestIconPosition,
 		outerWidth);
 }
 
-void SuggestOptions::paintBar(QPainter &p, int x, int y, int outerWidth) {
+void SuggestOptionsBar::paintBar(QPainter &p, int x, int y, int outerWidth) {
 	paintIcon(p, x, y, outerWidth);
 	paintLines(p, x + st::historyReplySkip, y, outerWidth);
 }
 
-void SuggestOptions::paintLines(QPainter &p, int x, int y, int outerWidth) {
+void SuggestOptionsBar::paintLines(
+		QPainter &p,
+		int x,
+		int y,
+		int outerWidth) {
 	auto available = outerWidth
 		- x
 		- st::historyReplyCancel.width
@@ -978,9 +986,9 @@ void SuggestOptions::paintLines(QPainter &p, int x, int y, int outerWidth) {
 	});
 }
 
-void SuggestOptions::edit() {
+void SuggestOptionsBar::edit() {
 	const auto weak = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
-	const auto apply = [=](SuggestPostOptions values) {
+	const auto apply = [=](SuggestOptions values) {
 		_values = values;
 		updateTexts();
 		_updates.fire({});
@@ -996,7 +1004,7 @@ void SuggestOptions::edit() {
 	}));
 }
 
-void SuggestOptions::updateTexts() {
+void SuggestOptionsBar::updateTexts() {
 	_title.setText(
 		st::semiboldTextStyle,
 		((_mode == SuggestMode::New)
@@ -1009,7 +1017,7 @@ void SuggestOptions::updateTexts() {
 		Core::TextContext({ .session = &_peer->session() }));
 }
 
-TextWithEntities SuggestOptions::composeText() const {
+TextWithEntities SuggestOptionsBar::composeText() const {
 	auto helper = Ui::Text::CustomEmojiHelper();
 	const auto amount = _values.price().ton()
 		? helper.paletteDependent(Ui::Earn::IconCurrencyEmoji({
@@ -1042,17 +1050,17 @@ TextWithEntities SuggestOptions::composeText() const {
 	).append(date);
 }
 
-SuggestPostOptions SuggestOptions::values() const {
+SuggestOptions SuggestOptionsBar::values() const {
 	auto result = _values;
 	result.exists = 1;
 	return result;
 }
 
-rpl::producer<> SuggestOptions::updates() const {
+rpl::producer<> SuggestOptionsBar::updates() const {
 	return _updates.events();
 }
 
-rpl::lifetime &SuggestOptions::lifetime() {
+rpl::lifetime &SuggestOptionsBar::lifetime() {
 	return _lifetime;
 }
 
