@@ -419,6 +419,7 @@ void ChooseSuggestPriceBox(
 	[[maybe_unused]] const auto details = ComputePaymentDetails(peer, 1);
 
 	const auto mode = args.mode;
+	const auto gift = (mode == SuggestMode::Gift);
 	const auto admin = peer->amMonoforumAdmin();
 	const auto broadcast = peer->monoforumBroadcast();
 	const auto usePeer = broadcast ? broadcast : peer;
@@ -432,7 +433,7 @@ void ChooseSuggestPriceBox(
 
 	box->setStyle(st::suggestPriceBox);
 
-	auto title = (mode == SuggestMode::Gift)
+	auto title = gift
 		? tr::lng_gift_offer_title()
 		: (mode == SuggestMode::New)
 		? tr::lng_suggest_options_title()
@@ -579,7 +580,7 @@ void ChooseSuggestPriceBox(
 		) | rpl::map([=](const QString &t1, const TextWithEntities &t2) {
 			return TextWithEntities{ t1 }.append("\n\n").append(t2);
 		})
-		: (mode == SuggestMode::Gift)
+		: gift
 		? tr::lng_gift_offer_stars_about(
 			lt_name,
 			rpl::single(tr::marked(args.giftName)),
@@ -590,7 +591,7 @@ void ChooseSuggestPriceBox(
 			TonPriceValue(state->price.value()),
 			false
 		) | rpl::map(tr::rich)
-		: (mode == SuggestMode::Gift)
+		: gift
 		? tr::lng_gift_offer_ton_about(
 			lt_name,
 			rpl::single(tr::marked(args.giftName)),
@@ -600,10 +601,18 @@ void ChooseSuggestPriceBox(
 		.session = session,
 		.showTon = state->ton.value(),
 		.price = args.value.price(),
-		.starsMin = appConfig.suggestedPostStarsMin(),
-		.starsMax = appConfig.suggestedPostStarsMax(),
-		.nanoTonMin = appConfig.suggestedPostNanoTonMin(),
-		.nanoTonMax = appConfig.suggestedPostNanoTonMax(),
+		.starsMin = (gift
+			? appConfig.giftResaleStarsMin()
+			: appConfig.suggestedPostStarsMin()),
+		.starsMax = (gift
+			? appConfig.giftResaleStarsMax()
+			: appConfig.suggestedPostStarsMax()),
+		.nanoTonMin = (gift
+			? appConfig.giftResaleNanoTonMin()
+			: appConfig.suggestedPostNanoTonMin()),
+		.nanoTonMax = (gift
+			? appConfig.giftResaleNanoTonMax()
+			: appConfig.suggestedPostNanoTonMax()),
 		.starsAbout = std::move(starsAbout),
 		.tonAbout = std::move(tonAbout),
 	});
@@ -613,7 +622,7 @@ void ChooseSuggestPriceBox(
 
 	Ui::AddSkip(container);
 
-	if (mode == SuggestMode::Gift) {
+	if (gift) {
 		const auto day = 86400;
 		auto durations = std::vector{
 			day / 4,
@@ -734,7 +743,7 @@ void ChooseSuggestPriceBox(
 						state->save();
 					}
 				};
-				const auto source = (mode == SuggestMode::Gift)
+				const auto source = gift
 					? Settings::SmallBalanceSource(SmallBalanceForOffer())
 					: SmallBalanceForSuggest{ usePeer->id };
 				MaybeRequestBalanceIncrease(
