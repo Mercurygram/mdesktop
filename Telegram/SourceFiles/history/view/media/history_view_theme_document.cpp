@@ -690,12 +690,17 @@ TextWithEntities GiftServiceBox::subtitle() {
 					if (left >= 3600) {
 						const auto hours = left / 3600;
 						const auto minutes = (left % 3600) / 60;
-						time = tr::lng_action_gift_offer_time_medium(
-							tr::now,
-							lt_hours,
-							QString::number(hours),
-							lt_minutes,
-							QString::number(minutes));
+						time = minutes
+							? tr::lng_action_gift_offer_time_medium(
+								tr::now,
+								lt_hours,
+								QString::number(hours),
+								lt_minutes,
+								QString::number(minutes))
+							: tr::lng_action_gift_offer_time_large(
+								tr::now,
+								lt_hours,
+								QString::number(hours));
 					} else {
 						const auto minutes = left / 60;
 						time = tr::lng_action_gift_offer_time_small(

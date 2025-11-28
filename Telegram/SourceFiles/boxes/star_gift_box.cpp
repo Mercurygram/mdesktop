@@ -3564,29 +3564,120 @@ void SendOfferBuyGift(
 		std::shared_ptr<ChatHelpers::Show> show,
 		std::shared_ptr<Data::UniqueGift> unique,
 		SuggestOptions options,
-		Fn<void()> done) {
+		int starsPerMessage,
+		Fn<void(bool)> done) {
 	const auto randomId = base::RandomValue<uint64>();
 	const auto owner = show->session().data().peer(unique->ownerId);
 
 	using Flag = MTPpayments_SendStarGiftOffer::Flag;
 	show->session().api().request(MTPpayments_SendStarGiftOffer(
-		MTP_flags(Flag() | Flag()),//Flag::f_allow_paid_stars)
+		MTP_flags(starsPerMessage ? Flag::f_allow_paid_stars : Flag()),
 		owner->input,
 		MTP_string(unique->slug),
 		StarsAmountToTL(options.price()),
 		MTP_int(options.offerDuration),
 		MTP_long(randomId),
-		MTP_long(0) // allow_paid_stars
+		MTP_long(starsPerMessage)
 	)).done([=](const MTPUpdates &result) {
 		show->session().api().applyUpdates(result);
-		done();
+		done(true);
 	}).fail([=](const MTP::Error &error) {
 		if (error.type() == u""_q) {
-
 		} else {
 			show->showToast(error.type());
 		}
+		done(false);
 	}).send();
+}
+
+void ConfirmOfferBuyGift(
+		std::shared_ptr<ChatHelpers::Show> show,
+		std::shared_ptr<Data::UniqueGift> unique,
+		SuggestOptions options,
+		Fn<void()> done) {
+	const auto owner = show->session().data().peer(unique->ownerId);
+	const auto fee = owner->starsPerMessageChecked();
+	const auto price = options.price();
+	const auto sent = std::make_shared<bool>();
+	const auto send = [=](Fn<void()> close) {
+		if (*sent) {
+			return;
+		}
+		*sent = true;
+		SendOfferBuyGift(show, unique, options, fee, [=](bool ok) {
+			*sent = false;
+			if (ok) {
+				if (const auto window = show->resolveWindow()) {
+					window->showPeerHistory(owner->id);
+				}
+				done();
+				close();
+			}
+		});
+	};
+
+	show->show(Box([=](not_null<Ui::GenericBox*> box) {
+		Ui::ConfirmBox(box, {
+			.text = tr::lng_gift_offer_confirm_text(
+				tr::now,
+				lt_cost,
+				tr::bold(PrepareCreditsAmountText(options.price())),
+				lt_user,
+				tr::bold(owner->shortName()),
+				lt_name,
+				tr::bold(Data::UniqueGiftName(*unique)),
+				tr::marked),
+			.confirmed = send,
+			.confirmText = tr::lng_payments_pay_amount(
+				tr::now,
+				lt_amount,
+				Ui::Text::IconEmoji(price.ton()
+					? &st::buttonTonIconEmoji
+					: &st::buttonStarIconEmoji
+				).append(Lang::FormatCreditsAmountDecimal(price.ton()
+					? price
+					: CreditsAmount(price.whole() + fee))),
+				tr::marked),
+			.title = tr::lng_gift_offer_confirm_title(),
+		});
+
+		auto helper = Ui::Text::CustomEmojiHelper();
+		const auto starIcon = helper.paletteDependent(
+			Ui::Earn::IconCreditsEmoji());
+		const auto tonIcon = helper.paletteDependent(
+			Ui::Earn::IconCurrencyEmoji());
+		const auto context = helper.context();
+		const auto table = box->addRow(
+			object_ptr<Ui::TableLayout>(box, st::defaultTable),
+			st::boxPadding);
+		const auto add = [&](tr::phrase<> label, TextWithEntities value) {
+			table->addRow(
+				object_ptr<Ui::FlatLabel>(
+					table,
+					label(),
+					st::defaultTable.defaultLabel),
+				object_ptr<Ui::FlatLabel>(
+					table,
+					rpl::single(value),
+					st::defaultTable.defaultValue,
+					st::defaultPopupMenu,
+					context),
+				st::giveawayGiftCodeLabelMargin,
+				st::giveawayGiftCodeValueMargin);
+		};
+		add(tr::lng_gift_offer_table_offer, tr::marked(price.ton()
+			? tonIcon
+			: starIcon).append(Lang::FormatCreditsAmountDecimal(price)));
+		if (fee) {
+			add(tr::lng_gift_offer_table_fee, tr::marked(starIcon).append(
+				Lang::FormatCreditsAmountDecimal(CreditsAmount(fee))));
+		}
+		const auto hours = options.offerDuration / 3600;
+		const auto duration = hours
+			? tr::lng_hours(tr::now, lt_count, hours)
+			: tr::lng_minutes(tr::now, lt_count, options.offerDuration / 60);
+		add(tr::lng_gift_offer_table_duration, tr::marked(duration));
+	}));
 }
 
 void ShowOfferBuyBox(
@@ -3596,7 +3687,7 @@ void ShowOfferBuyBox(
 
 	const auto weak = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
 	const auto done = [=](SuggestOptions result) {
-		SendOfferBuyGift(show, unique, result, [=] {
+		ConfirmOfferBuyGift(show, unique, result, [=] {
 			if (const auto strong = weak->get()) {
 				strong->closeBox();
 			}
@@ -3612,6 +3703,7 @@ void ShowOfferBuyBox(
 		.done = done,
 		.value = options,
 		.mode = SuggestMode::Gift,
+		.giftName = UniqueGiftName(*unique),
 	});
 	*weak = priceBox.data();
 	show->show(std::move(priceBox));

@@ -253,6 +253,8 @@ struct SmallBalanceForMessage {
 struct SmallBalanceForSuggest {
 	PeerId recipientId;
 };
+struct SmallBalanceForOffer {
+};
 struct SmallBalanceForSearch {
 };
 struct SmallBalanceSource : std::variant<
@@ -264,6 +266,7 @@ struct SmallBalanceSource : std::variant<
 	SmallBalanceStarGift,
 	SmallBalanceForMessage,
 	SmallBalanceForSuggest,
+	SmallBalanceForOffer,
 	SmallBalanceForSearch> {
 	using variant::variant;
 };

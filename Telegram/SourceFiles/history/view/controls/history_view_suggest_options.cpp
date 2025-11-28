@@ -20,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 #include "history/history_item.h"
 #include "history/history_item_components.h"
+#include "history/history_item_helpers.h"
 #include "info/channel_statistics/earn/earn_format.h"
 #include "info/channel_statistics/earn/earn_icons.h"
 #include "lang/lang_keys.h"
@@ -415,6 +416,8 @@ void ChooseSuggestPriceBox(
 	state->price = args.value.price();
 
 	const auto peer = args.peer;
+	[[maybe_unused]] const auto details = ComputePaymentDetails(peer, 1);
+
 	const auto mode = args.mode;
 	const auto admin = peer->amMonoforumAdmin();
 	const auto broadcast = peer->monoforumBroadcast();
@@ -610,7 +613,7 @@ void ChooseSuggestPriceBox(
 
 	Ui::AddSkip(container);
 
-	if (args.mode == SuggestMode::Gift) {
+	if (mode == SuggestMode::Gift) {
 		const auto day = 86400;
 		auto durations = std::vector{
 			day / 4,
@@ -715,14 +718,15 @@ void ChooseSuggestPriceBox(
 				box->uiShow()->show(Box(InsufficientTonBox, usePeer, value));
 				return;
 			}
-		} else if (!admin) {
+		}
+		const auto requiredStars = peer->starsPerMessageChecked()
+			+ (ton ? 0 : int(base::SafeRound(value.value())));
+		if (!admin && requiredStars) {
 			if (!credits->loaded()) {
 				state->savePending = true;
 				return;
 			}
-			const auto required = peer->starsPerMessageChecked()
-				+ int(base::SafeRound(value.value()));
-			if (credits->balance() < CreditsAmount(required)) {
+			if (credits->balance() < CreditsAmount(requiredStars)) {
 				using namespace Settings;
 				const auto done = [=](SmallBalanceResult result) {
 					if (result == SmallBalanceResult::Success
@@ -730,10 +734,13 @@ void ChooseSuggestPriceBox(
 						state->save();
 					}
 				};
+				const auto source = (mode == SuggestMode::Gift)
+					? Settings::SmallBalanceSource(SmallBalanceForOffer())
+					: SmallBalanceForSuggest{ usePeer->id };
 				MaybeRequestBalanceIncrease(
 					Main::MakeSessionShow(box->uiShow(), session),
-					required,
-					SmallBalanceForSuggest{ usePeer->id },
+					requiredStars,
+					source,
 					done);
 				return;
 			}

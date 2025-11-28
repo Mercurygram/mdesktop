@@ -2934,6 +2934,8 @@ void SmallBalanceBox(
 		return value.recipientId
 			? owner->peer(value.recipientId)->shortName()
 			: QString();
+	}, [](SmallBalanceForOffer) {
+		return QString();
 	}, [](SmallBalanceForSearch) {
 		return QString();
 	});
@@ -2994,6 +2996,8 @@ void SmallBalanceBox(
 						lt_channel,
 						rpl::single(Ui::Text::Bold(name)),
 						Ui::Text::RichLangValue)
+					: v::is<SmallBalanceForOffer>(source)
+					? tr::lng_credits_small_balance_for_offer(tr::rich)
 					: v::is<SmallBalanceForSearch>(source)
 					? tr::lng_credits_small_balance_for_search(
 						Ui::Text::RichLangValue)

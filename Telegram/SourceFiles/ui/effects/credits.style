@@ -92,6 +92,9 @@ starIconEmojiLarge: IconEmoji {
 starIconEmojiInline: IconEmoji(starIconEmojiSmall) {
 	padding: margins(0px, 3px, 0px, 0px);
 }
+buttonStarIconEmoji: IconEmoji(starIconEmoji) {
+	padding: margins(4px, 2px, 4px, 0px);
+}
 
 tonIconEmoji: IconEmoji {
 	icon: icon{{ "chat/mini_ton_bold", currencyFg }};
@@ -103,6 +106,9 @@ tonIconEmojiLarge: IconEmoji {
 }
 tonIconEmojiInSmall: IconEmoji(tonIconEmoji) {
 	padding: margins(0px, 2px, 0px, 0px);
+}
+buttonTonIconEmoji: IconEmoji(tonIconEmoji) {
+	padding: margins(1px, 3px, 1px, 0px);
 }
 
 creditsHistoryEntryTypeAds: icon {{ "folders/folders_channels", premiumButtonFg }};
