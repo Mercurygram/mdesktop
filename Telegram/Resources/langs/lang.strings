@@ -2291,8 +2291,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_action_proximity_distance_km#other" = "{count} km";
 "lng_action_webview_data_done" = "Data from the \"{text}\" button was transferred to the bot.";
 "lng_action_gift_received" = "{user} sent you a gift for {cost}";
+"lng_action_gift_received_sold" = "{user} sold you a gift for {cost}";
 "lng_action_gift_unique_received" = "{user} sent you a unique collectible item";
 "lng_action_gift_sent" = "You sent a gift for {cost}";
+"lng_action_gift_sent_sold" = "You sold a gift for {cost}";
 "lng_action_gift_unique_sent" = "You sent a unique collectible item";
 "lng_action_gift_upgraded" = "{user} turned the gift from you into a unique collectible";
 "lng_action_gift_upgraded_channel" = "{user} turned this gift to {channel} into a unique collectible";
@@ -3959,6 +3961,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_offer_duration" = "Offer Duration";
 "lng_gift_offer_duration_about" = "Choose how long {user} can accept your offer. When the time expires, the amount will be refunded.";
 "lng_gift_offer_cost_button" = "Offer {cost}";
+"lng_gift_offer_confirm_reject" = "Do you want to reject the offer?";
+"lng_gift_offer_confirm_accept" = "Do you want to sell {name} to {user} for {cost}?";
+"lng_gift_offer_you_get" = "You will receive {cost} after fees.";
+"lng_gift_offer_value_higher" = "{percent} higher";
+"lng_gift_offer_sell_for" = "Sell for {price}";
 "lng_gift_sell_unlist_title" = "Unlist {name}";
 "lng_gift_sell_unlist_sure" = "Are you sure you want to unlist your gift?";
 "lng_gift_sell_title" = "Price in Stars";

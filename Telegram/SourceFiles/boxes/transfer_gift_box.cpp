@@ -24,7 +24,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_star_gift.h"
 #include "data/data_thread.h"
 #include "data/data_user.h"
+#include "history/history.h"
+#include "history/history_item.h"
+#include "history/history_item_components.h"
 #include "lang/lang_keys.h"
+#include "main/main_app_config.h"
 #include "main/main_session.h"
 #include "payments/payments_checkout_process.h"
 #include "ui/boxes/confirm_box.h"
@@ -492,6 +496,26 @@ void TransferGift(
 	}
 }
 
+void ResolveGiftSaleOffer(
+		not_null<Window::SessionController*> window,
+		MsgId id,
+		bool accept,
+		Fn<void(bool)> done) {
+	using Flag = MTPpayments_ResolveStarGiftOffer::Flag;
+	const auto session = &window->session();
+	const auto show = window->uiShow();
+	session->api().request(MTPpayments_ResolveStarGiftOffer(
+		MTP_flags(accept ? Flag() : Flag::f_decline),
+		MTP_int(id.bare)
+	)).done([=](const MTPUpdates &result) {
+		session->api().applyUpdates(result);
+		done(true);
+	}).fail([=](const MTP::Error &error) {
+		show->showToast(error.type());
+		done(false);
+	}).send();
+}
+
 void BuyResaleGift(
 		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<PeerData*> to,
@@ -685,6 +709,122 @@ void ShowTransferGiftBox(
 	window->show(
 		Box<PeerListBox>(std::move(controller), std::move(initBox)),
 		Ui::LayerOption::KeepOther);
+}
+
+void ShowGiftSaleAcceptBox(
+		not_null<Window::SessionController*> controller,
+		not_null<HistoryItem*> item,
+		not_null<HistoryMessageSuggestion*> suggestion) {
+	const auto id = item->id;
+	const auto peer = item->history()->peer;
+	const auto gift = suggestion->gift;
+	const auto price = suggestion->price;
+
+	const auto &appConfig = controller->session().appConfig();
+	const auto starsThousandths = appConfig.giftResaleStarsThousandths();
+	const auto nanoTonThousandths = appConfig.giftResaleNanoTonThousandths();
+
+	controller->show(Box([=](not_null<Ui::GenericBox*> box) {
+		auto button = tr::lng_gift_offer_sell_for(
+			lt_price,
+			rpl::single(Ui::Text::IconEmoji(
+				&st::starIconEmoji
+			).append(Lang::FormatCreditsAmountDecimal(
+				price
+			))),
+			tr::marked);
+
+		struct State {
+			bool sent = false;
+		};
+		const auto state = std::make_shared<State>();
+		auto callback = [=] {
+			if (state->sent) {
+				return;
+			}
+			state->sent = true;
+			const auto weak = base::make_weak(controller);
+			const auto weakBox = base::make_weak(box);
+			ResolveGiftSaleOffer(controller, id, true, [=](bool ok) {
+				state->sent = false;
+				if (ok) {
+					if (const auto strong = weak.get()) {
+						strong->showPeerHistory(peer->id);
+					}
+					if (const auto strong = weakBox.get()) {
+						strong->closeBox();
+					}
+				}
+			});
+		};
+
+		const auto receive = price.ton()
+			? ((price.value() * nanoTonThousandths) / 1000.)
+			: ((int64(price.value()) * starsThousandths) / 1000);
+
+		box->addRow(
+			CreateGiftTransfer(box->verticalLayout(), gift, peer),
+			QMargins(0, st::boxPadding.top(), 0, 0));
+
+		Ui::ConfirmBox(box, {
+			.text = tr::lng_gift_offer_confirm_accept(
+				tr::now,
+				lt_name,
+				tr::bold(UniqueGiftName(*gift)),
+				lt_user,
+				tr::bold(peer->shortName()),
+				lt_cost,
+				tr::bold(PrepareCreditsAmountText(price)),
+				tr::marked
+			).append(u"\n\n"_q).append(tr::lng_gift_offer_you_get(
+				tr::now,
+				lt_cost,
+				tr::bold(price.stars()
+					? tr::lng_action_gift_for_stars(
+						tr::now,
+						lt_count_decimal,
+						receive)
+					: tr::lng_action_gift_for_ton(
+						tr::now,
+						lt_count_decimal,
+						receive)),
+				tr::marked)),
+			.confirmed = std::move(callback),
+			.confirmText = std::move(button),
+		});
+
+		const auto show = controller->uiShow();
+		AddTransferGiftTable(show, box->verticalLayout(), gift);
+	}));
+}
+
+void ShowGiftSaleRejectBox(
+		not_null<Window::SessionController*> controller,
+		not_null<HistoryItem*> item,
+		not_null<HistoryMessageSuggestion*> suggestion) {
+	struct State {
+		bool sent = false;
+	};
+	const auto id = item->id;
+	const auto state = std::make_shared<State>();
+	auto callback = [=](Fn<void()> close) {
+		if (state->sent) {
+			return;
+		}
+		state->sent = true;
+		const auto weak = base::make_weak(controller);
+		ResolveGiftSaleOffer(controller, id, false, [=](bool ok) {
+			state->sent = false;
+			if (ok) {
+				close();
+			}
+		});
+	};
+	controller->show(Ui::MakeConfirmBox({
+		.text = tr::lng_gift_offer_confirm_reject(),
+		.confirmed = std::move(callback),
+		.confirmText = tr::lng_action_gift_offer_decline(),
+	}));
 }
 
 void SetThemeFromUniqueGift(

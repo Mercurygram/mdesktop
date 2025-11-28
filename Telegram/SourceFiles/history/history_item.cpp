@@ -6202,6 +6202,7 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 		auto result = PreparedServiceText();
 		const auto isSelf = _from->isSelf();
 		const auto resale = CreditsAmountFromTL(action.vresale_amount());
+		const auto fromOffer = action.is_from_offer();
 		const auto resaleCost = !resale
 			? tr::marked()
 			: tr::marked(PrepareCreditsAmountText(resale));
@@ -6283,7 +6284,21 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 				if (!resale || !isSelf) {
 					result.links.push_back(from->createOpenLink());
 				}
-				result.text = resale
+				result.text = fromOffer
+					? (isSelf
+						? tr::lng_action_gift_sent_sold(
+							tr::now,
+							lt_cost,
+							resaleCost,
+							Ui::Text::WithEntities)
+						: tr::lng_action_gift_received_sold(
+							tr::now,
+							lt_user,
+							Ui::Text::Link(peer->shortName(), 1), // Link 1.
+							lt_cost,
+							resaleCost,
+							Ui::Text::WithEntities))
+					: resale
 					? (isSelf
 						? tr::lng_action_gift_sent(
 							tr::now,

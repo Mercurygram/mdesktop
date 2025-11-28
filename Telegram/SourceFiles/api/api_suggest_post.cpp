@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "apiwrap.h"
 #include "base/unixtime.h"
+#include "boxes/transfer_gift_box.h"
 #include "chat_helpers/message_field.h"
 #include "core/click_handler_types.h"
 #include "data/components/credits.h"
@@ -504,6 +505,20 @@ void SuggestApprovalPrice(
 	}, SuggestMode::Change);
 }
 
+void ConfirmGiftSaleAccept(
+		not_null<Window::SessionController*> window,
+		not_null<HistoryItem*> item,
+		not_null<HistoryMessageSuggestion*> suggestion) {
+	ShowGiftSaleAcceptBox(window, item, suggestion);
+}
+
+void ConfirmGiftSaleDecline(
+		not_null<Window::SessionController*> window,
+		not_null<HistoryItem*> item,
+		not_null<HistoryMessageSuggestion*> suggestion) {
+	ShowGiftSaleRejectBox(window, item, suggestion);
+}
+
 } // namespace
 
 std::shared_ptr<ClickHandler> AcceptClickHandler(
@@ -524,6 +539,8 @@ std::shared_ptr<ClickHandler> AcceptClickHandler(
 		const auto suggestion = item->Get<HistoryMessageSuggestion>();
 		if (!suggestion) {
 			return;
+		} else if (suggestion->gift) {
+			ConfirmGiftSaleAccept(controller, item, suggestion);
 		} else if (!suggestion->date) {
 			RequestApprovalDate(show, item);
 		} else {
@@ -546,8 +563,12 @@ std::shared_ptr<ClickHandler> DeclineClickHandler(
 		if (!item) {
 			return;
 		}
-
-		RequestDeclineComment(controller->uiShow(), item);
+		const auto suggestion = item->Get<HistoryMessageSuggestion>();
+		if (suggestion && suggestion->gift) {
+			ConfirmGiftSaleDecline(controller, item, suggestion);
+		} else {
+			RequestDeclineComment(controller->uiShow(), item);
+		}
 	});
 }
 
