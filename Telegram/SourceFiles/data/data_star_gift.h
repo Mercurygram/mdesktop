@@ -76,6 +76,7 @@ struct UniqueGift {
 	int64 nanoTonForResale = -1;
 	int starsForResale = -1;
 	int starsForTransfer = -1;
+	int starsMinOffer = -1;
 	int number = 0;
 	bool onlyAcceptTon = false;
 	bool canBeTheme = false;

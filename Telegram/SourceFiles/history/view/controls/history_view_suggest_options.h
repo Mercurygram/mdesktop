@@ -34,6 +34,7 @@ enum class SuggestMode {
 	New,
 	Change,
 	Publish,
+	Gift,
 };
 
 struct SuggestTimeBoxArgs {
@@ -91,6 +92,7 @@ struct SuggestPriceBoxArgs {
 	Fn<void(SuggestPostOptions)> done;
 	SuggestPostOptions value;
 	SuggestMode mode = SuggestMode::New;
+	QString giftName;
 };
 void ChooseSuggestPriceBox(
 	not_null<Ui::GenericBox*> box,

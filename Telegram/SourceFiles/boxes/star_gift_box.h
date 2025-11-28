@@ -95,6 +95,10 @@ void ShowUniqueGiftSellBox(
 	Data::SavedStarGiftId savedId,
 	Settings::GiftWearBoxStyleOverride st);
 
+void ShowOfferBuyBox(
+	std::shared_ptr<ChatHelpers::Show> show,
+	std::shared_ptr<Data::UniqueGift> unique);
+
 void GiftReleasedByHandler(not_null<PeerData*> peer);
 
 struct StarGiftUpgradeArgs {

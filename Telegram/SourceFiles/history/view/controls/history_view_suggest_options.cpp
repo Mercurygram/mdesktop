@@ -31,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/layers/generic_box.h"
 #include "ui/text/text_utilities.h"
 #include "ui/boxes/choose_date_time.h"
+#include "ui/boxes/single_choice_box.h"
 #include "ui/controls/ton_common.h"
 #include "ui/widgets/fields/number_input.h"
 #include "ui/widgets/fields/input_field.h"
@@ -401,6 +402,7 @@ void ChooseSuggestPriceBox(
 		rpl::event_stream<> fieldsChanges;
 		rpl::variable<CreditsAmount> price;
 		rpl::variable<TimeId> date;
+		rpl::variable<TimeId> offerDuration;
 		rpl::variable<bool> ton;
 		Fn<std::optional<CreditsAmount>()> computePrice;
 		Fn<void()> save;
@@ -413,6 +415,7 @@ void ChooseSuggestPriceBox(
 	state->price = args.value.price();
 
 	const auto peer = args.peer;
+	const auto mode = args.mode;
 	const auto admin = peer->amMonoforumAdmin();
 	const auto broadcast = peer->monoforumBroadcast();
 	const auto usePeer = broadcast ? broadcast : peer;
@@ -426,7 +429,9 @@ void ChooseSuggestPriceBox(
 
 	box->setStyle(st::suggestPriceBox);
 
-	auto title = (args.mode == SuggestMode::New)
+	auto title = (mode == SuggestMode::Gift)
+		? tr::lng_gift_offer_title()
+		: (mode == SuggestMode::New)
 		? tr::lng_suggest_options_title()
 		: tr::lng_suggest_options_change();
 	if (admin) {
@@ -567,17 +572,27 @@ void ChooseSuggestPriceBox(
 	auto starsAbout = admin
 		? rpl::combine(
 			youGet(StarsPriceValue(state->price.value()), true),
-			tr::lng_suggest_options_stars_warning(Ui::Text::RichLangValue)
+			tr::lng_suggest_options_stars_warning(tr::rich)
 		) | rpl::map([=](const QString &t1, const TextWithEntities &t2) {
 			return TextWithEntities{ t1 }.append("\n\n").append(t2);
 		})
-		: tr::lng_suggest_options_stars_price_about(Ui::Text::WithEntities);
+		: (mode == SuggestMode::Gift)
+		? tr::lng_gift_offer_stars_about(
+			lt_name,
+			rpl::single(tr::marked(args.giftName)),
+			tr::rich)
+		: tr::lng_suggest_options_stars_price_about(tr::rich);
 	auto tonAbout = admin
 		? youGet(
 			TonPriceValue(state->price.value()),
 			false
-		) | Ui::Text::ToWithEntities()
-		: tr::lng_suggest_options_ton_price_about(Ui::Text::WithEntities);
+		) | rpl::map(tr::rich)
+		: (mode == SuggestMode::Gift)
+		? tr::lng_gift_offer_ton_about(
+			lt_name,
+			rpl::single(tr::marked(args.giftName)),
+			tr::rich)
+		: tr::lng_suggest_options_ton_price_about(tr::rich);
 	auto priceInput = AddStarsTonPriceInput(container, {
 		.session = session,
 		.showTon = state->ton.value(),
@@ -595,39 +610,94 @@ void ChooseSuggestPriceBox(
 
 	Ui::AddSkip(container);
 
-	const auto time = Settings::AddButtonWithLabel(
-		container,
-		tr::lng_suggest_options_date(),
-		state->date.value() | rpl::map([](TimeId date) {
-			return date
-				? langDateTime(base::unixtime::parse(date))
-				: tr::lng_suggest_options_date_any(tr::now);
-		}),
-		st::settingsButtonNoIcon);
-
-	time->setClickedCallback([=] {
-		const auto weak = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
-		const auto parentWeak = base::make_weak(box);
-		const auto done = [=](TimeId result) {
-			if (parentWeak) {
-				state->date = result;
-			}
-			if (const auto strong = weak->get()) {
-				strong->closeBox();
-			}
+	if (args.mode == SuggestMode::Gift) {
+		const auto day = 86400;
+		auto durations = std::vector{
+			day / 4,
+			day / 2,
+			day,
+			day + day / 2,
+			day * 2,
+			day * 3,
 		};
-		auto dateBox = Box(ChooseSuggestTimeBox, SuggestTimeBoxArgs{
-			.session = session,
-			.done = done,
-			.value = state->date.current(),
-			.mode = args.mode,
-		});
-		*weak = dateBox.data();
-		box->uiShow()->show(std::move(dateBox));
-	});
+		if (peer->session().isTestMode()) {
+			durations.insert(begin(durations), 120);
+		}
+		const auto durationToText = [](TimeId date) {
+			return (date >= 3600)
+				? tr::lng_hours(tr::now, lt_count, date / 3600)
+				: tr::lng_minutes(tr::now, lt_count, date / 60);
+		};
+		state->offerDuration = day;
+		const auto duration = Settings::AddButtonWithLabel(
+			container,
+			tr::lng_gift_offer_duration(),
+			state->offerDuration.value() | rpl::map(durationToText),
+			st::settingsButtonNoIcon);
 
-	Ui::AddSkip(container);
-	Ui::AddDividerText(container, tr::lng_suggest_options_date_about());
+		duration->setClickedCallback([=] {
+			box->uiShow()->show(Box([=](not_null<Ui::GenericBox*> box) {
+				const auto save = [=](int index) {
+					state->offerDuration = durations[index];
+				};
+				auto options = durations
+					| ranges::views::transform(durationToText)
+					| ranges::to_vector;
+				const auto selected = ranges::find(
+					durations,
+					state->offerDuration.current());
+				SingleChoiceBox(box, {
+					.title = tr::lng_settings_angle_backend(),
+					.options = options,
+					.initialSelection = int(selected - begin(durations)),
+					.callback = save,
+				});
+			}));
+		});
+
+		Ui::AddSkip(container);
+		Ui::AddDividerText(
+			container,
+			tr::lng_gift_offer_duration_about(
+				lt_user,
+				rpl::single(peer->shortName())));
+	} else {
+		const auto time = Settings::AddButtonWithLabel(
+			container,
+			tr::lng_suggest_options_date(),
+			state->date.value() | rpl::map([](TimeId date) {
+				return date
+					? langDateTime(base::unixtime::parse(date))
+					: tr::lng_suggest_options_date_any(tr::now);
+			}),
+			st::settingsButtonNoIcon);
+
+		time->setClickedCallback([=] {
+			const auto weak = std::make_shared<
+				base::weak_qptr<Ui::BoxContent>
+			>();
+			const auto parentWeak = base::make_weak(box);
+			const auto done = [=](TimeId result) {
+				if (parentWeak) {
+					state->date = result;
+				}
+				if (const auto strong = weak->get()) {
+					strong->closeBox();
+				}
+			};
+			auto dateBox = Box(ChooseSuggestTimeBox, SuggestTimeBoxArgs{
+				.session = session,
+				.done = done,
+				.value = state->date.current(),
+				.mode = args.mode,
+			});
+			*weak = dateBox.data();
+			box->uiShow()->show(std::move(dateBox));
+		});
+
+		Ui::AddSkip(container);
+		Ui::AddDividerText(container, tr::lng_suggest_options_date_about());
+	}
 
 	state->save = [=] {
 		const auto ton = uint32(state->ton.current() ? 1 : 0);
@@ -674,6 +744,7 @@ void ChooseSuggestPriceBox(
 			.priceNano = uint32(value.nano()),
 			.ton = ton,
 			.date = state->date.current(),
+			.offerDuration = state->offerDuration.current(),
 		});
 	};
 

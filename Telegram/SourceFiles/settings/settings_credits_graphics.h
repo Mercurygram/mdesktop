@@ -127,6 +127,7 @@ struct CreditsEntryBoxStyleOverrides {
 	const style::icon *hide = nullptr;
 	const style::icon *pin = nullptr;
 	const style::icon *unpin = nullptr;
+	const style::icon *offer = nullptr;
 	std::shared_ptr<ShareBoxStyleOverrides> shareBox;
 	std::shared_ptr<GiftWearBoxStyleOverride> giftWearBox;
 };

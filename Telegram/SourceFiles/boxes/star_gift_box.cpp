@@ -3560,6 +3560,63 @@ void ShowUniqueGiftSellBox(
 	});
 }
 
+void SendOfferBuyGift(
+		std::shared_ptr<ChatHelpers::Show> show,
+		std::shared_ptr<Data::UniqueGift> unique,
+		SuggestPostOptions options,
+		Fn<void()> done) {
+	const auto randomId = base::RandomValue<uint64>();
+	const auto owner = show->session().data().peer(unique->ownerId);
+
+	using Flag = MTPpayments_SendStarGiftOffer::Flag;
+	show->session().api().request(MTPpayments_SendStarGiftOffer(
+		MTP_flags(Flag() | Flag()),//Flag::f_allow_paid_stars)
+		owner->input,
+		MTP_string(unique->slug),
+		StarsAmountToTL(options.price()),
+		MTP_int(options.offerDuration),
+		MTP_long(randomId),
+		MTP_long(0) // allow_paid_stars
+	)).done([=](const MTPUpdates &result) {
+		show->session().api().applyUpdates(result);
+		done();
+	}).fail([=](const MTP::Error &error) {
+		if (error.type() == u""_q) {
+
+		} else {
+			show->showToast(error.type());
+		}
+	}).send();
+}
+
+void ShowOfferBuyBox(
+		std::shared_ptr<ChatHelpers::Show> show,
+		std::shared_ptr<Data::UniqueGift> unique) {
+	Expects(unique->starsMinOffer >= 0);
+
+	const auto weak = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
+	const auto done = [=](SuggestPostOptions result) {
+		SendOfferBuyGift(show, unique, result, [=] {
+			if (const auto strong = weak->get()) {
+				strong->closeBox();
+			}
+		});
+	};
+	using namespace HistoryView;
+	const auto options = SuggestPostOptions{
+		.exists = 1,
+		.priceWhole = uint32(unique->starsMinOffer),
+	};
+	auto priceBox = Box(ChooseSuggestPriceBox, SuggestPriceBoxArgs{
+		.peer = show->session().data().peer(unique->ownerId),
+		.done = done,
+		.value = options,
+		.mode = SuggestMode::Gift,
+	});
+	*weak = priceBox.data();
+	show->show(std::move(priceBox));
+}
+
 void GiftReleasedByHandler(not_null<PeerData*> peer) {
 	const auto session = &peer->session();
 	const auto window = session->tryResolveWindow(peer);

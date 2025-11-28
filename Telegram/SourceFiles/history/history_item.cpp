@@ -6393,7 +6393,7 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 		Unexpected("PhoneCall type in setServiceMessageFromMtp.");
 	};
 
-	auto prepareSuggestBirthday = [this](const MTPDmessageActionSuggestBirthday &action) {
+	auto prepareSuggestBirthday = [&](const MTPDmessageActionSuggestBirthday &action) {
 		auto result = PreparedServiceText{};
 		const auto isSelf = (_from->id == _from->session().userPeerId());
 		const auto peer = isSelf ? history()->peer : _from;
@@ -6409,6 +6409,16 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 				lt_user,
 				Ui::Text::Link(name, 1), // Link 1.
 				Ui::Text::WithEntities);
+		return result;
+	};
+
+	auto prepareStarGiftPurchaseOffer = [&](const MTPDmessageActionStarGiftPurchaseOffer &action) {
+		auto result = PreparedServiceText{};
+		return result;
+	};
+
+	auto prepareStarGiftPurchaseOfferDeclined = [&](const MTPDmessageActionStarGiftPurchaseOfferDeclined &action) {
+		auto result = PreparedServiceText{};
 		return result;
 	};
 
@@ -6469,6 +6479,8 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 		prepareSuggestedPostSuccess,
 		prepareSuggestedPostRefund,
 		prepareSuggestBirthday,
+		prepareStarGiftPurchaseOffer,
+		prepareStarGiftPurchaseOfferDeclined,
 		PrepareEmptyText<MTPDmessageActionRequestedPeerSentMe>,
 		PrepareErrorText<MTPDmessageActionEmpty>));
 

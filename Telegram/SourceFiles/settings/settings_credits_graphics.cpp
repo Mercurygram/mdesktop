@@ -964,6 +964,21 @@ void ProcessReceivedSubscriptions(
 	// (owner->isChannel() && owner->asChannel()->canTransferGifts());
 }
 
+[[nodiscard]] bool ShowOfferBuyButton(
+		not_null<Main::Session*> session,
+		const Data::CreditsHistoryEntry &e) {
+	const auto unique = e.uniqueGift.get();
+	const auto owner = (unique && unique->ownerId)
+		? session->data().peer(unique->ownerId).get()
+		: nullptr;
+	return owner
+		&& owner->isUser()
+		&& !owner->isSelf()
+		&& (unique->starsMinOffer >= 0);
+	// Currently we're not making offers for channel gifts.
+	// (owner->isChannel() && !owner->asChannel()->canTransferGifts());
+}
+
 void FillUniqueGiftMenu(
 		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<Ui::PopupMenu*> menu,
@@ -1158,6 +1173,10 @@ void FillUniqueGiftMenu(
 				}));
 			}, st.unlist ? st.unlist : &st::menuIconTagRemove);
 		}
+	} else if (ShowOfferBuyButton(&show->session(), e)) {
+		menu->addAction(tr::lng_gift_offer_button(tr::now), [=] {
+			ShowOfferBuyBox(show, unique);
+		}, st.offer ? st.offer : &st::menuIconEarn);
 	}
 }
 
@@ -1193,6 +1212,7 @@ CreditsEntryBoxStyleOverrides DarkCreditsEntryBoxStyle() {
 		.hide = &st::darkGiftHide,
 		.pin = &st::darkGiftPin,
 		.unpin = &st::darkGiftUnpin,
+		.offer = &st::darkGiftOffer,
 		.shareBox = std::make_shared<ShareBoxStyleOverrides>(
 			DarkShareBoxStyle()),
 		.giftWearBox = std::make_shared<GiftWearBoxStyleOverride>(

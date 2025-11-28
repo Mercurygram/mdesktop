@@ -930,6 +930,7 @@ std::optional<Data::StarGift> FromTL(
 				.themeUser = themeUser,
 				.nanoTonForResale = FindTonForResale(data.vresell_amount()),
 				.starsForResale = FindStarsForResale(data.vresell_amount()),
+				.starsMinOffer = data.voffer_min_stars().value_or(-1),
 				.number = data.vnum().v,
 				.onlyAcceptTon = data.is_resale_ton_only(),
 				.canBeTheme = data.is_theme_available(),

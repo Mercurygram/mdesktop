@@ -213,6 +213,7 @@ struct SuggestPostOptions {
 	uint32 priceNano : 31 = 0;
 	uint32 ton : 1 = 0;
 	TimeId date = 0;
+	TimeId offerDuration = 0;
 
 	[[nodiscard]] CreditsAmount price() const {
 		return CreditsAmount(
