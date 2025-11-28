@@ -44,7 +44,7 @@ void SendApproval(
 		not_null<HistoryItem*> item,
 		TimeId scheduleDate = 0) {
 	using Flag = MTPmessages_ToggleSuggestedPostApproval::Flag;
-	const auto suggestion = item->Get<HistoryMessageSuggestedPost>();
+	const auto suggestion = item->Get<HistoryMessageSuggestion>();
 	if (!suggestion
 		|| suggestion->accepted
 		|| suggestion->rejected
@@ -56,7 +56,7 @@ void SendApproval(
 	const auto session = &show->session();
 	const auto finish = [=] {
 		if (const auto item = session->data().message(id)) {
-			const auto suggestion = item->Get<HistoryMessageSuggestedPost>();
+			const auto suggestion = item->Get<HistoryMessageSuggestion>();
 			if (suggestion) {
 				suggestion->requestId = 0;
 			}
@@ -83,7 +83,7 @@ void ConfirmApproval(
 		not_null<HistoryItem*> item,
 		TimeId scheduleDate = 0,
 		Fn<void()> accepted = nullptr) {
-	const auto suggestion = item->Get<HistoryMessageSuggestedPost>();
+	const auto suggestion = item->Get<HistoryMessageSuggestion>();
 	if (!suggestion
 		|| suggestion->accepted
 		|| suggestion->rejected
@@ -244,7 +244,7 @@ void SendDecline(
 		not_null<HistoryItem*> item,
 		const QString &comment) {
 	using Flag = MTPmessages_ToggleSuggestedPostApproval::Flag;
-	const auto suggestion = item->Get<HistoryMessageSuggestedPost>();
+	const auto suggestion = item->Get<HistoryMessageSuggestion>();
 	if (!suggestion
 		|| suggestion->accepted
 		|| suggestion->rejected
@@ -256,7 +256,7 @@ void SendDecline(
 	const auto session = &show->session();
 	const auto finish = [=] {
 		if (const auto item = session->data().message(id)) {
-			const auto suggestion = item->Get<HistoryMessageSuggestedPost>();
+			const auto suggestion = item->Get<HistoryMessageSuggestion>();
 			if (suggestion) {
 				suggestion->requestId = 0;
 			}
@@ -368,7 +368,7 @@ void SendSuggest(
 		Fn<void(SuggestOptions&)> modify,
 		Fn<void()> done = nullptr,
 		int starsApproved = 0) {
-	const auto suggestion = item->Get<HistoryMessageSuggestedPost>();
+	const auto suggestion = item->Get<HistoryMessageSuggestion>();
 	const auto id = item->fullId();
 	const auto withPaymentApproved = [=](int stars) {
 		if (const auto item = show->session().data().message(id)) {
@@ -416,7 +416,7 @@ void SendSuggest(
 void SuggestApprovalDate(
 		std::shared_ptr<Main::SessionShow> show,
 		not_null<HistoryItem*> item) {
-	const auto suggestion = item->Get<HistoryMessageSuggestedPost>();
+	const auto suggestion = item->Get<HistoryMessageSuggestion>();
 	if (!suggestion) {
 		return;
 	}
@@ -490,7 +490,7 @@ void SuggestOfferForMessage(
 void SuggestApprovalPrice(
 		std::shared_ptr<Main::SessionShow> show,
 		not_null<HistoryItem*> item) {
-	const auto suggestion = item->Get<HistoryMessageSuggestedPost>();
+	const auto suggestion = item->Get<HistoryMessageSuggestion>();
 	if (!suggestion) {
 		return;
 	}
@@ -521,7 +521,7 @@ std::shared_ptr<ClickHandler> AcceptClickHandler(
 			return;
 		}
 		const auto show = controller->uiShow();
-		const auto suggestion = item->Get<HistoryMessageSuggestedPost>();
+		const auto suggestion = item->Get<HistoryMessageSuggestion>();
 		if (!suggestion) {
 			return;
 		} else if (!suggestion->date) {
@@ -573,7 +573,7 @@ std::shared_ptr<ClickHandler> SuggestChangesClickHandler(
 				if (!item) {
 					return;
 				}
-				const auto suggestion = item->Get<HistoryMessageSuggestedPost>();
+				const auto suggestion = item->Get<HistoryMessageSuggestion>();
 				if (!suggestion) {
 					return;
 				}

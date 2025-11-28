@@ -1092,11 +1092,11 @@ bool HistoryItem::checkDiscussionLink(ChannelId id) const {
 }
 
 SuggestionActions HistoryItem::computeSuggestionActions() const {
-	return computeSuggestionActions(Get<HistoryMessageSuggestedPost>());
+	return computeSuggestionActions(Get<HistoryMessageSuggestion>());
 }
 
 SuggestionActions HistoryItem::computeSuggestionActions(
-		const HistoryMessageSuggestedPost *suggest) const {
+		const HistoryMessageSuggestion *suggest) const {
 	return suggest
 		? computeSuggestionActions(suggest->accepted, suggest->rejected)
 		: SuggestionActions::None;
@@ -1125,7 +1125,7 @@ SuggestionActions HistoryItem::computeSuggestionActions(
 }
 
 void HistoryItem::updateSuggestControls(
-		const HistoryMessageSuggestedPost *suggest) {
+		const HistoryMessageSuggestion *suggest) {
 	if (const auto markup = Get<HistoryMessageReplyMarkup>()) {
 		markup->updateSuggestControls(computeSuggestionActions(suggest));
 	}
@@ -2034,17 +2034,17 @@ void HistoryItem::applyEdition(HistoryMessageEdition &&edition) {
 
 	if (!edition.useSameSuggest) {
 		if (edition.suggest.exists) {
-			if (!Has<HistoryMessageSuggestedPost>()) {
-				AddComponents(HistoryMessageSuggestedPost::Bit());
+			if (!Has<HistoryMessageSuggestion>()) {
+				AddComponents(HistoryMessageSuggestion::Bit());
 			}
-			auto suggest = Get<HistoryMessageSuggestedPost>();
+			auto suggest = Get<HistoryMessageSuggestion>();
 			suggest->price = edition.suggest.price;
 			suggest->date = edition.suggest.date;
 			suggest->accepted = edition.suggest.accepted;
 			suggest->rejected = edition.suggest.rejected;
 			updateSuggestControls(suggest);
 		} else {
-			RemoveComponents(HistoryMessageSuggestedPost::Bit());
+			RemoveComponents(HistoryMessageSuggestion::Bit());
 			updateSuggestControls(nullptr);
 		}
 	}
@@ -4074,7 +4074,7 @@ void HistoryItem::createComponents(CreateConfig &&config) {
 		}
 	}
 	if (config.suggest.exists) {
-		mask |= HistoryMessageSuggestedPost::Bit();
+		mask |= HistoryMessageSuggestion::Bit();
 		if (computeSuggestionActions(
 			config.suggest.accepted,
 			config.suggest.rejected
@@ -4179,7 +4179,7 @@ void HistoryItem::createComponents(CreateConfig &&config) {
 		flagSensitiveContent();
 	}
 
-	if (const auto suggest = Get<HistoryMessageSuggestedPost>()) {
+	if (const auto suggest = Get<HistoryMessageSuggestion>()) {
 		suggest->price = config.suggest.price;
 		suggest->date = config.suggest.date;
 		suggest->accepted = config.suggest.accepted;

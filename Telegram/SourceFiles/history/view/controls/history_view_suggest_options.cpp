@@ -848,7 +848,7 @@ bool CanAddOfferToMessage(not_null<HistoryItem*> item) {
 	const auto broadcast = history->peer->monoforumBroadcast();
 	return broadcast
 		&& !history->amMonoforumAdmin()
-		&& !item->Get<HistoryMessageSuggestedPost>()
+		&& !item->Get<HistoryMessageSuggestion>()
 		&& !item->groupId()
 		&& item->isRegular()
 		&& !item->isService()

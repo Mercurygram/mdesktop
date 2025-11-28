@@ -622,13 +622,14 @@ struct HistoryMessageFactcheck
 	bool requested = false;
 };
 
-struct HistoryMessageSuggestedPost
-: RuntimeComponent<HistoryMessageSuggestedPost, HistoryItem> {
+struct HistoryMessageSuggestion
+: RuntimeComponent<HistoryMessageSuggestion, HistoryItem> {
 	CreditsAmount price;
 	TimeId date = 0;
 	mtpRequestId requestId = 0;
 	bool accepted = false;
 	bool rejected = false;
+	bool gift = false;
 };
 
 struct HistoryMessageRestrictions
