@@ -181,10 +181,22 @@ void ServiceBox::draw(Painter &p, const PaintContext &context) const {
 	p.translate(0, st::msgServiceGiftBoxTopSkip);
 
 	PainterHighQualityEnabler hq(p);
-	const auto radius = st::msgServiceGiftBoxRadius;
 	p.setPen(Qt::NoPen);
 	p.setBrush(context.st->msgServiceBg());
-	p.drawRoundedRect(Rect(_innerSize), radius, radius);
+
+	const auto radius = st::msgServiceGiftBoxRadius;
+	if (_parent->data()->inlineReplyKeyboard()) {
+		const auto r = Rect(_innerSize);
+		const auto half = r.height() / 2;
+		p.setClipRect(r - QMargins(0, 0, 0, half));
+		p.drawRoundedRect(r, radius, radius);
+		p.setClipRect(r - QMargins(0, r.height() - half, 0, 0));
+		const auto small = Ui::BubbleRadiusSmall();
+		p.drawRoundedRect(r, small, small);
+		p.setClipping(false);
+	} else {
+		p.drawRoundedRect(Rect(_innerSize), radius, radius);
+	}
 
 	if (_button.stars) {
 		const auto &c = context.st->msgServiceFg()->c;
