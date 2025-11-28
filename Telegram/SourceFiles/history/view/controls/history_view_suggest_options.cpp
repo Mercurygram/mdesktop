@@ -647,7 +647,7 @@ void ChooseSuggestPriceBox(
 					durations,
 					state->offerDuration.current());
 				SingleChoiceBox(box, {
-					.title = tr::lng_settings_angle_backend(),
+					.title = tr::lng_gift_offer_duration(),
 					.options = options,
 					.initialSelection = int(selected - begin(durations)),
 					.callback = save,

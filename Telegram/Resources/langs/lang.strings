@@ -2351,6 +2351,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_action_gift_offer" = "{user} offered you {cost} for {name}.";
 "lng_action_gift_offer_you" = "You offered {cost} for {name}.";
 "lng_action_gift_offer_state_expires" = "This offer expires in {time}.";
+"lng_action_gift_offer_time_medium" = "{hours} h {minutes} m";
+"lng_action_gift_offer_time_small" = "{minutes} m";
 "lng_action_gift_offer_state_accepted" = "This offer was accepted.";
 "lng_action_gift_offer_state_rejected" = "This offer was rejected.";
 "lng_action_gift_offer_state_expired" = "This offer has expired.";
@@ -2359,7 +2361,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_action_gift_offer_decline" = "Reject";
 "lng_action_gift_offer_accept" = "Accept";
 "lng_action_gift_offer_expired" = "The offer from {user} to buy your {name} for {cost} has expired.";
-"lng_action_gift_offer_expired_you" = "Your offer to buy {name} for {cost} has expired.";
+"lng_action_gift_offer_expired_your" = "Your offer to buy {name} for {cost} has expired.";
 "lng_action_gift_offer_declined" = "{user} rejected your offer to buy {name} for {cost}.";
 "lng_action_gift_offer_declined_you" = "You rejected {user}'s offer to buy your {name} for {cost}.";
 "lng_action_suggested_photo_me" = "You suggested this photo for {user}'s Telegram profile.";

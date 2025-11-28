@@ -8,11 +8,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/media/history_view_service_box.h"
 
 #include "core/ui_integration.h"
+#include "data/data_session.h"
 #include "history/view/media/history_view_sticker_player_abstract.h"
 #include "history/view/history_view_cursor_state.h"
 #include "history/view/history_view_element.h"
 #include "history/view/history_view_text_helper.h"
 #include "history/history.h"
+#include "history/history_item.h"
 #include "lang/lang_keys.h"
 #include "ui/chat/chat_style.h"
 #include "ui/effects/animation_value.h"
@@ -122,9 +124,50 @@ ServiceBox::ServiceBox(
 			*type);
 		_button.lastFg = std::make_unique<QColor>();
 	}
+
+	if (auto changes = _content->changes()) {
+		std::move(changes) | rpl::start_with_next([=] {
+			applyContentChanges();
+		}, _lifetime);
+	}
 }
 
 ServiceBox::~ServiceBox() = default;
+
+void ServiceBox::applyContentChanges() {
+	const auto subtitleWas = _subtitle.countHeight(_maxWidth);
+
+	const auto parent = _parent;
+	_subtitle = Ui::Text::String(
+		st::premiumPreviewAbout.style,
+		Ui::Text::Filtered(
+			_content->subtitle(),
+			{
+				EntityType::Bold,
+				EntityType::StrikeOut,
+				EntityType::Underline,
+				EntityType::Italic,
+				EntityType::Spoiler,
+				EntityType::CustomEmoji,
+			}),
+			kMarkupTextOptions,
+			_maxWidth,
+			Core::TextContext({
+				.session = &parent->history()->session(),
+				.repaint = [parent] { parent->customEmojiRepaint(); },
+			}));
+	InitElementTextPart(parent, _subtitle);
+	const auto subtitleNow = _subtitle.countHeight(_maxWidth);
+	if (subtitleNow != subtitleWas) {
+		_size.setHeight(_size.height() - subtitleWas + subtitleNow);
+		_innerSize = _size - QSize(0, st::msgServiceGiftBoxTopSkip);
+
+		const auto item = parent->data();
+		item->history()->owner().requestItemResize(item);
+	} else {
+		parent->repaint();
+	}
+}
 
 QSize ServiceBox::countOptimalSize() {
 	return _size;

@@ -140,6 +140,7 @@ enum class GiftType : uchar {
 	StarGift, // count - stars
 	ChatTheme,
 	BirthdaySuggest,
+	GiftOffer,
 };
 
 struct GiftCode {

@@ -546,6 +546,7 @@ std::shared_ptr<ClickHandler> DeclineClickHandler(
 		if (!item) {
 			return;
 		}
+
 		RequestDeclineComment(controller->uiShow(), item);
 	});
 }
