@@ -523,6 +523,8 @@ PRIVATE
     data/components/gift_auctions.h
     data/components/location_pickers.cpp
     data/components/location_pickers.h
+    data/components/passkeys.cpp
+    data/components/passkeys.h
     data/components/promo_suggestions.cpp
     data/components/promo_suggestions.h
     data/components/recent_peers.cpp
