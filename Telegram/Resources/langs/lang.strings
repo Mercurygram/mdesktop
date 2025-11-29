@@ -1252,6 +1252,23 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_restart_now" = "Restart";
 "lng_settings_restart_later" = "Later";
 
+"lng_settings_passkeys_title" = "Passkeys";
+"lng_settings_passkeys_about" = "Manage your passkey, stored safely in the cloud service you choose.";
+"lng_settings_passkeys_button" = "Add Passkey";
+"lng_settings_passkeys_button_about" = "Your passkey is stored securely in your password manager. {link}";
+"lng_settings_passkeys_delete_sure_title" = "Delete Passkey";
+"lng_settings_passkeys_delete_sure_about" = "Once deleted, this passkey can't be used to log in.";
+"lng_settings_passkeys_delete_sure_about2" = "Don't forget to remove it from your password manager too.";
+"lng_settings_passkeys_none_title" = "Protect your account";
+"lng_settings_passkeys_none_about" = "Log in safely and keep your account secure.";
+"lng_settings_passkeys_none_info1_title" = "Create a Passkey";
+"lng_settings_passkeys_none_info1_about" = "Make a passkey to sign in easily and safely.";
+"lng_settings_passkeys_none_info2_title" = "Log in with face recognition";
+"lng_settings_passkeys_none_info2_about" = "Use your face, fingerprint, or screen lock to sign in.";
+"lng_settings_passkeys_none_info3_title" = "Store Passkey securely";
+"lng_settings_passkeys_none_info3_about" = "Your passkey is stored safely in the cloud service you choose.";
+"lng_settings_passkeys_none_button" = "Create Passkey";
+
 "lng_settings_quick_dialog_action_title" = "Chat list quick action";
 "lng_settings_quick_dialog_action_about" = "Choose the action you want to perform when you middle-click or swipe left in the chat list.";
 "lng_settings_quick_dialog_action_both" = "Swipe left and Middle-click";
