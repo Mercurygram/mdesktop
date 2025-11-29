@@ -229,6 +229,7 @@ void Passkeys::setupContent(
 		object_ptr<Ui::VerticalLayout>(content));
 
 	const auto &st = st::peerListBoxItem;
+	const auto nameStyle = &st.nameStyle;
 	const auto rebuild = [=] {
 		while (container->count()) {
 			delete container->widgetAt(0);
@@ -308,7 +309,11 @@ void Passkeys::setupContent(
 					tr::now,
 					lt_date,
 					formatDateTime(passkey.date));
-			button->paintOn([=, name = passkey.name](QPainter &p) {
+			const auto nameText = button->lifetime().make_state<
+				Ui::Text::String>(*nameStyle, passkey.name);
+			const auto dateText = button->lifetime().make_state<
+				Ui::Text::String>(st::defaultTextStyle, date);
+			button->paintOn([=](QPainter &p) {
 				if (emojiPtr) {
 					const auto emojiY = (st.height - iconSize) / 2;
 					emojiPtr->paint(p, {
@@ -318,16 +323,22 @@ void Passkeys::setupContent(
 					});
 				}
 				const auto textLeft = st::settingsButton.padding.left();
-				p.setFont(st.nameStyle.font);
+				const auto textWidth = button->width() - textLeft
+					- st::settingsButton.padding.right();
 				p.setPen(st.nameFg);
-				p.drawText(textLeft, st.namePosition.y()
-					+ st.nameStyle.font->ascent, name);
-				p.setFont(st::contactsStatusFont);
+				nameText->draw(p, {
+					.position = { textLeft, st.namePosition.y() },
+					.outerWidth = button->width(),
+					.availableWidth = textWidth,
+					.elisionLines = 1,
+				});
 				p.setPen(st.statusFg);
-				p.drawText(
-					textLeft,
-					st.statusPosition.y() + st::contactsStatusFont->ascent,
-					date);
+				dateText->draw(p, {
+					.position = { textLeft, st.statusPosition.y() },
+					.outerWidth = button->width(),
+					.availableWidth = textWidth,
+					.elisionLines = 1,
+				});
 			});
 			button->showChildren();
 		}
