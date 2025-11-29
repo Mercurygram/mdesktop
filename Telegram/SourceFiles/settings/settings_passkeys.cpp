@@ -52,12 +52,18 @@ public:
 		return _showFinished.events();
 	}
 
+	const Ui::RoundRect *bottomSkipRounding() const override {
+		return &_bottomSkipRounding;
+	}
+
 private:
 	void showFinished() override {
 		_showFinished.fire({});
 	}
 
 	void setupContent(not_null<Window::SessionController*> controller);
+
+	Ui::RoundRect _bottomSkipRounding;
 
 	rpl::event_stream<> _showFinished;
 
@@ -196,7 +202,8 @@ void PasskeysNoneBox(
 Passkeys::Passkeys(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent) {
+: Section(parent)
+, _bottomSkipRounding(st::boxRadius, st::boxDividerBg) {
 	setupContent(controller);
 }
 
@@ -215,6 +222,8 @@ void Passkeys::setupContent(
 		showFinishes(),
 		rpl::single(QString()),
 		tr::lng_settings_passkeys_about());
+
+	Ui::AddSkip(content);
 
 	const auto container = content->add(
 		object_ptr<Ui::VerticalLayout>(content));
@@ -339,6 +348,24 @@ void Passkeys::setupContent(
 		controller->show(Box(PasskeysNoneBox, session));
 	});
 
+	Ui::AddSkip(content);
+	const auto label = Ui::AddDividerText(
+		content,
+		tr::lng_settings_passkeys_button_about(
+			lt_link,
+			tr::lng_channel_earn_about_link(
+				lt_emoji,
+				rpl::single(Ui::Text::IconEmoji(&st::textMoreIconEmoji)),
+				Ui::Text::RichLangValue
+			) | rpl::map([](TextWithEntities text) {
+				return Ui::Text::Link(std::move(text), u"internal"_q);
+			}),
+			Ui::Text::RichLangValue
+		));
+	label->setClickHandlerFilter([=](const auto &...) {
+		controller->show(Box(PasskeysNoneBox, session));
+		return false;
+	});
 	Ui::ResizeFitChild(this, content);
 }
 
