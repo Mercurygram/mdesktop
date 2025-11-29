@@ -9,7 +9,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "settings/settings_common_session.h"
 
+namespace Ui {
+class GenericBox;
+} // namespace Ui
+
 namespace Settings {
+
+void PasskeysNoneBox(
+	not_null<Ui::GenericBox*> box,
+	not_null<Main::Session*> session);
 
 class Passkeys : public Section<Passkeys> {
 public:
