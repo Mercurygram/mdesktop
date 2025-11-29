@@ -110,6 +110,7 @@ void PasskeysNoneBox(
 			st::boxRowPadding.top(),
 			st::boxRowPadding.right(),
 			st::boxRowPadding.bottom());
+		const auto iconLeft = st::settingsButton.iconLeft;
 		const auto addEntry = [&](
 				rpl::producer<QString> title,
 				rpl::producer<QString> about,
@@ -138,7 +139,7 @@ void PasskeysNoneBox(
 			top->geometryValue(
 			) | rpl::start_with_next([=](const QRect &g) {
 				left->moveToLeft(
-					(g.left() - left->width()) / 2,
+					iconLeft,
 					g.top() + st::channelEarnHistoryThreeSkip);
 			}, left->lifetime());
 		};
@@ -268,7 +269,9 @@ void Passkeys::setupContent(
 			button->widthValue() | rpl::start_with_next([=](int width) {
 				menu->moveToRight(0, (st.height - menu->height()) / 2, width);
 			}, button->lifetime());
-			const auto emoji = st.photoSize;
+			const auto iconSize = st::settingsIconPasskeys.width();
+			const auto emoji = iconSize;
+			const auto iconLeft = st::settingsButton.iconLeft;
 			auto emojiInstance = passkey.softwareEmojiId
 				? session->data().customEmojiManager().create(
 					passkey.softwareEmojiId,
@@ -298,22 +301,22 @@ void Passkeys::setupContent(
 					formatDateTime(passkey.date));
 			button->paintOn([=, name = passkey.name](QPainter &p) {
 				if (emojiPtr) {
+					const auto emojiY = (st.height - iconSize) / 2;
 					emojiPtr->paint(p, {
 						.textColor = st.nameFg->c,
 						.now = crl::now(),
-						.position = QPoint(
-							st.photoPosition.x(),
-							st.photoPosition.y()),
+						.position = QPoint(iconLeft, emojiY),
 					});
 				}
+				const auto textLeft = st::settingsButton.padding.left();
 				p.setFont(st.nameStyle.font);
 				p.setPen(st.nameFg);
-				p.drawText(st.namePosition.x(), st.namePosition.y()
+				p.drawText(textLeft, st.namePosition.y()
 					+ st.nameStyle.font->ascent, name);
 				p.setFont(st::contactsStatusFont);
 				p.setPen(st.statusFg);
 				p.drawText(
-					st.statusPosition.x(),
+					textLeft,
 					st.statusPosition.y() + st::contactsStatusFont->ascent,
 					date);
 			});
@@ -326,6 +329,15 @@ void Passkeys::setupContent(
 	session->passkeys().requestList(
 	) | rpl::start_with_next(rebuild, content->lifetime());
 	rebuild();
+
+	AddButtonWithIcon(
+		content,
+		tr::lng_settings_passkeys_button(),
+		st::settingsButtonActive,
+		{ &st::settingsIconPasskeys }
+	)->setClickedCallback([=] {
+		controller->show(Box(PasskeysNoneBox, session));
+	});
 
 	Ui::ResizeFitChild(this, content);
 }
