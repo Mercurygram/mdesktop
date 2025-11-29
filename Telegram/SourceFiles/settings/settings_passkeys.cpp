@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_passkeys.h"
 
+#include "settings/settings_common_session.h"
 #include "data/components/passkeys.h"
 #include "data/data_session.h"
 #include "window/window_session_controller.h"
@@ -28,6 +29,19 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_settings.h"
 
 namespace Settings {
+
+class Passkeys : public Section<Passkeys> {
+public:
+	Passkeys(
+		QWidget *parent,
+		not_null<Window::SessionController*> controller);
+
+	[[nodiscard]] rpl::producer<QString> title() override;
+
+private:
+	void setupContent(not_null<Window::SessionController*> controller);
+
+};
 
 void PasskeysNoneBox(
 		not_null<Ui::GenericBox*> box,
@@ -174,6 +188,10 @@ void Passkeys::setupContent(
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
 	Ui::ResizeFitChild(this, content);
+}
+
+Type PasskeysId() {
+	return Passkeys::Id();
 }
 
 } // namespace Settings

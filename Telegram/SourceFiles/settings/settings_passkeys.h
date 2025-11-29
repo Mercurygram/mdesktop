@@ -7,11 +7,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_common_session.h"
+#include "settings/settings_type.h"
 
 namespace Ui {
 class GenericBox;
 } // namespace Ui
+
+namespace Main {
+class Session;
+} // namespace Main
 
 namespace Settings {
 
@@ -19,17 +23,6 @@ void PasskeysNoneBox(
 	not_null<Ui::GenericBox*> box,
 	not_null<Main::Session*> session);
 
-class Passkeys : public Section<Passkeys> {
-public:
-	Passkeys(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller);
-
-	[[nodiscard]] rpl::producer<QString> title() override;
-
-private:
-	void setupContent(not_null<Window::SessionController*> controller);
-
-};
+Type PasskeysId();
 
 } // namespace Settings
