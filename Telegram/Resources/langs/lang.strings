@@ -1268,6 +1268,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_passkeys_none_info3_title" = "Store Passkey securely";
 "lng_settings_passkeys_none_info3_about" = "Your passkey is stored safely in the cloud service you choose.";
 "lng_settings_passkeys_none_button" = "Create Passkey";
+"lng_settings_passkeys_created" = "Created {date}";
+"lng_settings_passkeys_last_used" = "Last used {date}";
 
 "lng_settings_quick_dialog_action_title" = "Chat list quick action";
 "lng_settings_quick_dialog_action_about" = "Choose the action you want to perform when you middle-click or swipe left in the chat list.";

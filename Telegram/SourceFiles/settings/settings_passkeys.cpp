@@ -15,11 +15,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "platform/platform_webauthn.h"
 #include "ui/layers/generic_box.h"
+#include "ui/boxes/confirm_box.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
 #include "ui/text/text_utilities.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/buttons.h"
+#include "ui/widgets/popup_menu.h"
+#include "ui/widgets/menu/menu_add_action_callback.h"
+#include "ui/widgets/menu/menu_add_action_callback_factory.h"
 #include "ui/wrap/vertical_layout.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
@@ -32,6 +36,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_layers.h"
 #include "styles/style_premium.h"
 #include "styles/style_settings.h"
+#include "styles/style_menu_icons.h"
 
 namespace Settings {
 
@@ -222,6 +227,47 @@ void Passkeys::setupContent(
 			const auto button = container->add(
 				object_ptr<Ui::AbstractButton>(container));
 			button->resize(button->width(), st.height);
+			const auto menu = Ui::CreateChild<Ui::IconButton>(
+				button,
+				st::themesMenuToggle);
+			menu->setClickedCallback([=] {
+				const auto popup = Ui::CreateChild<Ui::PopupMenu>(
+					menu,
+					st::popupMenuWithIcons);
+				const auto handler = [=, id = passkey.id] {
+					controller->show(Ui::MakeConfirmBox({
+						.text = rpl::combine(
+							tr::lng_settings_passkeys_delete_sure_about(),
+							tr::lng_settings_passkeys_delete_sure_about2()
+						) | rpl::map([](QString a, QString b) {
+							return a + "\n\n" + b;
+						}),
+						.confirmed = [=](Fn<void()> close) {
+							session->passkeys().deletePasskey(
+								id,
+								close,
+								[](QString) {});
+						},
+						.confirmText = tr::lng_box_delete(),
+						.confirmStyle = &st::attentionBoxButton,
+						.title
+							= tr::lng_settings_passkeys_delete_sure_title(),
+					}));
+				};
+				Ui::Menu::CreateAddActionCallback(popup)({
+					.text = tr::lng_proxy_menu_delete(tr::now),
+					.handler = handler,
+					.icon = &st::menuIconDeleteAttention,
+					.isAttention = true,
+				});
+				popup->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
+				const auto menuGlobal = menu->mapToGlobal(
+					QPoint(menu->width(), menu->height()));
+				popup->popup(menuGlobal);
+			});
+			button->widthValue() | rpl::start_with_next([=](int width) {
+				menu->moveToRight(0, (st.height - menu->height()) / 2, width);
+			}, button->lifetime());
 			const auto emoji = st.photoSize;
 			auto emojiInstance = passkey.softwareEmojiId
 				? session->data().customEmojiManager().create(
@@ -232,10 +278,25 @@ void Passkeys::setupContent(
 				: nullptr;
 			const auto emojiPtr = emojiInstance.get();
 			button->lifetime().add([emoji = std::move(emojiInstance)] {});
-			button->paintRequest() | rpl::start_with_next([=,
-					name = passkey.name,
-					date = passkey.date] {
-				auto p = QPainter(button);
+			const auto formatDateTime = [](TimeId timestamp) {
+				const auto dt = base::unixtime::parse(timestamp);
+				return tr::lng_mediaview_date_time(
+					tr::now,
+					lt_date,
+					langDayOfMonthFull(dt.date()),
+					lt_time,
+					QLocale().toString(dt.time(), QLocale::ShortFormat));
+			};
+			const auto date = (passkey.lastUsageDate > 0)
+				? tr::lng_settings_passkeys_last_used(
+					tr::now,
+					lt_date,
+					formatDateTime(passkey.lastUsageDate))
+				: tr::lng_settings_passkeys_created(
+					tr::now,
+					lt_date,
+					formatDateTime(passkey.date));
+			button->paintOn([=, name = passkey.name](QPainter &p) {
 				if (emojiPtr) {
 					emojiPtr->paint(p, {
 						.textColor = st.nameFg->c,
@@ -251,12 +312,15 @@ void Passkeys::setupContent(
 					+ st.nameStyle.font->ascent, name);
 				p.setFont(st::contactsStatusFont);
 				p.setPen(st.statusFg);
-				const auto dateStr = base::unixtime::parse(
-					date).toString(u"dd.MM.yyyy"_q);
-				p.drawText(st.statusPosition.x(), st.statusPosition.y()
-					+ st::contactsStatusFont->ascent, dateStr);
-			}, button->lifetime());
+				p.drawText(
+					st.statusPosition.x(),
+					st.statusPosition.y() + st::contactsStatusFont->ascent,
+					date);
+			});
+			button->showChildren();
 		}
+		container->showChildren();
+		container->resizeToWidth(content->width());
 	};
 
 	session->passkeys().requestList(
