@@ -20,6 +20,14 @@ class Session;
 
 namespace Data {
 
+struct PasskeyEntry {
+	QString id;
+	QString name;
+	TimeId date = 0;
+	DocumentId softwareEmojiId = 0;
+	TimeId lastUsageDate = 0;
+};
+
 class Passkeys final {
 public:
 	explicit Passkeys(not_null<Main::Session*> session);
@@ -29,9 +37,19 @@ public:
 	void registerPasskey(
 		const Platform::WebAuthn::RegisterResult &result,
 		Fn<void()> done);
+	[[nodiscard]] rpl::producer<> requestList();
+	[[nodiscard]] const std::vector<PasskeyEntry> &list() const;
+	[[nodiscard]] bool listKnown() const;
 
 private:
+	void loadList();
+
 	const not_null<Main::Session*> _session;
+	std::vector<PasskeyEntry> _passkeys;
+	rpl::event_stream<> _listUpdated;
+	crl::time _lastRequestTime = 0;
+	mtpRequestId _listRequestId = 0;
+	bool _listKnown = false;
 
 };
 
