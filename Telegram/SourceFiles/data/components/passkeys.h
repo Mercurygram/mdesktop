@@ -7,6 +7,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+namespace Data::Passkey {
+struct RegisterData;
+} // namespace Data::Passkey
+namespace Platform::WebAuthn {
+struct RegisterResult;
+} // namespace Platform::WebAuthn
+
 namespace Main {
 class Session;
 } // namespace Main
@@ -17,6 +24,11 @@ class Passkeys final {
 public:
 	explicit Passkeys(not_null<Main::Session*> session);
 	~Passkeys();
+
+	void initRegistration(Fn<void(const Data::Passkey::RegisterData&)> done);
+	void registerPasskey(
+		const Platform::WebAuthn::RegisterResult &result,
+		Fn<void()> done);
 
 private:
 	const not_null<Main::Session*> _session;
