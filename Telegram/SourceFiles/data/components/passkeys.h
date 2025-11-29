@@ -37,6 +37,10 @@ public:
 	void registerPasskey(
 		const Platform::WebAuthn::RegisterResult &result,
 		Fn<void()> done);
+	void deletePasskey(
+		const QString &id,
+		Fn<void()> done,
+		Fn<void(QString)> fail);
 	[[nodiscard]] rpl::producer<> requestList();
 	[[nodiscard]] const std::vector<PasskeyEntry> &list() const;
 	[[nodiscard]] bool listKnown() const;

@@ -66,6 +66,22 @@ void Passkeys::registerPasskey(
 	}).send();
 }
 
+void Passkeys::deletePasskey(
+		const QString &id,
+		Fn<void()> done,
+		Fn<void(QString)> fail) {
+	_session->api().request(MTPaccount_DeletePasskey(
+		MTP_string(id)
+	)).done([=] {
+		_lastRequestTime = 0;
+		_listKnown = false;
+		loadList();
+		done();
+	}).fail([=](const MTP::Error &error) {
+		fail(error.type());
+	}).send();
+}
+
 rpl::producer<> Passkeys::requestList() {
 	if (crl::now() - _lastRequestTime > kTimeoutMs) {
 		if (!_listRequestId) {
