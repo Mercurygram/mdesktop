@@ -24,6 +24,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
 #include "base/unixtime.h"
+#include "data/stickers/data_custom_emoji.h"
+#include "ui/text/custom_emoji_instance.h"
 #include "styles/style_boxes.h"
 #include "styles/style_channel_earn.h"
 #include "styles/style_chat.h"
@@ -220,8 +222,29 @@ void Passkeys::setupContent(
 			const auto button = container->add(
 				object_ptr<Ui::AbstractButton>(container));
 			button->resize(button->width(), st.height);
-			button->paintRequest() | rpl::start_with_next([=, name = passkey.name, date = passkey.date] {
+			const auto emoji = st.photoSize;
+			auto emojiInstance = passkey.softwareEmojiId
+				? session->data().customEmojiManager().create(
+					passkey.softwareEmojiId,
+					[=] { button->update(); },
+					Data::CustomEmojiSizeTag::Large,
+					emoji)
+				: nullptr;
+			const auto emojiPtr = emojiInstance.get();
+			button->lifetime().add([emoji = std::move(emojiInstance)] {});
+			button->paintRequest() | rpl::start_with_next([=,
+					name = passkey.name,
+					date = passkey.date] {
 				auto p = QPainter(button);
+				if (emojiPtr) {
+					emojiPtr->paint(p, {
+						.textColor = st.nameFg->c,
+						.now = crl::now(),
+						.position = QPoint(
+							st.photoPosition.x(),
+							st.photoPosition.y()),
+					});
+				}
 				p.setFont(st.nameStyle.font);
 				p.setPen(st.nameFg);
 				p.drawText(st.namePosition.x(), st.namePosition.y()
