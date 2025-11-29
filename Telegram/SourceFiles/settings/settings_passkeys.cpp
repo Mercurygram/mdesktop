@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_passkeys.h"
 
+#include "settings/cloud_password/settings_cloud_password_common.h"
 #include "settings/settings_common_session.h"
 #include "data/components/passkeys.h"
 #include "data/data_session.h"
@@ -38,8 +39,18 @@ public:
 
 	[[nodiscard]] rpl::producer<QString> title() override;
 
+	[[nodiscard]] rpl::producer<> showFinishes() const {
+		return _showFinished.events();
+	}
+
 private:
+	void showFinished() override {
+		_showFinished.fire({});
+	}
+
 	void setupContent(not_null<Window::SessionController*> controller);
+
+	rpl::event_stream<> _showFinished;
 
 };
 
@@ -186,6 +197,13 @@ rpl::producer<QString> Passkeys::title() {
 void Passkeys::setupContent(
 		not_null<Window::SessionController*> controller) {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
+
+	CloudPassword::SetupHeader(
+		content,
+		u"passkeys"_q,
+		showFinishes(),
+		rpl::single(QString()),
+		tr::lng_settings_passkeys_about());
 
 	Ui::ResizeFitChild(this, content);
 }
