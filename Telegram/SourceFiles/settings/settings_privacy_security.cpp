@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_sensitive_content.h"
 #include "api/api_global_privacy.h"
 #include "api/api_websites.h"
+#include "data/components/passkeys.h"
 #include "settings/cloud_password/settings_cloud_password_email_confirm.h"
 #include "settings/cloud_password/settings_cloud_password_input.h"
 #include "settings/cloud_password/settings_cloud_password_login_email.h"
@@ -21,6 +22,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_blocked_peers.h"
 #include "settings/settings_global_ttl.h"
 #include "settings/settings_local_passcode.h"
+#include "settings/settings_passkeys.h"
 #include "settings/settings_premium.h" // Settings::ShowPremium.
 #include "settings/settings_privacy_controllers.h"
 #include "settings/settings_websites.h"
@@ -574,6 +576,49 @@ void SetupCloudPassword(
 	session->api().cloudPassword().reload();
 }
 
+void SetupPasskeys(
+		not_null<Window::SessionController*> controller,
+		not_null<Ui::VerticalLayout*> container) {
+	const auto session = &controller->session();
+	auto label = rpl::combine(
+		tr::lng_profile_loading(),
+		(rpl::single(rpl::empty_value())
+			| rpl::then(session->passkeys().requestList())) | rpl::map([=] {
+			return session->passkeys().list().size();
+		})
+	) | rpl::map([=](const QString &loading, int count) {
+		return !session->passkeys().listKnown()
+			? loading
+			: count
+			? QString::number(count)
+			: tr::lng_settings_cloud_password_off(tr::now);
+	});
+	AddButtonWithLabel(
+		container,
+		tr::lng_settings_passkeys_title(),
+		std::move(label),
+		st::settingsButton,
+		{ &st::menuIconLock }
+	)->addClickHandler([=] {
+		if (!session->passkeys().listKnown()) {
+			return;
+		}
+		const auto count = session->passkeys().list().size();
+		if (count == 0) {
+			controller->show(Box([=](not_null<Ui::GenericBox*> box) {
+				PasskeysNoneBox(box, session);
+				box->boxClosing() | rpl::start_with_next([=] {
+					if (session->passkeys().list().size()) {
+						controller->showSettings(PasskeysId());
+					}
+				}, box->lifetime());
+			}));
+		} else {
+			controller->showSettings(PasskeysId());
+		}
+	});
+}
+
 void SetupLoginEmail(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
@@ -930,6 +975,7 @@ void SetupSecurity(
 		rpl::duplicate(updateTrigger),
 		showOther);
 	SetupLocalPasscode(controller, container, showOther);
+	SetupPasskeys(controller, container);
 	SetupLoginEmail(controller, container, showOther);
 	SetupBlockedList(
 		controller,
