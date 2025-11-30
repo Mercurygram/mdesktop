@@ -23,6 +23,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/vertical_layout.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
+#include "base/unixtime.h"
+#include "styles/style_boxes.h"
 #include "styles/style_channel_earn.h"
 #include "styles/style_chat.h"
 #include "styles/style_layers.h"
@@ -197,6 +199,7 @@ rpl::producer<QString> Passkeys::title() {
 void Passkeys::setupContent(
 		not_null<Window::SessionController*> controller) {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
+	const auto session = &controller->session();
 
 	CloudPassword::SetupHeader(
 		content,
@@ -204,6 +207,38 @@ void Passkeys::setupContent(
 		showFinishes(),
 		rpl::single(QString()),
 		tr::lng_settings_passkeys_about());
+
+	const auto container = content->add(
+		object_ptr<Ui::VerticalLayout>(content));
+
+	const auto &st = st::peerListBoxItem;
+	const auto rebuild = [=] {
+		while (container->count()) {
+			delete container->widgetAt(0);
+		}
+		for (const auto &passkey : session->passkeys().list()) {
+			const auto button = container->add(
+				object_ptr<Ui::AbstractButton>(container));
+			button->resize(button->width(), st.height);
+			button->paintRequest() | rpl::start_with_next([=, name = passkey.name, date = passkey.date] {
+				auto p = QPainter(button);
+				p.setFont(st.nameStyle.font);
+				p.setPen(st.nameFg);
+				p.drawText(st.namePosition.x(), st.namePosition.y()
+					+ st.nameStyle.font->ascent, name);
+				p.setFont(st::contactsStatusFont);
+				p.setPen(st.statusFg);
+				const auto dateStr = base::unixtime::parse(
+					date).toString(u"dd.MM.yyyy"_q);
+				p.drawText(st.statusPosition.x(), st.statusPosition.y()
+					+ st::contactsStatusFont->ascent, dateStr);
+			}, button->lifetime());
+		}
+	};
+
+	session->passkeys().requestList(
+	) | rpl::start_with_next(rebuild, content->lifetime());
+	rebuild();
 
 	Ui::ResizeFitChild(this, content);
 }
