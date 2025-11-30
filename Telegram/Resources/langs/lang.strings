@@ -378,6 +378,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_intro_qr_step2" = "Go to Settings > Devices > Link Desktop Device";
 "lng_intro_qr_step3" = "Scan this image to Log In";
 "lng_intro_qr_skip" = "Or log in using your phone number";
+"lng_intro_qr_phone" = "Log in using phone number";
+"lng_intro_qr_passkey" = "Log in using passkey";
 
 "lng_intro_fragment_title" = "Enter code";
 "lng_intro_fragment_about" = "Get the code for {phone_number} in the Anonymous Numbers section on Fragment.";
