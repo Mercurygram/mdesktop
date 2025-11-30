@@ -1561,6 +1561,8 @@ PRIVATE
     settings/settings_notifications.h
     settings/settings_notifications_type.cpp
     settings/settings_notifications_type.h
+    settings/settings_passkeys.cpp
+    settings/settings_passkeys.h
     settings/settings_power_saving.cpp
     settings/settings_power_saving.h
     settings/settings_premium.cpp
