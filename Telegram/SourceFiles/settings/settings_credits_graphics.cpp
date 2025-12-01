@@ -1187,6 +1187,7 @@ GiftWearBoxStyleOverride DarkGiftWearBoxStyle() {
 		.title = &st::darkUpgradeGiftTitle,
 		.subtitle = &st::darkUpgradeGiftSubtitle,
 		.radiantIcon = &st::darkUpgradeGiftRadiant,
+		.profileIcon = &st::darkUpgradeGiftProfile,
 		.proofIcon = &st::darkUpgradeGiftProof,
 		.infoTitle = &st::darkUpgradeGiftInfoTitle,
 		.infoAbout = &st::darkUpgradeGiftInfoAbout,

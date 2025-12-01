@@ -3201,10 +3201,12 @@ void ShowUniqueGiftWearBox(
 				? tr::lng_gift_wear_badge_about_channel()
 				: tr::lng_gift_wear_badge_about()),
 			st.radiantIcon ? st.radiantIcon : &st::menuIconUnique);
-		//infoRow(
-		//	tr::lng_gift_wear_design_title(),
-		//	tr::lng_gift_wear_design_about(),
-		//	&st::menuIconUniqueProfile);
+		infoRow(
+			tr::lng_gift_wear_design_title(),
+			(channel
+				? tr::lng_gift_wear_design_about_channel()
+				: tr::lng_gift_wear_design_about()),
+			st.profileIcon ? st.profileIcon : &st::menuIconUniqueProfile);
 		infoRow(
 			tr::lng_gift_wear_proof_title(),
 			(channel

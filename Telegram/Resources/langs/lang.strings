@@ -4000,6 +4000,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_wear_badge_title" = "Radiant Badge";
 "lng_gift_wear_badge_about" = "The glittering icon of this item will be displayed next to your name.";
 "lng_gift_wear_badge_about_channel" = "The glittering icon of this item will be displayed next to channel's name.";
+"lng_gift_wear_design_title" = "Unique Profile Design";
+"lng_gift_wear_design_about" = "Your profile page will get the color and the symbol of this item.";
+"lng_gift_wear_design_about_channel" = "Your channel page will get the color and the symbol of this item.";
 "lng_gift_wear_proof_title" = "Proof of Ownership";
 "lng_gift_wear_proof_about" = "Clicking the icon of this item next to your name will show its info and owner.";
 "lng_gift_wear_proof_about_channel" = "Clicking the icon of this item next to channel's name will show its info and owner.";

@@ -337,6 +337,7 @@ darkUpgradeGiftBox: Box(upgradeGiftBox) {
 	titleAdditionalFg: groupCallMemberNotJoinedStatus;
 }
 darkUpgradeGiftRadiant: icon{{ "menu/unique", groupCallMembersFg }};
+darkUpgradeGiftProfile: icon{{ "menu/profile", groupCallMembersFg }};
 darkUpgradeGiftProof: icon{{ "menu/factcheck", groupCallMembersFg }};
 darkUpgradeGiftInfoTitle: FlatLabel(defaultFlatLabel) {
 	textFg: groupCallMembersFg;

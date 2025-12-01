@@ -103,6 +103,7 @@ struct GiftWearBoxStyleOverride {
 	const style::FlatLabel *title = nullptr;
 	const style::FlatLabel *subtitle = nullptr;
 	const style::icon *radiantIcon = nullptr;
+	const style::icon *profileIcon = nullptr;
 	const style::icon *proofIcon = nullptr;
 	const style::FlatLabel *infoTitle = nullptr;
 	const style::FlatLabel *infoAbout = nullptr;
