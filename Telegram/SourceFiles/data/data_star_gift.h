@@ -101,9 +101,25 @@ struct UniqueGift {
 [[nodiscard]] TextWithEntities FormatGiftResaleTon(const UniqueGift &gift);
 [[nodiscard]] TextWithEntities FormatGiftResaleAsked(const UniqueGift &gift);
 
+struct StarGiftBackground {
+	QColor center;
+	QColor edge;
+	QColor text;
+
+	[[nodiscard]] UniqueGiftBackdrop backdrop() const {
+		return {
+			.centerColor = center,
+			.edgeColor = edge,
+			.patternColor = edge,
+			.textColor = text,
+		};
+	}
+};
+
 struct StarGift {
 	uint64 id = 0;
 	std::shared_ptr<UniqueGift> unique;
+	std::shared_ptr<StarGiftBackground> background;
 	int64 stars = 0;
 	int64 starsConverted = 0;
 	int64 starsToUpgrade = 0;

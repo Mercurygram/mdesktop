@@ -3986,12 +3986,6 @@ void Session::webpageApplyFields(
 					auto auction = std::make_unique<WebPageAuction>();
 					auction->auctionGift = std::make_shared<StarGift>(*gift);
 					auction->endDate = data.vend_date().v;
-					auction->centerColor = Ui::ColorFromSerialized(
-						toUint(data.vcenter_color()));
-					auction->edgeColor = Ui::ColorFromSerialized(
-						toUint(data.vedge_color()));
-					auction->textColor = Ui::ColorFromSerialized(
-						toUint(data.vtext_color()));
 					return auction;
 				}, [](const auto &) -> WebPageAuctionPtr { return nullptr; });
 			}

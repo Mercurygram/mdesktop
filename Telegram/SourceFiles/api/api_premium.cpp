@@ -848,8 +848,22 @@ std::optional<Data::StarGift> FromTL(
 		const auto releasedBy = releasedById
 			? session->data().peer(releasedById).get()
 			: nullptr;
+		const auto background = [&] {
+			if (!data.vbackground()) {
+				return std::shared_ptr<Data::StarGiftBackground>();
+			}
+			const auto &fields = data.vbackground()->data();
+			using namespace Ui;
+			return std::make_shared<Data::StarGiftBackground>(
+				Data::StarGiftBackground{
+					.center = ColorFromSerialized(fields.vcenter_color()),
+					.edge = ColorFromSerialized(fields.vedge_color()),
+					.text = ColorFromSerialized(fields.vtext_color()),
+				});
+		};
 		return std::optional<Data::StarGift>(Data::StarGift{
 			.id = uint64(data.vid().v),
+			.background = background(),
 			.stars = int64(data.vstars().v),
 			.starsConverted = int64(data.vconvert_stars().v),
 			.starsToUpgrade = int64(data.vupgrade_stars().value_or_empty()),
@@ -964,7 +978,7 @@ std::optional<Data::StarGift> FromTL(
 				unique->originalDetails = FromTL(session, data);
 			});
 		}
-		return std::make_optional(result);
+		return std::make_optional(std::move(result));
 	});
 }
 

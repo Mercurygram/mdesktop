@@ -530,20 +530,16 @@ QSize WebPage::countOptimalSize() {
 				});
 	} else if (!_attach && _data->auction) {
 		const auto &gift = _data->auction->auctionGift;
-		const auto backdrop = Data::UniqueGiftBackdrop{
-			.centerColor = _data->auction->centerColor,
-			.edgeColor = _data->auction->edgeColor,
-			.patternColor = _data->auction->edgeColor,
-			.textColor = _data->auction->textColor,
-		};
+		const auto backdrop = gift->background
+			? gift->background->backdrop()
+			: Data::UniqueGiftBackdrop();
 		_attach = std::make_unique<MediaGeneric>(
 			_parent,
 			GenerateAuctionPreview(
 				_parent,
 				nullptr,
 				gift,
-				backdrop,
-				_data->auction->endDate),
+				backdrop),
 			MediaGenericDescriptor{
 				.maxWidth = st::msgServiceGiftPreview,
 				.paintBgFactory = [=] {

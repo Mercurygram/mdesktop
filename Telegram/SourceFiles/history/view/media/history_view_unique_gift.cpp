@@ -543,8 +543,7 @@ auto GenerateAuctionPreview(
 	not_null<Element*> parent,
 	Element *replacing,
 	std::shared_ptr<Data::StarGift> gift,
-	Data::UniqueGiftBackdrop backdrop,
-	TimeId endDate)
+	Data::UniqueGiftBackdrop backdrop)
 -> Fn<void(
 		not_null<MediaGeneric*>,
 		Fn<void(std::unique_ptr<MediaGenericPart>)>)> {
@@ -578,9 +577,9 @@ auto GenerateAuctionPreview(
 			push(std::make_unique<TextPartColored>(
 				tr::lng_boosts_list_tab_gifts(
 					tr::now,
-					lt_count,
+					lt_count_decimal,
 					all,
-					Ui::Text::WithEntities),
+					tr::marked),
 				QMargins(0, 0, 0, st::webPageAuctionPreviewPadding.top()),
 				[c = backdrop.textColor](const auto&) { return c; },
 				st::chatUniqueTextStyle));
