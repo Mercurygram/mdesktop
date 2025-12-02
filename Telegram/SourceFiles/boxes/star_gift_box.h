@@ -65,12 +65,19 @@ void ShowStarGiftBox(
 	not_null<Window::SessionController*> controller,
 	not_null<PeerData*> peer);
 
+struct UniqueGiftCoverArgs {
+	rpl::producer<QString> pretitle;
+	rpl::producer<TextWithEntities> subtitle;
+	Fn<void()> subtitleClick;
+	bool subtitleLinkColored = false;
+	rpl::producer<CreditsAmount> resalePrice;
+	Fn<void()> resaleClick;
+};
+
 void AddUniqueGiftCover(
 	not_null<VerticalLayout*> container,
 	rpl::producer<Data::UniqueGift> data,
-	rpl::producer<QString> subtitleOverride = nullptr,
-	rpl::producer<CreditsAmount> resalePrice = nullptr,
-	Fn<void()> resaleClick = nullptr);
+	UniqueGiftCoverArgs &&args);
 void AddWearGiftCover(
 	not_null<VerticalLayout*> container,
 	const Data::UniqueGift &data,

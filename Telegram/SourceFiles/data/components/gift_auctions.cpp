@@ -413,7 +413,24 @@ void GiftAuctions::apply(
 		entry->giftsLeft = data.vgifts_left().v;
 		entry->currentRound = data.vcurrent_round().v;
 		entry->totalRounds = data.vtotal_rounds().v;
-		data.vrounds().v;
+		const auto &rounds = data.vrounds().v;
+		entry->roundParameters.clear();
+		entry->roundParameters.reserve(rounds.size());
+		for (const auto &round : rounds) {
+			round.match([&](const MTPDstarGiftAuctionRound &data) {
+				entry->roundParameters.push_back({
+					.number = data.vnum().v,
+					.duration = data.vduration().v,
+				});
+			}, [&](const MTPDstarGiftAuctionRoundExtendable &data) {
+				entry->roundParameters.push_back({
+					.number = data.vnum().v,
+					.duration = data.vduration().v,
+					.extendTop = data.vextend_top().v,
+					.extendDuration = data.vextend_window().v,
+				});
+			});
+		}
 		entry->averagePrice = 0;
 	}, [&](const MTPDstarGiftAuctionStateFinished &data) {
 		entry->averagePrice = data.vaverage_price().v;

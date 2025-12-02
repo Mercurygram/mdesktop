@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer_rpl.h"
 #include "base/unixtime.h"
 #include "boxes/peers/replace_boost_box.h"
+#include "boxes/premium_preview_box.h"
 #include "boxes/send_credits_box.h" // CreditsEmojiSmall
 #include "boxes/share_box.h"
 #include "boxes/star_gift_box.h"
@@ -991,33 +992,55 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 			tr::lng_auction_rounds_label(),
 			rpl::single(tr::marked(
 				Lang::FormatCountDecimal(now.totalRounds))));
-		AddTableRow(
-			raw,
-			tr::lng_auction_rounds_first(),
-			((now.roundDurationFirst % 3600)
-				? tr::lng_minutes(
+		const auto formatDuration = [&](TimeId value, bool exact) {
+			return (!(value % 3600))
+				? (exact ? tr::lng_hours : tr::lng_auction_rounds_hours)(
+					tr::now,
 					lt_count,
-					rpl::single(now.roundDurationFirst / 60.),
-					tr::marked)
-				: tr::lng_hours(
+					value / 3600)
+				: (!(value % 60))
+				? (exact ? tr::lng_minutes : tr::lng_auction_rounds_minutes)(
+					tr::now,
 					lt_count,
-					rpl::single(now.roundDurationFirst / 3600.),
-					tr::marked)));
-		if (now.totalRounds > 1) {
+					value / 60)
+				: (exact ? tr::lng_seconds : tr::lng_auction_rounds_seconds)(
+					tr::now,
+					lt_count,
+					value);
+		};
+		for (auto i = 0, n = int(now.roundParameters.size()); i != n; ++i) {
+			const auto &that = now.roundParameters[i];
+			const auto next = (i + 1 < n)
+				? now.roundParameters[i + 1]
+				: Data::GiftAuctionRound{ now.totalRounds + 1 };
+			const auto exact = (next.number == that.number + 1);
+			const auto extended = that.extendTop && that.extendDuration;
+			const auto duration = formatDuration(that.duration, exact);
+			const auto value = extended
+				? tr::lng_auction_rounds_extended(
+					tr::now,
+					lt_duration,
+					duration,
+					lt_increase,
+					formatDuration(that.extendDuration, true),
+					lt_n,
+					QString::number(that.extendTop))
+				: duration;
 			AddTableRow(
 				raw,
-				tr::lng_auction_rounds_rest(
-					lt_last,
-					rpl::single(QString::number(now.totalRounds))),
-				((now.roundDurationRest % 3600)
-					? tr::lng_auction_rounds_rest_minutes(
-						lt_count,
-						rpl::single(now.roundDurationRest / 60.),
-						tr::marked)
-					: tr::lng_auction_rounds_rest_hours(
-						lt_count,
-						rpl::single(now.roundDurationRest / 3600.),
-						tr::marked)));
+				(exact
+					? tr::lng_auction_rounds_exact(
+						lt_n,
+						rpl::single(QString::number(that.number)))
+					: tr::lng_auction_rounds_range(
+						lt_n,
+						rpl::single(QString::number(that.number)),
+						lt_last,
+						rpl::single(QString::number(next.number - 1)))),
+				object_ptr<FlatLabel>(
+					raw,
+					value,
+					st::auctionInfoValueMultiline));
 		}
 	} else {
 		auto roundText = state->value.value(
@@ -1180,12 +1203,9 @@ void AuctionGotGiftsBox(
 		.pattern = Data::UniqueGiftPattern{
 			.document = info.document,
 		},
-		.backdrop = Data::UniqueGiftBackdrop{
-			.centerColor = QColor(0x3a, 0x76, 0xb4),
-			.edgeColor = QColor(0x10, 0x2d, 0x4d),
-			.patternColor = QColor(0, 0, 0, 0),
-			.textColor = QColor(0xff, 0xff, 0xff),
-		},
+		.backdrop = (info.background
+			? info.background->backdrop()
+			: Data::UniqueGiftBackdrop()),
 	};
 	return rpl::single(initial) | rpl::then(std::move(
 		attributes
@@ -1302,11 +1322,22 @@ void AuctionInfoBox(
 	box->setNoContentMargin(true);
 	if (!started) {
 		const auto container = box->verticalLayout();
-		AddUniqueGiftCover(
-			container,
-			MakePreviewAuctionStream(*now.gift, state->attributes.value()),
-			tr::lng_gift_upgrade_about());
-
+		auto gift = MakePreviewAuctionStream(
+			*now.gift,
+			state->attributes.value());
+		AddUniqueGiftCover(container, std::move(gift), {
+			.pretitle = tr::lng_auction_preview_name(),
+			.subtitle = tr::lng_auction_preview_learn_gifts(
+				lt_arrow,
+				rpl::single(Text::IconEmoji(&st::textMoreIconEmoji)),
+				tr::link),
+			.subtitleClick = [=] {
+				ShowPremiumPreviewBox(
+					window,
+					PremiumFeature::AnimatedEmoji); AssertIsDebug();
+			},
+			.subtitleLinkColored = true,
+		});
 		AddSkip(container, st::defaultVerticalListSkip * 2);
 
 		AddUniqueCloseButton(box, {}, MakeAuctionFillMenuCallback(show, now));
@@ -1712,9 +1743,11 @@ void SetAuctionButtonCountdownText(
 	) | rpl::map([=](const Data::GiftAuctionState &state, int leftTill) {
 		return (state.finished() || (!preview && leftTill <= 0))
 			? tr::lng_box_ok(tr::marked)
-			: (type == AuctionButtonCountdownType::Place)
-			? tr::lng_auction_join_bid(tr::marked)
-			: tr::lng_auction_join_button(tr::marked);
+			: (type != AuctionButtonCountdownType::Place)
+			? tr::lng_auction_join_button(tr::marked)
+			: preview
+			? tr::lng_auction_join_early_bid(tr::marked)
+			: tr::lng_auction_join_bid(tr::marked);
 	}) | rpl::flatten_latest();
 
 	auto buttonSubtitle = rpl::combine(

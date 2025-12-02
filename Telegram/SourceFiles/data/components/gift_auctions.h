@@ -31,19 +31,25 @@ struct StarGiftAuctionMyState {
 	bool returned = false;
 };
 
+struct GiftAuctionRound {
+	int number = 0;
+	TimeId duration = 0;
+	int extendTop = 0;
+	TimeId extendDuration = 0;
+};
+
 struct GiftAuctionState {
 	std::optional<StarGift> gift;
 	StarGiftAuctionMyState my;
 	std::vector<GiftAuctionBidLevel> bidLevels;
 	std::vector<not_null<UserData*>> topBidders;
+	std::vector<GiftAuctionRound> roundParameters;
 	crl::time subscribedTill = 0;
 	int64 minBidAmount = 0;
 	int64 averagePrice = 0;
 	TimeId startDate = 0;
 	TimeId endDate = 0;
 	TimeId nextRoundAt = 0;
-	TimeId roundDurationFirst = 0;
-	TimeId roundDurationRest = 0;
 	int currentRound = 0;
 	int totalRounds = 0;
 	int giftsLeft = 0;

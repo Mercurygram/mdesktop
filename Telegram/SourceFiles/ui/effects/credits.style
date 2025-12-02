@@ -277,6 +277,10 @@ creditsHistoryEntriesList: PeerList(defaultPeerList) {
 subscriptionCreditsBadgePadding: margins(10px, 1px, 8px, 3px);
 
 uniqueGiftModelTop: 20px;
+uniqueGiftPretitle: FlatLabel(defaultFlatLabel) {
+	style: semiboldTextStyle;
+	margin: margins(12px, 4px, 12px, 4px);
+}
 uniqueGiftTitle: FlatLabel(boxTitle) {
 	align: align(top);
 }
@@ -451,6 +455,10 @@ videoStreamStarsCover: PremiumCover(creditsLowBalancePremiumCover) {
 auctionInfoPreviewMargin: margins(0px, 24px, 0px, 8px);
 auctionInfoSubtitleSkip: 8px;
 auctionInfoTableMargin: margins(0px, 12px, 0px, 12px);
+auctionInfoValueMultiline: FlatLabel(defaultTableValue) {
+	minWidth: 96px;
+	maxHeight: 96px;
+}
 auctionBidEmoji: IconEmoji {
 	icon: icon {{ "settings/button_auction", windowFg }};
 	padding: margins(-4px, -2px, -4px, 0px);

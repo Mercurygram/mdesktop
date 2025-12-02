@@ -137,6 +137,7 @@ constexpr auto kCrossfadeDuration = crl::time(400);
 constexpr auto kUpgradeDoneToastDuration = 4 * crl::time(1000);
 constexpr auto kGiftsPreloadTimeout = 3 * crl::time(1000);
 constexpr auto kResellPriceCacheLifetime = 60 * crl::time(1000);
+constexpr auto kGradientButtonBgOpacity = 0.6;
 
 using namespace HistoryView;
 using namespace Info::PeerGifts;
@@ -2798,38 +2799,73 @@ void SetupResalePriceButton(
 void AddUniqueGiftCover(
 		not_null<VerticalLayout*> container,
 		rpl::producer<Data::UniqueGift> data,
-		rpl::producer<QString> subtitleOverride,
-		rpl::producer<CreditsAmount> resalePrice,
-		Fn<void()> resaleClick) {
+		UniqueGiftCoverArgs &&args) {
 	const auto cover = container->add(object_ptr<RpWidget>(container));
 
 	struct Released {
-		Released() : white(QColor(255, 255, 255)) {
+		Released() : link(QColor(255, 255, 255)) {
 		}
 
 		rpl::variable<TextWithEntities> subtitleText;
-		style::owned_color white;
+		std::optional<Ui::Premium::ColoredMiniStars> stars;
+		style::owned_color link;
 		style::FlatLabel st;
 		PeerData *by = nullptr;
 		QColor bg;
 	};
 	const auto released = cover->lifetime().make_state<Released>();
 	released->st = st::uniqueGiftReleasedBy;
-	released->st.palette.linkFg = released->white.color();
+	released->st.palette.linkFg = released->link.color();
 
-	if (resalePrice) {
+	if (args.resalePrice) {
 		auto background = rpl::duplicate(
 			data
 		) | rpl::map([=](const Data::UniqueGift &unique) {
-			return unique.backdrop.patternColor;
+			auto result = unique.backdrop.patternColor;
+			result.setAlphaF(kGradientButtonBgOpacity * result.alphaF());
+			return result;
 		});
 		SetupResalePriceButton(
 			cover,
 			std::move(background),
-			std::move(resalePrice),
-			std::move(resaleClick));
+			std::move(args.resalePrice),
+			std::move(args.resaleClick));
 	}
 
+	const auto pretitle = args.pretitle
+		? CreateChild<FlatLabel>(
+			cover,
+			std::move(args.pretitle),
+			st::uniqueGiftPretitle)
+		: nullptr;
+	if (pretitle) {
+		released->stars.emplace(
+			cover,
+			true,
+			Ui::Premium::MiniStarsType::SlowStars);
+		const auto white = QColor(255, 255, 255);
+		released->stars->setColorOverride(QGradientStops{
+			{ 0., anim::with_alpha(white, .3) },
+			{ 1., white },
+		});
+		pretitle->geometryValue() | rpl::start_with_next([=](QRect rect) {
+			const auto half = rect.height() / 2;
+			released->stars->setCenter(rect - QMargins(half, 0, half, 0));
+		}, pretitle->lifetime());
+		pretitle->setAttribute(Qt::WA_TransparentForMouseEvents);
+		pretitle->setTextColorOverride(QColor(255, 255, 255));
+		pretitle->paintOn([=](QPainter &p) {
+			auto hq = PainterHighQualityEnabler(p);
+			const auto radius = pretitle->height() / 2.;
+			p.setPen(Qt::NoPen);
+			auto bg = released->bg;
+			bg.setAlphaF(kGradientButtonBgOpacity * bg.alphaF());
+			p.setBrush(bg);
+			p.drawRoundedRect(pretitle->rect(), radius, radius);
+			p.translate(-pretitle->pos());
+			released->stars->paint(p);
+		});
+	}
 	const auto title = CreateChild<FlatLabel>(
 		cover,
 		rpl::duplicate(
@@ -2837,13 +2873,10 @@ void AddUniqueGiftCover(
 		) | rpl::map([](const Data::UniqueGift &now) { return now.title; }),
 		st::uniqueGiftTitle);
 	title->setTextColorOverride(QColor(255, 255, 255));
-	released->subtitleText = subtitleOverride
-		? std::move(
-			subtitleOverride
-		) | Ui::Text::ToWithEntities() | rpl::type_erased()
+	released->subtitleText = args.subtitle
+		? std::move(args.subtitle)
 		: rpl::duplicate(data) | rpl::map([=](const Data::UniqueGift &gift) {
 			released->by = gift.releasedBy;
-			released->bg = gift.backdrop.patternColor;
 			return gift.releasedBy
 				? tr::lng_gift_unique_number_by(
 					tr::now,
@@ -2860,13 +2893,18 @@ void AddUniqueGiftCover(
 		});
 	if (!released->by) {
 		released->st = st::uniqueGiftSubtitle;
-		released->st.palette.linkFg = released->white.color();
+		released->st.palette.linkFg = released->link.color();
 	}
 	const auto subtitle = CreateChild<FlatLabel>(
 		cover,
 		released->subtitleText.value(),
 		released->st);
-	if (released->by) {
+	if (const auto handler = args.subtitleClick) {
+		subtitle->setClickHandlerFilter([=](const auto &...) {
+			handler();
+			return false;
+		});
+	} else if (released->by) {
 		const auto button = CreateChild<AbstractButton>(cover);
 		subtitle->raise();
 		subtitle->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -2912,15 +2950,28 @@ void AddUniqueGiftCover(
 	};
 	const auto state = cover->lifetime().make_state<State>();
 	const auto lottieSize = st::creditsHistoryEntryStarGiftSize;
+	const auto updateLinkFg = args.subtitleLinkColored;
 	const auto updateColors = [=](float64 progress) {
-		subtitle->setTextColorOverride((progress == 0.)
+		const auto color = (progress == 0.)
 			? state->now.gift->backdrop.textColor
 			: (progress == 1.)
 			? state->next.gift->backdrop.textColor
 			: anim::color(
 				state->now.gift->backdrop.textColor,
 				state->next.gift->backdrop.textColor,
-				progress));
+				progress);
+		if (updateLinkFg) {
+			released->link.update(color);
+		}
+		subtitle->setTextColorOverride(color);
+		released->bg = (progress == 0.)
+			? state->now.gift->backdrop.patternColor
+			: (progress == 1.)
+			? state->next.gift->backdrop.patternColor
+			: anim::color(
+				state->now.gift->backdrop.patternColor,
+				state->next.gift->backdrop.patternColor,
+				progress);
 	};
 	std::move(
 		data
@@ -2974,10 +3025,24 @@ void AddUniqueGiftCover(
 		}
 		const auto available = width - 2 * skip;
 		title->resizeToWidth(available);
-		title->moveToLeft(skip, st::uniqueGiftTitleTop);
-
 		subtitle->resizeToWidth(available);
-		subtitle->moveToLeft(skip, st::uniqueGiftSubtitleTop);
+
+		auto top = st::uniqueGiftTitleTop;
+		if (pretitle) {
+			pretitle->move((width - pretitle->width()) / 2, top);
+			top += pretitle->height()
+				+ (st::uniqueGiftSubtitleTop - st::uniqueGiftTitleTop)
+				- title->height();
+		}
+
+		title->moveToLeft(skip, top);
+		if (pretitle) {
+			top += title->height() + st::defaultVerticalListSkip;
+		} else {
+			top += st::uniqueGiftSubtitleTop - st::uniqueGiftTitleTop;
+		}
+
+		subtitle->moveToLeft(skip, top);
 
 		cover->resize(width, subtitle->y() + subtitle->height() + skip);
 	}, cover->lifetime());
@@ -3007,7 +3072,7 @@ void AddUniqueGiftCover(
 			}
 			p.drawImage(0, 0, gift.gradient);
 
-			if (gift.gift->backdrop.patternColor.alpha() > 0) {
+			if (gift.gift->pattern.document != gift.gift->model.document) {
 				Ui::PaintBgPoints(
 					p,
 					Ui::PatternBgPoints(),
@@ -3803,16 +3868,16 @@ struct UpgradeArgs : StarGiftUpgradeArgs {
 void AddUpgradeGiftCover(
 		not_null<VerticalLayout*> container,
 		const UpgradeArgs &args) {
-	AddUniqueGiftCover(
-		container,
-		MakeUpgradeGiftStream(args),
-		(args.savedId
-			? tr::lng_gift_upgrade_about()
+	AddUniqueGiftCover(container, MakeUpgradeGiftStream(args), {
+		.subtitle = (args.savedId
+			? tr::lng_gift_upgrade_about(tr::marked)
 			: (args.peer->isBroadcast()
 				? tr::lng_gift_upgrade_preview_about_channel
 				: tr::lng_gift_upgrade_preview_about)(
 					lt_name,
-					rpl::single(args.peer->shortName()))));
+					rpl::single(tr::marked(args.peer->shortName())),
+					tr::marked)),
+		});
 }
 
 class UpgradePriceValue final {
