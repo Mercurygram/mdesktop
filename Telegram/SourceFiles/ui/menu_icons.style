@@ -43,6 +43,8 @@ menuIconAdmin: icon {{ "menu/admin", menuIconColor }};
 menuIconRemove: icon {{ "menu/remove", menuIconColor }};
 menuIconRetractVote: icon {{ "menu/retract_vote", menuIconColor }};
 menuIconPermissions: icon {{ "menu/permissions", menuIconColor }};
+menuIcon2SV: icon {{ "menu/2sv_on", menuIconColor }};
+//menuIconOff2SV: icon {{ "menu/2sv_off", menuIconColor }};
 menuIconShare: icon {{ "menu/share", menuIconColor }};
 menuIconSharing: icon {{ "menu/share2", menuIconColor }};
 menuIconArchive: icon {{ "menu/archive", menuIconColor }};

@@ -547,7 +547,7 @@ void SetupCloudPassword(
 		tr::lng_settings_cloud_password_start_title(),
 		std::move(label),
 		st::settingsButton,
-		{ &st::menuIconPermissions }
+		{ &st::menuIcon2SV }
 	)->addClickHandler([=, passwordState = base::duplicate(passwordState)] {
 		const auto state = rpl::variable<PasswordState>(
 			base::duplicate(passwordState)).current();
@@ -598,7 +598,7 @@ void SetupPasskeys(
 		tr::lng_settings_passkeys_title(),
 		std::move(label),
 		st::settingsButton,
-		{ &st::menuIconLock }
+		{ &st::menuIconPermissions }
 	)->addClickHandler([=] {
 		if (!session->passkeys().listKnown()) {
 			return;
