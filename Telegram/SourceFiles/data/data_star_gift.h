@@ -38,6 +38,12 @@ struct UniqueGiftBackdrop : UniqueGiftAttribute {
 	int id = 0;
 };
 
+struct UniqueGiftAttributes {
+	std::vector<UniqueGiftModel> models;
+	std::vector<UniqueGiftBackdrop> backdrops;
+	std::vector<UniqueGiftPattern> patterns;
+};
+
 struct UniqueGiftOriginalDetails {
 	PeerId senderId = 0;
 	PeerId recipientId = 0;
@@ -48,6 +54,7 @@ struct UniqueGiftOriginalDetails {
 struct UniqueGiftValue {
 	QString currency;
 	int64 valuePrice = 0;
+	int64 valuePriceUsd = 0;
 	CreditsAmount initialPriceStars;
 	int64 initialSalePrice = 0;
 	TimeId initialSaleDate = 0;
@@ -130,10 +137,12 @@ struct StarGift {
 	int resellCount = 0;
 	QString auctionSlug;
 	int auctionGiftsPerRound = 0;
+	TimeId auctionStartDate = 0;
 	int limitedLeft = 0;
 	int limitedCount = 0;
 	int perUserTotal = 0;
 	int perUserRemains = 0;
+	int upgradeVariants = 0;
 	TimeId firstSaleDate = 0;
 	TimeId lastSaleDate = 0;
 	TimeId lockedUntilDate = 0;
@@ -214,6 +223,7 @@ struct SavedStarGift {
 	QString giftPrepayUpgradeHash;
 	PeerId fromId = 0;
 	TimeId date = 0;
+	int giftNum = 0;
 	bool upgradeSeparate = false;
 	bool upgradable = false;
 	bool anonymous = false;

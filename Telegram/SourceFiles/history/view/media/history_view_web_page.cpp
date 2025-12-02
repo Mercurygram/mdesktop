@@ -238,7 +238,8 @@ constexpr auto kSponsoredUserpicLines = 2;
 		: (type == WebPageType::GiftCollection)
 		? tr::lng_view_button_collection(tr::now)
 		: (type == WebPageType::Auction)
-		? (page->auction && page->auction->endDate
+		? (page->auction
+			&& page->auction->endDate
 			&& page->auction->endDate <= base::unixtime::now())
 			? tr::lng_auction_preview_view_results(tr::now)
 			: tr::lng_auction_preview_join(tr::now)

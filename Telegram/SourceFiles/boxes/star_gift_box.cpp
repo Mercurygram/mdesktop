@@ -3007,15 +3007,16 @@ void AddUniqueGiftCover(
 			}
 			p.drawImage(0, 0, gift.gradient);
 
-			Ui::PaintBgPoints(
-				p,
-				Ui::PatternBgPoints(),
-				gift.emojis,
-				gift.emoji.get(),
-				*gift.gift,
-				QRect(0, 0, width, pointsHeight),
-				shown);
-
+			if (gift.gift->backdrop.patternColor.alpha() > 0) {
+				Ui::PaintBgPoints(
+					p,
+					Ui::PatternBgPoints(),
+					gift.emojis,
+					gift.emoji.get(),
+					*gift.gift,
+					QRect(0, 0, width, pointsHeight),
+					shown);
+			}
 			const auto lottie = gift.lottie.get();
 			const auto factor = style::DevicePixelRatio();
 			const auto request = Lottie::FrameRequest{

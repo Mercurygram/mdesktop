@@ -42,6 +42,8 @@ struct GiftAuctionState {
 	TimeId startDate = 0;
 	TimeId endDate = 0;
 	TimeId nextRoundAt = 0;
+	TimeId roundDurationFirst = 0;
+	TimeId roundDurationRest = 0;
 	int currentRound = 0;
 	int totalRounds = 0;
 	int giftsLeft = 0;
@@ -58,6 +60,7 @@ struct GiftAcquired {
 	TimeId date = 0;
 	int64 bidAmount = 0;
 	int round = 0;
+	int number = 0;
 	int position = 0;
 	bool nameHidden = false;
 };
@@ -80,6 +83,10 @@ public:
 		uint64 giftId,
 		Fn<void(std::vector<Data::GiftAcquired>)> done);
 
+	[[nodiscard]] std::optional<Data::UniqueGiftAttributes> attributes(
+		uint64 giftId) const;
+	void requestAttributes(uint64 giftId, Fn<void()> ready);
+
 	[[nodiscard]] rpl::producer<ActiveAuctions> active() const;
 	[[nodiscard]] rpl::producer<bool> hasActiveChanges() const;
 	[[nodiscard]] bool hasActive() const;
@@ -99,6 +106,10 @@ private:
 			return bid != 0;
 		}
 		friend inline bool operator==(MyStateKey, MyStateKey) = default;
+	};
+	struct Attributes {
+		Data::UniqueGiftAttributes lists;
+		std::vector<Fn<void()>> waiters;
 	};
 
 	void request(const QString &slug);
@@ -126,6 +137,7 @@ private:
 
 	base::Timer _timer;
 	base::flat_map<QString, std::unique_ptr<Entry>> _map;
+	base::flat_map<uint64, Attributes> _attributes;
 
 	rpl::event_stream<> _activeChanged;
 	mtpRequestId _activeRequestId = 0;

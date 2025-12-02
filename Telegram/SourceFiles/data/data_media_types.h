@@ -162,6 +162,7 @@ struct GiftCode {
 	int starsUpgradedBySender = 0;
 	int starsForDetailsRemove = 0;
 	int starsBid = 0;
+	int giftNum = 0;
 	int limitedCount = 0;
 	int limitedLeft = 0;
 	int64 count = 0;
