@@ -15,12 +15,20 @@ struct LoginData;
 
 namespace Platform::WebAuthn {
 
+enum class Error {
+	None,
+	Cancelled,
+	UnsignedBuild,
+	Other,
+};
+
 struct LoginResult {
 	QByteArray clientDataJSON;
 	QByteArray credentialId;
 	QByteArray authenticatorData;
 	QByteArray signature;
 	QByteArray userHandle;
+	Error error = Error::None;
 };
 
 struct RegisterResult {
@@ -28,6 +36,7 @@ struct RegisterResult {
 	QByteArray attestationObject;
 	QByteArray clientDataJSON;
 	bool success = false;
+	Error error = Error::None;
 };
 
 [[nodiscard]] bool IsSupported();

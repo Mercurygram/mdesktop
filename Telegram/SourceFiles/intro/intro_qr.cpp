@@ -366,6 +366,10 @@ void QrWidget::setupControls() {
 			Platform::WebAuthn::Login(loginData, [=](
 					Platform::WebAuthn::LoginResult result) {
 				if (result.userHandle.isEmpty()) {
+					using Error = Platform::WebAuthn::Error;
+					if (result.error == Error::UnsignedBuild) {
+						showError(tr::lng_settings_passkeys_unsigned_error());
+					}
 					return;
 				}
 				::Data::FinishPasskeyLogin(

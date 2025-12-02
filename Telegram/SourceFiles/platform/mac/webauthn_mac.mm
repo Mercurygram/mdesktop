@@ -81,6 +81,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 			didCompleteWithError:(NSError *)error
 		API_AVAILABLE(macos(10.15)) {
 	const auto isCancelled = (error.code == ASAuthorizationErrorCanceled);
+	const auto isUnsigned = (error.code == 1004 || error.code == 1009);
 	if (!isCancelled) {
 		NSLog(@"WebAuthn error: %@ (code: %ld)",
 			error.localizedDescription, (long)error.code);
@@ -88,10 +89,20 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 	if (self.completionRegister) {
 		auto result = Platform::WebAuthn::RegisterResult();
 		result.success = false;
+		result.error = isUnsigned
+			? Platform::WebAuthn::Error::UnsignedBuild
+			: (isCancelled
+				? Platform::WebAuthn::Error::Cancelled
+				: Platform::WebAuthn::Error::Other);
 		self.completionRegister(result);
 		self.completionRegister = nil;
 	} else if (self.completionLogin) {
 		auto result = Platform::WebAuthn::LoginResult();
+		result.error = isUnsigned
+			? Platform::WebAuthn::Error::UnsignedBuild
+			: (isCancelled
+				? Platform::WebAuthn::Error::Cancelled
+				: Platform::WebAuthn::Error::Other);
 		self.completionLogin(result);
 		self.completionLogin = nil;
 	}

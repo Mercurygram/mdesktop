@@ -187,6 +187,12 @@ void PasskeysNoneBox(
 				Platform::WebAuthn::RegisterKey(data, [=](
 						Platform::WebAuthn::RegisterResult result) {
 					if (!result.success) {
+						using Error = Platform::WebAuthn::Error;
+						if (result.error == Error::UnsignedBuild) {
+							box->uiShow()->showToast(
+								tr::lng_settings_passkeys_unsigned_error(
+									tr::now));
+						}
 						return;
 					}
 					session->passkeys().registerPasskey(result, [=] {
