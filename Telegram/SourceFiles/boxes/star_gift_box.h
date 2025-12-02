@@ -72,11 +72,20 @@ struct UniqueGiftCoverArgs {
 	bool subtitleLinkColored = false;
 	rpl::producer<CreditsAmount> resalePrice;
 	Fn<void()> resaleClick;
+	bool attributesInfo = false;
+	Fn<void(
+		std::optional<Data::UniqueGift> now,
+		std::optional<Data::UniqueGift> next,
+		float64 progress)> repaintedHook;
+};
+struct UniqueGiftCover {
+	Data::UniqueGift values;
+	bool force = false;
 };
 
 void AddUniqueGiftCover(
 	not_null<VerticalLayout*> container,
-	rpl::producer<Data::UniqueGift> data,
+	rpl::producer<UniqueGiftCover> data,
 	UniqueGiftCoverArgs &&args);
 void AddWearGiftCover(
 	not_null<VerticalLayout*> container,

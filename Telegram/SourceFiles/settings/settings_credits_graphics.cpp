@@ -1342,7 +1342,8 @@ void GenericCreditsEntryBox(
 				style);
 		};
 		const auto canResell = CanResellGift(session, e);
-		AddUniqueGiftCover(content, rpl::single(*uniqueGift), {
+		const auto cover = Ui::UniqueGiftCover{ *uniqueGift };
+		AddUniqueGiftCover(content, rpl::single(cover), {
 			.resalePrice = std::move(price),
 			.resaleClick = canResell ? std::move(change) : Fn<void()>(),
 		});

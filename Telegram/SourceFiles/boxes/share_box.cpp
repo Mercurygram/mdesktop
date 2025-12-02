@@ -1731,14 +1731,14 @@ ShareBox::SubmitCallback ShareBox::DefaultForwardCallback(
 			}
 			return result;
 		};
-		auto &api = history->owner().session().api();
+		auto &api = history->session().api();
 		auto &histories = history->owner().histories();
 		const auto donePhraseArgs = CreateForwardedMessagePhraseArgs(
 			result,
 			msgIds);
 		const auto showRecentForwardsToSelf = result.size() == 1
 			&& result.front()->peer()->isSelf()
-			&& history->owner().session().premium();
+			&& history->session().premium();
 		const auto requestType = Data::Histories::RequestType::Send;
 		for (const auto thread : result) {
 			if (!comment.text.isEmpty()) {

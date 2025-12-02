@@ -381,7 +381,7 @@ void GiftButton::setDocument(not_null<DocumentData*> document) {
 	const auto destroyed = base::take(_player);
 	_playerDocument = nullptr;
 	_mediaLifetime = rpl::single() | rpl::then(
-		document->owner().session().downloaderTaskFinished()
+		document->session().downloaderTaskFinished()
 	) | rpl::filter([=] {
 		return media->loaded();
 	}) | rpl::start_with_next([=] {

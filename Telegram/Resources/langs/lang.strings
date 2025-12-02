@@ -4180,12 +4180,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_preview_model" = "model";
 "lng_auction_preview_models#one" = "This collectible features **{count}** unique model.";
 "lng_auction_preview_models#other" = "This collectible features **{count}** unique models.";
+"lng_auction_preview_models_button" = "Models";
 "lng_auction_preview_backdrop" = "backdrop";
 "lng_auction_preview_backdrops#one" = "This collectible features **{count}** unique backdrop.";
 "lng_auction_preview_backdrops#other" = "This collectible features **{count}** unique backdrops.";
+"lng_auction_preview_backdrops_button" = "Backdrops";
 "lng_auction_preview_symbol" = "symbol";
 "lng_auction_preview_symbols#one" = "This collectible features **{count}** unique symbol.";
 "lng_auction_preview_symbols#other" = "This collectible features **{count}** unique symbols.";
+"lng_auction_preview_symbols_button" = "Symbols";
 "lng_auction_preview_wear" = "More about wearing gifts {arrow}";
 "lng_auction_preview_free_upgrade" = "You can upgrade your gift for free, sell it on the market, or set it as your profile cover.";
 

@@ -20,14 +20,26 @@ namespace Data {
 struct UniqueGiftAttribute {
 	QString name;
 	int rarityPermille = 0;
+
+	friend inline bool operator==(
+		const UniqueGiftAttribute &,
+		const UniqueGiftAttribute &) = default;
 };
 
 struct UniqueGiftModel : UniqueGiftAttribute {
 	not_null<DocumentData*> document;
+
+	friend inline bool operator==(
+		const UniqueGiftModel &,
+		const UniqueGiftModel &) = default;
 };
 
 struct UniqueGiftPattern : UniqueGiftAttribute {
 	not_null<DocumentData*> document;
+
+	friend inline bool operator==(
+		const UniqueGiftPattern &,
+		const UniqueGiftPattern &) = default;
 };
 
 struct UniqueGiftBackdrop : UniqueGiftAttribute {
@@ -36,6 +48,10 @@ struct UniqueGiftBackdrop : UniqueGiftAttribute {
 	QColor patternColor;
 	QColor textColor;
 	int id = 0;
+
+	friend inline bool operator==(
+		const UniqueGiftBackdrop &,
+		const UniqueGiftBackdrop &) = default;
 };
 
 struct UniqueGiftAttributes {

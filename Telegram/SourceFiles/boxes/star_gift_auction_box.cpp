@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/send_credits_box.h" // CreditsEmojiSmall
 #include "boxes/share_box.h"
 #include "boxes/star_gift_box.h"
+#include "boxes/star_gift_preview_box.h"
 #include "boxes/star_gift_resale_box.h"
 #include "calls/group/calls_group_common.h"
 #include "core/application.h"
@@ -1190,11 +1191,14 @@ void AuctionGotGiftsBox(
 	}
 }
 
-[[nodiscard]] rpl::producer<Data::UniqueGift> MakePreviewAuctionStream(
+[[nodiscard]] rpl::producer<UniqueGiftCover> MakePreviewAuctionStream(
 		const Data::StarGift &info,
 		rpl::producer<Data::UniqueGiftAttributes> attributes) {
 	Expects(attributes);
 
+	const auto cover = [](Data::UniqueGift gift) {
+		return UniqueGiftCover{ std::move(gift) };
+	};
 	auto initial = Data::UniqueGift{
 		.title = info.resellTitle,
 		.model = Data::UniqueGiftModel{
@@ -1207,14 +1211,14 @@ void AuctionGotGiftsBox(
 			? info.background->backdrop()
 			: Data::UniqueGiftBackdrop()),
 	};
-	return rpl::single(initial) | rpl::then(std::move(
+	return rpl::single(cover(initial)) | rpl::then(std::move(
 		attributes
 	) | rpl::map([=](const Data::UniqueGiftAttributes &values)
-	-> rpl::producer<Data::UniqueGift> {
+	-> rpl::producer<UniqueGiftCover> {
 		if (values.backdrops.empty()
 			|| values.models.empty()
 			|| values.patterns.empty()) {
-			return rpl::never<Data::UniqueGift>();
+			return rpl::never<UniqueGiftCover>();
 		}
 		return [=](auto consumer) {
 			auto lifetime = rpl::lifetime();
@@ -1256,12 +1260,12 @@ void AuctionGotGiftsBox(
 				auto &models = state->data.models;
 				auto &patterns = state->data.patterns;
 				auto &backdrops = state->data.backdrops;
-				consumer.put_next(Data::UniqueGift{
+				consumer.put_next(cover({
 					.title = info.resellTitle,
 					.model = models[index(state->modelIndices, models)],
 					.pattern = patterns[index(state->patternIndices, patterns)],
 					.backdrop = backdrops[index(state->backdropIndices, backdrops)],
-				});
+				}));
 			};
 
 			put();
@@ -1520,18 +1524,7 @@ void AuctionInfoBox(
 				st::boxRowPadding + st::uniqueGiftValueAvailableMargin,
 				style::al_top
 			)->setClickHandlerFilter([=](const auto &...) {
-				//if (state->previewRequested) {
-				//	return false;
-				//}
-				//state->previewRequested = true;
-				//const auto &value = state->value.current();
-				//const auto &gift = *value.gift;
-				//state->previewLifetime = ShowStarGiftResale(
-				//	window,
-				//	peer,
-				//	gift.id,
-				//	gift.resellTitle,
-				//	[=] { state->previewRequested = false; });
+				show->show(Box(StarGiftPreviewBox, window, *now.gift, list));
 				return false;
 			});
 		}, box->lifetime());
