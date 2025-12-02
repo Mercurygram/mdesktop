@@ -9,14 +9,20 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Data::Passkey {
 struct RegisterData;
+struct LoginData;
 } // namespace Data::Passkey
 namespace Platform::WebAuthn {
 struct RegisterResult;
+struct LoginResult;
 } // namespace Platform::WebAuthn
 
 namespace Main {
 class Session;
 } // namespace Main
+
+namespace MTP {
+class Sender;
+} // namespace MTP
 
 namespace Data {
 
@@ -56,5 +62,16 @@ private:
 	bool _listKnown = false;
 
 };
+
+void InitPasskeyLogin(
+	MTP::Sender &api,
+	Fn<void(const Data::Passkey::LoginData&)> done);
+
+void FinishPasskeyLogin(
+	MTP::Sender &api,
+	int initialDc,
+	const Platform::WebAuthn::LoginResult &result,
+	Fn<void(const MTPauth_Authorization&)> done,
+	Fn<void(QString)> fail);
 
 } // namespace Data

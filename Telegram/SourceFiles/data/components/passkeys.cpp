@@ -119,4 +119,58 @@ void Passkeys::loadList() {
 	}).send();
 }
 
+void InitPasskeyLogin(
+		MTP::Sender &api,
+		Fn<void(const Data::Passkey::LoginData&)> done) {
+	api.request(MTPauth_InitPasskeyLogin(
+		MTP_int(ApiId),
+		MTP_string(ApiHash)
+	)).done([=](const MTPauth_PasskeyLoginOptions &result) {
+		const auto &data = result.data();
+		if (const auto p = Passkey::DeserializeLoginData(
+				data.voptions().data().vdata().v)) {
+			done(*p);
+		}
+	}).send();
+}
+
+void FinishPasskeyLogin(
+		MTP::Sender &api,
+		int initialDc,
+		const Platform::WebAuthn::LoginResult &result,
+		Fn<void(const MTPauth_Authorization&)> done,
+		Fn<void(QString)> fail) {
+	const auto userHandleStr = QString::fromUtf8(result.userHandle);
+	const auto parts = userHandleStr.split(':');
+	if (parts.size() != 2) {
+		return;
+	}
+	const auto userDc = parts[0].toInt();
+	const auto credentialIdBase64 = result.credentialId.toBase64(
+		QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+	const auto credential = MTP_inputPasskeyCredentialPublicKey(
+		MTP_string(credentialIdBase64.toStdString()),
+		MTP_string(credentialIdBase64.toStdString()),
+		MTP_inputPasskeyResponseLogin(
+			MTP_dataJSON(MTP_bytes(result.clientDataJSON)),
+			MTP_bytes(result.authenticatorData),
+			MTP_bytes(result.signature),
+			MTP_string(userHandleStr.toStdString())
+		)
+	);
+	const auto flags = (userDc != initialDc)
+		? MTPauth_finishPasskeyLogin::Flag::f_from_dc_id
+		: MTPauth_finishPasskeyLogin::Flags(0);
+	api.request(MTPauth_FinishPasskeyLogin(
+		MTP_flags(flags),
+		credential,
+		MTP_int(initialDc),
+		MTP_long(0)
+	)).toDC(
+		userDc
+	).done(done).fail([=](const MTP::Error &error) {
+		fail(error.type());
+	}).send();
+}
+
 } // namespace Data
