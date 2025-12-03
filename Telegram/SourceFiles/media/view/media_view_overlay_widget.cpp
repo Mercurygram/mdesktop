@@ -97,6 +97,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_calls.h"
 #include "styles/style_chat.h"
 #include "styles/style_menu_icons.h"
+#include "platform/platform_text_recognition.h"
 
 #ifdef Q_OS_MAC
 #include "platform/mac/touchbar/mac_touchbar_media_view.h"
@@ -1415,6 +1416,8 @@ void OverlayWidget::updateControls() {
 	_saveVisible = computeSaveButtonVisible();
 	_shareVisible = story && story->canShare();
 	_rotateVisible = !_themePreviewShown && !story;
+	_recognizeVisible = _recognitionResult.success
+		&& !_recognitionResult.items.empty();
 	const auto navRect = [&](int i) {
 		return QRect(
 			width() - st::mediaviewIconSize.width() * i,
@@ -1442,6 +1445,12 @@ void OverlayWidget::updateControls() {
 	_saveNav = navRect(index);
 	_saveNavOver = style::centerrect(_saveNav, overRect);
 	_saveNavIcon = style::centerrect(_saveNav, st::mediaviewSave);
+	if (_saveVisible) {
+		++index;
+	}
+	_recognizeNav = navRect(index);
+	_recognizeNavOver = style::centerrect(_recognizeNav, overRect);
+	_recognizeNavIcon = style::centerrect(_recognizeNav, st::mediaviewRecognize);
 	Assert(st::mediaviewSave.size() == st::mediaviewSaveLocked.size());
 
 	const auto dNow = QDateTime::currentDateTime();
@@ -3009,6 +3018,15 @@ void OverlayWidget::showMediaOverview() {
 	}
 }
 
+void OverlayWidget::recognize() {
+	_showRecognitionResults = !_showRecognitionResults;
+	_recognitionAnimation.start(
+		[=] { update(); },
+		_showRecognitionResults ? 0. : 1.,
+		_showRecognitionResults ? 1. : 0.,
+		st::widgetFadeDuration);
+}
+
 void OverlayWidget::copyMedia() {
 	if (showCopyMediaRestriction()) {
 		return;
@@ -3712,15 +3730,40 @@ void OverlayWidget::displayPhoto(
 	destroyThemePreview();
 
 	_fullScreenVideo = false;
+	const auto photoChanged = (_photo != photo);
 	assignMediaPointer(photo);
 	_rotation = _photo->owner().mediaRotation().get(_photo);
 	_radial.stop();
+	if (photoChanged) {
+		_showRecognitionResults = false;
+		_recognitionResult = {};
+	}
 
 	refreshMediaViewer();
 
 	_staticContent = QImage();
 	if (!_stories && _photo->videoCanBePlayed()) {
 		initStreaming();
+	}
+
+	if (!_stories && Platform::TextRecognition::IsAvailable()) {
+		const auto weak = base::make_weak(_widget);
+		const auto photoMedia = _photoMedia;
+		crl::async([=] {
+			const auto image = photoMedia->image(Data::PhotoSize::Large);
+			if (!image) {
+				return;
+			}
+			const auto qimage = image->original();
+			if (qimage.isNull()) {
+				return;
+			}
+			auto result = Platform::TextRecognition::RecognizeText(qimage);
+			crl::on_main(weak, [=, result = std::move(result)]() mutable {
+				_recognitionResult = std::move(result);
+				updateControls();
+			});
+		});
 	}
 
 	initSponsoredButton();
@@ -3774,6 +3817,7 @@ void OverlayWidget::displayDocument(
 		const StartStreaming &startStreaming) {
 	_fullScreenVideo = false;
 	_staticContent = QImage();
+	const auto documentChanged = (_document != doc);
 	clearStreaming(_document != doc);
 	destroyThemePreview();
 	assignMediaPointer(doc);
@@ -3783,6 +3827,10 @@ void OverlayWidget::displayDocument(
 		: 0;
 	_themeCloudData = cloud;
 	_radial.stop();
+	if (documentChanged) {
+		_showRecognitionResults = false;
+		_recognitionResult = {};
+	}
 
 	_touchbarDisplay.fire(TouchBarItemType::None);
 
@@ -5450,6 +5498,12 @@ void OverlayWidget::paintControls(
 			_moreNavOver,
 			_moreNavIcon,
 			st::mediaviewMore },
+		{
+			Over::Recognize,
+			_recognizeVisible,
+			_recognizeNavOver,
+			_recognizeNavIcon,
+			st::mediaviewRecognize },
 	};
 
 	renderer->paintControlsStart();
@@ -6094,6 +6148,7 @@ void OverlayWidget::handleMousePress(
 				|| _over == Over::Save
 				|| _over == Over::Share
 				|| _over == Over::Rotate
+				|| _over == Over::Recognize
 				|| _over == Over::Icon
 				|| _over == Over::More
 				|| _over == Over::Video) {
@@ -6209,6 +6264,7 @@ void OverlayWidget::updateOverRect(Over state) {
 	case Over::Icon: update(_docIconRect); break;
 	case Over::Header: update(_headerNav); break;
 	case Over::More: update(_moreNavOver); break;
+	case Over::Recognize: update(_recognizeNavOver); break;
 	}
 }
 
@@ -6343,6 +6399,8 @@ void OverlayWidget::updateOver(QPoint pos) {
 		updateOverState(Over::Icon);
 	} else if (_moreNav.contains(pos)) {
 		updateOverState(Over::More);
+	} else if (_recognizeVisible && _recognizeNav.contains(pos)) {
+		updateOverState(Over::Recognize);
 	} else if (contentShown() && finalContentRect().contains(pos)) {
 		if (_stories) {
 			updateOverState(Over::Video);
@@ -6421,6 +6479,8 @@ void OverlayWidget::handleMouseRelease(
 		handleDocumentClick();
 	} else if (_over == Over::More && _down == Over::More) {
 		InvokeQueued(_widget, [=] { showDropdown(); });
+	} else if (_over == Over::Recognize && _down == Over::Recognize) {
+		recognize();
 	} else if (_over == Over::Video && _down == Over::Video) {
 		if (_stories) {
 			_stories->contentPressed(false);
@@ -6748,9 +6808,11 @@ void OverlayWidget::clearBeforeHide() {
 	_groupThumbs = nullptr;
 	_groupThumbsRect = QRect();
 	_sponsoredButton = nullptr;
+	_showRecognitionResults = false;
 }
 
 void OverlayWidget::clearAfterHide() {
+	_recognitionResult = {};
 	_body->hide();
 	clearStreaming();
 	destroyThemePreview();
