@@ -123,6 +123,8 @@ public:
 	[[nodiscard]] int groupCallMessageLengthLimit() const;
 	[[nodiscard]] TimeId groupCallMessageTTL() const;
 
+	[[nodiscard]] int passkeysAccountPasskeysMax() const;
+
 	using StarsColoring = Calls::Group::Ui::StarsColoring;
 	[[nodiscard]] std::vector<StarsColoring> groupCallColorings() const;
 

@@ -50,6 +50,7 @@ public:
 	[[nodiscard]] rpl::producer<> requestList();
 	[[nodiscard]] const std::vector<PasskeyEntry> &list() const;
 	[[nodiscard]] bool listKnown() const;
+	[[nodiscard]] bool canRegister() const;
 
 private:
 	void loadList();

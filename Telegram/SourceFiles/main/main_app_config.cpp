@@ -263,6 +263,10 @@ TimeId AppConfig::groupCallMessageTTL() const {
 	return get<int>(u"group_call_message_ttl"_q, 10);
 }
 
+int AppConfig::passkeysAccountPasskeysMax() const {
+	return get<int>(u"passkeys_account_passkeys_max"_q, 10);
+}
+
 void AppConfig::refresh(bool force) {
 	if (_requestId || !_api) {
 		if (force) {

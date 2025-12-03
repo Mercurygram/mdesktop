@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/menu/menu_add_action_callback.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
 #include "ui/wrap/vertical_layout.h"
+#include "ui/wrap/slide_wrap.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
 #include "base/unixtime.h"
@@ -170,7 +171,7 @@ void PasskeysNoneBox(
 	}
 	Ui::AddSkip(content);
 	Ui::AddSkip(content);
-	{
+	if (session->passkeys().canRegister()) {
 		const auto &st = st::premiumPreviewDoubledLimitsBox;
 		box->setStyle(st);
 		auto button = object_ptr<Ui::RoundButton>(
@@ -352,18 +353,24 @@ void Passkeys::setupContent(
 		container->resizeToWidth(content->width());
 	};
 
+	const auto buttonWrap = content->add(
+		object_ptr<Ui::SlideWrap<Ui::SettingsButton>>(
+			content,
+			CreateButtonWithIcon(
+				content,
+				tr::lng_settings_passkeys_button(),
+				st::settingsButtonActive,
+				{ &st::settingsIconPasskeys })));
+	buttonWrap->entity()->setClickedCallback([=] {
+		controller->show(Box(PasskeysNoneBox, session));
+	});
+	buttonWrap->toggleOn(session->passkeys().requestList(
+	) | rpl::map([=] { return session->passkeys().canRegister(); }));
+	buttonWrap->finishAnimating();
+
 	session->passkeys().requestList(
 	) | rpl::start_with_next(rebuild, content->lifetime());
 	rebuild();
-
-	AddButtonWithIcon(
-		content,
-		tr::lng_settings_passkeys_button(),
-		st::settingsButtonActive,
-		{ &st::settingsIconPasskeys }
-	)->setClickedCallback([=] {
-		controller->show(Box(PasskeysNoneBox, session));
-	});
 
 	Ui::AddSkip(content);
 	const auto label = Ui::AddDividerText(

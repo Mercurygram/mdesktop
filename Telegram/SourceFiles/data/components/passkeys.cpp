@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "apiwrap.h"
 #include "data/data_passkey_deserialize.h"
+#include "main/main_app_config.h"
 #include "main/main_session.h"
 #include "platform/platform_webauthn.h"
 
@@ -117,6 +118,11 @@ void Passkeys::loadList() {
 	}).fail([=] {
 		_listRequestId = 0;
 	}).send();
+}
+
+bool Passkeys::canRegister() const {
+	const auto max = _session->appConfig().passkeysAccountPasskeysMax();
+	return Platform::WebAuthn::IsSupported() && _passkeys.size() < max;
 }
 
 void InitPasskeyLogin(
