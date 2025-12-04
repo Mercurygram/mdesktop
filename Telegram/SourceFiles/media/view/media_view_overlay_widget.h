@@ -289,6 +289,8 @@ private:
 	void recognize();
 	void receiveMouse();
 	void showAttachedStickers();
+	[[nodiscard]] auto scaledRecognitionRect(QPoint position)
+	const -> std::optional<Platform::TextRecognition::RectWithText>;
 	void showDropdown();
 	void handleTouchTimer();
 	void handleDocumentClick();
@@ -300,7 +302,8 @@ private:
 	void showSaveMsgToast(const QString &path, auto phrase);
 	void showSaveMsgToastWith(
 		const QString &path,
-		const TextWithEntities &text);
+		const TextWithEntities &text,
+		crl::time duration = 0);
 	void updateSaveMsg();
 
 	void clearBeforeHide();

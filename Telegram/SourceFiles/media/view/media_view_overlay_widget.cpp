@@ -786,18 +786,22 @@ OverlayWidget::OverlayWidget()
 }
 
 void OverlayWidget::showSaveMsgToast(const QString &path, auto phrase) {
-	showSaveMsgToastWith(path, phrase(
-		tr::now,
-		lt_downloads,
-		Ui::Text::Link(
-			tr::lng_mediaview_downloads(tr::now),
-			"internal:show_saved_message"),
-		Ui::Text::WithEntities));
+	showSaveMsgToastWith(
+		path,
+		phrase(
+			tr::now,
+			lt_downloads,
+			Ui::Text::Link(
+				tr::lng_mediaview_downloads(tr::now),
+				"internal:show_saved_message"),
+			Ui::Text::WithEntities),
+		st::mediaviewSaveMsgShown);
 }
 
 void OverlayWidget::showSaveMsgToastWith(
 		const QString &path,
-		const TextWithEntities &text) {
+		const TextWithEntities &text,
+		crl::time duration) {
 	_saveMsgFilename = path;
 	_saveMsgText.setMarkedText(st::mediaviewSaveMsgStyle, text);
 	const auto w = _saveMsgText.maxWidth()
@@ -814,11 +818,11 @@ void OverlayWidget::showSaveMsgToastWith(
 	const auto callback = [=](float64 value) {
 		updateSaveMsg();
 		if (!_saveMsgAnimation.animating()) {
-			_saveMsgTimer.callOnce(st::mediaviewSaveMsgShown);
+			_saveMsgTimer.callOnce(duration);
 		}
 	};
-	const auto duration = st::mediaviewSaveMsgShowing;
-	_saveMsgAnimation.start(callback, 0., 1., duration);
+	const auto animDuration = st::mediaviewSaveMsgShowing;
+	_saveMsgAnimation.start(callback, 0., 1., animDuration);
 	updateSaveMsg();
 }
 
@@ -6208,12 +6212,56 @@ void OverlayWidget::snapXY() {
 	accumulate_min(_y, ymax);
 }
 
+auto OverlayWidget::scaledRecognitionRect(QPoint position)
+const -> std::optional<Platform::TextRecognition::RectWithText> {
+	auto contentRect = finalContentRect();
+	if (_rotation) {
+		auto transform = QTransform();
+		const auto center = rect::center(contentRect);
+		transform.translate(center.x(), center.y());
+		transform.rotate(-_rotation);
+		transform.translate(-center.x(), -center.y());
+		contentRect = transform.mapRect(contentRect);
+		position = transform.map(position);
+	}
+	const auto imageSize = _staticContent.size()
+		/ style::DevicePixelRatio();
+	if (imageSize.isEmpty() || !contentRect.contains(position)) {
+		return std::nullopt;
+	}
+	const auto scale = contentRect.width() / float64(imageSize.width());
+	for (const auto &item : _recognitionResult.items) {
+		const auto &rect = item.rect;
+		const auto scaledRect = QRect(
+			contentRect.x() + int(rect.x() * scale),
+			contentRect.y() + int(rect.y() * scale),
+			int(rect.width() * scale),
+			int(rect.height() * scale));
+		if (scaledRect.contains(position)) {
+			return Platform::TextRecognition::RectWithText{
+				.text = item.text,
+				.rect = scaledRect,
+			};
+		}
+	}
+	return std::nullopt;
+}
+
 void OverlayWidget::handleMouseMove(QPoint position) {
 	updateOver(position);
 	if (_lastAction.x() >= 0
 		&& ((position - _lastAction).manhattanLength()
 			>= st::mediaviewDeltaFromLastAction)) {
 		_lastAction = QPoint(-st::mediaviewDeltaFromLastAction, -st::mediaviewDeltaFromLastAction);
+	}
+	if (_recognitionResult.success
+		&& !_recognitionResult.items.empty()
+		&& _showRecognitionResults) {
+		if (scaledRecognitionRect(position)) {
+			setCursor(style::cur_pointer);
+		} else if (!_pressed) {
+			setCursor(style::cur_default);
+		}
 	}
 	if (_pressed) {
 		if (!_dragging
@@ -6453,6 +6501,20 @@ void OverlayWidget::handleMouseRelease(
 			})
 		});
 		return;
+	}
+
+	if (_recognitionResult.success
+		&& !_recognitionResult.items.empty()
+		&& _showRecognitionResults
+		&& button == Qt::LeftButton) {
+		if (const auto result = scaledRecognitionRect(position)) {
+			QGuiApplication::clipboard()->setText(result->text);
+			showSaveMsgToastWith(
+				QString(),
+				{ tr::lng_text_copied(tr::now) },
+				1000);
+			return;
+		}
 	}
 
 	if (_over == Over::Name && _down == Over::Name) {
