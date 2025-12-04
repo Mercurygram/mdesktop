@@ -115,6 +115,24 @@ namespace Media {
 namespace View {
 namespace {
 
+struct RecognitionId {
+	uint64 sessionUniqueId = 0;
+	PhotoId photoId = 0;
+	DocumentId documentId = 0;
+
+	friend inline auto operator<=>(RecognitionId, RecognitionId) = default;
+};
+
+using RecognitionResult = Platform::TextRecognition::Result;
+using RecognitionCacheMap = base::flat_map<RecognitionId, RecognitionResult>;
+
+[[nodiscard]] RecognitionCacheMap *RecognitionCache() {
+	static auto cache = Platform::TextRecognition::IsAvailable()
+		? std::make_unique<base::flat_map<RecognitionId, RecognitionResult>>()
+		: nullptr;
+	return cache.get();
+}
+
 constexpr auto kPreloadCount = 3;
 constexpr auto kMaxZoomLevel = 7; // x8
 constexpr auto kZoomToScreenLevel = 1024;
@@ -3751,23 +3769,39 @@ void OverlayWidget::displayPhoto(
 	}
 
 	if (!_stories && Platform::TextRecognition::IsAvailable()) {
-		const auto weak = base::make_weak(_widget);
-		const auto photoMedia = _photoMedia;
-		crl::async([=] {
-			const auto image = photoMedia->image(Data::PhotoSize::Large);
-			if (!image) {
-				return;
-			}
-			const auto qimage = image->original();
-			if (qimage.isNull()) {
-				return;
-			}
-			auto result = Platform::TextRecognition::RecognizeText(qimage);
-			crl::on_main(weak, [=, result = std::move(result)]() mutable {
-				_recognitionResult = std::move(result);
-				updateControls();
+		const auto cache = RecognitionCache();
+		const auto id = RecognitionId{
+			.sessionUniqueId = _session->uniqueId(),
+			.photoId = _photo->id,
+		};
+		if (const auto cached = cache->find(id)
+			; cached != cache->end()) {
+			_recognitionResult = cached->second;
+			updateControls();
+		} else {
+			const auto weak = base::make_weak(_widget);
+			const auto photoMedia = _photoMedia;
+			crl::async([=] {
+				const auto image = photoMedia->image(
+					Data::PhotoSize::Large);
+				if (!image) {
+					return;
+				}
+				const auto original = image->original();
+				if (original.isNull()) {
+					return;
+				}
+				auto result = Platform::TextRecognition::RecognizeText(
+					original);
+				crl::on_main(weak, [=, result = std::move(result)]() mutable {
+					const auto cache = RecognitionCache();
+					_recognitionResult = std::move(result);
+					auto &cached = (*cache)[id];
+					cached = _recognitionResult;
+					updateControls();
+				});
 			});
-		});
+		}
 	}
 
 	initSponsoredButton();
