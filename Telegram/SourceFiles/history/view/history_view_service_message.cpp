@@ -634,7 +634,6 @@ void Service::draw(Painter &p, const PaintContext &context) const {
 
 	const auto item = data();
 	const auto keyboard = item->inlineReplyKeyboard();
-	const auto fullGeometry = g;
 	if (keyboard) {
 		// We need to count geometry without keyboard for bubble selection
 		// intervals counting below.

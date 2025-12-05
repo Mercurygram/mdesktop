@@ -232,8 +232,6 @@ private:
 	int resizeGetHeight(int width) override;
 	void clicked(int index);
 
-	[[nodiscard]] View *find(const AttributeDescriptor &descriptor);
-
 	const not_null<Delegate*> _delegate;
 	const not_null<Window::SessionController*> _window;
 	const not_null<const Data::UniqueGiftAttributes*> _attributes;
@@ -323,7 +321,6 @@ void AttributeButton::setup() {
 		_patternNow = {};
 		_patternNext = {};
 		_patternFrame = QImage();
-		void validatePatternFrame();
 	}, [&](const GiftModel &data) {
 		setDocument(data.document);
 		_patternNow = {};
@@ -1183,17 +1180,6 @@ void AttributesList::clicked(int index) {
 	check(&Selection::pattern);
 	check(&Selection::backdrop);
 	_selected = now;
-}
-
-AttributesList::View *AttributesList::find(
-		const AttributeDescriptor &descriptor) {
-	const auto i = ranges::find(*_list, descriptor, &Entry::descriptor);
-	if (i == end(*_list)) {
-		return nullptr;
-	}
-	const auto index = int(i - begin(*_list));
-	const auto j = ranges::find(_views, index, &View::index);
-	return (j != end(_views)) ? &*j : nullptr;
 }
 
 void AttributesList::refreshAbout() {

@@ -3972,9 +3972,6 @@ void Session::webpageApplyFields(
 
 	using WebPageAuctionPtr = std::unique_ptr<WebPageAuction>;
 	const auto lookupAuction = [&]() -> WebPageAuctionPtr {
-		const auto toUint = [](const MTPint &c) {
-			return (uint32(1) << 24) | uint32(c.v);
-		};
 		if (const auto attributes = data.vattributes()) {
 			for (const auto &attribute : attributes->v) {
 				return attribute.match([&](
