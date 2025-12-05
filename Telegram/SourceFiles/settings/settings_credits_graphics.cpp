@@ -1522,6 +1522,8 @@ void GenericCreditsEntryBox(
 					? tr::lng_credits_box_history_entry_gift_sent(tr::now)
 					: e.converted
 					? tr::lng_credits_box_history_entry_gift_converted(tr::now)
+					: (e.giftNumber && !e.giftTitle.isEmpty())
+					? Data::UniqueGiftName(e.giftTitle, e.giftNumber)
 					: (isStarGift && !starGiftCanManage)
 					? tr::lng_gift_link_label_gift(tr::now)
 					: giftToSelf
@@ -2613,6 +2615,7 @@ Data::CreditsHistoryEntry SavedStarGiftEntry(
 		.giftChannelSavedId = data.manageId.chatSavedId(),
 		.stargiftId = data.info.id,
 		.giftPrepayUpgradeHash = data.giftPrepayUpgradeHash,
+		.giftTitle = data.info.resellTitle,
 		.uniqueGift = data.info.unique,
 		.peerType = Data::CreditsHistoryEntry::PeerType::Peer,
 		.limitedCount = data.info.limitedCount,
@@ -2621,6 +2624,7 @@ Data::CreditsHistoryEntry SavedStarGiftEntry(
 		.starsToUpgrade = int(data.info.starsToUpgrade),
 		.starsUpgradedBySender = int(data.starsUpgradedBySender),
 		.starsForDetailsRemove = int(data.starsForDetailsRemove),
+		.giftNumber = data.giftNum,
 		.converted = false,
 		.anonymous = data.anonymous,
 		.stargift = true,
@@ -2722,6 +2726,7 @@ void ShowStarGiftViewBox(
 		.giftChannelSavedId = data.channelSavedId,
 		.stargiftId = data.stargiftId,
 		.giftPrepayUpgradeHash = data.giftPrepayUpgradeHash,
+		.giftTitle = data.giftTitle,
 		.uniqueGift = data.unique,
 		.nextToUpgradeStickerId = nextToUpgradeStickerId,
 		.nextToUpgradeShow = std::move(nextToUpgradeShow),
@@ -2732,6 +2737,7 @@ void ShowStarGiftViewBox(
 		.starsToUpgrade = data.starsToUpgrade,
 		.starsUpgradedBySender = data.starsUpgradedBySender,
 		.starsForDetailsRemove = data.starsForDetailsRemove,
+		.giftNumber = data.giftNum,
 		.converted = data.converted,
 		.anonymous = data.anonymous,
 		.stargift = true,

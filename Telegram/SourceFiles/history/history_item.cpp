@@ -6772,6 +6772,11 @@ void HistoryItem::applyAction(const MTPMessageAction &action) {
 			: PeerId();
 		const auto upgradeMsgId = data.vupgrade_msg_id().value_or_empty();
 		const auto realGiftMsgId = data.vgift_msg_id().value_or_empty();
+		const auto title = data.vgift().match([&](const MTPDstarGift &gift) {
+			return qs(gift.vtitle().value_or_empty());
+		}, [](const MTPDstarGiftUnique &) {
+			return QString();
+		});
 		const auto bid = data.vgift().match([&](const MTPDstarGift &gift) {
 			return data.is_auction_acquired()
 				? (int(gift.vstars().v)
@@ -6802,6 +6807,7 @@ void HistoryItem::applyAction(const MTPMessageAction &action) {
 			.channelSavedId = data.vsaved_id().value_or_empty(),
 			.giftPrepayUpgradeHash = qs(
 				data.vprepaid_upgrade_hash().value_or_empty()),
+			.giftTitle = title,
 			.realGiftMsgId = (upgradeMsgId ? upgradeMsgId : realGiftMsgId),
 			.starsConverted = int(data.vconvert_stars().value_or_empty()),
 			.starsUpgradedBySender = int(

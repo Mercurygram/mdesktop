@@ -1182,14 +1182,17 @@ void AuctionGotGiftsBox(
 				st::giveawayGiftCodeValueMargin);
 		};
 
-		// Title "Round #n"
-		addFullWidth(tr::lng_auction_bought_round(
+		// Title "Gift #number in round #n"
+		addFullWidth(tr::lng_auction_bought_in_round(
+			lt_name,
+			rpl::single(tr::marked(
+				emoji
+			).append(' ').append(
+				Data::UniqueGiftName(gift.resellTitle, entry.number)
+			)),
 			lt_n,
 			rpl::single(tr::marked(QString::number(entry.round))),
-			tr::bold
-		) | rpl::map([=](const TextWithEntities &text) {
-			return TextWithEntities{ emoji }.append(' ').append(text);
-		}));
+			tr::bold));
 
 		// Recipient
 		AddTableRow(

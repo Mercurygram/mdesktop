@@ -115,6 +115,7 @@ struct UniqueGift {
 };
 
 [[nodiscard]] QString UniqueGiftName(const UniqueGift &gift);
+[[nodiscard]] QString UniqueGiftName(const QString &title, int number);
 
 [[nodiscard]] CreditsAmount UniqueGiftResaleStars(const UniqueGift &gift);
 [[nodiscard]] CreditsAmount UniqueGiftResaleTon(const UniqueGift &gift);

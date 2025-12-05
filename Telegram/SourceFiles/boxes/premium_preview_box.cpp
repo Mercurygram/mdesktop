@@ -1004,22 +1004,32 @@ void PreviewBox(
 		st::settingsPremiumTopBarClose);
 	close->setClickedCallback([=] { box->closeBox(); });
 
-	const auto left = Ui::CreateChild<Ui::IconButton>(
+	const auto gifts = (state->selected.current() == PremiumFeature::Gifts);
+
+	const auto left = gifts ? nullptr : Ui::CreateChild<Ui::IconButton>(
 		buttonsParent,
 		st::settingsPremiumMoveLeft);
-	left->setClickedCallback([=] { move(-1); });
+	if (left) {
+		left->setClickedCallback([=] { move(-1); });
+	}
 
-	const auto right = Ui::CreateChild<Ui::IconButton>(
+	const auto right = gifts ? nullptr : Ui::CreateChild<Ui::IconButton>(
 		buttonsParent,
 		st::settingsPremiumMoveRight);
-	right->setClickedCallback([=] { move(1); });
+	if (right) {
+		right->setClickedCallback([=] { move(1); });
+	}
 
 	buttonsParent->widthValue(
 	) | rpl::start_with_next([=](int width) {
 		const auto outerHeight = st::premiumPreviewHeight;
 		close->moveToRight(0, 0, width);
-		left->moveToLeft(0, (outerHeight - left->height()) / 2, width);
-		right->moveToRight(0, (outerHeight - right->height()) / 2, width);
+		if (left) {
+			left->moveToLeft(0, (outerHeight - left->height()) / 2, width);
+		}
+		if (right) {
+			right->moveToRight(0, (outerHeight - right->height()) / 2, width);
+		}
 	}, close->lifetime());
 
 	state->preload = [=] {
@@ -1148,7 +1158,6 @@ void PreviewBox(
 		style::al_top
 	)->setTryMakeSimilarLines(true);
 
-	const auto gifts = (state->selected.current() == PremiumFeature::Gifts);
 	if (gifts) {
 		box->setStyle(st::giftBox);
 		AddGiftsInfoRows(box->verticalLayout());

@@ -155,6 +155,7 @@ struct GiftCode {
 	PeerData *channelFrom = nullptr;
 	uint64 channelSavedId = 0;
 	QString giftPrepayUpgradeHash;
+	QString giftTitle;
 	MsgId giveawayMsgId = 0;
 	MsgId realGiftMsgId = 0;
 	int starsConverted = 0;
