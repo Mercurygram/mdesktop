@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "platform/platform_webauthn.h"
 
 #include "data/data_passkey_deserialize.h"
+#include "base/options.h"
 
 #import <AuthenticationServices/AuthenticationServices.h>
 #import <Foundation/Foundation.h>
@@ -120,9 +121,24 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 @end
 
+namespace {
+
+base::options::toggle WebAuthnMacOption({
+	.id = "webauthn-mac",
+	.name = "Enable Passkey on macOS",
+	.description = "Enable Passkey support on macOS 12.0+. Experimental feature that may cause crash.",
+	.defaultValue = false,
+	.scope = base::options::macos,
+});
+
+} // namespace
+
 namespace Platform::WebAuthn {
 
 bool IsSupported() {
+	if (!WebAuthnMacOption.value()) {
+		return false;
+	}
 	if (@available(macOS 12.0, *)) {
 		return true;
 	}
