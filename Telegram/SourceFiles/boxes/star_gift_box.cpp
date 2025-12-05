@@ -4772,8 +4772,8 @@ CreditsAmount StarsFromTon(
 		not_null<Main::Session*> session,
 		CreditsAmount ton) {
 	const auto appConfig = &session->appConfig();
-	const auto starsRate = appConfig->starsWithdrawRate() / 100.;
-	const auto tonRate = appConfig->currencyWithdrawRate();
+	const auto starsRate = appConfig->starsSellRate() / 100.;
+	const auto tonRate = appConfig->currencySellRate();
 	if (!starsRate) {
 		return {};
 	}
@@ -4785,8 +4785,8 @@ CreditsAmount TonFromStars(
 		not_null<Main::Session*> session,
 		CreditsAmount stars) {
 	const auto appConfig = &session->appConfig();
-	const auto starsRate = appConfig->starsWithdrawRate() / 100.;
-	const auto tonRate = appConfig->currencyWithdrawRate();
+	const auto starsRate = appConfig->starsSellRate() / 100.;
+	const auto tonRate = appConfig->currencySellRate();
 	if (!tonRate) {
 		return {};
 	}

@@ -726,15 +726,6 @@ void ShowGiftSaleAcceptBox(
 	const auto nanoTonThousandths = appConfig.giftResaleNanoTonThousandths();
 
 	controller->show(Box([=](not_null<Ui::GenericBox*> box) {
-		auto button = tr::lng_gift_offer_sell_for(
-			lt_price,
-			rpl::single(Ui::Text::IconEmoji(
-				&st::starIconEmoji
-			).append(Lang::FormatCreditsAmountDecimal(
-				price
-			))),
-			tr::marked);
-
 		struct State {
 			bool sent = false;
 		};
@@ -762,6 +753,14 @@ void ShowGiftSaleAcceptBox(
 		const auto receive = price.ton()
 			? ((price.value() * nanoTonThousandths) / 1000.)
 			: ((int64(price.value()) * starsThousandths) / 1000);
+
+		auto button = tr::lng_gift_offer_sell_for(
+			lt_price,
+			rpl::single(Ui::Text::IconEmoji(price.ton()
+				? &st::buttonTonIconEmoji
+				: &st::buttonStarIconEmoji
+			).append(Lang::FormatExactCountDecimal(receive))),
+			tr::marked);
 
 		box->addRow(
 			CreateGiftTransfer(box->verticalLayout(), gift, peer),
@@ -807,8 +806,8 @@ void ShowGiftSaleAcceptBox(
 				/ std::pow(10., rule.exponent);
 			if (std::abs(value) >= 0.01) {
 				const auto rate = price.ton()
-					? appConfig->currencyWithdrawRate()
-					: (appConfig->starsWithdrawRate() / 100.);
+					? appConfig->currencySellRate()
+					: (appConfig->starsSellRate() / 100.);
 				const auto offered = receive * rate;
 				const auto diff = offered - value;
 				const auto percent = std::abs(diff / value * 100.);
@@ -826,8 +825,7 @@ void ShowGiftSaleAcceptBox(
 									lt_percent,
 									rpl::single(tr::bold(percentText)),
 									lt_name,
-									rpl::single(tr::marked(
-										UniqueGiftName(*gift))),
+									rpl::single(tr::marked(gift->title)),
 									tr::marked),
 							(good ? st::offerValueGood : st::offerValueBad)),
 						st::boxRowPadding + st::offerValuePadding

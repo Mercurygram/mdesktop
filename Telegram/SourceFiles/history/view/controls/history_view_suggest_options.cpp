@@ -133,8 +133,8 @@ void AddApproximateUsd(
 		}
 		const auto appConfig = &session->appConfig();
 		const auto rate = amount.ton()
-			? appConfig->currencyWithdrawRate()
-			: (appConfig->starsWithdrawRate() / 100.);
+			? appConfig->currencySellRate()
+			: (appConfig->starsSellRate() / 100.);
 		return Info::ChannelEarn::ToUsd(amount, rate, 2);
 	});
 	const auto usd = Ui::CreateChild<Ui::FlatLabel>(
