@@ -125,6 +125,10 @@ bool Passkeys::canRegister() const {
 	return Platform::WebAuthn::IsSupported() && _passkeys.size() < max;
 }
 
+bool Passkeys::possible() const {
+	return _session->appConfig().settingsDisplayPasskeys();
+}
+
 void InitPasskeyLogin(
 		MTP::Sender &api,
 		Fn<void(const Data::Passkey::LoginData&)> done) {

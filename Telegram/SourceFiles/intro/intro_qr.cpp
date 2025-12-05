@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_utilities.h"
 #include "ui/image/image_prepare.h"
 #include "ui/painter.h"
+#include "main/main_app_config.h"
 #include "main/main_account.h"
 #include "ui/boxes/confirm_box.h"
 #include "core/application.h"
@@ -209,6 +210,8 @@ QrWidget::QrWidget(
 		api().request(base::take(_requestId)).cancel();
 		refreshCode();
 	}, lifetime());
+
+	_passkeyPossible = account->appConfig().settingsDisplayPasskeys();
 }
 
 QString QrWidget::accessibilityName() {
@@ -333,7 +336,7 @@ void QrWidget::setupControls() {
 	_skip = Ui::CreateChild<Ui::LinkButton>(
 		this,
 		tr::lng_intro_qr_phone(tr::now));
-	if (Platform::WebAuthn::IsSupported()) {
+	if (Platform::WebAuthn::IsSupported() && _passkeyPossible) {
 		_passkey = Ui::CreateChild<Ui::LinkButton>(
 			this,
 			tr::lng_intro_qr_passkey(tr::now));

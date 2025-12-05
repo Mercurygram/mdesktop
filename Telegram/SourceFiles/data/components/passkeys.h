@@ -51,6 +51,7 @@ public:
 	[[nodiscard]] const std::vector<PasskeyEntry> &list() const;
 	[[nodiscard]] bool listKnown() const;
 	[[nodiscard]] bool canRegister() const;
+	[[nodiscard]] bool possible() const;
 
 private:
 	void loadList();

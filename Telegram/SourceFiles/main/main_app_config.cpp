@@ -267,6 +267,10 @@ int AppConfig::passkeysAccountPasskeysMax() const {
 	return get<int>(u"passkeys_account_passkeys_max"_q, 10);
 }
 
+bool AppConfig::settingsDisplayPasskeys() const {
+	return get<bool>(u"settings_display_passkeys"_q, false);
+}
+
 void AppConfig::refresh(bool force) {
 	if (_requestId || !_api) {
 		if (force) {

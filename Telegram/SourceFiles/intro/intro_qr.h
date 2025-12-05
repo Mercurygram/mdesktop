@@ -58,6 +58,7 @@ private:
 	base::Timer _refreshTimer;
 	mtpRequestId _requestId = 0;
 	bool _forceRefresh = false;
+	bool _passkeyPossible = false;
 
 };
 

@@ -124,6 +124,7 @@ public:
 	[[nodiscard]] TimeId groupCallMessageTTL() const;
 
 	[[nodiscard]] int passkeysAccountPasskeysMax() const;
+	[[nodiscard]] bool settingsDisplayPasskeys() const;
 
 	using StarsColoring = Calls::Group::Ui::StarsColoring;
 	[[nodiscard]] std::vector<StarsColoring> groupCallColorings() const;

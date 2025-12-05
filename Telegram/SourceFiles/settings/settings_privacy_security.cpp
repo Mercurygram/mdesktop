@@ -580,6 +580,9 @@ void SetupPasskeys(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container) {
 	const auto session = &controller->session();
+	if (!session->passkeys().possible()) {
+		return;
+	}
 	auto label = rpl::combine(
 		tr::lng_profile_loading(),
 		(rpl::single(rpl::empty_value())

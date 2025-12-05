@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_experimental.h"
 
+#include "data/components/passkeys.h"
+#include "main/main_session.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/wrap/slide_wrap.h"
@@ -168,7 +170,11 @@ void SetupExperimental(
 	}
 	addToggle(Window::kOptionDisableTouchbar);
 	addToggle(Info::kAlternativeScrollProcessing);
-	addToggle("webauthn-mac");
+	if (const auto controller = window->sessionController()) {
+		if (controller->session().passkeys().possible()) {
+			addToggle("webauthn-mac");
+		}
+	}
 	addToggle("text-recognition-mac");
 }
 
