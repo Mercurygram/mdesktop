@@ -798,7 +798,7 @@ void ShowGiftSaleAcceptBox(
 		AddTransferGiftTable(show, box->verticalLayout(), gift);
 		gift->value = std::move(taken);
 
-		if (const auto raw = gift->value.get()) {
+		if (gift->value.get()) {
 			const auto appConfig = &show->session().appConfig();
 			const auto rule = Ui::LookupCurrencyRule(u"USD"_q);
 			const auto value = (gift->value->valuePriceUsd > 0 ? 1 : -1)

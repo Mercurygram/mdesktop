@@ -583,7 +583,6 @@ void AttributeButton::paintEvent(QPaintEvent *e) {
 		}
 	}
 
-	auto inset = 0;
 	const auto progress = _selectedAnimation.value(_selected ? 1. : 0.);
 	if (progress > 0) {
 		auto hq = PainterHighQualityEnabler(p);
@@ -599,8 +598,6 @@ void AttributeButton::paintEvent(QPaintEvent *e) {
 			+ QMarginsF(shift, shift, shift, shift);
 		const auto radius = st::giftBoxGiftRadius - shift;
 		p.drawRoundedRect(outer.marginsRemoved(extend), radius, radius);
-		inset = int(std::ceil(
-			progress * (thickness * 2 + st::giftBoxUserpicSkip)));
 	}
 
 	const auto paused = !isOver();
@@ -1025,7 +1022,7 @@ void AttributesList::fill() {
 		target.list.reserve(source.size());
 		for (const auto &item : source) {
 			++(value.*field);
-			target.list.push_back({ .descriptor = item, .value = value });
+			target.list.emplace_back(Entry{ { item }, { value } });
 		}
 	};
 	addEntries(_attributes->models, _models, &Selection::model);
