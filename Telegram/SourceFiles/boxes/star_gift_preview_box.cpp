@@ -310,6 +310,9 @@ AttributeButton::AttributeButton(
 void AttributeButton::setup() {
 	v::match(_descriptor, [&](const auto &data) {
 		_name.setText(st::uniqueAttributeName, data.name);
+		_percent.setText(
+			st::uniqueAttributePercent,
+			QString::number(data.rarityPermille / 10.) + '%');
 	});
 
 	v::match(_descriptor, [&](const GiftBackdrop &data) {
@@ -652,6 +655,34 @@ void AttributeButton::paintEvent(QPaintEvent *e) {
 		.availableWidth = singlew,
 		.align = style::al_top,
 	});
+
+	p.setPen(Qt::NoPen);
+	p.setBrush(model
+		? anim::color(st::windowBgOver, st::windowBgActive, progress)
+		: backdrop
+		? backdrop->patternColor
+		: _delegate->patternColor());
+	const auto ppadding = st::uniqueAttributePercentPadding;
+	const auto add = int(std::ceil(style::ConvertScaleExact(6.)));
+	const auto pradius = std::max(st::giftBoxGiftRadius - add, 1);
+	const auto left = position.x()
+		+ singlew
+		- add
+		- ppadding.right()
+		- _percent.maxWidth();
+	const auto top = position.y() + add + ppadding.top();
+	const auto percent = QRect(
+		left,
+		top,
+		_percent.maxWidth(),
+		st::uniqueAttributeType.font->height);
+	p.drawRoundedRect(percent.marginsAdded(ppadding), pradius, pradius);
+	p.setPen(model
+		? anim::color(st::windowSubTextFg, st::windowFgActive, progress)
+		: QColor(255, 255, 255));
+	_percent.draw(p, {
+		.position = percent.topLeft(),
+	});
 }
 
 Delegate::Delegate(Fn<void()> fullUpdate)
@@ -980,7 +1011,7 @@ AttributesList::AttributesList(
 	}, lifetime());
 }
 
-auto AttributesList::selected() const ->rpl::producer<Selection> {
+auto AttributesList::selected() const -> rpl::producer<Selection> {
 	return _selected.value();
 }
 
