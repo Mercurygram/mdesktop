@@ -169,6 +169,7 @@ void SetupExperimental(
 	addToggle(Window::kOptionDisableTouchbar);
 	addToggle(Info::kAlternativeScrollProcessing);
 	addToggle("webauthn-mac");
+	addToggle("text-recognition-mac");
 }
 
 } // namespace
