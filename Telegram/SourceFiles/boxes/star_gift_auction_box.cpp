@@ -408,11 +408,23 @@ object_ptr<RpWidget> MakeAuctionInfoBlocks(
 	auto untilTitle = rpl::duplicate(
 		stateValue
 	) | rpl::map([=](const Data::GiftAuctionState &state) {
-		return SecondsLeftTillValue(state.nextRoundAt
-			? state.nextRoundAt
-			: state.endDate);
+		return SecondsLeftTillValue(state.startDate) | rpl::then(
+			SecondsLeftTillValue(state.nextRoundAt
+				? state.nextRoundAt
+				: state.endDate));
 	}) | rpl::flatten_latest(
 	) | rpl::map(NiceCountdownText) | rpl::map(tr::marked);
+	auto untilSubtext = rpl::duplicate(
+		stateValue
+	) | rpl::map([=](const Data::GiftAuctionState &state) {
+		auto preview = SecondsLeftTillValue(
+			state.startDate
+		) | rpl::map(rpl::mappers::_1 > 0) | rpl::distinct_until_changed();
+		return rpl::conditional(
+			std::move(preview),
+			tr::lng_auction_bid_before_start(),
+			tr::lng_auction_bid_until());
+	}) | rpl::flatten_latest();
 	auto leftTitle = rpl::duplicate(
 		stateValue
 	) | rpl::map([=](const Data::GiftAuctionState &state) {
@@ -435,7 +447,7 @@ object_ptr<RpWidget> MakeAuctionInfoBlocks(
 		},
 		{
 			.title = std::move(untilTitle),
-			.subtext = tr::lng_auction_bid_until(),
+			.subtext = std::move(untilSubtext),
 		},
 		{
 			.title = std::move(leftTitle),
@@ -457,6 +469,7 @@ void AddBidPlaces(
 	};
 	struct State {
 		rpl::variable<My> my;
+		rpl::variable<bool> started;
 		rpl::variable<std::vector<BidRowData>> top;
 		std::vector<Ui::PeerUserpicView> cache;
 		int winners = 0;
@@ -473,6 +486,9 @@ void AddBidPlaces(
 		}
 		state->winners = value.gift->auctionGiftsPerRound;
 		state->cache = std::move(cache);
+		state->started = SecondsLeftTillValue(
+			value.startDate
+		) | rpl::map(!rpl::mappers::_1);
 	}, box->lifetime());
 
 	state->my = rpl::combine(
@@ -524,7 +540,13 @@ void AddBidPlaces(
 		top.push_back({ show->session().user(), chosen });
 		return finishWith((levels.empty() ? 0 : levels.back().position) + 1);
 	});
-	auto myLabelText = state->my.value() | rpl::map([](My my) {
+	auto myLabelText = rpl::combine(
+		state->my.value(),
+		state->started.value()
+	) | rpl::map([](My my, bool started) {
+		if (!started) {
+			return tr::lng_auction_bid_your_title();
+		}
 		switch (my.type) {
 		case BidType::Setting: return tr::lng_auction_bid_your_title();
 		case BidType::Winning: return tr::lng_auction_bid_your_winning();
@@ -620,10 +642,22 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 		rpl::variable<BidSliderValues> sliderValues;
 		rpl::variable<int> chosen;
 		rpl::variable<QString> subtext;
+		rpl::variable<bool> started;
 		bool placing = false;
 	};
 	const auto state = box->lifetime().make_state<State>(
 		std::move(args.state));
+	state->started = state->value.value(
+	) | rpl::map([=](const Data::GiftAuctionState &value) {
+		return value.startDate;
+	}) | rpl::distinct_until_changed(
+	) | rpl::map([=](TimeId startTime) {
+		return SecondsLeftTillValue(
+			startTime
+		) | rpl::map([=](int seconds) {
+			return !seconds;
+		});
+	}) | rpl::flatten_latest();
 	state->sliderValues = state->value.value(
 	) | rpl::map([=](const Data::GiftAuctionState &value) {
 		const auto mine = int(value.my.bid);
@@ -791,7 +825,10 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 	box->addRow(
 		object_ptr<FlatLabel>(
 			box,
-			tr::lng_auction_bid_title(),
+			rpl::conditional(
+				state->started.value(),
+				tr::lng_auction_bid_title(),
+				tr::lng_auction_bid_title_early()),
 			st::boostCenteredTitle),
 		st::boxRowPadding + QMargins(0, skip / 2, 0, 0),
 		style::al_top);

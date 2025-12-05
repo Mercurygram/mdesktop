@@ -4131,6 +4131,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_bid_until" = "until next round";
 "lng_auction_bid_left#one" = "left";
 "lng_auction_bid_left#other" = "left";
+"lng_auction_bid_before_start" = "before start";
 "lng_auction_bid_your_title" = "Your bid will be";
 "lng_auction_bid_your_outbid" = "You've been outbid";
 "lng_auction_bid_your_winning" = "You're winning";
