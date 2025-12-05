@@ -3908,6 +3908,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_upgrade_tradable_about" = "Sell or auction your gift on third-party NFT marketplaces.";
 "lng_gift_upgrade_tradable_about_user" = "{name} will be able to sell the gift on Telegram and NFT marketplaces.";
 "lng_gift_upgrade_tradable_about_channel" = "Admins of {name} will be able to sell the gift on Telegram and NFT marketplaces.";
+"lng_gift_upgrade_wearable_title" = "Wearable";
+"lng_gift_upgrade_wearable_about" = "Display gifts on your page and set them as profile covers or statuses.";
 "lng_gift_upgrade_button" = "Upgrade for {price}";
 "lng_gift_upgrade_decreases" = "Price decreases in {time}";
 "lng_gift_upgrade_see_table" = "See how this price will decrease {arrow}";

@@ -1320,126 +1320,31 @@ void AuctionInfoBox(
 	state->minutesTillEnd = MinutesLeftTillValue(now.endDate);
 	state->secondsTillStart = SecondsLeftTillValue(now.startDate);
 	const auto started = !state->secondsTillStart.current();
-	const auto perRound = now.gift->auctionGiftsPerRound;
 
 	box->setStyle(st::giftBox);
 	box->setNoContentMargin(true);
-	if (!started) {
-		const auto container = box->verticalLayout();
-		auto gift = MakePreviewAuctionStream(
-			*now.gift,
-			state->attributes.value());
-		AddUniqueGiftCover(container, std::move(gift), {
-			.pretitle = tr::lng_auction_preview_name(),
-			.subtitle = tr::lng_auction_preview_learn_gifts(
-				lt_arrow,
-				rpl::single(Text::IconEmoji(&st::textMoreIconEmoji)),
-				tr::link),
-			.subtitleClick = [=] {
-				ShowPremiumPreviewBox(
-					window,
-					PremiumFeature::AnimatedEmoji); AssertIsDebug();
-			},
-			.subtitleLinkColored = true,
-		});
-		AddSkip(container, st::defaultVerticalListSkip * 2);
 
-		AddUniqueCloseButton(box, {}, MakeAuctionFillMenuCallback(show, now));
-	} else {
-		const auto name = now.gift->resellTitle;
-		const auto extend = st::defaultDropdownMenu.wrap.shadow.extend;
-		const auto side = st::giftBoxGiftSmall;
-		const auto size = QSize(side, side).grownBy(extend);
-		const auto preview = box->addRow(
-			object_ptr<FixedHeightWidget>(box, size.height()),
-			st::auctionInfoPreviewMargin);
-		const auto gift = CreateChild<GiftButton>(preview, &state->delegate);
-		gift->setAttribute(Qt::WA_TransparentForMouseEvents);
-		gift->setDescriptor(GiftTypeStars{
-			.info = *now.gift,
-			}, GiftButtonMode::Minimal);
+	const auto container = box->verticalLayout();
+	auto gift = MakePreviewAuctionStream(
+		*now.gift,
+		state->attributes.value());
+	AddUniqueGiftCover(container, std::move(gift), {
+		.pretitle = started ? nullptr : tr::lng_auction_preview_name(),
+		.subtitle = tr::lng_auction_preview_learn_gifts(
+			lt_arrow,
+			rpl::single(Text::IconEmoji(&st::textMoreIconEmoji)),
+			tr::link),
+		.subtitleClick = [=] {
+			ShowPremiumPreviewBox(window, PremiumFeature::Gifts);
+		},
+		.subtitleLinkColored = true,
+	});
+	AddSkip(container, st::defaultVerticalListSkip * 2);
 
-		preview->widthValue() | rpl::start_with_next([=](int width) {
-			const auto left = (width - size.width()) / 2;
-			gift->setGeometry(
-				QRect(QPoint(left, 0), size).marginsRemoved(extend),
-				extend);
-		}, gift->lifetime());
-
-		const auto rounds = state->value.current().totalRounds;
-		auto aboutText = state->value.value(
-		) | rpl::map([=](const Data::GiftAuctionState &state) {
-			if (state.finished()) {
-				return tr::lng_auction_text_ended(tr::now, tr::marked);
-			}
-			return tr::lng_auction_text(
-				tr::now,
-				lt_count,
-				perRound,
-				lt_name,
-				tr::bold(name),
-				lt_link,
-				tr::lng_auction_text_link(
-					tr::now,
-					lt_arrow,
-					Text::IconEmoji(&st::textMoreIconEmoji),
-					tr::link),
-				tr::rich);
-		});
-		box->addRow(
-			object_ptr<FlatLabel>(
-				box,
-				name,
-				st::uniqueGiftTitle),
-			style::al_top);
-		const auto about = box->addRow(
-			object_ptr<FlatLabel>(
-				box,
-				std::move(aboutText),
-				st::uniqueGiftSubtitle),
-			(st::boxRowPadding
-				+ QMargins(0, st::auctionInfoSubtitleSkip, 0, 0)),
-			style::al_top);
-		about->setTryMakeSimilarLines(true);
-
-		about->setClickHandlerFilter([=](const auto &...) {
-			show->show(Box(AuctionAboutBox, rounds, perRound, nullptr));
-			return false;
-		});
-
-		const auto close = CreateChild<IconButton>(
-			box->verticalLayout(),
-			st::boxTitleClose);
-		close->setClickedCallback([=] { box->closeBox(); });
-
-		const auto menu = CreateChild<IconButton>(
-			box->verticalLayout(),
-			st::boxTitleMenu);
-		menu->setClickedCallback(MakeAuctionMenuCallback(menu, show, now));
-		const auto weakMenu = base::make_weak(menu);
-
-		box->verticalLayout()->widthValue() | rpl::start_with_next([=](int) {
-			close->moveToRight(0, 0);
-			if (const auto strong = weakMenu.get()) {
-				strong->moveToRight(close->width(), 0);
-			}
-		}, close->lifetime());
-
-		rpl::combine(
-			state->value.value(),
-			state->minutesTillEnd.value()
-		) | rpl::start_with_next([=](
-			const Data::GiftAuctionState &state,
-			int minutes) {
-			const auto finished = state.finished() || (minutes <= 0);
-			about->setTextColorOverride(finished
-				? st::attentionButtonFg->c
-				: std::optional<QColor>());
-			if (const auto strong = finished ? weakMenu.get() : nullptr) {
-				delete strong;
-			}
-		}, box->lifetime());
-	}
+	AddUniqueCloseButton(
+		box,
+		{},
+		now.finished() ? nullptr : MakeAuctionFillMenuCallback(show, now));
 
 	box->addRow(
 		AuctionInfoTable(box, box->verticalLayout(), state->value.value()),
@@ -1736,10 +1641,10 @@ void SetAuctionButtonCountdownText(
 	) | rpl::map([=](const Data::GiftAuctionState &state, int leftTill) {
 		return (state.finished() || (!preview && leftTill <= 0))
 			? tr::lng_box_ok(tr::marked)
-			: (type != AuctionButtonCountdownType::Place)
-			? tr::lng_auction_join_button(tr::marked)
 			: preview
 			? tr::lng_auction_join_early_bid(tr::marked)
+			: (type != AuctionButtonCountdownType::Place)
+			? tr::lng_auction_join_button(tr::marked)
 			: tr::lng_auction_join_bid(tr::marked);
 	}) | rpl::flatten_latest();
 

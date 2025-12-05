@@ -3166,7 +3166,7 @@ void AddUniqueGiftCover(
 		}
 
 		subtitle->moveToLeft(skip, top);
-		top += subtitle->height() + skip;
+		top += subtitle->height() + (skip / 2);
 
 		if (attrs) {
 			attrs->resizeToWidth(width
@@ -3174,6 +3174,8 @@ void AddUniqueGiftCover(
 				- st::giftBoxPadding.right());
 			attrs->moveToLeft(st::giftBoxPadding.left(), top);
 			top += attrs->height() + (skip / 2);
+		} else {
+			top += (skip / 2);
 		}
 
 		cover->resize(width, top);
