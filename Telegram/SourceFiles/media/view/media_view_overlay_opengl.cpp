@@ -407,7 +407,7 @@ void OverlayWidget::RendererGL::paintTransformedVideoFrame(
 		_controlsFadeImage.bind(*_f);
 	} else {
 		_f->glActiveTexture(GL_TEXTURE2);
-		_textures.bind(*_f, 6);
+		_textures.bind(*_f, 5);
 		if (upload) {
 			uploadTexture(
 				GL_ALPHA,
