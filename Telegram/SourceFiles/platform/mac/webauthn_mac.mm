@@ -8,6 +8,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "platform/platform_webauthn.h"
 
+#if 0
+
 #include "data/data_passkey_deserialize.h"
 #include "base/options.h"
 
@@ -268,6 +270,28 @@ void Login(
 		auto result = LoginResult();
 		callback(result);
 	}
+}
+
+} // namespace Platform::WebAuthn
+
+#endif
+
+namespace Platform::WebAuthn {
+
+
+bool IsSupported() {
+	return false;
+}
+
+
+void RegisterKey(
+		const Data::Passkey::RegisterData &data,
+		Fn<void(RegisterResult result)> callback) {
+}
+
+void Login(
+		const Data::Passkey::LoginData &data,
+		Fn<void(LoginResult result)> callback) {
 }
 
 } // namespace Platform::WebAuthn

@@ -170,11 +170,6 @@ void SetupExperimental(
 	}
 	addToggle(Window::kOptionDisableTouchbar);
 	addToggle(Info::kAlternativeScrollProcessing);
-	if (const auto controller = window->sessionController()) {
-		if (controller->session().passkeys().possible()) {
-			addToggle("webauthn-mac");
-		}
-	}
 	addToggle("text-recognition-mac");
 }
 
