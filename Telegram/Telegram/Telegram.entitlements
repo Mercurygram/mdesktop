@@ -8,9 +8,5 @@
 	<true/>
 	<key>com.apple.security.personal-information.location</key>
 	<true/>
-	<key>com.apple.developer.associated-domains</key>
-	<array>
-		<string>webcredentials:t.me</string>
-	</array>
 </dict>
 </plist>
