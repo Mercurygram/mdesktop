@@ -441,6 +441,19 @@ resaleConfirmTonOnly: FlatLabel(boxLabel) {
 }
 resaleConfirmTonOnlyMargin: margins(0px, 12px, 0px, 12px);
 
+offerValuePadding: margins(0px, 8px, 0px, 0px);
+offerValueGood: FlatLabel(boxLabel) {
+	minWidth: 120px;
+	textFg: windowSubTextFg;
+	align: align(top);
+	style: TextStyle(defaultTextStyle) {
+		font: font(12px);
+	}
+}
+offerValueBad: FlatLabel(offerValueGood) {
+	textFg: attentionButtonFg;
+}
+
 uniqueGiftValuePrice: FlatLabel(defaultFlatLabel) {
 	style: TextStyle(defaultTextStyle) {
 		font: font(20px semibold);

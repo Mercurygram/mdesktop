@@ -35,6 +35,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/controls/sub_tabs.h"
 #include "ui/controls/ton_common.h"
 #include "ui/layers/generic_box.h"
+#include "ui/text/format_values.h"
 #include "ui/text/text_utilities.h"
 #include "ui/toast/toast.h"
 #include "ui/basic_click_handlers.h"
@@ -794,7 +795,46 @@ void ShowGiftSaleAcceptBox(
 		});
 
 		const auto show = controller->uiShow();
+		auto taken = base::take(gift->value);
 		AddTransferGiftTable(show, box->verticalLayout(), gift);
+		gift->value = std::move(taken);
+
+		if (const auto raw = gift->value.get()) {
+			const auto appConfig = &show->session().appConfig();
+			const auto rule = Ui::LookupCurrencyRule(u"USD"_q);
+			const auto value = (gift->value->valuePriceUsd > 0 ? 1 : -1)
+				* std::abs(gift->value->valuePriceUsd)
+				/ std::pow(10., rule.exponent);
+			if (std::abs(value) >= 0.01) {
+				const auto rate = price.ton()
+					? appConfig->currencyWithdrawRate()
+					: (appConfig->starsWithdrawRate() / 100.);
+				const auto offered = receive * rate;
+				const auto diff = offered - value;
+				const auto percent = std::abs(diff / value * 100.);
+				if (percent >= 1) {
+					const auto higher = (diff > 0.);
+					const auto good = higher || (percent < 10);
+					const auto number = int(base::SafeRound(percent));
+					const auto percentText = QString::number(number) + '%';
+					box->addRow(
+						object_ptr<Ui::FlatLabel>(
+							box,
+							(higher
+								? tr::lng_gift_offer_higher
+								: tr::lng_gift_offer_lower)(
+									lt_percent,
+									rpl::single(tr::bold(percentText)),
+									lt_name,
+									rpl::single(tr::marked(
+										UniqueGiftName(*gift))),
+									tr::marked),
+							(good ? st::offerValueGood : st::offerValueBad)),
+						st::boxRowPadding + st::offerValuePadding
+					)->setTryMakeSimilarLines(true);
+				}
+			}
+		}
 	}));
 }
 
@@ -821,9 +861,14 @@ void ShowGiftSaleRejectBox(
 		});
 	};
 	controller->show(Ui::MakeConfirmBox({
-		.text = tr::lng_gift_offer_confirm_reject(),
+		.text = tr::lng_gift_offer_confirm_reject(
+			lt_user,
+			rpl::single(tr::bold(item->history()->peer->shortName())),
+			tr::marked),
 		.confirmed = std::move(callback),
 		.confirmText = tr::lng_action_gift_offer_decline(),
+		.confirmStyle = &st::attentionBoxButton,
+		.title = tr::lng_gift_offer_reject_title(),
 	}));
 }
 

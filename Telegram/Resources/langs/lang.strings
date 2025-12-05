@@ -3969,10 +3969,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_offer_duration" = "Offer Duration";
 "lng_gift_offer_duration_about" = "Choose how long {user} can accept your offer. When the time expires, the amount will be refunded.";
 "lng_gift_offer_cost_button" = "Offer {cost}";
-"lng_gift_offer_confirm_reject" = "Do you want to reject the offer?";
+"lng_gift_offer_reject_title" = "Reject Offer";
+"lng_gift_offer_confirm_reject" = "Are you sure you want to reject the offer from {user}?";
 "lng_gift_offer_confirm_accept" = "Do you want to sell {name} to {user} for {cost}?";
 "lng_gift_offer_you_get" = "You will receive {cost} after fees.";
-"lng_gift_offer_value_higher" = "{percent} higher";
+"lng_gift_offer_higher" = "The price you are offered is {percent} higher than the average price for {name}.";
+"lng_gift_offer_lower" = "The price you are offered is {percent} lower than the average price for {name}.";
 "lng_gift_offer_sell_for" = "Sell for {price}";
 "lng_gift_offer_confirm_title" = "Confirm Offer";
 "lng_gift_offer_confirm_text" = "Do you want to offer {cost} to {user} for {name}?";
