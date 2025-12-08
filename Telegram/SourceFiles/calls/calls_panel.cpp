@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "calls/calls_panel.h"
 
 #include "boxes/peers/replace_boost_box.h" // CreateUserpicsWithMoreBadge
+#include "calls/calls_panel_background.h"
 #include "data/data_photo.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
@@ -570,6 +571,13 @@ void Panel::reinitWithCall(Call *call) {
 
 	_user = _call->user();
 
+	_background = std::make_unique<PanelBackground>(
+		_user,
+		[=] {
+			updateTextColors();
+			widget()->update();
+		});
+
 	_call->confereceSupportedValue(
 	) | rpl::start_with_next([=](bool supported) {
 		_conferenceSupported = supported;
@@ -763,6 +771,7 @@ void Panel::reinitWithCall(Call *call) {
 
 	_name->setText(_user->name());
 	updateStatusText(_call->state());
+	updateTextColors();
 
 	_answerHangupRedial->raise();
 	_decline->raise();
@@ -1239,9 +1248,21 @@ void Panel::paint(QRect clip) {
 	if (!_incoming->widget()->isHidden()) {
 		region = region.subtracted(QRegion(_incoming->widget()->geometry()));
 	}
-	for (const auto &rect : region) {
-		p.fillRect(rect, st::callBgOpaque);
+
+	if (_background) {
+		_background->paint(
+			p,
+			widget()->size(),
+			_bodyTop,
+			_bodySt->photoTop,
+			_bodySt->photoSize,
+			region);
+	} else {
+		for (const auto &rect : region) {
+			p.fillRect(rect, st::callBgOpaque);
+		}
 	}
+
 	if (_incoming && _incoming->widget()->isHidden()) {
 		_call->videoIncoming()->markFrameShown();
 	}
@@ -1401,6 +1422,18 @@ void Panel::updateStatusText(State state) {
 	};
 	_status->setText(statusText());
 	updateStatusGeometry();
+}
+
+void Panel::updateTextColors() {
+	if (!_background) {
+		_name->setTextColorOverride(std::nullopt);
+		_status->setTextColorOverride(std::nullopt);
+		return;
+	}
+	_name->setTextColorOverride(
+		_background->textColorOverride(st::callName.textFg));
+	_status->setTextColorOverride(
+		_background->textColorOverride(st::callStatus.textFg));
 }
 
 void Panel::startDurationUpdateTimer(crl::time currentDuration) {
