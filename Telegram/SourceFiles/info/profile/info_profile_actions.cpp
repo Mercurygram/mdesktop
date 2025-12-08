@@ -2076,13 +2076,23 @@ void DetailsFiller::setupMainApp() {
 	});
 
 	const auto url = tr::lng_mini_apps_tos_url(tr::now);
-	Ui::AddDividerText(
+	const auto divider = Ui::AddDividerText(
 		_wrap,
-		tr::lng_profile_open_app_about(
-			lt_terms,
-			tr::lng_profile_open_app_terms() | Ui::Text::ToLink(url),
-			Ui::Text::WithEntities)
-	)->setClickHandlerFilter([=](const auto &...) {
+		rpl::combine(
+			tr::lng_profile_open_app_about(
+				lt_terms,
+				tr::lng_profile_open_app_terms() | Ui::Text::ToLink(url),
+				Ui::Text::WithEntities),
+			user->session().changes().peerFlagsValue(
+				user,
+				Data::PeerUpdate::Flag::VerifyInfo)
+		) | rpl::map([=](TextWithEntities text, auto) {
+			if (const auto verify = user->botVerifyDetails()) {
+				text = text.append(u"\n\n"_q).append(verify->description);
+			}
+			return text;
+		}));
+	divider->setClickHandlerFilter([=](const auto &...) {
 		UrlClickHandler::Open(url);
 		return false;
 	});

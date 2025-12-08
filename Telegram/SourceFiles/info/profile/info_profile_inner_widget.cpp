@@ -64,8 +64,16 @@ void AddAboutVerification(
 		}
 		if (!info) {
 			Ui::AddDivider(inner);
-		} else if (!info->description.empty()) {
-			Ui::AddDividerText(inner, rpl::single(info->description));
+		} else {
+			auto hasMainApp = false;
+			if (const auto user = peer->asUser()) {
+				if (user->botInfo) {
+					hasMainApp = user->botInfo->hasMainApp;
+				}
+			}
+			if (!hasMainApp && !info->description.empty()) {
+				Ui::AddDividerText(inner, rpl::single(info->description));
+			}
 		}
 		inner->resizeToWidth(inner->width());
 	}, inner->lifetime());
@@ -165,6 +173,9 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 	if (auto actions = SetupActions(_controller, result.data(), _peer)) {
 		addAboutVerificationOrDivider(result, rpl::duplicate(showNext));
 		result->add(std::move(actions));
+	}
+	if (!_aboutVerificationAdded) {
+		AddAboutVerification(result, _peer);
 	}
 	if (_peer->isChat() || _peer->isMegagroup()) {
 		if (!_peer->isMonoforum()) {
