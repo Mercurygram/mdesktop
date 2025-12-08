@@ -796,12 +796,14 @@ void ProxiesBox::setupTopButton() {
 			.handler = [=] { AddProxyFromClipboard(_controller, uiShow()); },
 			.icon = &st::menuIconImportTheme,
 		});
-		addAction({
-			.text = tr::lng_group_invite_context_delete_all(tr::now),
-			.handler = [=] { _controller->deleteItems(); },
-			.icon = &st::menuIconDeleteAttention,
-			.isAttention = true,
-		});
+		if (!_rows.empty()) {
+			addAction({
+				.text = tr::lng_group_invite_context_delete_all(tr::now),
+				.handler = [=] { _controller->deleteItems(); },
+				.icon = &st::menuIconDeleteAttention,
+				.isAttention = true,
+			});
+		}
 		(*menu)->popup(QCursor::pos());
 		return true;
 	});
