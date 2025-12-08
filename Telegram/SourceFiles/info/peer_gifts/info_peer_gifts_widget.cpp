@@ -994,7 +994,7 @@ void InnerWidget::showMenuForCollection(int id) {
 		editCollectionGifts(id);
 	}, &st::menuIconGiftPremium);
 	if (const auto username = _peer->username(); !username.isEmpty()) {
-		addAction(tr::lng_stories_album_share(tr::now), [=] {
+		addAction(tr::lng_gift_collection_share(tr::now), [=] {
 			shareCollectionLink(username, id);
 		}, &st::menuIconShare);
 	}
