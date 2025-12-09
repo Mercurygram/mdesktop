@@ -125,6 +125,7 @@ std::shared_ptr<float64> Scene::lastZ() const {
 }
 
 void Scene::updateZoom(float64 zoom) {
+	_canvas->updateZoom(zoom);
 	for (const auto &item : items()) {
 		if (item->type() >= ItemBase::Type) {
 			static_cast<ItemBase*>(item.get())->updateZoom(zoom);
