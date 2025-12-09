@@ -99,7 +99,8 @@ protected:
 			p.drawImage(
 				width()
 					- size.width()
-					- st::menuWithIcons.itemPadding.right(),
+					- st::menuWithIcons.itemPadding.right()
+					- st::popupMenuWithIcons.shadow.extend.right(),
 				(height() - size.height()) / 2,
 				_icon);
 		}
