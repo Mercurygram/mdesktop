@@ -159,6 +159,23 @@ bool MaybeDisabledEmoji::readyInDefaultState() {
 	return { Data::ReactionId{ like }, Data::ReactionId{ dislike } };
 }
 
+[[nodiscard]] std::vector<Data::ReactionId> CollectAvailableReactions(
+		not_null<Main::Session*> session) {
+	const auto &all = session->data().reactions().list(
+		Data::Reactions::Type::Active);
+	if (all.empty()) {
+		return DefaultSelected();
+	}
+	auto result = std::vector<Data::ReactionId>();
+	result.reserve(all.size());
+	for (const auto &reaction : all) {
+		if (!reaction.id.paid()) {
+			result.push_back(reaction.id);
+		}
+	}
+	return result;
+}
+
 [[nodiscard]] bool RemoveNonCustomEmojiFragment(
 		not_null<QTextDocument*> document,
 		UniqueCustomEmojiContext &context) {
@@ -447,7 +464,10 @@ object_ptr<Ui::RpWidget> AddReactionsSelector(
 			state->focusLifetime.destroy();
 			if (raw->empty()) {
 				raw->setTextWithTags(
-					ComposeEmojiList(reactions, DefaultSelected()));
+					ComposeEmojiList(
+						reactions,
+						CollectAvailableReactions(
+							&args.controller->session())));
 			}
 			raw->setDisabled(false);
 			raw->setFocusFast();
@@ -759,7 +779,12 @@ void EditAllowedReactionsBox(
 				tr::lng_manage_peer_reactions_limit(tr::now));
 		}
 	};
-	changed(selected.empty() ? DefaultSelected() : std::move(selected), {});
+	changed(
+		selected.empty()
+			? CollectAvailableReactions(
+				&args.navigation->parentController()->session())
+			: std::move(selected),
+		{});
 	Ui::AddSubsectionTitle(
 		reactions,
 		enabled
