@@ -4475,14 +4475,16 @@ void UpgradeBox(
 				? u"%1:%2:%3"_q
 				.arg(hours).arg(padded(minutes)).arg(padded(seconds))
 				: u"%2:%3"_q.arg(padded(minutes)).arg(padded(seconds));
-		}) | Ui::Text::ToWithEntities();
+		}) | rpl::map(tr::marked);
+		auto subtext = tr::lng_gift_upgrade_decreases(
+			lt_time,
+			std::move(tillNext),
+			tr::marked
+		) | rpl::type_erased;
 		Ui::SetButtonTwoLabels(
 			button,
 			costText(),
-			tr::lng_gift_upgrade_decreases(
-				lt_time,
-				std::move(tillNext),
-				Ui::Text::WithEntities),
+			showPrices ? std::move(subtext) : rpl::single(tr::marked()),
 			st::resaleButtonTitle,
 			st::resaleButtonSubtitle);
 		state->cost->tillNextValue() | rpl::filter([=](TimeId left) {
