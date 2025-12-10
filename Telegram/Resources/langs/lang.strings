@@ -4094,8 +4094,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_rounds_label" = "Rounds";
 "lng_auction_rounds_exact" = "Round {n}";
 "lng_auction_rounds_range" = "Rounds {n}-{last}";
-"lng_auction_rounds_seconds#one" = "{count} minute each";
-"lng_auction_rounds_seconds#other" = "{count} minutes each";
+"lng_auction_rounds_seconds#one" = "{count} second each";
+"lng_auction_rounds_seconds#other" = "{count} seconds each";
 "lng_auction_rounds_minutes#one" = "{count} minute each";
 "lng_auction_rounds_minutes#other" = "{count} minutes each";
 "lng_auction_rounds_hours#one" = "{count} hour each";
