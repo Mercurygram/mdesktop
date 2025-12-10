@@ -99,7 +99,7 @@ object_ptr<Ui::RpWidget> CreateGradientLabel(
 
 	std::move(
 		text
-	) | rpl::start_with_next([=](const QString &text) {
+	) | rpl::on_next([=](const QString &text) {
 		state->path = QPainterPath();
 		const auto &font = st::groupCallCountdownFont;
 		state->path.addText(0, font->ascent, font->f, text);
@@ -116,7 +116,7 @@ object_ptr<Ui::RpWidget> CreateGradientLabel(
 	}, raw->lifetime());
 
 	raw->paintRequest(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		auto p = QPainter(raw);
 		auto hq = PainterHighQualityEnabler(p);
 		const auto skip = st::groupCallWidth / 20;

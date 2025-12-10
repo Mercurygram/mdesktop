@@ -431,7 +431,7 @@ StarsRating::~StarsRating() = default;
 void StarsRating::init() {
 	_widget->setPointerCursor(true);
 
-	_widget->paintRequest() | rpl::start_with_next([=] {
+	_widget->paintRequest() | rpl::on_next([=] {
 		auto p = QPainter(_widget.get());
 		paint(p);
 	}, lifetime());
@@ -447,7 +447,7 @@ void StarsRating::init() {
 
 	_widget->resize(_widget->width(), st::level1.icon.height());
 
-	_value.value() | rpl::start_with_next([=](Counters rating) {
+	_value.value() | rpl::on_next([=](Counters rating) {
 		updateData(rating);
 	}, lifetime());
 }

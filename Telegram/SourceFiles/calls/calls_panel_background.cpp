@@ -34,7 +34,7 @@ PanelBackground::PanelBackground(
 		_peer,
 		Data::PeerUpdate::Flag::ColorProfile
 			| Data::PeerUpdate::Flag::EmojiStatus
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		updateColors();
 		_brushSize = QSize();
 		if (_updateCallback) {
@@ -46,7 +46,7 @@ PanelBackground::PanelBackground(
 		_peer,
 		Data::PeerUpdate::Flag::BackgroundEmoji
 			| Data::PeerUpdate::Flag::EmojiStatus
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		updateEmojiId();
 		if (_updateCallback) {
 			_updateCallback();

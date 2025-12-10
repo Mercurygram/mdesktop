@@ -105,7 +105,7 @@ namespace {
 		rpl::duplicate(palettes)
 	) | rpl::map([](const Qr::Data &code, const auto &) {
 		return TelegramQr(code, st::introQrPixel, st::introQrMaxSize);
-	}) | rpl::start_with_next([=](QImage &&image) {
+	}) | rpl::on_next([=](QImage &&image) {
 		state->previous = std::move(state->qr);
 		state->qr = std::move(image);
 		state->waiting.stop();
@@ -120,11 +120,11 @@ namespace {
 		palettes
 	) | rpl::map([] {
 		return TelegramLogoImage();
-	}) | rpl::start_with_next([=](QImage &&image) {
+	}) | rpl::on_next([=](QImage &&image) {
 		state->center = std::move(image);
 	}, result->lifetime());
 	result->paintRequest(
-	) | rpl::start_with_next([=](QRect clip) {
+	) | rpl::on_next([=](QRect clip) {
 		auto p = QPainter(result);
 		const auto has = !state->qr.isNull();
 		const auto shown = has ? state->shown.value(1.) : 0.;
@@ -200,13 +200,13 @@ QrWidget::QrWidget(
 	cancelNearestDcRequest();
 
 	account->mtpUpdates(
-	) | rpl::start_with_next([=](const MTPUpdates &updates) {
+	) | rpl::on_next([=](const MTPUpdates &updates) {
 		checkForTokenUpdate(updates);
 	}, lifetime());
 
 	setupControls();
 	account->mtp().mainDcIdValue(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		api().request(base::take(_requestId)).cancel();
 		refreshCode();
 	}, lifetime());
@@ -214,7 +214,7 @@ QrWidget::QrWidget(
 	account->appConfig().value(
 	) | rpl::filter([=] {
 		return !_passkey;
-	}) | rpl::start_with_next([=] {
+	}) | rpl::on_next([=] {
 		setupPasskeyLink();
 	}, lifetime());
 }
@@ -279,7 +279,7 @@ void QrWidget::setupControls() {
 	rpl::combine(
 		sizeValue(),
 		code->widthValue()
-	) | rpl::start_with_next([=](QSize size, int codeWidth) {
+	) | rpl::on_next([=](QSize size, int codeWidth) {
 		code->moveToLeft(
 			(size.width() - codeWidth) / 2,
 			contentTop() + st::introQrTop);
@@ -292,7 +292,7 @@ void QrWidget::setupControls() {
 	rpl::combine(
 		sizeValue(),
 		title->widthValue()
-	) | rpl::start_with_next([=](QSize size, int titleWidth) {
+	) | rpl::on_next([=](QSize size, int titleWidth) {
 		title->resizeToWidth(st::introQrTitleWidth);
 		const auto oneLine = st::introQrTitle.style.font->height;
 		const auto topDelta = (title->height() - oneLine);
@@ -322,7 +322,7 @@ void QrWidget::setupControls() {
 		rpl::combine(
 			number->widthValue(),
 			label->positionValue()
-		) | rpl::start_with_next([=](int width, QPoint position) {
+		) | rpl::on_next([=](int width, QPoint position) {
 			number->moveToLeft(
 				position.x() - width - st::normalFont->spacew,
 				position.y());
@@ -332,7 +332,7 @@ void QrWidget::setupControls() {
 	rpl::combine(
 		sizeValue(),
 		steps->widthValue()
-	) | rpl::start_with_next([=](QSize size, int stepsWidth) {
+	) | rpl::on_next([=](QSize size, int stepsWidth) {
 		steps->moveToLeft(
 			(size.width() - stepsWidth) / 2,
 			contentTop() + st::introQrStepsTop);
@@ -344,7 +344,7 @@ void QrWidget::setupControls() {
 	rpl::combine(
 		sizeValue(),
 		_skip->widthValue()
-	) | rpl::start_with_next([=](QSize size, int skipWidth) {
+	) | rpl::on_next([=](QSize size, int skipWidth) {
 		_skip->moveToLeft(
 			(size.width() - skipWidth) / 2,
 			contentTop() + st::introQrSkipTop);
@@ -367,7 +367,7 @@ void QrWidget::setupPasskeyLink() {
 	rpl::combine(
 		sizeValue(),
 		_passkey->widthValue()
-	) | rpl::start_with_next([=](QSize size, int passkeyWidth) {
+	) | rpl::on_next([=](QSize size, int passkeyWidth) {
 		_passkey->moveToLeft(
 			(size.width() - passkeyWidth) / 2,
 			(contentTop()

@@ -278,7 +278,7 @@ ClickHandlerPtr PremiumGift::createViewLink() {
 						return window->session().credits().tonLoaded();
 					}
 					return false;
-				}) | rpl::take(1) | rpl::start_with_next([=] {
+				}) | rpl::take(1) | rpl::on_next([=] {
 					if (const auto window = weak.get()) {
 						window->showSettings(Settings::CurrencyId());
 					}

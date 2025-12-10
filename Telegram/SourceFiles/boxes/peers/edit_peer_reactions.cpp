@@ -235,7 +235,7 @@ void SetupOnlyCustomEmojiField(
 	const auto state = field->lifetime().make_state<State>();
 
 	field->changes(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		state->pending = true;
 		if (state->processing) {
 			return;
@@ -420,7 +420,7 @@ object_ptr<Ui::RpWidget> AddReactionsSelector(
 	applyFromState();
 	std::move(
 		args.paid
-	) | rpl::start_with_next([=](bool paid) {
+	) | rpl::on_next([=](bool paid) {
 		const auto id = Data::ReactionId::Paid();
 		if (paid && !ranges::contains(state->reactions, id)) {
 			state->reactions.insert(begin(state->reactions), id);
@@ -440,7 +440,7 @@ object_ptr<Ui::RpWidget> AddReactionsSelector(
 	using SelectorState = ReactionsSelectorState;
 	std::move(
 		args.stateValue
-	) | rpl::start_with_next([=](SelectorState value) {
+	) | rpl::on_next([=](SelectorState value) {
 		switch (value) {
 		case SelectorState::Active:
 			state->overlay = nullptr;
@@ -455,10 +455,10 @@ object_ptr<Ui::RpWidget> AddReactionsSelector(
 		case SelectorState::Disabled:
 			state->overlay = std::make_unique<Ui::RpWidget>(parent);
 			state->overlay->show();
-			raw->geometryValue() | rpl::start_with_next([=](QRect rect) {
+			raw->geometryValue() | rpl::on_next([=](QRect rect) {
 				state->overlay->setGeometry(rect);
 			}, state->overlay->lifetime());
-			state->overlay->paintRequest() | rpl::start_with_next([=](QRect clip) {
+			state->overlay->paintRequest() | rpl::on_next([=](QRect clip) {
 				auto color = st::boxBg->c;
 				color.setAlphaF(0.5);
 				QPainter(state->overlay.get()).fillRect(
@@ -472,7 +472,7 @@ object_ptr<Ui::RpWidget> AddReactionsSelector(
 			}
 			raw->setDisabled(true);
 			raw->focusedChanges(
-			) | rpl::start_with_next([=](bool focused) {
+			) | rpl::on_next([=](bool focused) {
 				if (focused) {
 					raw->parentWidget()->setFocus();
 				}
@@ -503,7 +503,7 @@ object_ptr<Ui::RpWidget> AddReactionsSelector(
 		st::emojiPanMinHeight);
 	panel->hide();
 	panel->selector()->customEmojiChosen(
-	) | rpl::start_with_next([=](ChatHelpers::FileChosen data) {
+	) | rpl::on_next([=](ChatHelpers::FileChosen data) {
 		Data::InsertCustomEmoji(raw, data.document);
 	}, panel->lifetime());
 
@@ -540,7 +540,7 @@ object_ptr<Ui::RpWidget> AddReactionsSelector(
 		panel->toggleAnimated();
 	});
 
-	raw->geometryValue() | rpl::start_with_next([=](QRect geometry) {
+	raw->geometryValue() | rpl::on_next([=](QRect geometry) {
 		toggle->move(
 			geometry.x() + geometry.width() - toggle->width(),
 			geometry.y() + geometry.height() - toggle->height());
@@ -669,7 +669,7 @@ void EditAllowedReactionsBox(
 	if (enabled) {
 		enabled->toggleOn(rpl::single(optionInitial != Option::None));
 		enabled->toggledValue(
-		) | rpl::start_with_next([=](bool value) {
+		) | rpl::on_next([=](bool value) {
 			state->selectorState = value
 				? SelectorState::Active
 				: SelectorState::Disabled;
@@ -836,7 +836,7 @@ void EditAllowedReactionsBox(
 			left->sizeValue(),
 			center->sizeValue(),
 			right->sizeValue()
-		) | rpl::start_with_next([=](
+		) | rpl::on_next([=](
 				const QSize &s,
 				const QSize &leftSize,
 				const QSize &centerSize,
@@ -901,7 +901,7 @@ void EditAllowedReactionsBox(
 			st::manageGroupNoIconButton.button));
 		paid->toggleOn(state->paidEnabled.value());
 		paid->toggledValue(
-		) | rpl::start_with_next([=](bool value) {
+		) | rpl::on_next([=](bool value) {
 			state->paidEnabled = value;
 		}, paid->lifetime());
 		Ui::AddSkip(inner);

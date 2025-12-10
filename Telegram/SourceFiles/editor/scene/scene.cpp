@@ -33,7 +33,7 @@ Scene::Scene(const QRectF &rect)
 	_canvas->clearPixmap();
 
 	_canvas->grabContentRequests(
-	) | rpl::start_with_next([=](ItemCanvas::Content &&content) {
+	) | rpl::on_next([=](ItemCanvas::Content &&content) {
 		const auto item = std::make_shared<ItemLine>(
 			std::move(content.pixmap));
 		item->setPos(content.position);

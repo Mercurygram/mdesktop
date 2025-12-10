@@ -55,7 +55,7 @@ void SetupSavedMusic(
 	rpl::combine(
 		std::move(musicValue),
 		std::move(topBarColor)
-	) | rpl::start_with_next([=](
+	) | rpl::on_next([=](
 			HistoryItem *item,
 			std::optional<QColor> color) {
 		while (divider->entity()->count()) {

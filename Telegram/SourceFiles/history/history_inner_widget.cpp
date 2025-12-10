@@ -343,7 +343,7 @@ HistoryInner::HistoryInner(
 	Window::ChatThemeValueFromPeer(
 		controller,
 		_peer
-	) | rpl::start_with_next([=](std::shared_ptr<Ui::ChatTheme> &&theme) {
+	) | rpl::on_next([=](std::shared_ptr<Ui::ChatTheme> &&theme) {
 		_theme = std::move(theme);
 		controller->setChatStyleTheme(_theme);
 	}, lifetime());
@@ -355,7 +355,7 @@ HistoryInner::HistoryInner(
 
 	setMouseTracking(true);
 	_controller->gifPauseLevelChanged(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		if (!elementAnimationsPaused()) {
 			update();
 		}
@@ -366,32 +366,32 @@ HistoryInner::HistoryInner(
 	) | rpl::filter([=](const PlayRequest &request) {
 		return (request.item->history() == _history)
 			&& _controller->widget()->isActive();
-	}) | rpl::start_with_next([=](PlayRequest &&request) {
+	}) | rpl::on_next([=](PlayRequest &&request) {
 		if (const auto view = viewByItem(request.item)) {
 			_emojiInteractions->play(std::move(request), view);
 		}
 	}, lifetime());
 	_emojiInteractions->playStarted(
-	) | rpl::start_with_next([=](QString &&emoji) {
+	) | rpl::on_next([=](QString &&emoji) {
 		_controller->emojiInteractions().playStarted(_peer, std::move(emoji));
 	}, lifetime());
 
 	_reactionsManager->chosen(
-	) | rpl::start_with_next([=](ChosenReaction reaction) {
+	) | rpl::on_next([=](ChosenReaction reaction) {
 		_reactionsManager->updateButton({});
 		reactionChosen(reaction);
 	}, lifetime());
 
 	session().data().peerDecorationsUpdated(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		update();
 	}, lifetime());
 	session().data().itemRemoved(
-	) | rpl::start_with_next(
+	) | rpl::on_next(
 		[this](auto item) { itemRemoved(item); },
 		lifetime());
 	session().data().viewRemoved(
-	) | rpl::start_with_next(
+	) | rpl::on_next(
 		[this](auto view) { viewRemoved(view); },
 		lifetime());
 	rpl::merge(
@@ -399,22 +399,22 @@ HistoryInner::HistoryInner(
 		session().data().historyCleared()
 	) | rpl::filter([this](not_null<const History*> history) {
 		return (_history == history);
-	}) | rpl::start_with_next([this] {
+	}) | rpl::on_next([this] {
 		mouseActionCancel();
 	}, lifetime());
 	session().data().viewRepaintRequest(
-	) | rpl::start_with_next([this](not_null<const Element*> view) {
+	) | rpl::on_next([this](not_null<const Element*> view) {
 		repaintItem(view);
 	}, lifetime());
 	session().data().viewLayoutChanged(
 	) | rpl::filter([=](not_null<const Element*> view) {
 		return (view == viewByItem(view->data())) && view->isUnderCursor();
-	}) | rpl::start_with_next([=](not_null<const Element*> view) {
+	}) | rpl::on_next([=](not_null<const Element*> view) {
 		mouseActionUpdate();
 	}, lifetime());
 
 	session().data().itemDataChanges(
-	) | rpl::start_with_next([=](not_null<HistoryItem*> item) {
+	) | rpl::on_next([=](not_null<HistoryItem*> item) {
 		if (const auto view = viewByItem(item)) {
 			view->itemDataChanged();
 		}
@@ -424,7 +424,7 @@ HistoryInner::HistoryInner(
 		_history,
 		(Data::HistoryUpdate::Flag::OutboxRead
 			| Data::HistoryUpdate::Flag::TranslatedTo)
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		update();
 	}, lifetime());
 
@@ -433,7 +433,7 @@ HistoryInner::HistoryInner(
 		_reactionsItem.value());
 
 	Core::App().settings().cornerReactionValue(
-	) | rpl::start_with_next([=](bool value) {
+	) | rpl::on_next([=](bool value) {
 		_useCornerReaction = value;
 		if (!value) {
 			_reactionsManager->updateButton({});
@@ -441,12 +441,12 @@ HistoryInner::HistoryInner(
 	}, lifetime());
 
 	controller->adaptive().chatWideValue(
-	) | rpl::start_with_next([=](bool wide) {
+	) | rpl::on_next([=](bool wide) {
 		_isChatWide = wide;
 	}, lifetime());
 
 	_selectScroll.scrolls(
-	) | rpl::start_with_next([=](int d) {
+	) | rpl::on_next([=](int d) {
 		_scroll->scrollToY(_scroll->scrollTop() + d);
 	}, _scroll->lifetime());
 
@@ -526,7 +526,7 @@ void HistoryInner::setupSharingDisallowed() {
 		std::move(canDelete)
 	) | rpl::filter([=](bool disallowed, bool canDelete) {
 		return hasSelectRestriction() && !getSelectedItems().empty();
-	}) | rpl::start_with_next([=] {
+	}) | rpl::on_next([=] {
 		_widget->clearSelected();
 		if (_mouseAction == MouseAction::PrepareSelect) {
 			mouseActionCancel();
@@ -3079,7 +3079,7 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 					TextWithEntities{ tr::lng_sponsored_title(tr::now) },
 					&st::menuIconInfo);
 				item->clicks(
-				) | rpl::start_with_next([=] {
+				) | rpl::on_next([=] {
 					controller->show(Box(Ui::AboutSponsoredBox));
 				}, item->lifetime());
 				_menu->addAction(std::move(item));
@@ -4672,7 +4672,7 @@ void HistoryInner::refreshAboutView(bool force) {
 			_aboutView = std::make_unique<HistoryView::AboutView>(
 				_history,
 				_history->delegateMixin()->delegate());
-			_aboutView->refreshRequests() | rpl::start_with_next([=] {
+			_aboutView->refreshRequests() | rpl::on_next([=] {
 				updateBotInfo();
 			}, _aboutView->lifetime());
 			_aboutView->sendIntroSticker() | rpl::start_to_stream(

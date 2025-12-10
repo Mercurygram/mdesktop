@@ -46,12 +46,12 @@ MediaPreviewWidget::MediaPreviewWidget(
 , _emojiSize(Ui::Emoji::GetSizeLarge() / style::DevicePixelRatio()) {
 	setAttribute(Qt::WA_TransparentForMouseEvents);
 	_controller->session().downloaderTaskFinished(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		update();
 	}, lifetime());
 
 	style::PaletteChanged(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		if (_document && _document->emojiUsesTextColor()) {
 			_cache = QPixmap();
 		}
@@ -428,9 +428,9 @@ void MediaPreviewWidget::setupLottie() {
 		});
 	};
 
-	_lottie->updates() | rpl::start_with_next(handler, lifetime());
+	_lottie->updates() | rpl::on_next(handler, lifetime());
 	if (_effect) {
-		_effect->updates() | rpl::start_with_next(handler, lifetime());
+		_effect->updates() | rpl::on_next(handler, lifetime());
 	}
 }
 

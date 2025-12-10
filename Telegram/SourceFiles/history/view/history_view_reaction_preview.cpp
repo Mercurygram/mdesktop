@@ -132,7 +132,7 @@ bool ShowReactionPreview(
 	const auto backgroundRaw = state->background.get();
 	const auto labelRaw = state->label.get();
 
-	mainwidget->sizeValue() | rpl::start_with_next([=](QSize size) {
+	mainwidget->sizeValue() | rpl::on_next([=](QSize size) {
 		mediaPreviewRaw->setGeometry(Rect(size));
 		clickableRaw->setGeometry(Rect(size));
 		clickableRaw->raise();

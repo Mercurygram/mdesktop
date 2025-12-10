@@ -244,7 +244,7 @@ ProgressWidget::ProgressWidget(
 , _body(this)
 , _fileShowSkipTimer([=] { _skipFile->show(anim::type::normal); }) {
 	widthValue(
-	) | rpl::start_with_next([=](int width) {
+	) | rpl::on_next([=](int width) {
 		_body->resizeToWidth(width);
 		_body->moveToLeft(0, 0);
 	}, _body->lifetime());
@@ -270,7 +270,7 @@ ProgressWidget::ProgressWidget(
 
 	std::move(
 		content
-	) | rpl::start_with_next([=](Content &&content) {
+	) | rpl::on_next([=](Content &&content) {
 		updateState(std::move(content));
 	}, lifetime());
 
@@ -301,7 +301,7 @@ void ProgressWidget::setupBottomButton(not_null<Ui::RoundButton*> button) {
 	button->show();
 
 	sizeValue(
-	) | rpl::start_with_next([=](QSize size) {
+	) | rpl::on_next([=](QSize size) {
 		button->move(
 			(size.width() - button->width()) / 2,
 			(size.height() - st::exportCancelBottom - button->height()));

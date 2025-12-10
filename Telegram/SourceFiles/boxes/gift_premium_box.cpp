@@ -151,7 +151,7 @@ using Ui::TableRowTooltipData;
 	auto result = object_ptr<Ui::RpWidget>(parent);
 	const auto raw = result.data();
 
-	raw->paintRequest() | rpl::start_with_next([=] {
+	raw->paintRequest() | rpl::on_next([=] {
 		auto p = QPainter(raw);
 		const auto &icon = st::giveawayGiftCodeLinkCopy;
 		const auto left = (raw->width() - icon.width()) / 2;
@@ -640,7 +640,7 @@ void GiftCodeBox(
 		box->closeBox();
 	});
 	box->widthValue(
-	) | rpl::start_with_next([=](int width) {
+	) | rpl::on_next([=](int width) {
 		close->moveToRight(0, 0);
 	}, box->lifetime());
 
@@ -727,7 +727,7 @@ void GiftCodePendingBox(
 			spoiler->update();
 		})->start();
 		linkLabel->sizeValue(
-		) | rpl::start_with_next([=](const QSize &s) {
+		) | rpl::on_next([=](const QSize &s) {
 			spoiler->setGeometry(Rect(s));
 		}, spoiler->lifetime());
 		const auto spoilerCached = Ui::SpoilerMessCached(
@@ -735,7 +735,7 @@ void GiftCodePendingBox(
 			st::giveawayGiftCodeLink.textFg->c);
 		const auto textHeight = st::giveawayGiftCodeLink.style.font->height;
 		spoiler->paintRequest(
-		) | rpl::start_with_next([=] {
+		) | rpl::on_next([=] {
 			auto p = QPainter(spoiler);
 			const auto rect = spoiler->rect();
 			const auto r = rect
@@ -769,7 +769,7 @@ void GiftCodePendingBox(
 	const auto closeCallback = [=] { box->closeBox(); };
 	close->setClickedCallback(closeCallback);
 	box->widthValue(
-	) | rpl::start_with_next([=](int width) {
+	) | rpl::on_next([=](int width) {
 		close->moveToRight(0, 0);
 	}, box->lifetime());
 
@@ -862,7 +862,7 @@ void GiveawayInfoBox(
 				std::move(label),
 				QMargins(0, skip, 0, skip)),
 			style::al_justify);
-		result->paintRequest() | rpl::start_with_next([=] {
+		result->paintRequest() | rpl::on_next([=] {
 			auto p = QPainter(result);
 			p.setPen(Qt::NoPen);
 			p.setBrush(st::boxDividerBg);
@@ -1059,7 +1059,7 @@ void GiveawayInfoBox(
 		const auto bg = wrap->lifetime().make_state<Ui::RoundRect>(
 			st::boxRadius,
 			st::attentionBoxButton.textBgOver);
-		wrap->paintRequest() | rpl::start_with_next([=] {
+		wrap->paintRequest() | rpl::on_next([=] {
 			auto p = QPainter(wrap);
 			bg->paint(p, wrap->rect());
 		}, wrap->lifetime());
@@ -1141,7 +1141,7 @@ struct AddedUniqueDetails {
 	const auto icon = Ui::CreateChild<Ui::IconButton>(
 		raw,
 		st::giveawayGiftMessageRemove);
-	raw->widthValue() | rpl::start_with_next([=](int outer) {
+	raw->widthValue() | rpl::on_next([=](int outer) {
 		label->resizeToWidth(outer - icon->width());
 		const auto height = std::max(label->height(), icon->height());
 

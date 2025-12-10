@@ -107,7 +107,7 @@ void AddPremiumStar(
 	auto star = PremiumStar();
 	badge->resize(star.size() / style::DevicePixelRatio());
 	badge->paintRequest(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		auto p = QPainter(badge);
 		p.drawImage(0, 0, star);
 	}, badge->lifetime());
@@ -115,7 +115,7 @@ void AddPremiumStar(
 	rpl::combine(
 		button->sizeValue(),
 		std::move(label)
-	) | rpl::start_with_next([=](const QSize &s, const QString &) {
+	) | rpl::on_next([=](const QSize &s, const QString &) {
 		if (s.isNull()) {
 			return;
 		}
@@ -273,7 +273,7 @@ void AddPremiumPrivacyButton(
 		state->widget.paintRequest(
 		) | rpl::filter([=]() -> bool {
 			return state->widget.x();
-		}) | rpl::start_with_next([=] {
+		}) | rpl::on_next([=] {
 			auto p = QPainter(&state->widget);
 			st::settingsPremiumLock.paint(p, 0, 0, state->widget.width());
 		}, state->widget.lifetime());
@@ -283,7 +283,7 @@ void AddPremiumPrivacyButton(
 			std::move(label),
 			PrivacyString(session, key),
 			Data::AmPremiumValue(session)
-		) | rpl::start_with_next([=, &st](
+		) | rpl::on_next([=, &st](
 				const QSize &buttonSize,
 				const QString &button,
 				const QString &text,
@@ -347,7 +347,7 @@ void AddPremiumPrivacyButton(
 			key
 		) | rpl::take(
 			1
-		) | rpl::start_with_next([=](const Privacy::Rule &value) {
+		) | rpl::on_next([=](const Privacy::Rule &value) {
 			controller->show(Box<EditPrivacyBox>(
 				controller,
 				controllerFactory(),
@@ -615,7 +615,7 @@ void SetupPasskeys(
 		if (count == 0) {
 			controller->show(Box([=](not_null<Ui::GenericBox*> box) {
 				PasskeysNoneBox(box, session);
-				box->boxClosing() | rpl::start_with_next([=] {
+				box->boxClosing() | rpl::on_next([=] {
 					if (session->passkeys().list().size()) {
 						controller->showSettings(PasskeysId());
 					}
@@ -708,7 +708,7 @@ void SetupTopPeers(
 	}))->toggledChanges(
 	) | rpl::filter([=](bool enabled) {
 		return enabled == session->topPeers().disabled();
-	}) | rpl::start_with_next([=](bool enabled) {
+	}) | rpl::on_next([=](bool enabled) {
 		session->topPeers().toggleDisabled(!enabled);
 	}, container->lifetime());
 
@@ -727,7 +727,7 @@ void SetupSelfDestruction(
 
 	std::move(
 		updateTrigger
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		session->api().selfDestruct().reload();
 	}, container->lifetime());
 	const auto label = [&] {
@@ -874,7 +874,7 @@ void SetupBlockedList(
 	});
 	std::move(
 		updateTrigger
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		session->api().blockedPeers().reload();
 	}, blockedPeers->lifetime());
 }
@@ -886,7 +886,7 @@ void SetupWebsitesList(
 		Fn<void(Type)> showOther) {
 	std::move(
 		updateTrigger
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		controller->session().api().websites().reload();
 	}, container->lifetime());
 
@@ -924,7 +924,7 @@ void SetupSessionsList(
 		Fn<void(Type)> showOther) {
 	std::move(
 		updateTrigger
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		controller->session().api().authorizations().reload();
 	}, container->lifetime());
 
@@ -970,7 +970,7 @@ void SetupGlobalTTLList(
 	});
 	std::move(
 		updateTrigger
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		session->api().selfDestruct().reload();
 	}, container->lifetime());
 }
@@ -1032,7 +1032,7 @@ void SetupSensitiveContent(
 
 	std::move(
 		updateTrigger
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		session->api().sensitiveContent().reload();
 	}, container->lifetime());
 	inner->add(object_ptr<Button>(
@@ -1045,7 +1045,7 @@ void SetupSensitiveContent(
 	))->toggledChanges(
 	) | rpl::filter([=](bool toggled) {
 		return toggled != session->api().sensitiveContent().enabledCurrent();
-	}) | rpl::start_with_next([=](bool toggled) {
+	}) | rpl::on_next([=](bool toggled) {
 		if (toggled && session->appConfig().ageVerifyNeeded()) {
 			disable->fire({});
 
@@ -1095,12 +1095,12 @@ object_ptr<Ui::BoxContent> EditCloudPasswordBox(not_null<Main::Session*> session
 	rpl::merge(
 		box->newPasswordSet() | rpl::to_empty,
 		box->passwordReloadNeeded()
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		session->api().cloudPassword().reload();
 	}, box->lifetime());
 
 	box->clearUnconfirmedPassword(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		session->api().cloudPassword().clearUnconfirmedPassword();
 	}, box->lifetime());
 
@@ -1123,12 +1123,12 @@ void RemoveCloudPassword(not_null<Window::SessionController*> controller) {
 	rpl::merge(
 		box->newPasswordSet() | rpl::to_empty,
 		box->passwordReloadNeeded()
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		session->api().cloudPassword().reload();
 	}, box->lifetime());
 
 	box->clearUnconfirmedPassword(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		session->api().cloudPassword().clearUnconfirmedPassword();
 	}, box->lifetime());
 
@@ -1168,7 +1168,7 @@ not_null<Ui::SettingsButton*> AddPrivacyButton(
 			key
 		) | rpl::take(
 			1
-		) | rpl::start_with_next([=](const Privacy::Rule &value) {
+		) | rpl::on_next([=](const Privacy::Rule &value) {
 			controller->show(Box<EditPrivacyBox>(
 				controller,
 				controllerFactory(),
@@ -1205,7 +1205,7 @@ void SetupArchiveAndMute(
 	)->toggledChanges(
 	) | rpl::filter([=](bool toggled) {
 		return toggled != privacy->archiveAndMuteCurrent();
-	}) | rpl::start_with_next([=](bool toggled) {
+	}) | rpl::on_next([=](bool toggled) {
 		privacy->updateArchiveAndMute(toggled);
 	}, container->lifetime());
 

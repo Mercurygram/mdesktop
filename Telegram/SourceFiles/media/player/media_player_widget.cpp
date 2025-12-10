@@ -79,7 +79,7 @@ Widget::Widget(
 		[=](bool lastNonDefault) { return speedLookup(lastNonDefault); },
 		[=](float64 speed) { saveSpeed(speed); })) {
 	_speedController->realtimeValue(
-	) | rpl::start_with_next([=](float64 speed) {
+	) | rpl::on_next([=](float64 speed) {
 		_speedToggle->setSpeed(speed);
 	}, _speedToggle->lifetime());
 	_speedToggle->finishAnimating();
@@ -127,12 +127,12 @@ Widget::Widget(
 		mixer()->setSongVolume(volume);
 	});
 	Core::App().settings().songVolumeChanges(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		updateVolumeToggleIcon();
 	}, lifetime());
 
 	Core::App().settings().playerRepeatModeValue(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		updateRepeatToggleIcon();
 	}, lifetime());
 
@@ -150,14 +150,14 @@ Widget::Widget(
 	});
 
 	_speedController->saved(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		instance()->updateVoicePlaybackSpeed();
 	}, lifetime());
 
 	instance()->trackChanged(
 	) | rpl::filter([=](AudioMsgId::Type type) {
 		return (type == _type);
-	}) | rpl::start_with_next([=](AudioMsgId::Type type) {
+	}) | rpl::on_next([=](AudioMsgId::Type type) {
 		handleSongChange();
 		updateControlsVisibility();
 		updateLabelsGeometry();
@@ -166,7 +166,7 @@ Widget::Widget(
 	instance()->tracksFinished(
 	) | rpl::filter([=](AudioMsgId::Type type) {
 		return (type == AudioMsgId::Type::Voice);
-	}) | rpl::start_with_next([=](AudioMsgId::Type type) {
+	}) | rpl::on_next([=](AudioMsgId::Type type) {
 		_voiceIsActive = false;
 		const auto currentSong = instance()->current(AudioMsgId::Type::Song);
 		const auto songState = instance()->getState(AudioMsgId::Type::Song);
@@ -176,7 +176,7 @@ Widget::Widget(
 	}, lifetime());
 
 	instance()->updatedNotifier(
-	) | rpl::start_with_next([=](const TrackState &state) {
+	) | rpl::on_next([=](const TrackState &state) {
 		handleSongUpdate(state);
 	}, lifetime());
 
@@ -188,7 +188,7 @@ Widget::Widget(
 	}));
 	_volumeToggle->installEventFilter(_volume.get());
 	_volume->events(
-	) | rpl::start_with_next([=](not_null<QEvent*> e) {
+	) | rpl::on_next([=](not_null<QEvent*> e) {
 		if (e->type() == QEvent::Enter) {
 			markOver(true);
 		} else if (e->type() == QEvent::Leave) {
@@ -207,7 +207,7 @@ void Widget::hidePlaylistOn(not_null<Ui::RpWidget*> widget) {
 	widget->events(
 	) | rpl::filter([=](not_null<QEvent*> e) {
 		return (e->type() == QEvent::Enter);
-	}) | rpl::start_with_next([=] {
+	}) | rpl::on_next([=] {
 		updateOverLabelsState(false);
 	}, widget->lifetime());
 }
@@ -215,7 +215,7 @@ void Widget::hidePlaylistOn(not_null<Ui::RpWidget*> widget) {
 void Widget::setupRightControls() {
 	const auto raw = rightControls();
 	raw->paintRequest(
-	) | rpl::start_with_next([=](QRect clip) {
+	) | rpl::on_next([=](QRect clip) {
 		auto p = QPainter(raw);
 		const auto &icon = st::mediaPlayerControlsFade;
 		const auto fade = QRect(0, 0, icon.width(), raw->height());
@@ -600,7 +600,7 @@ void Widget::setType(AudioMsgId::Type type) {
 		updateOverLabelsState(_labelsOver);
 		_playlistChangesLifetime = instance()->playlistChanges(
 			_type
-		) | rpl::start_with_next([=] {
+		) | rpl::on_next([=] {
 			handlePlaylistUpdate();
 		});
 		// maybe the type change causes a change of the button layout

@@ -89,7 +89,7 @@ void PasskeysNoneBox(
 			st::settingLocalPasscodeIconPadding);
 		const auto animate = std::move(icon.animate);
 		box->addRow(std::move(icon.widget), style::al_top);
-		box->showFinishes() | rpl::take(1) | rpl::start_with_next([=] {
+		box->showFinishes() | rpl::take(1) | rpl::on_next([=] {
 			animate(anim::repeat::once);
 		}, content->lifetime());
 	}
@@ -138,13 +138,13 @@ void PasskeysNoneBox(
 			const auto left = Ui::CreateChild<Ui::RpWidget>(
 				box->verticalLayout().get());
 			left->paintRequest(
-			) | rpl::start_with_next([=] {
+			) | rpl::on_next([=] {
 				auto p = Painter(left);
 				icon.paint(p, 0, 0, left->width());
 			}, left->lifetime());
 			left->resize(icon.size());
 			top->geometryValue(
-			) | rpl::start_with_next([=](const QRect &g) {
+			) | rpl::on_next([=](const QRect &g) {
 				left->moveToLeft(
 					iconLeft,
 					g.top() + st::channelEarnHistoryThreeSkip);
@@ -283,7 +283,7 @@ void Passkeys::setupContent(
 					QPoint(menu->width(), menu->height()));
 				popup->popup(menuGlobal);
 			});
-			button->widthValue() | rpl::start_with_next([=](int width) {
+			button->widthValue() | rpl::on_next([=](int width) {
 				menu->moveToRight(0, (st.height - menu->height()) / 2, width);
 			}, button->lifetime());
 			const auto iconSize = st::settingsIconPasskeys.width();
@@ -376,7 +376,7 @@ void Passkeys::setupContent(
 	buttonWrap->finishAnimating();
 
 	session->passkeys().requestList(
-	) | rpl::start_with_next(rebuild, content->lifetime());
+	) | rpl::on_next(rebuild, content->lifetime());
 	rebuild();
 
 	Ui::AddSkip(content);

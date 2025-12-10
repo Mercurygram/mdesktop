@@ -4774,7 +4774,7 @@ void HistoryItem::createServiceFromMtp(const MTPDmessageService &message) {
 			call->lifetime.destroy();
 
 			const auto users = data.vusers().v;
-			std::move(hasLink) | rpl::start_with_next([=](bool has) {
+			std::move(hasLink) | rpl::on_next([=](bool has) {
 				updateServiceText(
 					prepareInvitedToCallText(
 						ParseInvitedToCallUsers(this, users),
@@ -7291,7 +7291,7 @@ PreparedServiceText HistoryItem::prepareCallScheduledText(
 	if (nextIn) {
 		call->lifetime = base::timer_once(
 			(nextIn + 2) * crl::time(1000)
-		) | rpl::start_with_next([=] {
+		) | rpl::on_next([=] {
 			updateServiceText(prepareCallScheduledText(scheduleDate));
 		});
 	}

@@ -150,7 +150,7 @@ void AddApproximateUsd(
 		}
 		return base::EventFilterResult::Continue;
 	});
-	usd->widthValue() | rpl::start_with_next(move, usd->lifetime());
+	usd->widthValue() | rpl::on_next(move, usd->lifetime());
 }
 
 not_null<Ui::NumberInput*> AddStarsInputField(
@@ -171,7 +171,7 @@ not_null<Ui::NumberInput*> AddStarsInputField(
 		result,
 		Ui::Earn::IconCreditsEmoji());
 
-	wrap->widthValue() | rpl::start_with_next([=](int width) {
+	wrap->widthValue() | rpl::on_next([=](int width) {
 		icon->move(st::starsFieldIconPosition);
 		result->move(0, 0);
 		result->resize(width, result->height());
@@ -197,7 +197,7 @@ not_null<Ui::InputField*> AddTonInputField(
 		result,
 		Ui::Earn::IconCurrencyEmoji());
 
-	wrap->widthValue() | rpl::start_with_next([=](int width) {
+	wrap->widthValue() | rpl::on_next([=](int width) {
 		icon->move(st::tonFieldIconPosition);
 		result->move(0, 0);
 		result->resize(width, result->height());
@@ -346,7 +346,7 @@ StarsTonPriceInput AddStarsTonPriceInput(
 		}
 	});
 	tonField->changes(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		if (state->ton.current()) {
 			updatePrice();
 			updateStarsFromTon();
@@ -354,7 +354,7 @@ StarsTonPriceInput AddStarsTonPriceInput(
 	}, tonField->lifetime());
 
 	state->ton.changes(
-	) | rpl::start_with_next(updatePrice, container->lifetime());
+	) | rpl::on_next(updatePrice, container->lifetime());
 	if (state->ton.current()) {
 		updateStarsFromTon();
 	} else {
@@ -494,7 +494,7 @@ void ChooseSuggestPriceBox(
 	buttons->resize(buttons->width(), height);
 
 	buttons->setMouseTracking(true);
-	buttons->events() | rpl::start_with_next([=](not_null<QEvent*> e) {
+	buttons->events() | rpl::on_next([=](not_null<QEvent*> e) {
 		const auto type = e->type();
 		switch (type) {
 		case QEvent::MouseMove: {
@@ -534,7 +534,7 @@ void ChooseSuggestPriceBox(
 		}
 	}, buttons->lifetime());
 
-	buttons->paintRequest() | rpl::start_with_next([=] {
+	buttons->paintRequest() | rpl::on_next([=] {
 		auto p = QPainter(buttons);
 		auto hq = PainterHighQualityEnabler(p);
 		const auto padding = st::giftBoxTabPadding;
@@ -770,7 +770,7 @@ void ChooseSuggestPriceBox(
 		credits->balanceValue()
 	) | rpl::filter([=] {
 		return state->savePending;
-	}) | rpl::start_with_next([=] {
+	}) | rpl::on_next([=] {
 		state->savePending = false;
 		if (const auto onstack = state->save) {
 			onstack();
@@ -779,7 +779,7 @@ void ChooseSuggestPriceBox(
 
 	std::move(
 		priceInput.submits
-	) | rpl::start_with_next(state->save, box->lifetime());
+	) | rpl::on_next(state->save, box->lifetime());
 
 	auto helper = Ui::Text::CustomEmojiHelper();
 	const auto button = box->addButton(rpl::single(QString()), state->save);
@@ -815,7 +815,7 @@ void ChooseSuggestPriceBox(
 		- rect::m::sum::h(st::suggestPriceBox.buttonPadding);
 	button->widthValue() | rpl::filter([=] {
 		return (button->widthNoMargins() != buttonWidth);
-	}) | rpl::start_with_next([=] {
+	}) | rpl::on_next([=] {
 		button->resizeToWidth(buttonWidth);
 	}, button->lifetime());
 
@@ -828,7 +828,7 @@ void ChooseSuggestPriceBox(
 			container,
 			st::boxTitleClose);
 		close->setClickedCallback([=] { box->closeBox(); });
-		container->widthValue() | rpl::start_with_next([=](int) {
+		container->widthValue() | rpl::on_next([=](int) {
 			close->moveToRight(0, 0);
 		}, close->lifetime());
 
@@ -845,7 +845,7 @@ void ChooseSuggestPriceBox(
 		rpl::combine(
 			balance->sizeValue(),
 			container->sizeValue()
-		) | rpl::start_with_next([=](const QSize &, const QSize &) {
+		) | rpl::on_next([=](const QSize &, const QSize &) {
 			balance->moveToLeft(
 				st::creditsHistoryRightSkip * 2,
 				st::creditsHistoryRightSkip);
@@ -944,7 +944,7 @@ void InsufficientTonBox(
 		- rect::m::sum::h(st::suggestPriceBox.buttonPadding);
 	button->widthValue() | rpl::filter([=] {
 		return (button->widthNoMargins() != buttonWidth);
-	}) | rpl::start_with_next([=] {
+	}) | rpl::on_next([=] {
 		button->resizeToWidth(buttonWidth);
 	}, button->lifetime());
 }

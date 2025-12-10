@@ -79,14 +79,14 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 		}
 		return PlaybackStatus::Playing;
 	}) | rpl::distinct_until_changed(
-	) | rpl::start_with_next([=](PlaybackStatus status) {
+	) | rpl::on_next([=](PlaybackStatus status) {
 		_controls->setPlaybackStatus(status);
 	}, _lifetime);
 
 	rpl::merge(
 		mediaPlayer->stops(type) | rpl::map_to(false),
 		mediaPlayer->startsPlay(type) | rpl::map_to(true)
-	) | rpl::distinct_until_changed() | rpl::start_with_next([=](bool audio) {
+	) | rpl::distinct_until_changed() | rpl::on_next([=](bool audio) {
 		_controls->setEnabled(audio);
 		if (audio) {
 			_controls->setIsNextEnabled(mediaPlayer->nextAvailable(type));
@@ -122,7 +122,7 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 	rpl::merge(
 		std::move(trackChanged),
 		std::move(unlocked)
-	) | rpl::start_with_next([=](AudioMsgId::Type audioType) {
+	) | rpl::on_next([=](AudioMsgId::Type audioType) {
 		_lifetimeDownload.destroy();
 
 		const auto current = mediaPlayer->current(audioType);
@@ -171,7 +171,7 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 				_controls->setThumbnail(imagePtr->original());
 			} else {
 				document->session().downloaderTaskFinished(
-				) | rpl::start_with_next([=] {
+				) | rpl::on_next([=] {
 					if (const auto imagePtr = view->thumbnail()) {
 						_controls->setThumbnail(imagePtr->original());
 						_lifetimeDownload.destroy();
@@ -188,7 +188,7 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 
 	mediaPlayer->playlistChanges(
 		type
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		_controls->setIsNextEnabled(mediaPlayer->nextAvailable(type));
 		_controls->setIsPreviousEnabled(mediaPlayer->previousAvailable(type));
 	}, _lifetime);
@@ -197,12 +197,12 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 	using Media::OrderMode;
 
 	Core::App().settings().playerRepeatModeValue(
-	) | rpl::start_with_next([=](RepeatMode mode) {
+	) | rpl::on_next([=](RepeatMode mode) {
 		_controls->setLoopStatus(RepeatModeToLoopStatus(mode));
 	}, _lifetime);
 
 	Core::App().settings().playerOrderModeValue(
-	) | rpl::start_with_next([=](OrderMode mode) {
+	) | rpl::on_next([=](OrderMode mode) {
 		if (mode != OrderMode::Shuffle) {
 			_lastOrderMode = mode;
 		}
@@ -210,7 +210,7 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 	}, _lifetime);
 
 	_controls->commandRequests(
-	) | rpl::start_with_next([=](Command command) {
+	) | rpl::on_next([=](Command command) {
 		switch (command) {
 		case Command::PlayPause: mediaPlayer->playPause(type); break;
 		case Command::Play: mediaPlayer->play(type); break;
@@ -257,18 +257,18 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 		}) | rpl::map([=] {
 			return mediaPlayer->getState(type).position;
 		}) | rpl::distinct_until_changed(
-		) | rpl::start_with_next([=](int position) {
+		) | rpl::on_next([=](int position) {
 			_controls->setPosition(position);
 			_controls->updateDisplay();
 		}, _lifetime);
 
 		_controls->seekRequests(
-		) | rpl::start_with_next([=](float64 progress) {
+		) | rpl::on_next([=](float64 progress) {
 			mediaPlayer->finishSeeking(type, progress);
 		}, _lifetime);
 
 		_controls->updatePositionRequests(
-		) | rpl::start_with_next([=] {
+		) | rpl::on_next([=] {
 			_controls->setPosition(mediaPlayer->getState(type).position);
 		}, _lifetime);
 	}
@@ -276,7 +276,7 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 	Core::App().passcodeLockValue(
 	) | rpl::filter([=](bool locked) {
 		return locked && Core::App().maybePrimarySession();
-	}) | rpl::start_with_next([=] {
+	}) | rpl::on_next([=] {
 		_controls->setEnabled(false);
 	}, _lifetime);
 
@@ -285,12 +285,12 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 			Core::App().settings().songVolume()
 		) | rpl::then(
 			Core::App().settings().songVolumeChanges()
-		) | rpl::start_with_next([=](float64 volume) {
+		) | rpl::on_next([=](float64 volume) {
 			_controls->setVolume(volume);
 		}, _lifetime);
 
 		_controls->volumeChangeRequests(
-		) | rpl::start_with_next([](float64 volume) {
+		) | rpl::on_next([](float64 volume) {
 			Player::mixer()->setSongVolume(volume);
 			if (volume > 0) {
 				Core::App().settings().setRememberedSongVolume(volume);

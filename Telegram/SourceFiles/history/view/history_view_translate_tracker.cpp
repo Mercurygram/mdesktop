@@ -67,7 +67,7 @@ void TranslateTracker::setup() {
 		Data::AmPremiumValue(&_history->session()),
 		std::move(autoTranslationValue),
 		_1 && (_2 || _3));
-	_trackingLanguage.value() | rpl::start_with_next([=](bool tracking) {
+	_trackingLanguage.value() | rpl::on_next([=](bool tracking) {
 		_trackingLifetime.destroy();
 		if (tracking) {
 			recognizeCollected();
@@ -354,7 +354,7 @@ void TranslateTracker::recognizeCollected() {
 
 void TranslateTracker::trackSkipLanguages() {
 	Core::App().settings().skipTranslationLanguagesValue(
-	) | rpl::start_with_next([=](const std::vector<LanguageId> &skip) {
+	) | rpl::on_next([=](const std::vector<LanguageId> &skip) {
 		checkRecognized(skip);
 	}, _trackingLifetime);
 }
