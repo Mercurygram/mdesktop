@@ -8852,6 +8852,10 @@ void HistoryWidget::editMessage(
 void HistoryWidget::fillSenderUserpicMenu(
 		not_null<Ui::PopupMenu*> menu,
 		not_null<PeerData*> peer) {
+	if (!_peer || _peer->isUser()) {
+		// No need to offer View Profile / Send Message in private chat.
+		return;
+	}
 	const auto inGroup = _peer && (_peer->isChat() || _peer->isMegagroup());
 	Window::FillSenderUserpicMenu(
 		controller(),
