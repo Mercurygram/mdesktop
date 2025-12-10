@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_global_privacy.h"
 #include "api/api_websites.h"
 #include "data/components/passkeys.h"
+#include "platform/platform_webauthn.h"
 #include "settings/cloud_password/settings_cloud_password_email_confirm.h"
 #include "settings/cloud_password/settings_cloud_password_input.h"
 #include "settings/cloud_password/settings_cloud_password_login_email.h"
@@ -583,6 +584,10 @@ void SetupPasskeys(
 	if (!session->passkeys().possible()) {
 		return;
 	}
+	const auto wrap = container->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			container,
+			object_ptr<Ui::VerticalLayout>(container)));
 	auto label = rpl::combine(
 		tr::lng_profile_loading(),
 		(rpl::single(rpl::empty_value())
@@ -597,7 +602,7 @@ void SetupPasskeys(
 			: tr::lng_settings_cloud_password_off(tr::now);
 	});
 	AddButtonWithLabel(
-		container,
+		wrap->entity(),
 		tr::lng_settings_passkeys_title(),
 		std::move(label),
 		st::settingsButton,
@@ -620,6 +625,13 @@ void SetupPasskeys(
 			controller->showSettings(PasskeysId());
 		}
 	});
+	wrap->toggleOn(
+		(rpl::single(rpl::empty_value())
+			| rpl::then(session->passkeys().requestList())) | rpl::map([=] {
+			return Platform::WebAuthn::IsSupported()
+				|| !session->passkeys().list().empty();
+		}));
+	wrap->finishAnimating();
 }
 
 void SetupLoginEmail(
