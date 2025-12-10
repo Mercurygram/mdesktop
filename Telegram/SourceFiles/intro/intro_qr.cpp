@@ -211,7 +211,12 @@ QrWidget::QrWidget(
 		refreshCode();
 	}, lifetime());
 
-	_passkeyPossible = account->appConfig().settingsDisplayPasskeys();
+	account->appConfig().value(
+	) | rpl::filter([=] {
+		return !_passkey;
+	}) | rpl::start_with_next([=] {
+		setupPasskeyLink();
+	}, lifetime());
 }
 
 QString QrWidget::accessibilityName() {
@@ -336,42 +341,51 @@ void QrWidget::setupControls() {
 	_skip = Ui::CreateChild<Ui::LinkButton>(
 		this,
 		tr::lng_intro_qr_phone(tr::now));
-	if (Platform::WebAuthn::IsSupported() && _passkeyPossible) {
-		_passkey = Ui::CreateChild<Ui::LinkButton>(
-			this,
-			tr::lng_intro_qr_passkey(tr::now));
-	}
 	rpl::combine(
 		sizeValue(),
-		_skip->widthValue(),
-		_passkey ? _passkey->widthValue() : rpl::single(0)
-	) | rpl::start_with_next([=](
-			QSize size,
-			int skipWidth,
-			int passkeyWidth) {
+		_skip->widthValue()
+	) | rpl::start_with_next([=](QSize size, int skipWidth) {
 		_skip->moveToLeft(
 			(size.width() - skipWidth) / 2,
 			contentTop() + st::introQrSkipTop);
-		if (_passkey) {
-			_passkey->moveToLeft(
-				(size.width() - passkeyWidth) / 2,
-				contentTop()
-					+ st::introQrSkipTop + 1.5 * st::normalFont->height);
-		}
 	}, _skip->lifetime());
 
 	_skip->setClickedCallback([=] { submit(); });
-	if (_passkey) {
-		_passkey->setClickedCallback([=] {
+}
+
+void QrWidget::setupPasskeyLink() {
+	Expects(!_passkey);
+
+	if (!account().appConfig().settingsDisplayPasskeys()
+		|| !Platform::WebAuthn::IsSupported()) {
+		return;
+	}
+	_passkey = Ui::CreateChild<Ui::LinkButton>(
+		this,
+		tr::lng_intro_qr_passkey(tr::now));
+	_passkey->show();
+	rpl::combine(
+		sizeValue(),
+		_passkey->widthValue()
+	) | rpl::start_with_next([=](QSize size, int passkeyWidth) {
+		_passkey->moveToLeft(
+			(size.width() - passkeyWidth) / 2,
+			(contentTop()
+				+ st::introQrSkipTop
+				+ 1.5 * st::normalFont->height));
+	}, _passkey->lifetime());
+
+	_passkey->setClickedCallback([=] {
 		const auto initialDc = api().instance().mainDcId();
 		::Data::InitPasskeyLogin(api(), [=](
-				const ::Data::Passkey::LoginData &loginData) {
+			const ::Data::Passkey::LoginData &loginData) {
 			Platform::WebAuthn::Login(loginData, [=](
 					Platform::WebAuthn::LoginResult result) {
 				if (result.userHandle.isEmpty()) {
 					using Error = Platform::WebAuthn::Error;
 					if (result.error == Error::UnsignedBuild) {
-						showError(tr::lng_settings_passkeys_unsigned_error());
+						showError(
+							tr::lng_settings_passkeys_unsigned_error());
 					}
 					return;
 				}
@@ -387,10 +401,9 @@ void QrWidget::setupControls() {
 							showError(rpl::single(error));
 						}
 					});
-				});
 			});
 		});
-	}
+	});
 }
 
 void QrWidget::refreshCode() {
