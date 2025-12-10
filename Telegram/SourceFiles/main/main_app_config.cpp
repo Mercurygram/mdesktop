@@ -39,6 +39,7 @@ void AppConfig::start() {
 	_account->mtpMainSessionValue(
 	) | rpl::start_with_next([=](not_null<MTP::Instance*> instance) {
 		_api.emplace(instance);
+		_requestId = 0;
 		refresh();
 
 		_frozenTrackLifetime = instance->frozenErrorReceived(
