@@ -243,7 +243,10 @@ void MediaPreviewWidget::startShow() {
 				Window::GifPauseReason::MediaPreview);
 		}
 		_hiding = false;
-		_a_shown.start([=] { update(); }, 0., 1., st::stickerPreviewDuration);
+		const auto duration = _customDuration
+			? _customDuration
+			: st::stickerPreviewDuration;
+		_a_shown.start([=] { update(); }, 0., 1., duration);
 	} else {
 		update();
 	}
@@ -257,7 +260,10 @@ void MediaPreviewWidget::hidePreview() {
 		_cache = currentImage();
 	}
 	_hiding = true;
-	_a_shown.start([=] { update(); }, 1., 0., st::stickerPreviewDuration);
+	const auto duration = _customDuration
+		? _customDuration
+		: st::stickerPreviewDuration;
+	_a_shown.start([=] { update(); }, 1., 0., duration);
 	_photo = nullptr;
 	_photoMedia = nullptr;
 	_document = nullptr;
@@ -307,6 +313,10 @@ void MediaPreviewWidget::setBackgroundMargins(const QMargins &margins) {
 void MediaPreviewWidget::setCustomRadius(int radius) {
 	_customRadius = radius;
 	update();
+}
+
+void MediaPreviewWidget::setCustomDuration(crl::time duration) {
+	_customDuration = duration;
 }
 
 QSize MediaPreviewWidget::currentDimensions() const {
