@@ -1273,7 +1273,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_passkeys_created" = "Created {date}";
 "lng_settings_passkeys_last_used" = "Last used {date}";
 "lng_settings_passkeys_unsigned_error" = "Passkeys are not available in unsigned builds. Please use an official signed version of Telegram Desktop.";
-
+"lng_settings_passkey_unknown" = "Passkey";
 
 "lng_settings_quick_dialog_action_title" = "Chat list quick action";
 "lng_settings_quick_dialog_action_about" = "Choose the action you want to perform when you middle-click or swipe left in the chat list.";

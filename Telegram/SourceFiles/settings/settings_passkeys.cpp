@@ -317,17 +317,24 @@ void Passkeys::setupContent(
 					lt_date,
 					formatDateTime(passkey.date));
 			const auto nameText = button->lifetime().make_state<
-				Ui::Text::String>(*nameStyle, passkey.name);
+				Ui::Text::String>(
+					*nameStyle,
+					passkey.name.isEmpty()
+						? tr::lng_settings_passkey_unknown(tr::now)
+						: passkey.name);
 			const auto dateText = button->lifetime().make_state<
 				Ui::Text::String>(st::defaultTextStyle, date);
 			button->paintOn([=](QPainter &p) {
+				const auto iconTop = (st.height - iconSize) / 2;
 				if (emojiPtr) {
-					const auto emojiY = (st.height - iconSize) / 2;
 					emojiPtr->paint(p, {
 						.textColor = st.nameFg->c,
 						.now = crl::now(),
-						.position = QPoint(iconLeft, emojiY),
+						.position = QPoint(iconLeft, iconTop),
 					});
+				} else {
+					const auto w = button->width();
+					st::settingsIconPasskeys.paint(p, iconLeft, iconTop, w);
 				}
 				const auto textLeft = st::settingsButton.padding.left();
 				const auto textWidth = button->width() - textLeft
