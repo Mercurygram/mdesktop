@@ -26,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/history_view_service_message.h"
 #include "history/view/history_view_cursor_state.h"
 #include "history/view/history_view_context_menu.h"
+#include "history/view/history_view_reaction_preview.h"
 #include "history/view/history_view_quick_action.h"
 #include "history/view/history_view_emoji_interactions.h"
 #include "history/history_item_components.h"
@@ -2372,6 +2373,11 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 				_controller,
 				_whoReactedMenuLifetime);
 			e->accept();
+			return;
+		} else if (HistoryView::ShowReactionPreview(
+				_controller,
+				leaderOrSelf->fullId(),
+				clickedReaction)) {
 			return;
 		}
 	}

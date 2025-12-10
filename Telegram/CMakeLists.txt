@@ -924,6 +924,8 @@ PRIVATE
     history/view/history_view_pinned_tracker.h
     history/view/history_view_quick_action.cpp
     history/view/history_view_quick_action.h
+    history/view/history_view_reaction_preview.cpp
+    history/view/history_view_reaction_preview.h
     history/view/history_view_reply.cpp
     history/view/history_view_reply.h
     history/view/history_view_requests_bar.cpp
