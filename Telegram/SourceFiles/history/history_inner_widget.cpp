@@ -509,7 +509,7 @@ void HistoryInner::setupSharingDisallowed() {
 		: Data::PeerFlagValue(
 			channel,
 			ChannelDataFlag::NoForwards
-		) | rpl::type_erased();
+		) | rpl::type_erased;
 
 	auto rights = chat
 		? chat->adminRightsValue()

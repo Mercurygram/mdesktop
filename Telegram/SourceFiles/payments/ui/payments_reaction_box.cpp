@@ -547,10 +547,10 @@ void PaidReactionsBox(
 			colorings,
 			(videoStreamAdmin
 				? rpl::single(state->chosen.current())
-				: state->chosen.value() | rpl::type_erased()),
+				: state->chosen.value() | rpl::type_erased),
 			(videoStreamAdmin
 				? rpl::single(state->shownPeer.current())
-				: state->shownPeer.value() | rpl::type_erased()),
+				: state->shownPeer.value() | rpl::type_erased),
 			[=](uint64 barePeerId) {
 				state->shownPeer = state->savedShownPeer = barePeerId;
 			},

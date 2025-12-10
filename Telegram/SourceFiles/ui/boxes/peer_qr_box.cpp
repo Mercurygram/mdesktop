@@ -457,7 +457,7 @@ void FillPeerQrBox(
 
 	const auto usernameValue = [=] {
 		return (customLink || !peer)
-			? (rpl::single(QString()) | rpl::type_erased())
+			? (rpl::single(QString()) | rpl::type_erased)
 			: Info::Profile::UsernameValue(peer, true) | rpl::map(
 				[](const auto &username) { return username.text; });
 	};
@@ -467,7 +467,7 @@ void FillPeerQrBox(
 			: peer
 			? Info::Profile::LinkValue(peer, true) | rpl::map(
 				[](const auto &link) { return link.text; })
-			: (rpl::single(QString()) | rpl::type_erased());
+			: (rpl::single(QString()) | rpl::type_erased);
 	};
 
 	const auto userpic = Ui::CreateChild<Ui::RpWidget>(box);

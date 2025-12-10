@@ -265,7 +265,7 @@ ChatWidget::ChatWidget(
 				session().scheduledMessages().updates(_topic->owningHistory())
 			) | rpl::map([=] {
 				return session().scheduledMessages().hasFor(_topic);
-			}) | rpl::type_erased()
+			}) | rpl::type_erased
 			: rpl::single(false),
 	}))
 , _translateBar(
@@ -756,7 +756,7 @@ void ChatWidget::setupComposeControls() {
 		Data::CanSendAnythingValue(_peer),
 		(_repliesRootId
 			? std::move(topicWriteRestrictions)
-			: (rpl::single(Data::SendError()) | rpl::type_erased()))
+			: (rpl::single(Data::SendError()) | rpl::type_erased))
 	) | rpl::map([=](
 			const Main::FreezeInfo &info,
 			auto,

@@ -239,9 +239,9 @@ void AboutRatingBox(
 		? tr::lng_stars_rating_about(
 			lt_name,
 			rpl::single(TextWithEntities{ name }),
-			Text::RichLangValue) | rpl::type_erased()
+			Text::RichLangValue) | rpl::type_erased
 		: tr::lng_stars_rating_about_your(
-			Text::RichLangValue) | rpl::type_erased();
+			Text::RichLangValue) | rpl::type_erased;
 
 	if (data.level < 0) {
 		auto text = (data.stars < 0)

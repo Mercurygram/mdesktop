@@ -459,7 +459,7 @@ void AddTable(
 					? tr::lng_gift_link_reason_giveaway
 					: tr::lng_gift_link_reason_unclaimed)(
 						Ui::Text::WithEntities
-					) | rpl::type_erased())
+					) | rpl::type_erased)
 				: tr::lng_gift_link_reason_chosen(Ui::Text::WithEntities)));
 		reason->setClickHandlerFilter([=](const auto &...) {
 			if (const auto window = show->resolveWindow()) {

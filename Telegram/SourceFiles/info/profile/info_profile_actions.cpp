@@ -2174,7 +2174,7 @@ void DetailsFiller::addReportReaction(
 			Info::Profile::IsContactValue(user),
 			forceHidden->value(),
 			!rpl::mappers::_1 && !rpl::mappers::_2
-		) | rpl::type_erased()
+		) | rpl::type_erased
 		: (forceHidden->value() | rpl::map(!rpl::mappers::_1));
 	const auto sent = [=] {
 		*forceHidden = true;

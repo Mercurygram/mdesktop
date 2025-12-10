@@ -3406,7 +3406,7 @@ void SessionController::cacheChatThemeDone(
 			rpl::merge(
 				session().downloaderTaskFinished(),
 				((giftSymbol && !giftSymbol->ready())
-					? (_giftSymbolLoaded.events() | rpl::type_erased())
+					? (_giftSymbolLoaded.events() | rpl::type_erased)
 					: rpl::never<rpl::empty_value>())
 			) | rpl::filter([=] {
 				const auto i = _customChatThemes.find(key);

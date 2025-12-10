@@ -932,7 +932,7 @@ void ReplyArea::show(
 					.text = tr::lng_video_stream_comments_disabled(tr::now),
 					.type = WriteRestrictionType::Rights,
 				};
-		}) | rpl::type_erased()
+		}) | rpl::type_erased
 		: Data::CanSendAnythingValue(
 			peer
 		) | rpl::map([=](bool can) {

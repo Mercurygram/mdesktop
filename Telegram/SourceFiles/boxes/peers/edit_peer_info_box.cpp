@@ -1069,13 +1069,13 @@ void Controller::fillDiscussionLinkButton() {
 		? _discussionLinkUpdates.events(
 		) | rpl::map([](ChannelData *chat) {
 			return chat ? chat->name() : QString();
-		}) | rpl::type_erased()
+		}) | rpl::type_erased
 		: rpl::combine(
 			tr::lng_manage_discussion_group_add(),
 			_discussionLinkUpdates.events()
 		) | rpl::map([=](const QString &add, ChannelData *chat) {
 			return chat ? chat->name() : add;
-		}) | rpl::type_erased();
+		}) | rpl::type_erased;
 	AddButtonWithText(
 		_controls.buttonsLayout,
 		std::move(text),

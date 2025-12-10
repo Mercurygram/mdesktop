@@ -319,12 +319,12 @@ void TopBar::initControls() {
 			_call->mutedValue() | rpl::map(mapToState),
 			rpl::single(GroupCall::InstanceState::Connected),
 			rpl::single(TimeId(0))
-		) | rpl::type_erased()
+		) | rpl::type_erased
 		: rpl::combine(
 			(_groupCall->mutedValue()
 				| MapPushToTalkToActive()
 				| rpl::distinct_until_changed()
-				| rpl::type_erased()),
+				| rpl::type_erased),
 			rpl::single(
 				_groupCall->instanceState()
 			) | rpl::then(_groupCall->instanceStateValue() | rpl::filter(
@@ -584,7 +584,7 @@ void TopBar::subscribeToMembersChanges(not_null<GroupCall*> call) {
 	const auto group = _groupCall.get();
 	const auto conference = group && group->conference();
 	auto realValue = conference
-		? (rpl::single(group->sharedCall().get()) | rpl::type_erased())
+		? (rpl::single(group->sharedCall().get()) | rpl::type_erased)
 		: peer->session().changes().peerFlagsValue(
 			peer,
 			Data::PeerUpdate::Flag::GroupCall

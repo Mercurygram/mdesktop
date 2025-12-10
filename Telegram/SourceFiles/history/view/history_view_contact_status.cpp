@@ -640,7 +640,7 @@ void ContactStatus::setupState(not_null<PeerData*> peer, bool showInForum) {
 		PeerCustomStatus(peer),
 		((channel && !showInForum)
 			? Data::PeerFlagValue(channel, ChannelData::Flag::Forum)
-			: (rpl::single(false) | rpl::type_erased()))
+			: (rpl::single(false) | rpl::type_erased))
 	) | rpl::start_with_next([=](
 			State state,
 			TextWithEntities status,
@@ -1111,9 +1111,9 @@ TopicReopenBar::TopicReopenBar(
 void TopicReopenBar::setupState() {
 	const auto channel = _topic->channel();
 	auto canToggle = !channel
-		? (rpl::single(false) | rpl::type_erased())
+		? (rpl::single(false) | rpl::type_erased)
 		: (_topic->my() || channel->amCreator())
-		? (rpl::single(true) | rpl::type_erased())
+		? (rpl::single(true) | rpl::type_erased)
 		: channel->adminRightsValue(
 		) | rpl::map([=] { return _topic->canToggleClosed(); });
 

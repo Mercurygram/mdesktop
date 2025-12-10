@@ -234,7 +234,7 @@ struct State {
 				tr::now,
 				lt_left,
 				TimeLeftText(left));
-		}) | rpl::type_erased();
+		}) | rpl::type_erased;
 	}) | rpl::flatten_latest();
 
 	auto result = object_ptr<Ui::RoundButton>(

@@ -458,7 +458,7 @@ TabbedSelector::TabbedSelector(
 	rpl::merge(
 		(hasStickersTab()
 			? stickers()->scrollUpdated() | rpl::map_to(0)
-			: rpl::never<int>() | rpl::type_erased()),
+			: rpl::never<int>() | rpl::type_erased),
 		_scroll->scrollTopChanges()
 	) | rpl::start_with_next([=] {
 		handleScroll();
@@ -709,7 +709,7 @@ rpl::producer<FileChosen> TabbedSelector::customEmojiChosen() const {
 
 rpl::producer<FileChosen> TabbedSelector::fileChosen() const {
 	auto never = rpl::never<FileChosen>(
-	) | rpl::type_erased();
+	) | rpl::type_erased;
 	return rpl::merge(
 		hasStickersTab() ? stickers()->chosen() : never,
 		hasGifsTab() ? gifs()->fileChosen() : never,

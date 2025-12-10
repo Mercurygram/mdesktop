@@ -380,11 +380,11 @@ rpl::producer<bool> CanManageGroupCallValue(not_null<PeerData*> peer) {
 		return rpl::single(user->isSelf());
 	} else if (const auto chat = peer->asChat()) {
 		return chat->amCreator()
-			? (rpl::single(true) | rpl::type_erased())
+			? (rpl::single(true) | rpl::type_erased)
 			: AdminRightValue(chat, flag);
 	} else if (const auto channel = peer->asChannel()) {
 		return channel->amCreator()
-			? (rpl::single(true) | rpl::type_erased())
+			? (rpl::single(true) | rpl::type_erased)
 			: AdminRightValue(channel, flag);
 	}
 	return rpl::single(false);

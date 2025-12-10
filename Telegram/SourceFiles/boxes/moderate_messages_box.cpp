@@ -386,7 +386,7 @@ void CreateModerateMessagesBox(
 				rpl::conditional(
 					(ownedWrap
 						? ownedWrap->toggledValue()
-						: rpl::single(false) | rpl::type_erased()),
+						: rpl::single(false) | rpl::type_erased),
 					tr::lng_restrict_user(
 						lt_count,
 						rpl::single(participants.size()) | tr::to_count()),
@@ -627,7 +627,7 @@ void DeleteChatBox(not_null<Ui::GenericBox*> box, not_null<PeerData*> peer) {
 				? tr::lng_profile_delete_conversation() | Ui::Text::ToBold()
 				: rpl::single(
 					userpicPeer->name()
-				) | Ui::Text::ToBold() | rpl::type_erased(),
+				) | Ui::Text::ToBold() | rpl::type_erased,
 			box->getDelegate()->style().title));
 
 	Ui::AddSkip(container);

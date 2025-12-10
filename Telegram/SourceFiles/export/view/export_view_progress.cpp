@@ -289,7 +289,7 @@ rpl::producer<uint64> ProgressWidget::skipFileClicks() const {
 rpl::producer<> ProgressWidget::cancelClicks() const {
 	return _cancel
 		? (_cancel->clicks() | rpl::to_empty)
-		: (rpl::never<>() | rpl::type_erased());
+		: (rpl::never<>() | rpl::type_erased);
 }
 
 rpl::producer<> ProgressWidget::doneClicks() const {

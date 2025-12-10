@@ -869,7 +869,7 @@ base::weak_qptr<Ui::RpWidget> Credits::createPinnedToTop(
 			st::infoTopBarScale);
 		_back->setDuration(0);
 		_back->toggleOn(isLayer
-			? _backToggles.value() | rpl::type_erased()
+			? _backToggles.value() | rpl::type_erased
 			: rpl::single(true));
 		_back->entity()->addClickHandler([=] {
 			_showBack.fire({});

@@ -4763,7 +4763,7 @@ void HistoryItem::createServiceFromMtp(const MTPDmessageService &message) {
 			: (*has)
 			? PeerHasThisCallValue(
 				peer,
-				id) | rpl::skip(1) | rpl::type_erased()
+				id) | rpl::skip(1) | rpl::type_erased
 			: rpl::producer<bool>();
 		if (!hasLink) {
 			RemoveComponents(HistoryServiceOngoingCall::Bit());

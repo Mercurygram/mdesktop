@@ -1010,7 +1010,7 @@ rpl::producer<bool> ChannelData::unrestrictedByBoostsValue() const {
 	return mgInfo
 		? mgInfo->unrestrictedByBoostsChanges.events_starting_with(
 			unrestrictedByBoosts())
-		: (rpl::single(false) | rpl::type_erased());
+		: (rpl::single(false) | rpl::type_erased);
 }
 
 void ChannelData::setBoostsUnrestrict(int applied, int unrestrict) {

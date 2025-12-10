@@ -1151,7 +1151,7 @@ rpl::producer<not_null<DocumentData*>> GiftStickerValue(
 		packs.load();
 		if (const auto result = packs.lookup(months)) {
 			return result->sticker()
-				? (rpl::single(not_null(result)) | rpl::type_erased())
+				? (rpl::single(not_null(result)) | rpl::type_erased)
 				: rpl::never<not_null<DocumentData*>>();
 		}
 		return packs.updated(
@@ -1161,9 +1161,9 @@ rpl::producer<not_null<DocumentData*>> GiftStickerValue(
 			return document && document->sticker();
 		}) | rpl::take(1) | rpl::map([=](DocumentData *document) {
 			return not_null(document);
-		}) | rpl::type_erased();
+		}) | rpl::type_erased;
 	}, [&](GiftTypeStars data) {
-		return rpl::single(data.info.document) | rpl::type_erased();
+		return rpl::single(data.info.document) | rpl::type_erased;
 	});
 }
 

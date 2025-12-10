@@ -169,7 +169,7 @@ void AddExpandablePeerList(
 							(u"(%1) "_q).arg(it->second)
 						}.append(richName);
 				})
-				: std::move(name) | rpl::type_erased(),
+				: std::move(name) | rpl::type_erased,
 				st::defaultBoxCheckbox,
 				std::make_unique<Ui::CheckView>(
 					st::defaultCheck,

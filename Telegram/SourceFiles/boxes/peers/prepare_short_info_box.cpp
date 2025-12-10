@@ -556,7 +556,7 @@ PreparedShortInfoUserpic PrepareShortInfoFallbackUserpic(
 			1,
 			1,
 			1))
-		: (rpl::never<UserPhotosSlice>() | rpl::type_erased());
+		: (rpl::never<UserPhotosSlice>() | rpl::type_erased);
 	auto process = [=](not_null<UserpicState*> state) {
 		if (photoId) {
 			ProcessFullPhoto(peer, state, peer->owner().photo(*photoId));

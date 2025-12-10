@@ -238,7 +238,7 @@ void ShareBox::prepareCommentField() {
 		_comment->heightValue(),
 		(_bottomWidget
 			? _bottomWidget->heightValue()
-			: (rpl::single(0) | rpl::type_erased()))
+			: (rpl::single(0) | rpl::type_erased))
 	) | rpl::start_with_next([=](int height, int comment, int bottom) {
 		_comment->moveToLeft(0, height - bottom - comment);
 		if (_bottomWidget) {
@@ -323,7 +323,7 @@ void ShareBox::prepare() {
 		_comment->heightValue(),
 		(_bottomWidget
 			? _bottomWidget->heightValue()
-			: rpl::single(0) | rpl::type_erased())
+			: rpl::single(0) | rpl::type_erased)
 	) | rpl::start_with_next([=] {
 		updateScrollSkips();
 	}, _comment->lifetime());

@@ -1343,7 +1343,7 @@ void PanelController::processVerificationNeeded(
 					return field->verification.call != nullptr;
 				}) | rpl::map([=](not_null<const Value*> field) {
 					return field->verification.call->getText();
-				})) : (rpl::single(QString()) | rpl::type_erased()),
+				})) : (rpl::single(QString()) | rpl::type_erased),
 
 				rpl::duplicate(
 					update

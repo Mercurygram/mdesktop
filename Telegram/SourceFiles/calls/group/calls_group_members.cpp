@@ -1587,7 +1587,7 @@ void Members::Controller::addMuteActionsToContextMenu(
 		|| (muteState == Row::State::RaisedHand);
 	const auto mutedByMe = row->mutedByMe();
 
-	auto mutesFromVolume = rpl::never<bool>() | rpl::type_erased();
+	auto mutesFromVolume = rpl::never<bool>() | rpl::type_erased;
 
 	const auto addVolumeItem = (!muted || isMe(participantPeer));
 	if (addVolumeItem) {
@@ -1825,24 +1825,24 @@ void Members::setupAddMember(not_null<GroupCall*> call) {
 	const auto conference = call->conference();
 	const auto canAddByPeer = [=](not_null<PeerData*> peer) {
 		if (conference) {
-			return rpl::single(true) | rpl::type_erased();
+			return rpl::single(true) | rpl::type_erased;
 		} else if (peer->isBroadcast()) {
-			return rpl::single(false) | rpl::type_erased();
+			return rpl::single(false) | rpl::type_erased;
 		}
 		return rpl::combine(
 			Data::CanSendValue(peer, ChatRestriction::SendOther, false),
 			_call->joinAsValue()
 		) | rpl::map([=](bool can, not_null<PeerData*> joinAs) {
 			return can && joinAs->isSelf();
-		}) | rpl::type_erased();
+		}) | rpl::type_erased;
 	};
 	const auto canInviteByLinkByPeer = [=](not_null<PeerData*> peer) {
 		if (conference) {
-			return rpl::single(true) | rpl::type_erased();
+			return rpl::single(true) | rpl::type_erased;
 		}
 		const auto channel = peer->asChannel();
 		if (!channel) {
-			return rpl::single(false) | rpl::type_erased();
+			return rpl::single(false) | rpl::type_erased;
 		}
 		return rpl::single(
 			false
@@ -1851,7 +1851,7 @@ void Members::setupAddMember(not_null<GroupCall*> call) {
 			return Data::PeerFlagValue(
 				channel,
 				ChannelDataFlag::Username);
-		}) | rpl::flatten_latest()) | rpl::type_erased();
+		}) | rpl::flatten_latest()) | rpl::type_erased;
 	};
 	_canAddMembers = canAddByPeer(peer);
 	_canInviteByLink = canInviteByLinkByPeer(peer);

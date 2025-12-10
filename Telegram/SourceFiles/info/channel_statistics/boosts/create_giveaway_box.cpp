@@ -307,7 +307,7 @@ void CreateGiveawayBox(
 		return rpl::combine(
 			state->typeValue.value(),
 			state->toAwardAmountChanged.events_starting_with(
-				rpl::empty_value()) | rpl::type_erased()
+				rpl::empty_value()) | rpl::type_erased
 		) | rpl::map([=](GiveawayType type, auto) {
 			return (type == GiveawayType::Credits) || !isSpecificUsers();
 		});
@@ -323,7 +323,7 @@ void CreateGiveawayBox(
 			tr::lng_giveaway_award()),
 		rpl::conditional(
 			isPrepaidCredits
-				? rpl::single(true) | rpl::type_erased()
+				? rpl::single(true) | rpl::type_erased
 				: state->typeValue.value() | rpl::map(
 					rpl::mappers::_1 == GiveawayType::Credits),
 			(peer->isMegagroup()
@@ -1144,20 +1144,20 @@ void CreateGiveawayBox(
 		Ui::AddSkip(additionalWrap);
 
 		auto monthsValue = prepaid
-			? (rpl::single(prepaid->months) | rpl::type_erased())
+			? (rpl::single(prepaid->months) | rpl::type_erased)
 			: state->chosenMonths.value();
 		const auto usersCountByType = [=](GiveawayType type) {
 			if (!isSpecificUsers()) {
-				return state->sliderValue.value() | rpl::type_erased();
+				return state->sliderValue.value() | rpl::type_erased;
 			}
 			return state->toAwardAmountChanged.events_starting_with_copy(
 				rpl::empty
 			) | rpl::map([=] {
 				return int(state->selectedToAward.size());
-			}) | rpl::type_erased();
+			}) | rpl::type_erased;
 		};
 		auto usersCountValue = prepaid
-			? (rpl::single(prepaid->quantity) | rpl::type_erased())
+			? (rpl::single(prepaid->quantity) | rpl::type_erased)
 			: state->typeValue.value(
 			) | rpl::map(usersCountByType) | rpl::flatten_latest();
 
@@ -1354,7 +1354,7 @@ void CreateGiveawayBox(
 				tr::lng_giveaway_start(),
 				tr::lng_giveaway_award()),
 			(prepaid && prepaid->boosts)
-				? rpl::single(prepaid->boosts) | rpl::type_erased()
+				? rpl::single(prepaid->boosts) | rpl::type_erased
 				: rpl::conditional(
 					state->typeValue.value(
 					) | rpl::map(rpl::mappers::_1 == GiveawayType::Credits),

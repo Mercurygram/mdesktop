@@ -496,7 +496,7 @@ void Controller::setupPhotoButtons() {
 		})) | rpl::map([=](const QString &text) {
 			return text.isEmpty() ? Ui::kQEllipsis : text;
 		})
-		: rpl::single(_user->shortName()) | rpl::type_erased();
+		: rpl::single(_user->shortName()) | rpl::type_erased;
 	const auto inner = _box->verticalLayout();
 	Ui::AddSkip(inner);
 

@@ -308,7 +308,7 @@ void ScheduledWidget::setupComposeControls() {
 					.type = Controls::WriteRestrictionType::Rights,
 					.boostsToLift = text.boostsToLift,
 				} : Controls::WriteRestriction();
-			}) | rpl::type_erased();
+			}) | rpl::type_erased;
 		}()
 		: [&] {
 			return rpl::combine(
@@ -342,7 +342,7 @@ void ScheduledWidget::setupComposeControls() {
 					.type = Controls::WriteRestrictionType::Rights,
 					.boostsToLift = text.boostsToLift,
 				} : Controls::WriteRestriction();
-			}) | rpl::type_erased();
+			}) | rpl::type_erased;
 		}();
 	_composeControls->setHistory({
 		.history = _history.get(),

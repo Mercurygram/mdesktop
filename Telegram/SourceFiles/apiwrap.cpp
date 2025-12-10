@@ -4776,7 +4776,7 @@ rpl::producer<bool> ApiWrap::contactSignupSilent() const {
 	return _contactSignupSilent
 		? _contactSignupSilentChanges.events_starting_with_copy(
 			*_contactSignupSilent)
-		: (_contactSignupSilentChanges.events() | rpl::type_erased());
+		: (_contactSignupSilentChanges.events() | rpl::type_erased);
 }
 
 std::optional<bool> ApiWrap::contactSignupSilentCurrent() const {

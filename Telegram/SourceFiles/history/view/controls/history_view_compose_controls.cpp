@@ -4317,7 +4317,7 @@ rpl::producer<bool> SendDisabledBySlowmode(not_null<PeerData*> peer) {
 	using namespace rpl::mappers;
 	const auto channel = peer->asChannel();
 	return (!channel || channel->amCreator())
-		? (rpl::single(false) | rpl::type_erased())
+		? (rpl::single(false) | rpl::type_erased)
 		: rpl::combine(
 			channel->slowmodeAppliedValue(),
 			std::move(hasSendingMessage),

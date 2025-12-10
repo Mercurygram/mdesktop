@@ -3639,12 +3639,12 @@ void InnerWidget::trackResultsHistory(not_null<History*> history) {
 			1
 		) | rpl::filter([=](const UserData::Flags::Change &change) {
 			return change.diff & UserDataFlag::Forum;
-		}) | rpl::to_empty | rpl::type_erased()
+		}) | rpl::to_empty | rpl::type_erased
 		: peer->asChannel()->flagsValue() | rpl::skip(
 			1
 		) | rpl::filter([=](const ChannelData::Flags::Change &change) {
 			return (change.diff & ChannelDataFlag::Forum);
-		}) | rpl::to_empty | rpl::type_erased();
+		}) | rpl::to_empty | rpl::type_erased;
 	std::move(changes) | rpl::start_with_next([=] {
 		for (const auto &row : _searchResults) {
 			if (row->item()->history()->peer == peer) {

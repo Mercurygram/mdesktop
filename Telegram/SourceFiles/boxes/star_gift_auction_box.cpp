@@ -996,7 +996,7 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 	const auto preview = (now.startDate > base::unixtime::now());
 	const auto name = now.gift->resellTitle;
 	state->finished = now.finished()
-		? (rpl::single(true) | rpl::type_erased())
+		? (rpl::single(true) | rpl::type_erased)
 		: (MinutesLeftTillValue(now.endDate) | rpl::map(!rpl::mappers::_1));
 
 	const auto date = [&](TimeId time) {

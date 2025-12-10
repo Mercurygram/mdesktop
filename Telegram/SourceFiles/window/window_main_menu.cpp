@@ -545,7 +545,7 @@ void MainMenu::setupArchive() {
 
 	const auto now = folder();
 	auto folderValue = now
-		? (rpl::single(now) | rpl::type_erased())
+		? (rpl::single(now) | rpl::type_erased)
 		: controller->session().data().chatsListChanges(
 		) | rpl::filter([](Data::Folder *folder) {
 			return folder && (folder->id() == Data::Folder::kId);

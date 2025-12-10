@@ -387,7 +387,7 @@ rpl::producer<> Tray::aboutToShowRequests() const {
 		_aboutToShowRequests.events(),
 		_menu
 			? base::qt_signal_producer(_menu.get(), &QMenu::aboutToShow)
-			: rpl::never<>() | rpl::type_erased());
+			: rpl::never<>() | rpl::type_erased);
 }
 
 rpl::producer<> Tray::showFromTrayRequests() const {

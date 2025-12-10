@@ -1048,7 +1048,7 @@ void Content::setupContent(
 	};
 	_activations = [=] {
 		if (!main && !other) {
-			return rpl::never<Language>() | rpl::type_erased();
+			return rpl::never<Language>() | rpl::type_erased;
 		} else if (!main) {
 			return other->activations();
 		} else if (!other) {
@@ -1057,7 +1057,7 @@ void Content::setupContent(
 		return rpl::merge(
 			main->activations(),
 			other->activations()
-		) | rpl::type_erased();
+		) | rpl::type_erased;
 	};
 	_changeChosen = [=](const QString &chosen) {
 		if (main) {

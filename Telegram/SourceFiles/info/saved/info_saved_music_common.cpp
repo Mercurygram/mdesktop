@@ -44,7 +44,7 @@ void SetupSavedMusic(
 			1
 		) | rpl::map([=](const Data::SavedMusicSlice &data) {
 			return data.size() ? data[0].get() : nullptr;
-		}) | rpl::type_erased()
+		}) | rpl::type_erased
 		: rpl::single<HistoryItem*>((HistoryItem*)(nullptr));
 
 	const auto divider = container->add(

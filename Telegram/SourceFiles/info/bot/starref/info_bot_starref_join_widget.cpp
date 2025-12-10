@@ -1040,7 +1040,7 @@ std::unique_ptr<Ui::Premium::TopBarAbstract> Widget::setupTop() {
 			st::infoTopBarScale);
 		_back->setDuration(0);
 		_back->toggleOn(isLayer
-			? _backEnabled.value() | rpl::type_erased()
+			? _backEnabled.value() | rpl::type_erased
 			: rpl::single(true));
 		_back->entity()->addClickHandler([=] {
 			controller->showBackFromStack();
