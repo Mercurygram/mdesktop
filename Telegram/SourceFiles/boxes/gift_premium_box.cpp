@@ -1205,7 +1205,7 @@ void AddStarGiftTable(
 		Settings::CreditsEntryBoxStyleOverrides st,
 		const Data::CreditsHistoryEntry &entry,
 		Fn<void()> convertToStars,
-		Fn<void()> startUpgrade,
+		bool canStartUpgrade,
 		Fn<void(Fn<void()> removed)> removeDetails) {
 	const auto table = container->add(
 		object_ptr<Ui::TableLayout>(
@@ -1426,7 +1426,7 @@ void AddStarGiftTable(
 						std::move(amount),
 						Ui::Text::WithEntities)));
 	}
-	if (!unique && !entry.soldOutInfo && startUpgrade) {
+	if (!unique && !entry.soldOutInfo && canStartUpgrade) {
 		AddTableRow(
 			table,
 			tr::lng_gift_unique_status(),

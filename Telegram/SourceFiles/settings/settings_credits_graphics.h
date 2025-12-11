@@ -26,6 +26,7 @@ struct CreditTopupOption;
 struct SavedStarGift;
 class SavedStarGiftId;
 struct StarGift;
+struct UniqueGift;
 } // namespace Data
 
 namespace HistoryView {
@@ -134,7 +135,22 @@ struct CreditsEntryBoxStyleOverrides {
 };
 [[nodiscard]] CreditsEntryBoxStyleOverrides DarkCreditsEntryBoxStyle();
 
+[[nodiscard]] rpl::producer<CreditsAmount> UniqueGiftResalePrice(
+	std::shared_ptr<Data::UniqueGift> unique,
+	bool forceTon = false);
+[[nodiscard]] bool UniqueGiftCanRemoveDetails(
+	const Data::CreditsHistoryEntry &entry);
+[[nodiscard]] Fn<void(Fn<void()> removed)> UniqueGiftRemoveDetailsHandler(
+	std::shared_ptr<ChatHelpers::Show> show,
+	const Data::CreditsHistoryEntry &entry);
+
 void GenericCreditsEntryBox(
+	not_null<Ui::GenericBox*> box,
+	std::shared_ptr<ChatHelpers::Show> show,
+	const Data::CreditsHistoryEntry &e,
+	const Data::SubscriptionEntry &s,
+	CreditsEntryBoxStyleOverrides st = {});
+void GenericCreditsEntryBody(
 	not_null<Ui::GenericBox*> box,
 	std::shared_ptr<ChatHelpers::Show> show,
 	const Data::CreditsHistoryEntry &e,

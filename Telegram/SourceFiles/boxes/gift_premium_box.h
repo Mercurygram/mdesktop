@@ -78,7 +78,7 @@ void AddStarGiftTable(
 	Settings::CreditsEntryBoxStyleOverrides st,
 	const Data::CreditsHistoryEntry &entry,
 	Fn<void()> convertToStars,
-	Fn<void()> startUpgrade,
+	bool canStartUpgrade,
 	Fn<void(Fn<void()> removed)> removeDetails);
 void AddTransferGiftTable(
 	std::shared_ptr<ChatHelpers::Show> show,

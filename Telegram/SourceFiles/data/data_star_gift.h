@@ -249,6 +249,14 @@ struct SavedStarGift {
 	bool mine = false;
 };
 
+struct GiftUpgradeResult {
+	StarGift info;
+	SavedStarGiftId manageId;
+	TimeId date = 0;
+	int starsForDetailsRemove = 0;
+	bool saved = false;
+};
+
 struct GiftCollection {
 	int id = 0;
 	int count = 0;

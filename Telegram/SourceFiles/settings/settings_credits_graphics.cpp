@@ -1221,70 +1221,68 @@ CreditsEntryBoxStyleOverrides DarkCreditsEntryBoxStyle() {
 	};
 }
 
-void GenericCreditsEntryBox(
+rpl::producer<CreditsAmount> UniqueGiftResalePrice(
+		std::shared_ptr<Data::UniqueGift> unique,
+		bool forceTon) {
+	const auto slug = unique->slug;
+	return rpl::single(
+		rpl::empty
+	) | rpl::then(unique->model.document->owner().giftUpdates(
+	) | rpl::filter([=](const Data::GiftUpdate &update) {
+		return (update.action == Data::GiftUpdate::Action::ResaleChange)
+			&& (update.slug == slug);
+	}) | rpl::to_empty) | rpl::map([=] {
+		const auto result = forceTon
+			? Data::UniqueGiftResaleTon(*unique)
+			: Data::UniqueGiftResaleAsked(*unique);
+		return (result.value() < 0) ? CreditsAmount() : result;
+	});
+}
+
+bool UniqueGiftCanRemoveDetails(const Data::CreditsHistoryEntry &entry) {
+	return entry.uniqueGift && (entry.starsForDetailsRemove > 0);
+}
+
+Fn<void(Fn<void()> removed)> UniqueGiftRemoveDetailsHandler(
+		std::shared_ptr<ChatHelpers::Show> show,
+		const Data::CreditsHistoryEntry &entry) {
+	return [=](Fn<void()> removed) {
+		const auto session = &show->session();
+		const auto unique = entry.uniqueGift;
+		const auto savedId = EntryToSavedStarGiftId(session, entry);
+		auto done = [=](
+				Payments::CheckoutResult result,
+				const MTPUpdates *updates) {
+			if (result == Payments::CheckoutResult::Paid) {
+				removed();
+
+				const auto name = Data::UniqueGiftName(*unique);
+				show->showToast(tr::lng_gift_unique_info_removed(
+					tr::now,
+					lt_name,
+					Ui::Text::Bold(name),
+					Ui::Text::WithEntities));
+				unique->originalDetails = Data::UniqueGiftOriginalDetails();
+			}
+		};
+		RequestStarsFormAndSubmit(
+			show,
+			MTP_inputInvoiceStarGiftDropOriginalDetails(
+				Api::InputSavedStarGiftId(savedId, unique)),
+			std::move(done));
+	};
+}
+
+void GenericCreditsEntryCover(
 		not_null<Ui::GenericBox*> box,
 		std::shared_ptr<ChatHelpers::Show> show,
 		const Data::CreditsHistoryEntry &e,
 		const Data::SubscriptionEntry &s,
-		CreditsEntryBoxStyleOverrides st) {
+		CreditsEntryBoxStyleOverrides st = {}) {
 	const auto session = &show->session();
-	const auto selfPeerId = session->userPeerId().value;
 	const auto owner = &session->data();
-	const auto item = owner->message(
-		PeerId(e.barePeerId),
-		MsgId(e.bareMsgId));
 	const auto isStarGift = e.stargift || e.soldOutInfo;
-	const auto creditsHistoryStarGift = isStarGift && !e.id.isEmpty();
-	const auto sentStarGift = creditsHistoryStarGift && !e.in;
-	const auto giftToSelf = isStarGift
-		&& (e.barePeerId == selfPeerId)
-		&& (e.in || e.bareGiftOwnerId == selfPeerId);
-	const auto giftChannel = (isStarGift && e.giftChannelSavedId)
-		? session->data().peer(
-			PeerId(e.bareEntryOwnerId))->asChannel()
-		: nullptr;
-	const auto giftToChannel = (giftChannel != nullptr);
-	const auto giftToChannelCanManage = giftToChannel
-		&& giftChannel->canManageGifts();
-	const auto giftToChannelCanTransfer = giftToChannel
-		&& giftChannel->canTransferGifts();
-	const auto starGiftCanManage = isStarGift
-		&& !creditsHistoryStarGift
-		&& (e.in || giftToChannelCanManage)
-		&& !e.fromGiftSlug
-		&& !e.converted;
-	const auto starGiftCanTransfer = isStarGift
-		&& !creditsHistoryStarGift
-		&& (e.in || giftToChannelCanTransfer);
-	const auto starGiftSender = (isStarGift && item)
-		? item->history()->peer->asUser()
-		: (isStarGift && e.in)
-		? owner->peer(PeerId(e.barePeerId))->asUser()
-		: (isStarGift && e.bareActorId)
-		? owner->peer(PeerId(e.bareActorId)).get()
-		: nullptr;
-	const auto convertLast = base::unixtime::serialize(e.date)
-		+ session->appConfig().stargiftConvertPeriodMax();
-	const auto timeLeft = int64(convertLast) - int64(base::unixtime::now());
-	const auto timeExceeded = (timeLeft <= 0);
 	const auto uniqueGift = e.uniqueGift.get();
-	const auto forConvert = starGiftCanTransfer
-		&& e.starsConverted
-		&& !e.converted
-		&& starGiftSender;
-	const auto canConvert = forConvert && !timeExceeded;
-	const auto inResale = uniqueGift && (uniqueGift->starsForResale > 0);
-	const auto canBuyResold = inResale && (e.bareGiftOwnerId != selfPeerId);
-
-	if (auto savedId = EntryToSavedStarGiftId(session, e)) {
-		session->data().giftUpdates(
-		) | rpl::on_next([=](const Data::GiftUpdate &update) {
-			if (update.id == savedId
-				&& update.action != Data::GiftUpdate::Action::ResaleChange) {
-				box->closeBox();
-			}
-		}, box->lifetime());
-	}
 
 	box->setStyle(st.box ? *st.box : st::giveawayGiftCodeBox);
 	box->setWidth(st::boxWideWidth);
@@ -1297,8 +1295,6 @@ void GenericCreditsEntryBox(
 		Ui::AddSkip(content);
 	}
 
-	using Type = Data::CreditsHistoryEntry::PeerType;
-
 	const auto &stUser = st::boostReplaceUserpic;
 	const auto isPrize = e.bareGiveawayMsgId > 0;
 	const auto starGiftSticker = (isStarGift && e.bareGiftStickerId)
@@ -1308,7 +1304,7 @@ void GenericCreditsEntryBox(
 		? nullptr
 		: (s.barePeerId)
 		? owner->peer(PeerId(s.barePeerId)).get()
-		: (e.peerType == Type::PremiumBot)
+		: (e.peerType == Data::CreditsHistoryEntry::PeerType::PremiumBot)
 		? nullptr
 		: e.bareActorId
 		? owner->peer(PeerId(e.bareActorId)).get()
@@ -1316,48 +1312,21 @@ void GenericCreditsEntryBox(
 		? owner->peer(PeerId(e.barePeerId)).get()
 		: nullptr;
 	if (uniqueGift) {
-		box->setNoContentMargin(true);
-
-		const auto slug = uniqueGift->slug;
 		const auto forceTon = e.giftResaleForceTon;
-		auto price = rpl::single(
-			rpl::empty
-		) | rpl::then(session->data().giftUpdates(
-		) | rpl::filter([=](const Data::GiftUpdate &update) {
-			return (update.action == Data::GiftUpdate::Action::ResaleChange)
-				&& (update.slug == slug);
-		}) | rpl::to_empty) | rpl::map([forceTon, unique = e.uniqueGift] {
-			return forceTon
-				? Data::UniqueGiftResaleTon(*unique)
-				: Data::UniqueGiftResaleAsked(*unique);
-		});
-		auto change = [=] {
-			const auto style = st.giftWearBox
-				? *st.giftWearBox
-				: GiftWearBoxStyleOverride();
-			ShowUniqueGiftSellBox(
-				show,
-				e.uniqueGift,
-				EntryToSavedStarGiftId(session, e),
-				style);
-		};
-		const auto canResell = CanResellGift(session, e);
 		const auto cover = Ui::UniqueGiftCover{ *uniqueGift };
+		const auto wearSt = st.giftWearBox
+			? *st.giftWearBox
+			: GiftWearBoxStyleOverride();
+		const auto savedId = EntryToSavedStarGiftId(session, e);
+		const auto resaleClick = CanResellGift(session, e)
+			? [=] {
+				ShowUniqueGiftSellBox(show, e.uniqueGift, savedId, wearSt);
+			}
+			: Fn<void()>();
 		AddUniqueGiftCover(content, rpl::single(cover), {
-			.resalePrice = std::move(price),
-			.resaleClick = canResell ? std::move(change) : Fn<void()>(),
+			.resalePrice = UniqueGiftResalePrice(e.uniqueGift, forceTon),
+			.resaleClick = resaleClick,
 		});
-
-		AddSkip(content, st::defaultVerticalListSkip * 2);
-
-		AddUniqueCloseButton(box, st, [=](not_null<Ui::PopupMenu*> menu) {
-			const auto type = SavedStarGiftMenuType::View;
-			FillUniqueGiftMenu(show, menu, e, type, st);
-		});
-
-		if (canResell) {
-			Ui::PreloadUniqueGiftResellPrices(session);
-		}
 	} else if (const auto callback = Ui::PaintPreviewCallback(session, e)) {
 		const auto thumb = content->add(
 			GenericEntryPhoto(content, callback, stUser.photoSize),
@@ -1482,8 +1451,114 @@ void GenericCreditsEntryBox(
 			(*draw)(p, 0, 0, stUser.photoSize, stUser.photoSize);
 		}, widget->lifetime());
 	}
+}
 
-	if (!uniqueGift) {
+void GenericCreditsEntryBox(
+		not_null<Ui::GenericBox*> box,
+		std::shared_ptr<ChatHelpers::Show> show,
+		const Data::CreditsHistoryEntry &e,
+		const Data::SubscriptionEntry &s,
+		CreditsEntryBoxStyleOverrides st) {
+	GenericCreditsEntryCover(box, show, e, s, st);
+	GenericCreditsEntryBody(box, show, e, s, st);
+}
+
+void GenericCreditsEntryBody(
+		not_null<Ui::GenericBox*> box,
+		std::shared_ptr<ChatHelpers::Show> show,
+		const Data::CreditsHistoryEntry &e,
+		const Data::SubscriptionEntry &s,
+		CreditsEntryBoxStyleOverrides st) {
+	const auto session = &show->session();
+	const auto selfPeerId = session->userPeerId().value;
+	const auto owner = &session->data();
+	const auto item = owner->message(
+		PeerId(e.barePeerId),
+		MsgId(e.bareMsgId));
+	const auto isStarGift = e.stargift || e.soldOutInfo;
+	const auto creditsHistoryStarGift = isStarGift && !e.id.isEmpty();
+	const auto sentStarGift = creditsHistoryStarGift && !e.in;
+	const auto giftToSelf = isStarGift
+		&& (e.barePeerId == selfPeerId)
+		&& (e.in || e.bareGiftOwnerId == selfPeerId);
+	const auto giftChannel = (isStarGift && e.giftChannelSavedId)
+		? session->data().peer(
+			PeerId(e.bareEntryOwnerId))->asChannel()
+		: nullptr;
+	const auto giftToChannel = (giftChannel != nullptr);
+	const auto giftToChannelCanManage = giftToChannel
+		&& giftChannel->canManageGifts();
+	const auto giftToChannelCanTransfer = giftToChannel
+		&& giftChannel->canTransferGifts();
+	const auto starGiftCanManage = isStarGift
+		&& !creditsHistoryStarGift
+		&& (e.in || giftToChannelCanManage)
+		&& !e.fromGiftSlug
+		&& !e.converted;
+	const auto starGiftCanTransfer = isStarGift
+		&& !creditsHistoryStarGift
+		&& (e.in || giftToChannelCanTransfer);
+	const auto starGiftSender = (isStarGift && item)
+		? item->history()->peer->asUser()
+		: (isStarGift && e.in)
+		? owner->peer(PeerId(e.barePeerId))->asUser()
+		: (isStarGift && e.bareActorId)
+		? owner->peer(PeerId(e.bareActorId)).get()
+		: nullptr;
+	const auto convertLast = base::unixtime::serialize(e.date)
+		+ session->appConfig().stargiftConvertPeriodMax();
+	const auto timeLeft = int64(convertLast) - int64(base::unixtime::now());
+	const auto timeExceeded = (timeLeft <= 0);
+	const auto uniqueGift = e.uniqueGift.get();
+	const auto forConvert = starGiftCanTransfer
+		&& e.starsConverted
+		&& !e.converted
+		&& starGiftSender;
+	const auto canConvert = forConvert && !timeExceeded;
+	const auto inResale = uniqueGift && (uniqueGift->starsForResale > 0);
+	const auto canBuyResold = inResale && (e.bareGiftOwnerId != selfPeerId);
+	const auto &stUser = st::boostReplaceUserpic;
+	const auto isPrize = e.bareGiveawayMsgId > 0;
+	const auto starGiftSticker = (isStarGift && e.bareGiftStickerId)
+		? owner->document(e.bareGiftStickerId).get()
+		: nullptr;
+	const auto peer = isPrize
+		? nullptr
+		: (s.barePeerId)
+		? owner->peer(PeerId(s.barePeerId)).get()
+		: (e.peerType == Data::CreditsHistoryEntry::PeerType::PremiumBot)
+		? nullptr
+		: e.bareActorId
+		? owner->peer(PeerId(e.bareActorId)).get()
+		: e.barePeerId
+		? owner->peer(PeerId(e.barePeerId)).get()
+		: nullptr;
+
+	if (auto savedId = EntryToSavedStarGiftId(session, e)) {
+		session->data().giftUpdates(
+		) | rpl::on_next([=](const Data::GiftUpdate &update) {
+			if (update.id == savedId
+				&& update.action != Data::GiftUpdate::Action::ResaleChange) {
+				box->closeBox();
+			}
+		}, box->lifetime());
+	}
+
+	box->clearButtons();
+
+	const auto content = box->verticalLayout();
+	if (uniqueGift) {
+		AddSkip(content, st::defaultVerticalListSkip * 2);
+
+		AddUniqueCloseButton(box, st, [=](not_null<Ui::PopupMenu*> menu) {
+			const auto type = SavedStarGiftMenuType::View;
+			FillUniqueGiftMenu(show, menu, e, type, st);
+		});
+
+		if (CanResellGift(session, e)) {
+			Ui::PreloadUniqueGiftResellPrices(session);
+		}
+	} else {
 		Ui::AddSkip(content);
 		Ui::AddSkip(content);
 
@@ -1906,12 +1981,12 @@ void GenericCreditsEntryBox(
 	const auto canGiftUpgrade = !e.uniqueGift
 		&& !e.in
 		&& !e.giftPrepayUpgradeHash.isEmpty();
-	const auto canRemoveDetails = e.uniqueGift
-		&& (e.starsForDetailsRemove > 0);
+	const auto canRemoveDetails = UniqueGiftCanRemoveDetails(e);
+	const auto removeDetails = UniqueGiftRemoveDetailsHandler(show, e);
 	const auto upgradeGuard = std::make_shared<bool>();
 	const auto upgrade = [=] {
 		const auto window = show->resolveWindow();
-		if (!window || *upgradeGuard) {
+		if (!window || *upgradeGuard || !starGiftSticker) {
 			return;
 		}
 		*upgradeGuard = true;
@@ -1922,8 +1997,16 @@ void GenericCreditsEntryBox(
 		using namespace Ui;
 		ShowStarGiftUpgradeBox({
 			.controller = window,
-			.stargiftId = e.stargiftId,
+			.stargift = Data::StarGift{
+				.id = e.stargiftId,
+				.unique = e.uniqueGift,
+				.stars = e.credits.ton() ? 0 : int(e.credits.whole()),
+				.document = starGiftSticker,
+				.limitedLeft = e.limitedLeft,
+				.limitedCount = e.limitedCount,
+			},
 			.ready = [=](bool) { *upgradeGuard = false; },
+			.upgraded = crl::guard(box, [=] { box->closeBox(); }),
 			.peer = openWhenDone,
 			.savedId = savedId,
 			.giftPrepayUpgradeHash = e.giftPrepayUpgradeHash,
@@ -1938,31 +2021,6 @@ void GenericCreditsEntryBox(
 					&& !e.giftUpgradeSeparate
 					&& !e.anonymous)),
 		});
-	};
-	const auto removeDetails = [=](Fn<void()> removed) {
-		const auto session = &show->session();
-		const auto unique = e.uniqueGift;
-		const auto savedId = EntryToSavedStarGiftId(session, e);
-		auto done = [=](
-				Payments::CheckoutResult result,
-				const MTPUpdates *updates) {
-			if (result == Payments::CheckoutResult::Paid) {
-				removed();
-
-				const auto name = Data::UniqueGiftName(*unique);
-				show->showToast(tr::lng_gift_unique_info_removed(
-					tr::now,
-					lt_name,
-					Ui::Text::Bold(name),
-					Ui::Text::WithEntities));
-				unique->originalDetails = Data::UniqueGiftOriginalDetails();
-			}
-		};
-		RequestStarsFormAndSubmit(
-			show,
-			MTP_inputInvoiceStarGiftDropOriginalDetails(
-				Api::InputSavedStarGiftId(savedId, e.uniqueGift)),
-			std::move(done));
 	};
 
 	if (isStarGift && e.id.isEmpty()) {
@@ -2018,7 +2076,7 @@ void GenericCreditsEntryBox(
 			st,
 			e,
 			canConvert ? convert : Fn<void()>(),
-			canUpgrade ? upgrade : Fn<void()>(),
+			canUpgrade,
 			canRemoveDetails ? removeDetails : Fn<void(Fn<void()>)>());
 	} else {
 		AddCreditsHistoryEntryTable(show, content, st, e);
@@ -2226,7 +2284,9 @@ void GenericCreditsEntryBox(
 
 	const auto button = box->addButton(std::move(confirmText), [=] {
 		if (showNextToUpgrade) {
+			const auto close = crl::guard(box, [=] { box->closeBox(); });
 			showNextToUpgrade();
+			close();
 			return;
 		} else if (state->confirmButtonBusy.current()
 			|| state->convertButtonBusy.current()) {
@@ -2254,7 +2314,7 @@ void GenericCreditsEntryBox(
 			box->closeBox();
 		}
 	}, showNextToUpgrade
-		? st::defaultLightButton
+		? st::giveawayGiftCodeBoxUpgradeNext
 		: st::giveawayGiftCodeBox.button);
 	if (canBuyResold) {
 		if (uniqueGift->onlyAcceptTon || e.giftResaleForceTon) {
@@ -2688,7 +2748,8 @@ void ShowStarGiftViewBox(
 	const auto toChannel = peer->isServiceUser() && data.channel;
 	const auto incoming = !toChannel
 		&& !data.auctionTo
-		&& (data.upgrade ? item->out() : !item->out());
+		&& ((data.upgrade ? item->out() : !item->out())
+			|| peer->isSelf());
 	const auto fromId = incoming ? peer->id : peer->session().userPeerId();
 	const auto toId = incoming
 		? peer->session().userPeerId()
@@ -2752,43 +2813,44 @@ void ShowStarGiftViewBox(
 		.in = incoming,
 		.gift = true,
 	};
-	controller->show(Box([=](not_null<Ui::GenericBox*> box) {
-		Settings::ReceiptCreditsBox(
-			box,
-			controller,
-			entry,
-			Data::SubscriptionEntry());
-	}));
+	controller->show(Box(
+		Settings::ReceiptCreditsBox,
+		controller,
+		entry,
+		Data::SubscriptionEntry()));
 }
 
 void ShowStarGiftViewBox(
 		not_null<Window::SessionController*> controller,
 		const Data::GiftCode &data,
 		FullMsgId itemId) {
-	const auto item = controller->session().data().message(itemId);
-	if (!item) {
-		return;
-	}
-	const auto peer = item->history()->peer;
-	const auto toChannel = peer->isServiceUser() && data.channel;
-	const auto incoming = !toChannel
-		&& (data.upgrade ? item->out() : !item->out());
-	const auto toId = incoming ? peer->session().userPeerId() : peer->id;
-	const auto ownerId = data.unique ? data.unique->ownerId : toId;
-	const auto owner = peer->owner().peer(ownerId);
-	if (data.unique && owner->canManageGifts()) {
-		const auto weak = base::make_weak(controller);
-		owner->owner().nextForUpgradeGiftRequest(owner, crl::guard(weak, [=](
-				std::optional<Data::SavedStarGift> nextToUpgrade) {
-			ShowStarGiftViewBox(
-				controller,
-				data,
-				itemId,
-				std::move(nextToUpgrade));
-		}));
-	} else {
+	// Now we suggest upgrading next gift after a gift upgrade.
+	// No need to suggest it every gift open from a chat.
+	//
+	//const auto item = controller->session().data().message(itemId);
+	//if (!item) {
+	//	return;
+	//}
+	//const auto peer = item->history()->peer;
+	//const auto toChannel = peer->isServiceUser() && data.channel;
+	//const auto incoming = !toChannel
+	//	&& (data.upgrade ? item->out() : !item->out());
+	//const auto toId = incoming ? peer->session().userPeerId() : peer->id;
+	//const auto ownerId = data.unique ? data.unique->ownerId : toId;
+	//const auto owner = peer->owner().peer(ownerId);
+	//if (data.unique && owner->canManageGifts()) {
+	//	const auto weak = base::make_weak(controller);
+	//	owner->owner().nextForUpgradeGiftRequest(owner, crl::guard(weak, [=](
+	//			std::optional<Data::SavedStarGift> nextToUpgrade) {
+	//		ShowStarGiftViewBox(
+	//			controller,
+	//			data,
+	//			itemId,
+	//			std::move(nextToUpgrade));
+	//	}));
+	//} else {
 		ShowStarGiftViewBox(controller, data, itemId, std::nullopt);
-	}
+	//}
 }
 
 void ShowRefundInfoBox(
