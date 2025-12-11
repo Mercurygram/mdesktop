@@ -371,6 +371,7 @@ void AddUniqueGiftPropertyRows(
 	const auto handler = [=](not_null<Ui::RpWidget*> button) {
 		if (value->initialPriceStars) {
 			show->show(Box(Settings::UniqueGiftValueBox, show, entry, st));
+			return;
 		} else if (*loading) {
 			return;
 		}
