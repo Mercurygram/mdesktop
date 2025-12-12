@@ -24,6 +24,7 @@ struct GiveawayStart;
 struct GiveawayResults;
 struct SubscriptionEntry;
 struct UniqueGift;
+struct GiftUpgradeSpinner;
 } // namespace Data
 
 namespace Main {
@@ -77,6 +78,7 @@ void AddStarGiftTable(
 	not_null<Ui::VerticalLayout*> container,
 	Settings::CreditsEntryBoxStyleOverrides st,
 	const Data::CreditsHistoryEntry &entry,
+	std::shared_ptr<Data::GiftUpgradeSpinner> spinner,
 	Fn<void()> convertToStars,
 	bool canStartUpgrade,
 	Fn<void(Fn<void()> removed)> removeDetails);

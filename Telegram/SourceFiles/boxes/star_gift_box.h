@@ -77,9 +77,11 @@ struct UniqueGiftCoverArgs {
 		std::optional<Data::UniqueGift> now,
 		std::optional<Data::UniqueGift> next,
 		float64 progress)> repaintedHook;
+	std::shared_ptr<Data::GiftUpgradeSpinner> upgradeSpinner;
 };
 struct UniqueGiftCover {
 	Data::UniqueGift values;
+	bool spinner = false;
 	bool force = false;
 };
 

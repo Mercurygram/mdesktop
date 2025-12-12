@@ -279,7 +279,8 @@ using Ui::TableRowTooltipData;
 void AddUniqueGiftPropertyRows(
 		not_null<Ui::RpWidget*> container,
 		not_null<Ui::TableLayout*> table,
-		not_null<Data::UniqueGift*> unique) {
+		not_null<Data::UniqueGift*> unique,
+		std::shared_ptr<Data::GiftUpgradeSpinner> spinner) {
 	const auto tooltip = std::make_shared<TableRowTooltipData>(
 		TableRowTooltipData{ .parent = container });
 	const auto showTooltip = [=](
@@ -1204,6 +1205,7 @@ void AddStarGiftTable(
 		not_null<Ui::VerticalLayout*> container,
 		Settings::CreditsEntryBoxStyleOverrides st,
 		const Data::CreditsHistoryEntry &entry,
+		std::shared_ptr<Data::GiftUpgradeSpinner> spinner,
 		Fn<void()> convertToStars,
 		bool canStartUpgrade,
 		Fn<void(Fn<void()> removed)> removeDetails) {
@@ -1389,7 +1391,7 @@ void AddStarGiftTable(
 			rpl::single(Ui::Text::WithEntities(langDateTime(entry.date))));
 	}
 	if (unique) {
-		AddUniqueGiftPropertyRows(container, table, unique);
+		AddUniqueGiftPropertyRows(container, table, unique, spinner);
 	} else {
 		AddTableRow(
 			table,
@@ -1536,7 +1538,7 @@ void AddTransferGiftTable(
 			container,
 			st::giveawayGiftCodeTable),
 		st::giveawayGiftCodeTableMargin);
-	AddUniqueGiftPropertyRows(container, table, unique.get());
+	AddUniqueGiftPropertyRows(container, table, unique.get(), nullptr);
 	if (const auto value = unique->value.get()) {
 		AddTableRow(
 			table,

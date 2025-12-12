@@ -142,6 +142,18 @@ constexpr auto kGiftsPreloadTimeout = 3 * crl::time(1000);
 constexpr auto kResellPriceCacheLifetime = 60 * crl::time(1000);
 constexpr auto kGradientButtonBgOpacity = 0.6;
 
+constexpr auto kSpinnerBackdrops = 4;
+constexpr auto kSpinnerPatterns = 4;
+constexpr auto kSpinnerModels = 4;
+
+constexpr auto kBackdropSpinDuration = crl::time(300);
+constexpr auto kBackdropStopsAt = 10 * 3 * crl::time(1000);
+constexpr auto kPatternSpinDuration = crl::time(600);
+constexpr auto kPatternStopsAt = 10 * 5 * crl::time(1000);
+constexpr auto kModelSpinDuration = crl::time(300);
+constexpr auto kModelStopsAt = 10 * 7 * crl::time(1000);
+constexpr auto kModelScaleFrom = 0.7;
+
 using namespace HistoryView;
 using namespace Info::PeerGifts;
 
@@ -2833,6 +2845,8 @@ void AddUniqueGiftCover(
 		not_null<VerticalLayout*> container,
 		rpl::producer<UniqueGiftCover> data,
 		UniqueGiftCoverArgs &&args) {
+	using SpinnerState = Data::GiftUpgradeSpinner::State;
+
 	const auto cover = container->add(object_ptr<RpWidget>(container));
 
 	struct Released {
@@ -2852,70 +2866,282 @@ void AddUniqueGiftCover(
 	};
 	const auto released = cover->lifetime().make_state<Released>();
 
-	struct GiftView {
+	struct BackdropView {
+		Data::UniqueGiftBackdrop colors;
 		QImage gradient;
-		std::optional<Data::UniqueGift> gift;
-		std::shared_ptr<Data::DocumentMedia> media;
-		std::unique_ptr<Lottie::SinglePlayer> lottie;
+	};
+	struct PatternView {
+		DocumentData *document = nullptr;
 		std::unique_ptr<Text::CustomEmoji> emoji;
 		base::flat_map<float64, QImage> emojis;
-		bool forced = false;
+	};
+	struct ModelView {
+		std::shared_ptr<Data::DocumentMedia> media;
+		std::unique_ptr<Lottie::SinglePlayer> lottie;
 		rpl::lifetime lifetime;
 	};
+	struct GiftView {
+		std::optional<Data::UniqueGift> gift;
+		BackdropView backdrop;
+		PatternView pattern;
+		ModelView model;
+		bool spinned = false;
+		bool forced = false;
+	};
+	struct AttributeSpin {
+		AttributeSpin(crl::time duration) : duration(duration) {
+		}
+
+		Animations::Simple animation;
+		crl::time duration = 0;
+		int wasIndex = -1;
+		int nowIndex = -1;
+		int willIndex = -1;
+
+		[[nodiscard]] float64 progress() const {
+			return animation.value(1.);
+		}
+		void startWithin(int count, Fn<void()> update) {
+			Expects(count > 0);
+
+			wasIndex = nowIndex;
+			nowIndex = willIndex;
+			willIndex = (willIndex < 0 ? 1 : (willIndex + 1)) % count;
+			animation.start(update, 0., 1., duration);
+		}
+		void startToTarget(Fn<void()> update) {
+			if (willIndex != 0) {
+				wasIndex = nowIndex;
+				nowIndex = willIndex;
+				willIndex = 0;
+				animation.start(update, 0., 1., duration);
+			}
+		}
+	};
 	struct State {
+		std::shared_ptr<Data::GiftUpgradeSpinner> spinner;
+		Fn<void()> checkSpinnerStart;
 		GiftView now;
 		GiftView next;
 		Animations::Simple crossfade;
 		Animations::Simple heightAnimation;
+		std::vector<BackdropView> spinnerBackdrops;
+		std::vector<PatternView> spinnerPatterns;
+		std::vector<ModelView> spinnerModels;
+		AttributeSpin backdropSpin = kBackdropSpinDuration;
+		AttributeSpin patternSpin = kPatternSpinDuration;
+		AttributeSpin modelSpin = kModelSpinDuration;
+		crl::time spinStarted = 0;
 		int heightFinal = 0;
-		bool animating = false;
+		bool crossfading = false;
 		bool updateAttributesPending = false;
 	};
 	const auto state = cover->lifetime().make_state<State>();
+	state->spinner = std::move(args.upgradeSpinner);
+
+	const auto setupModel = [=](
+			ModelView &to,
+			const Data::UniqueGiftModel &model) {
+		to.lifetime.destroy();
+
+		const auto document = model.document;
+		to.media = document->createMediaView();
+		to.media->automaticLoad({}, nullptr);
+		rpl::single() | rpl::then(
+			document->session().downloaderTaskFinished()
+		) | rpl::filter([&to] {
+			return to.media->loaded();
+		}) | rpl::on_next([=, &to] {
+			const auto lottieSize = st::creditsHistoryEntryStarGiftSize;
+			to.lottie = ChatHelpers::LottiePlayerFromDocument(
+				to.media.get(),
+				ChatHelpers::StickerLottieSize::MessageHistory,
+				QSize(lottieSize, lottieSize),
+				Lottie::Quality::High);
+
+			to.lifetime.destroy();
+			const auto lottie = to.lottie.get();
+			lottie->updates() | rpl::on_next([=] {
+				if (state->now.model.lottie.get() == lottie
+					|| state->crossfade.animating()) {
+					cover->update();
+				}
+				if (const auto onstack = state->checkSpinnerStart) {
+					onstack();
+				}
+			}, to.lifetime);
+		}, to.lifetime);
+	};
+	const auto setupPattern = [=](
+			PatternView &to,
+			const Data::UniqueGiftPattern &pattern) {
+		const auto document = pattern.document;
+		const auto callback = [=] {
+			if (state->now.pattern.document == document
+				|| state->crossfade.animating()) {
+				cover->update();
+			}
+			if (const auto onstack = state->checkSpinnerStart) {
+				onstack();
+			}
+		};
+		to.document = document;
+		to.emoji = document->owner().customEmojiManager().create(
+			document,
+			callback,
+			Data::CustomEmojiSizeTag::Large);
+		[[maybe_unused]] const auto preload = to.emoji->ready();
+	};
+
+	if (const auto spinner = state->spinner.get()) {
+		const auto fillBackdrops = [=] {
+			state->spinnerBackdrops.clear();
+			state->spinnerBackdrops.reserve(kSpinnerBackdrops);
+			const auto push = [&](const Data::UniqueGiftBackdrop &backdrop) {
+				if (state->spinnerBackdrops.size() >= kSpinnerBackdrops) {
+					return false;
+				}
+				const auto already = ranges::contains(
+					state->spinnerBackdrops,
+					backdrop,
+					&BackdropView::colors);
+				if (!already) {
+					state->spinnerBackdrops.push_back({ backdrop });
+				}
+				return true;
+			};
+			push(spinner->target->backdrop);
+			for (const auto &backdrop : spinner->attributes.backdrops) {
+				if (!push(backdrop)) {
+					break;
+				}
+			}
+		};
+		const auto fillPatterns = [=] {
+			state->spinnerPatterns.clear();
+			state->spinnerPatterns.reserve(kSpinnerPatterns);
+			const auto push = [&](const Data::UniqueGiftPattern &pattern) {
+				if (state->spinnerPatterns.size() >= kSpinnerPatterns) {
+					return false;
+				}
+				const auto already = ranges::contains(
+					state->spinnerPatterns,
+					pattern.document.get(),
+					&PatternView::document);
+				if (!already) {
+					setupPattern(
+						state->spinnerPatterns.emplace_back(),
+						pattern);
+				}
+				return true;
+			};
+			push(spinner->target->pattern);
+			for (const auto &pattern : spinner->attributes.patterns) {
+				if (!push(pattern)) {
+					break;
+				}
+			}
+		};
+		const auto fillModels = [=] {
+			state->spinnerModels.clear();
+			state->spinnerModels.reserve(kSpinnerModels);
+			const auto push = [&](const Data::UniqueGiftModel &model) {
+				if (state->spinnerModels.size() >= kSpinnerModels) {
+					return false;
+				}
+				const auto already = ranges::contains(
+					state->spinnerModels,
+					model.document,
+					[](const ModelView &view) {
+						return view.media->owner();
+					});
+				if (!already) {
+					setupModel(
+						state->spinnerModels.emplace_back(),
+						model);
+				}
+				return true;
+			};
+			push(spinner->target->model);
+			for (const auto &model : spinner->attributes.models) {
+				if (!push(model)) {
+					break;
+				}
+			}
+		};
+		state->checkSpinnerStart = [=] {
+			if (spinner->state.current() != SpinnerState::Loading
+				|| state->crossfading) {
+				return;
+			}
+			for (const auto &pattern : state->spinnerPatterns) {
+				if (!pattern.emoji->ready()) {
+					return;
+				}
+			}
+			for (const auto &model : state->spinnerModels) {
+				if (!model.lottie || !model.lottie->ready()) {
+					return;
+				}
+			}
+			spinner->state = SpinnerState::Prepared;
+		};
+		spinner->state.value() | rpl::on_next([=](SpinnerState now) {
+			if (now == SpinnerState::Preparing) {
+				fillBackdrops();
+				fillPatterns();
+				fillModels();
+				spinner->state = SpinnerState::Loading;
+				if (!state->crossfading) {
+					state->next = {};
+				}
+				state->checkSpinnerStart();
+			} else if (now == SpinnerState::Started) {
+				const auto repaint = [=] { cover->update(); };
+				state->backdropSpin.startWithin(
+					state->spinnerBackdrops.size(),
+					repaint);
+				state->patternSpin.startWithin(
+					state->spinnerPatterns.size(),
+					repaint);
+				state->modelSpin.startWithin(
+					state->spinnerModels.size(),
+					repaint);
+				state->spinStarted = crl::now();
+			}
+		}, cover->lifetime());
+	}
 
 	const auto lottieSize = st::creditsHistoryEntryStarGiftSize;
 	rpl::duplicate(
 		data
 	) | rpl::on_next([=](const UniqueGiftCover &now) {
 		const auto setup = [&](GiftView &to) {
+			to = {};
 			to.gift = now.values;
 			to.forced = now.force;
-			const auto document = now.values.model.document;
-			to.media = document->createMediaView();
-			to.media->automaticLoad({}, nullptr);
-			rpl::single() | rpl::then(
-				document->session().downloaderTaskFinished()
-			) | rpl::filter([&to] {
-				return to.media->loaded();
-			}) | rpl::on_next([=, &to] {
-				const auto lottieSize = st::creditsHistoryEntryStarGiftSize;
-				to.lottie = ChatHelpers::LottiePlayerFromDocument(
-					to.media.get(),
-					ChatHelpers::StickerLottieSize::MessageHistory,
-					QSize(lottieSize, lottieSize),
-					Lottie::Quality::High);
-
-				to.lifetime.destroy();
-				const auto lottie = to.lottie.get();
-				lottie->updates() | rpl::on_next([=] {
-					if (state->now.lottie.get() == lottie
-						|| state->crossfade.animating()) {
-						cover->update();
-					}
-				}, to.lifetime);
-			}, to.lifetime);
-			to.emoji = document->owner().customEmojiManager().create(
-				now.values.pattern.document,
-				[=] { cover->update(); },
-				Data::CustomEmojiSizeTag::Large);
-			[[maybe_unused]] const auto preload = to.emoji->ready();
+			to.spinned = now.spinner;
+			to.backdrop.colors = now.values.backdrop;
+			setupModel(to.model, now.values.model);
+			setupPattern(to.pattern, now.values.pattern);
 		};
 
+		const auto spinner = state->spinner.get();
 		if (!state->now.gift) {
 			setup(state->now);
 			cover->update();
+		} else if (now.spinner) {
+			Assert(spinner != nullptr);
+			Assert(spinner->state.current() == SpinnerState::Prepared);
+
+			spinner->state = SpinnerState::Started;
 		} else if (!state->next.gift || now.force) {
-			setup(state->next);
+			const auto spinnerState = spinner
+				? spinner->state.current()
+				: SpinnerState::Initial;
+			if (spinnerState == SpinnerState::Initial) {
+				setup(state->next);
+			}
 		}
 	}, cover->lifetime());
 
@@ -3095,7 +3321,7 @@ void AddUniqueGiftCover(
 		} else {
 			released->subtitleButton = nullptr;
 		}
-		updateColors(state->crossfade.value(state->animating ? 1. : 0.));
+		updateColors(state->crossfade.value(state->crossfading ? 1. : 0.));
 	}, title->lifetime());
 
 	const auto attrs = args.attributesInfo
@@ -3259,54 +3485,58 @@ void AddUniqueGiftCover(
 		}
 	}, cover->lifetime());
 
-	cover->paintRequest() | rpl::on_next([=] {
-		auto p = QPainter(cover);
-
-		auto progress = state->crossfade.value(state->animating ? 1. : 0.);
+	cover->paintOn([=](QPainter &p) {
+		auto progress = state->crossfade.value(state->crossfading ? 1. : 0.);
 		if (state->updateAttributesPending && progress >= 0.5) {
 			state->updateAttributesPending = false;
 			updateAttrs(*state->next.gift);
 		} else if (state->updateAttributesPending
-			&& !state->animating
 			&& !state->crossfade.animating()) {
 			state->updateAttributesPending = false;
 			updateAttrs(*state->now.gift);
 		}
-		if (state->animating) {
+		if (state->crossfading) {
 			updateColors(progress);
 		}
 		if (progress == 1.) {
-			state->animating = false;
+			state->crossfading = false;
 			state->now = base::take(state->next);
 			progress = 0.;
 		}
-		const auto paint = [&](GiftView &gift, float64 shown) {
-			Expects(gift.gift.has_value());
-
-			const auto width = cover->width();
-			const auto pointsHeight = st::uniqueGiftSubtitleTop;
+		const auto width = cover->width();
+		const auto getBackdrop = [&](BackdropView &backdrop) {
 			const auto ratio = style::DevicePixelRatio();
 			const auto gradientSize = QSize(
-				cover->width(),
+				width,
 				std::max(cover->height(), state->heightFinal));
-			if (gift.gradient.size() != gradientSize * ratio) {
-				gift.gradient = Ui::CreateTopBgGradient(
+			auto &gradient = backdrop.gradient;
+			if (gradient.size() != gradientSize * ratio) {
+				gradient = Ui::CreateTopBgGradient(
 					gradientSize,
-					*gift.gift);
+					backdrop.colors);
 			}
-			p.drawImage(0, 0, gift.gradient);
-
-			if (gift.gift->pattern.document != gift.gift->model.document) {
-				Ui::PaintBgPoints(
-					p,
-					Ui::PatternBgPoints(),
-					gift.emojis,
-					gift.emoji.get(),
-					*gift.gift,
-					QRect(0, 0, width, pointsHeight),
-					shown);
-			}
-			const auto lottie = gift.lottie.get();
+			return gradient;
+		};
+		const auto paintPattern = [&](
+				QPainter &p,
+				PatternView &pattern,
+				const BackdropView &backdrop,
+				float64 shown) {
+			Ui::PaintBgPoints(
+				p,
+				Ui::PatternBgPoints(),
+				pattern.emojis,
+				pattern.emoji.get(),
+				backdrop.colors,
+				QRect(0, 0, width, st::uniqueGiftSubtitleTop),
+				shown);
+		};
+		const auto paintModel = [&](
+				QPainter &p,
+				ModelView &model,
+				float64 scale = 1.,
+				bool paused = false) {
+			const auto lottie = model.lottie.get();
 			const auto factor = style::DevicePixelRatio();
 			const auto request = Lottie::FrameRequest{
 				.box = Size(lottieSize) * factor,
@@ -3318,34 +3548,173 @@ void AddUniqueGiftCover(
 				return false;
 			}
 			const auto size = frame.image.size() / factor;
-			const auto left = (width - size.width()) / 2;
-			p.drawImage(
-				QRect(QPoint(left, st::uniqueGiftModelTop), size),
-				frame.image);
+			const auto rect = QRect(
+				QPoint((width - size.width()) / 2, st::uniqueGiftModelTop),
+				size);
+			if (scale < 1.) {
+				const auto origin = rect.center();
+				p.translate(origin);
+				p.scale(scale, scale);
+				p.translate(-origin);
+			}
+			p.drawImage(rect, frame.image);
 			const auto count = lottie->framesCount();
 			const auto finished = lottie->frameIndex() == (count - 1);
-			lottie->markFrameShown();
+			if (!paused) {
+				lottie->markFrameShown();
+			}
 			return finished;
 		};
+		const auto paint = [&](GiftView &gift, float64 shown) {
+			Expects(gift.gift.has_value());
 
-		if (progress < 1.) {
-			const auto finished = paint(state->now, 1. - progress)
-				|| (state->next.forced
-					&& (!state->animating || !state->crossfade.animating()));
-			const auto next = finished ? state->next.lottie.get() : nullptr;
-			if (next && next->ready()) {
-				state->animating = true;
-				state->updateAttributesPending = true;
-				state->crossfade.start([=] {
-					cover->update();
-				}, 0., 1., kCrossfadeDuration);
+			p.drawImage(0, 0, getBackdrop(gift.backdrop));
+			if (gift.gift->pattern.document != gift.gift->model.document) {
+				paintPattern(p, gift.pattern, gift.backdrop, shown);
+			}
+			return paintModel(p, gift.model);
+		};
+
+		if (state->spinStarted) {
+			const auto select = [&](auto &&list, int index, auto &fallback)
+			-> decltype(auto) {
+				return (index >= 0) ? list[index] : fallback;
+			};
+
+			const auto now = crl::now();
+			const auto elapsed = now - state->spinStarted;
+			auto current = state->spinner->state.current();
+			const auto switchTo = [&](SpinnerState to, crl::time at) {
+				if (elapsed >= at && int(current) < int(to)) {
+					current = to;
+					state->spinner->state = to;
+				}
+			};
+			switchTo(SpinnerState::FinishedBackdrop, kBackdropStopsAt);
+			switchTo(SpinnerState::FinishedPattern, kPatternStopsAt);
+			switchTo(SpinnerState::Finished, kModelStopsAt);
+
+			const auto actualize = [&](
+					AttributeSpin &spin,
+					auto &&list,
+					SpinnerState finishState) {
+				if (spin.progress() < 1.) {
+					return;
+				} else if (current >= finishState) {
+					spin.startToTarget([=] { cover->update(); });
+				} else {
+					spin.startWithin(list.size(), [=] { cover->update(); });
+				}
+			};
+			actualize(
+				state->backdropSpin,
+				state->spinnerBackdrops,
+				SpinnerState::FinishedBackdrop);
+			actualize(
+				state->patternSpin,
+				state->spinnerPatterns,
+				SpinnerState::FinishedPattern);
+			actualize(
+				state->modelSpin,
+				state->spinnerModels,
+				SpinnerState::Finished);
+
+			auto &backdropNow = select(
+				state->spinnerBackdrops,
+				state->backdropSpin.nowIndex,
+				state->now.backdrop);
+			auto &backdropWill = select(
+				state->spinnerBackdrops,
+				state->backdropSpin.willIndex,
+				state->now.backdrop);
+			const auto backdropProgress = state->backdropSpin.progress();
+			if (backdropProgress >= 1.) {
+				p.drawImage(0, 0, getBackdrop(backdropWill));
+			} else {
+				p.drawImage(0, 0, getBackdrop(backdropNow));
+				if (backdropProgress > 0.) {
+					const auto w = base::SafeRound(width * backdropProgress);
+					p.setClipRect(0, 0, int(w), cover->height());
+					p.drawImage(0, 0, getBackdrop(backdropWill));
+					p.setClipping(false);
+				}
+			}
+
+			auto &patternNow = select(
+				state->spinnerPatterns,
+				state->patternSpin.nowIndex,
+				state->now.pattern);
+			auto &patternWill = select(
+				state->spinnerPatterns,
+				state->patternSpin.willIndex,
+				state->now.pattern);
+			const auto patternProgress = state->patternSpin.progress();
+			if (patternProgress >= 1.) {
+				paintPattern(p, patternWill, backdropWill, 1.);
+			} else {
+				paintPattern(p, patternNow, backdropWill, 1. - patternProgress);
+				if (patternProgress > 0.) {
+					paintPattern(p, patternWill, backdropWill, patternProgress);
+				}
+			}
+
+			auto &modelWas = select(
+				state->spinnerModels,
+				state->modelSpin.wasIndex,
+				state->now.model);
+			auto &modelNow = select(
+				state->spinnerModels,
+				state->modelSpin.nowIndex,
+				state->now.model);
+			auto &modelWill = select(
+				state->spinnerModels,
+				state->modelSpin.willIndex,
+				state->now.model);
+			const auto modelProgress = state->modelSpin.progress();
+			const auto paintOne = [&](ModelView &view, float64 progress) {
+				auto scale = 1.;
+				if (progress != 0.) {
+					const auto shift = progress * width / 2.;
+					const auto shown = 1. - std::abs(progress);
+					scale = kModelScaleFrom + shown * (1. - kModelScaleFrom);
+					p.save();
+					p.setOpacity(shown);
+					p.translate(int(base::SafeRound(shift)), 0);
+				}
+				paintModel(p, view, scale, true);
+				if (progress != 0.) {
+					p.restore();
+				}
+			};
+			const auto willProgress = -1. + modelProgress * 2 / 3.;
+			const auto nowProgress = willProgress + 2 / 3.;
+			const auto wasProgress = 1. + (modelProgress - 1.) * 2 / 3.;
+			paintOne(modelWas, wasProgress);
+			paintOne(modelNow, nowProgress);
+			paintOne(modelWill, willProgress);
+		} else {
+			if (progress < 1.) {
+				const auto finished = paint(state->now, 1. - progress)
+					|| (state->next.forced
+						&& (!state->crossfading
+							|| !state->crossfade.animating()));
+				const auto next = finished
+					? state->next.model.lottie.get()
+					: nullptr;
+				if (next && next->ready()) {
+					state->crossfading = true;
+					state->updateAttributesPending = true;
+					state->crossfade.start([=] {
+						cover->update();
+					}, 0., 1., kCrossfadeDuration);
+				}
+			}
+			if (progress > 0.) {
+				p.setOpacity(progress);
+				paint(state->next, progress);
 			}
 		}
-		if (progress > 0.) {
-			p.setOpacity(progress);
-			paint(state->next, progress);
-		}
-	}, cover->lifetime());
+	});
 }
 
 void AddWearGiftCover(
@@ -4096,6 +4465,7 @@ void AddUpgradeGiftCover(
 		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<VerticalLayout*> container,
 		const UpgradeArgs &args,
+		std::shared_ptr<Data::GiftUpgradeSpinner> upgradeSpinner,
 		rpl::producer<std::shared_ptr<Data::GiftUpgradeResult>> upgraded) {
 	struct State {
 		rpl::variable<std::shared_ptr<Data::GiftUpgradeResult>> upgraded;
@@ -4123,7 +4493,7 @@ void AddUpgradeGiftCover(
 		return upgraded
 			? rpl::single(Ui::UniqueGiftCover{
 				.values = *upgraded->info.unique,
-				.force = true,
+				.spinner = true,
 			})
 			: MakeUpgradeGiftStream(args);
 	}) | rpl::flatten_latest();
@@ -4144,12 +4514,14 @@ void AddUpgradeGiftCover(
 		.subtitle = std::move(subtitle),
 		.resalePrice = std::move(resalePrice),
 		.resaleClick = std::move(resaleClick),
+		.upgradeSpinner = upgradeSpinner,
 	});
 }
 
 void SwitchToUpgradedAnimation(
 		not_null<Window::SessionController*> window,
 		std::shared_ptr<Data::GiftUpgradeResult> gift,
+		std::shared_ptr<Data::GiftUpgradeSpinner> spinner,
 		not_null<GenericBox*> box,
 		int contentStartIndex,
 		std::optional<Data::SavedStarGift> upgradeNext) {
@@ -4229,7 +4601,8 @@ void SwitchToUpgradedAnimation(
 		box,
 		show,
 		entry,
-		{});
+		{},
+		spinner);
 
 	content->resizeToWidth(st::boxWideWidth);
 
@@ -4570,7 +4943,18 @@ void UpgradeBox(
 
 	const auto show = controller->uiShow();
 	const auto container = box->verticalLayout();
-	AddUpgradeGiftCover(show, container, args, state->upgraded.events());
+	const auto spinner = std::make_shared<Data::GiftUpgradeSpinner>();
+	spinner->attributes = Data::UniqueGiftAttributes{
+		.models = args.models,
+		.backdrops = args.backdrops,
+		.patterns = args.patterns,
+	};
+	AddUpgradeGiftCover(
+		show,
+		container,
+		args,
+		spinner,
+		state->upgraded.events());
 	const auto contentIndex = container->count();
 
 	AddSkip(container, st::defaultVerticalListSkip * 2);
@@ -4713,7 +5097,6 @@ void UpgradeBox(
 			const auto done = [=](
 					bool success,
 					std::shared_ptr<Data::GiftUpgradeResult> gift) {
-				state->upgrading = false;
 				const auto ownerId = (gift && gift->info.unique)
 					? gift->info.unique->ownerId
 					: PeerId();
@@ -4721,27 +5104,42 @@ void UpgradeBox(
 					? session->data().peer(ownerId).get()
 					: nullptr;
 				if (!success) {
-					state->sent = false;
+					if (weakBox) {
+						state->upgrading = false;
+						state->sent = false;
+					}
 				} else if (owner) {
+					using State = Data::GiftUpgradeSpinner::State;
 					if (const auto onstack = args.upgraded) {
 						onstack();
 					}
-					if (const auto window = weakWindow.get()) {
+					if (weakBox.get()) {
+						spinner->target = gift->info.unique;
+						spinner->state = State::Preparing;
+					}
+					if (weakWindow.get()) {
 						session->data().nextForUpgradeGiftRequest(
 							owner,
 							[=](std::optional<Data::SavedStarGift> next) {
 								if (const auto box = weakBox.get()) {
-									delete base::take(state->pricesLink);
-									SwitchToUpgradedAnimation(
-										window,
-										gift,
-										box,
-										contentIndex,
-										next);
-									state->upgraded.fire_copy(gift);
-								} else {
+									spinner->state.value() | rpl::filter(
+										rpl::mappers::_1 == State::Prepared
+									) | rpl::take(1) | rpl::on_next([=] {
+										state->upgrading = false;
+										state->upgraded.fire_copy(gift);
+
+										delete base::take(state->pricesLink);
+										SwitchToUpgradedAnimation(
+											weakWindow.get(),
+											gift,
+											spinner,
+											box,
+											contentIndex,
+											next);
+									}, box->lifetime());
+								} else if (const auto w = weakWindow.get()) {
 									ShowGiftUpgradedToast(
-										window,
+										w,
 										session,
 										gift->info.unique);
 								}

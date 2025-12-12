@@ -1460,7 +1460,7 @@ void GenericCreditsEntryBox(
 		const Data::SubscriptionEntry &s,
 		CreditsEntryBoxStyleOverrides st) {
 	GenericCreditsEntryCover(box, show, e, s, st);
-	GenericCreditsEntryBody(box, show, e, s, st);
+	GenericCreditsEntryBody(box, show, e, s, nullptr, st);
 }
 
 void GenericCreditsEntryBody(
@@ -1468,6 +1468,7 @@ void GenericCreditsEntryBody(
 		std::shared_ptr<ChatHelpers::Show> show,
 		const Data::CreditsHistoryEntry &e,
 		const Data::SubscriptionEntry &s,
+		std::shared_ptr<Data::GiftUpgradeSpinner> upgradeSpinner,
 		CreditsEntryBoxStyleOverrides st) {
 	const auto session = &show->session();
 	const auto selfPeerId = session->userPeerId().value;
@@ -2075,6 +2076,7 @@ void GenericCreditsEntryBody(
 			content,
 			st,
 			e,
+			upgradeSpinner,
 			canConvert ? convert : Fn<void()>(),
 			canUpgrade,
 			canRemoveDetails ? removeDetails : Fn<void(Fn<void()>)>());

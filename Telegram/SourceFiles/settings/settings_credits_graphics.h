@@ -27,6 +27,7 @@ struct SavedStarGift;
 class SavedStarGiftId;
 struct StarGift;
 struct UniqueGift;
+struct GiftUpgradeSpinner;
 } // namespace Data
 
 namespace HistoryView {
@@ -155,6 +156,7 @@ void GenericCreditsEntryBody(
 	std::shared_ptr<ChatHelpers::Show> show,
 	const Data::CreditsHistoryEntry &e,
 	const Data::SubscriptionEntry &s,
+	std::shared_ptr<Data::GiftUpgradeSpinner> upgradeSpinner,
 	CreditsEntryBoxStyleOverrides st = {});
 void UniqueGiftValueBox(
 	not_null<Ui::GenericBox*> box,
