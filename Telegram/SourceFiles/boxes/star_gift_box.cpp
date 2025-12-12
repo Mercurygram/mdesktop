@@ -3603,53 +3603,65 @@ void AddUniqueGiftCover(
 			const auto now = crl::now();
 			const auto elapsed = now - state->spinStarted;
 			auto current = state->spinner->state.current();
-			const auto switchTo = [&](SpinnerState to, crl::time at) {
-				if (elapsed >= at && int(current) < int(to)) {
-					current = to;
-					state->spinner->state = to;
+			const auto stateTo = [&](SpinnerState to) {
+				if (int(current) < int(to)) {
+					state->spinner->state = current = to;
 				}
 			};
-			if (anim::Disabled()) {
-				current = SpinnerState::FinishedModel;
-				state->spinner->state = current;
-			}
-			if (state->backdropSpin.willIndex != 0) {
-				switchTo(SpinnerState::FinishedBackdrop, kBackdropStopsAt);
-			}
-			if (current == SpinnerState::FinishedBackdrop
-				&& state->patternSpin.willIndex != 0) {
-				switchTo(SpinnerState::FinishedPattern, kPatternStopsAt);
-			}
-			if (current == SpinnerState::FinishedPattern
-				&& state->modelSpin.willIndex != 0) {
-				// We want to start final model move not from the middle.
-				switchTo(SpinnerState::FinishedModel, kModelStopsAt);
-			}
-
+			const auto switchTo = [&](SpinnerState to, crl::time at) {
+				if (elapsed >= at) {
+					stateTo(to);
+				}
+			};
 			const auto actualize = [&](
 					AttributeSpin &spin,
 					auto &&list,
+					SpinnerState checkState,
 					SpinnerState finishState,
 					int slowdown = 1) {
 				if (spin.progress() < 1.) {
 					return;
-				} else if (current >= finishState) {
+				} else if (current >= checkState) {
 					spin.startToTarget([=] { cover->update(); }, slowdown);
+					stateTo(finishState);
 				} else {
 					spin.startWithin(list.size(), [=] { cover->update(); });
 				}
 			};
+			if (anim::Disabled() && current < SpinnerState::FinishedModel) {
+				stateTo(SpinnerState::FinishedModel);
+				state->backdropSpin.startToTarget([=] { cover->update(); });
+				state->patternSpin.startToTarget([=] { cover->update(); });
+				state->modelSpin.startToTarget([=] { cover->update(); });
+			}
+			if (state->backdropSpin.willIndex != 0) {
+				switchTo(SpinnerState::FinishBackdrop, kBackdropStopsAt);
+			}
 			actualize(
 				state->backdropSpin,
 				state->spinnerBackdrops,
+				SpinnerState::FinishBackdrop,
 				SpinnerState::FinishedBackdrop);
+
+			if (current == SpinnerState::FinishedBackdrop
+				&& state->patternSpin.willIndex != 0) {
+				switchTo(SpinnerState::FinishPattern, kPatternStopsAt);
+			}
 			actualize(
 				state->patternSpin,
 				state->spinnerPatterns,
+				SpinnerState::FinishPattern,
 				SpinnerState::FinishedPattern);
+
+			if (current == SpinnerState::FinishedPattern
+				&& state->modelSpin.willIndex != 0) {
+				// We want to start final model move not from the middle.
+				switchTo(SpinnerState::FinishModel, kModelStopsAt);
+			}
 			actualize(
 				state->modelSpin,
 				state->spinnerModels,
+				SpinnerState::FinishModel,
 				SpinnerState::FinishedModel,
 				2);
 
@@ -3739,6 +3751,9 @@ void AddUniqueGiftCover(
 				state->now.model);
 			const auto modelProgress = state->modelSpin.progress();
 			const auto paintOne = [&](ModelView &view, float64 progress) {
+				if (progress >= 1. || progress <= -1.) {
+					return;
+				}
 				auto scale = 1.;
 				if (progress != 0.) {
 					const auto shift = progress * width / 2.;

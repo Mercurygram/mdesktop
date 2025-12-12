@@ -83,9 +83,12 @@ namespace {
 
 constexpr auto kTooltipDuration = 3 * crl::time(1000);
 constexpr auto kHorizontalBar = QChar(0x2015);
+constexpr auto kSpinnerRows = 6;
+constexpr auto kSpinDuration = crl::time(160);
 
 using Ui::AddTableRow;
 using Ui::TableRowTooltipData;
+using SpinnerState = Data::GiftUpgradeSpinner::State;
 
 [[nodiscard]] QString CreateMessageLink(
 		not_null<Main::Session*> session,
@@ -276,6 +279,174 @@ using Ui::TableRowTooltipData;
 	return MakeValueWithSmallButton(table, label, std::move(text), handler);
 }
 
+[[nodiscard]] object_ptr<Ui::RpWidget> MakeAttributeValue(
+		not_null<Ui::TableLayout*> table,
+		const Data::UniqueGiftAttribute &attribute,
+		Fn<void(not_null<Ui::RpWidget*>, int)> showTooltip,
+		std::shared_ptr<Data::GiftUpgradeSpinner> spinner,
+		std::vector<Data::UniqueGiftAttribute> spinning,
+		SpinnerState finishedState) {
+	if (!spinner) {
+		return MakeAttributeValue(table, attribute, showTooltip);
+	}
+	auto result = object_ptr<Ui::RpWidget>(table);
+	const auto raw = result.get();
+
+	struct Row {
+		Data::UniqueGiftAttribute attribute;
+		object_ptr<Ui::RpWidget> widget;
+		QImage frame;
+	};
+	struct State {
+		int wasIndex = 0;
+		int nowIndex = 0;
+		std::vector<Row> rows;
+		Ui::Animations::Simple animation;
+		QImage fading;
+		Fn<void()> repaint;
+		bool finished = false;
+	};
+	const auto state = raw->lifetime().make_state<State>();
+	state->repaint = [=] { raw->update(); };
+
+	const auto margin = st::giveawayGiftCodeValueMargin;
+	const auto startWithin = [=] {
+		Expects(!state->rows.empty());
+
+		state->wasIndex = state->nowIndex;
+		state->nowIndex = (state->nowIndex + 1) % state->rows.size();
+		state->animation.start(state->repaint, 0., 1., kSpinDuration);
+	};
+	const auto startToTarget = [=] {
+		if (state->nowIndex != 0) {
+			state->wasIndex = state->nowIndex;
+			state->nowIndex = 0;
+			state->animation.start(
+				state->repaint,
+				0.,
+				1.,
+				kSpinDuration * 3,
+				anim::easeOutCubic);
+		}
+	};
+
+	const auto add = [&](const Data::UniqueGiftAttribute &value) {
+		if (state->rows.size() >= kSpinnerRows) {
+			return false;
+		}
+		const auto already = ranges::contains(
+			state->rows,
+			value,
+			&Row::attribute);
+		if (!already) {
+			state->rows.push_back(Row{
+				.attribute = value,
+				.widget = MakeAttributeValue(table, value, showTooltip),
+			});
+			const auto widget = state->rows.back().widget.get();
+			widget->setParent(raw);
+			widget->hide();
+		}
+		return true;
+	};
+	add(attribute);
+	for (const auto &item : spinning) {
+		if (!add(item)) {
+			break;
+		}
+	}
+
+	raw->widthValue() | rpl::on_next([=](int width) {
+		auto height = 0;
+		const auto inner = width - margin.left() - margin.right();
+		if (inner > 0) {
+			for (const auto &row : state->rows) {
+				row.widget->resizeToWidth(inner);
+				row.widget->move(margin.left(), margin.top());
+				height = std::max(height, row.widget->height());
+			}
+		}
+		raw->resize(width, margin.top() + height + margin.bottom());
+		crl::on_main(raw, [=] {
+			for (const auto &row : state->rows) {
+				Ui::SendPendingMoveResizeEvents(row.widget.get());
+			}
+		});
+	}, raw->lifetime());
+
+	style::PaletteChanged() | rpl::on_next([=] {
+		for (auto &row : state->rows) {
+			row.frame = QImage();
+		}
+		state->fading = QImage();
+	}, raw->lifetime());
+
+	raw->paintOn([=](QPainter &p) {
+		if (state->finished) {
+			return;
+		}
+		auto progress = state->animation.value(1.);
+		if (progress >= 1.) {
+			const auto ending = (spinner->state.current() >= finishedState);
+			if (ending) {
+				startToTarget();
+			} else {
+				startWithin();
+			}
+			progress = state->animation.value(1.);
+			if (ending && progress >= 1.) {
+				state->rows.front().widget->show();
+				state->finished = true;
+				return;
+			}
+		}
+		const auto ratio = style::DevicePixelRatio();
+		const auto h = raw->height();
+		if (state->fading.height() != h * ratio) {
+			state->fading = QImage(
+				QSize(1, h) * ratio,
+				QImage::Format_ARGB32_Premultiplied);
+			state->fading.setDevicePixelRatio(ratio);
+			state->fading.fill(Qt::transparent);
+			auto q = QPainter(&state->fading);
+			auto brush = QLinearGradient(0, 0, 0, margin.top());
+			brush.setStops({
+				{ 0., QColor(255, 255, 255, 255) },
+				{ 1., QColor(255, 255, 255, 0) },
+			});
+			q.fillRect(0, 0, 1, margin.top(), brush);
+			brush.setStart(0, h);
+			brush.setFinalStop(0, h - margin.bottom());
+			q.fillRect(0, h - margin.bottom(), 1, margin.bottom(), brush);
+		}
+		auto &was = state->rows[state->wasIndex];
+		auto &now = state->rows[state->nowIndex];
+		const auto validate = [&](Row &row) {
+			const auto size = row.widget->size();
+			if (row.frame.size() != size * ratio) {
+				row.frame = Ui::GrabWidgetToImage(row.widget.get());
+			}
+		};
+		validate(was);
+		validate(now);
+		const auto t = progress * (margin.top() + was.widget->height());
+		const auto b = progress * (now.widget->height() + margin.bottom());
+		p.drawImage(
+			margin.left(),
+			margin.top() - int(base::SafeRound(t)),
+			was.frame);
+		p.drawImage(
+			margin.left(),
+			raw->height() - int(base::SafeRound(b)),
+			now.frame);
+		p.drawImage(raw->rect(), state->fading);
+	});
+
+	startWithin();
+
+	return result;
+}
+
 void AddUniqueGiftPropertyRows(
 		not_null<Ui::RpWidget*> container,
 		not_null<Ui::TableLayout*> table,
@@ -297,18 +468,55 @@ void AddUniqueGiftPropertyRows(
 			rpl::single(TextWithEntities{ percent }),
 			Ui::Text::WithEntities));
 	};
+	const auto empty = std::vector<Data::UniqueGiftAttribute>();
+	const auto extract = [&](const auto &list) {
+		auto result = empty;
+		result.reserve(list.size());
+		for (const auto &item : list) {
+			result.push_back(item);
+		}
+		return result;
+	};
+	const auto attributes = spinner ? &spinner->attributes : nullptr;
+	const auto models = spinner ? extract(attributes->models) : empty;
+	const auto patterns = spinner ? extract(attributes->patterns) : empty;
+	const auto backdrops = spinner ? extract(attributes->backdrops) : empty;
+	const auto margin = spinner
+		? style::margins()
+		: st::giveawayGiftCodeValueMargin;
 	AddTableRow(
 		table,
 		tr::lng_gift_unique_model(),
-		MakeAttributeValue(table, unique->model, showRarity));
-	AddTableRow(
-		table,
-		tr::lng_gift_unique_backdrop(),
-		MakeAttributeValue(table, unique->backdrop, showRarity));
+		MakeAttributeValue(
+			table,
+			unique->model,
+			showRarity,
+			spinner,
+			models,
+			SpinnerState::FinishedModel),
+		margin);
 	AddTableRow(
 		table,
 		tr::lng_gift_unique_symbol(),
-		MakeAttributeValue(table, unique->pattern, showRarity));
+		MakeAttributeValue(
+			table,
+			unique->pattern,
+			showRarity,
+			spinner,
+			backdrops,
+			SpinnerState::FinishedPattern),
+		margin);
+	AddTableRow(
+		table,
+		tr::lng_gift_unique_backdrop(),
+		MakeAttributeValue(
+			table,
+			unique->backdrop,
+			showRarity,
+			spinner,
+			patterns,
+			SpinnerState::FinishedBackdrop),
+		margin);
 }
 
 [[nodiscard]] object_ptr<Ui::RpWidget> MakeStarGiftStarsValue(

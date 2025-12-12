@@ -256,8 +256,11 @@ struct GiftUpgradeSpinner {
 		Loading, // Cover started preparing the spinners.
 		Prepared, // Cover prepared the spinners, waiting for nextToUpgrade.
 		Started, // Started spinning animations.
+		FinishBackdrop, // Ready to animate to target backdrop.
 		FinishedBackdrop, // Backdrop finishes spinning.
+		FinishPattern, // Ready to animate to target pattern.
 		FinishedPattern, // Pattern finishes spinning.
+		FinishModel, // Ready to animate to target model.
 		FinishedModel, // All spinners finish animating or user pressed Skip.
 		Finished, // Animations finished, show fireworks.
 		Timeout, // Waited for Prepared for too long, skipping animations.

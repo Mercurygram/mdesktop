@@ -1545,8 +1545,6 @@ void GenericCreditsEntryBody(
 		}, box->lifetime());
 	}
 
-	box->clearButtons();
-
 	const auto content = box->verticalLayout();
 	if (uniqueGift) {
 		AddSkip(content, st::defaultVerticalListSkip * 2);
@@ -2284,90 +2282,110 @@ void GenericCreditsEntryBody(
 		}, content->lifetime());
 	}
 
-	const auto button = box->addButton(std::move(confirmText), [=] {
-		if (showNextToUpgrade) {
-			const auto close = crl::guard(box, [=] { box->closeBox(); });
-			showNextToUpgrade();
-			close();
-			return;
-		} else if (state->confirmButtonBusy.current()
-			|| state->convertButtonBusy.current()) {
-			return;
-		}
-		if (willBusy) {
-			state->confirmButtonBusy = true;
-			send();
-		} else if (canBuyResold) {
-			const auto to = e.bareGiftResaleRecipientId
-				? show->session().data().peer(
-					PeerId(e.bareGiftResaleRecipientId))
-				: show->session().user();
-			ShowBuyResaleGiftBox(
-				show,
-				e.uniqueGift,
-				e.giftResaleForceTon,
-				to,
-				crl::guard(box, [=](bool) { box->closeBox(); }));
-		} else if (canUpgrade || canGiftUpgrade) {
-			upgrade();
-		} else if (canToggle && !e.savedToProfile) {
-			toggleVisibility(true);
-		} else {
-			box->closeBox();
-		}
-	}, showNextToUpgrade
-		? st::giveawayGiftCodeBoxUpgradeNext
-		: st::giveawayGiftCodeBox.button);
-	if (canBuyResold) {
-		if (uniqueGift->onlyAcceptTon || e.giftResaleForceTon) {
-			button->setText(rpl::single(QString()));
-			Ui::SetButtonTwoLabels(
-				button,
-				tr::lng_gift_buy_resale_button(
-					lt_cost,
-					rpl::single(Data::FormatGiftResaleTon(*uniqueGift)),
-					Ui::Text::WithEntities),
-				tr::lng_gift_buy_resale_equals(
-					lt_cost,
-					rpl::single(Ui::Text::IconEmoji(
-						&st::starIconEmojiSmall
-					).append(Lang::FormatCountDecimal(
-						uniqueGift->starsForResale))),
-					Ui::Text::WithEntities),
-				st::resaleButtonTitle,
-				st::resaleButtonSubtitle);
-		} else {
-			button->setText(tr::lng_gift_buy_resale_button(
-				lt_cost,
-				rpl::single(Ui::Text::IconEmoji(&st::starIconEmoji).append(
-					Lang::FormatCountDecimal(uniqueGift->starsForResale))),
-				Ui::Text::WithEntities));
-		}
-	} else if (showNextToUpgrade) {
-		const auto session = &show->session();
-		const auto sticker = e.nextToUpgradeStickerId
-			? session->data().document(e.nextToUpgradeStickerId).get()
-			: nullptr;
-		const auto document = (sticker && sticker->sticker())
-			? sticker
-			: nullptr;
-		button->setContext(Core::TextContext({ .session = session }));
-		button->setText(tr::lng_gift_unique_upgrade_next(
-		) | rpl::map([=](const QString &text) {
-			auto result = TextWithEntities{ text };
-			if (document) {
-				result.append(' ').append(Data::SingleCustomEmoji(document));
+	const auto initButtons = [=] {
+		box->clearButtons();
+		const auto button = box->addButton(std::move(confirmText), [=] {
+			if (showNextToUpgrade) {
+				const auto close = crl::guard(box, [=] { box->closeBox(); });
+				showNextToUpgrade();
+				close();
+				return;
+			} else if (state->confirmButtonBusy.current()
+				|| state->convertButtonBusy.current()) {
+				return;
 			}
-			return result;
-		}));
-	}
-	{
-		using namespace Info::Statistics;
-		const auto loadingAnimation = InfiniteRadialAnimationWidget(
-			button,
-			button->height() / 2);
-		AddChildToWidgetCenter(button, loadingAnimation);
-		loadingAnimation->showOn(state->confirmButtonBusy.value());
+			if (willBusy) {
+				state->confirmButtonBusy = true;
+				send();
+			} else if (canBuyResold) {
+				const auto to = e.bareGiftResaleRecipientId
+					? show->session().data().peer(
+						PeerId(e.bareGiftResaleRecipientId))
+					: show->session().user();
+				ShowBuyResaleGiftBox(
+					show,
+					e.uniqueGift,
+					e.giftResaleForceTon,
+					to,
+					crl::guard(box, [=](bool) { box->closeBox(); }));
+			} else if (canUpgrade || canGiftUpgrade) {
+				upgrade();
+			} else if (canToggle && !e.savedToProfile) {
+				toggleVisibility(true);
+			} else {
+				box->closeBox();
+			}
+		}, showNextToUpgrade
+			? st::giveawayGiftCodeBoxUpgradeNext
+			: st::giveawayGiftCodeBox.button);
+		if (canBuyResold) {
+			if (uniqueGift->onlyAcceptTon || e.giftResaleForceTon) {
+				button->setText(rpl::single(QString()));
+				Ui::SetButtonTwoLabels(
+					button,
+					tr::lng_gift_buy_resale_button(
+						lt_cost,
+						rpl::single(Data::FormatGiftResaleTon(*uniqueGift)),
+						Ui::Text::WithEntities),
+					tr::lng_gift_buy_resale_equals(
+						lt_cost,
+						rpl::single(Ui::Text::IconEmoji(
+							&st::starIconEmojiSmall
+						).append(Lang::FormatCountDecimal(
+							uniqueGift->starsForResale))),
+						Ui::Text::WithEntities),
+					st::resaleButtonTitle,
+					st::resaleButtonSubtitle);
+			} else {
+				button->setText(tr::lng_gift_buy_resale_button(
+					lt_cost,
+					rpl::single(Ui::Text::IconEmoji(&st::starIconEmoji).append(
+						Lang::FormatCountDecimal(uniqueGift->starsForResale))),
+					Ui::Text::WithEntities));
+			}
+		} else if (showNextToUpgrade) {
+			const auto session = &show->session();
+			const auto sticker = e.nextToUpgradeStickerId
+				? session->data().document(e.nextToUpgradeStickerId).get()
+				: nullptr;
+			const auto document = (sticker && sticker->sticker())
+				? sticker
+				: nullptr;
+			button->setContext(Core::TextContext({ .session = session }));
+			button->setText(tr::lng_gift_unique_upgrade_next(
+			) | rpl::map([=](const QString &text) {
+				auto result = TextWithEntities{ text };
+				if (document) {
+					result.append(' ').append(Data::SingleCustomEmoji(document));
+				}
+				return result;
+			}));
+		}
+		{
+			using namespace Info::Statistics;
+			const auto loadingAnimation = InfiniteRadialAnimationWidget(
+				button,
+				button->height() / 2);
+			AddChildToWidgetCenter(button, loadingAnimation);
+			loadingAnimation->showOn(state->confirmButtonBusy.value());
+		}
+	};
+	if (upgradeSpinner) {
+		using SpinnerState = Data::GiftUpgradeSpinner::State;
+		box->clearButtons();
+		const auto button = box->addButton(tr::lng_create_group_skip(), [=] {
+			initButtons();
+			upgradeSpinner->state = SpinnerState::FinishedModel;
+		});
+
+		upgradeSpinner->state.value(
+		) | rpl::on_next([=](SpinnerState state) {
+			if (state >= SpinnerState::Finished) {
+				crl::on_main(button, initButtons);
+			}
+		}, button->lifetime());
+	} else {
+		initButtons();
 	}
 }
 
