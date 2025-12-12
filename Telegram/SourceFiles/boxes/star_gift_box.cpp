@@ -142,16 +142,16 @@ constexpr auto kGiftsPreloadTimeout = 3 * crl::time(1000);
 constexpr auto kResellPriceCacheLifetime = 60 * crl::time(1000);
 constexpr auto kGradientButtonBgOpacity = 0.6;
 
-constexpr auto kSpinnerBackdrops = 4;
-constexpr auto kSpinnerPatterns = 4;
-constexpr auto kSpinnerModels = 4;
+constexpr auto kSpinnerBackdrops = 6;
+constexpr auto kSpinnerPatterns = 6;
+constexpr auto kSpinnerModels = 6;
 
 constexpr auto kBackdropSpinDuration = crl::time(300);
-constexpr auto kBackdropStopsAt = 10 * 3 * crl::time(1000);
+constexpr auto kBackdropStopsAt = crl::time(2.5 * 1000);
 constexpr auto kPatternSpinDuration = crl::time(600);
-constexpr auto kPatternStopsAt = 10 * 5 * crl::time(1000);
+constexpr auto kPatternStopsAt = crl::time(4 * 1000);
 constexpr auto kModelSpinDuration = crl::time(300);
-constexpr auto kModelStopsAt = 10 * 7 * crl::time(1000);
+constexpr auto kModelStopsAt = crl::time(5.5 * 1000);
 constexpr auto kModelScaleFrom = 0.7;
 
 using namespace HistoryView;
@@ -2873,7 +2873,7 @@ void AddUniqueGiftCover(
 	struct PatternView {
 		DocumentData *document = nullptr;
 		std::unique_ptr<Text::CustomEmoji> emoji;
-		base::flat_map<float64, QImage> emojis;
+		base::flat_map<int, base::flat_map<float64, QImage>> emojis;
 	};
 	struct ModelView {
 		std::shared_ptr<Data::DocumentMedia> media;
@@ -2885,7 +2885,6 @@ void AddUniqueGiftCover(
 		BackdropView backdrop;
 		PatternView pattern;
 		ModelView model;
-		bool spinned = false;
 		bool forced = false;
 	};
 	struct AttributeSpin {
@@ -2909,12 +2908,17 @@ void AddUniqueGiftCover(
 			willIndex = (willIndex < 0 ? 1 : (willIndex + 1)) % count;
 			animation.start(update, 0., 1., duration);
 		}
-		void startToTarget(Fn<void()> update) {
+		void startToTarget(Fn<void()> update, int slowdown = 1) {
 			if (willIndex != 0) {
 				wasIndex = nowIndex;
 				nowIndex = willIndex;
 				willIndex = 0;
-				animation.start(update, 0., 1., duration);
+				animation.start(
+					update,
+					0.,
+					1.,
+					duration * 3 * slowdown,
+					anim::easeOutCubic);
 			}
 		}
 	};
@@ -3085,6 +3089,7 @@ void AddUniqueGiftCover(
 				}
 			}
 			spinner->state = SpinnerState::Prepared;
+			state->checkSpinnerStart = nullptr;
 		};
 		spinner->state.value() | rpl::on_next([=](SpinnerState now) {
 			if (now == SpinnerState::Preparing) {
@@ -3117,10 +3122,11 @@ void AddUniqueGiftCover(
 		data
 	) | rpl::on_next([=](const UniqueGiftCover &now) {
 		const auto setup = [&](GiftView &to) {
+			Expects(!now.spinner);
+
 			to = {};
 			to.gift = now.values;
 			to.forced = now.force;
-			to.spinned = now.spinner;
 			to.backdrop.colors = now.values.backdrop;
 			setupModel(to.model, now.values.model);
 			setupPattern(to.pattern, now.values.pattern);
@@ -3147,31 +3153,40 @@ void AddUniqueGiftCover(
 
 	const auto repaintedHook = args.repaintedHook;
 	const auto updateLinkFg = args.subtitleLinkColored;
-	const auto updateColors = [=](float64 progress) {
-		if (repaintedHook) {
-			repaintedHook(state->now.gift, state->next.gift, progress);
-		}
+	const auto updateColorsFromBackdrops = [=](
+			const BackdropView &from,
+			const BackdropView &to,
+			float64 progress) {
 		released->bg = (progress == 0.)
-			? state->now.gift->backdrop.patternColor
+			? from.colors.patternColor
 			: (progress == 1.)
-			? state->next.gift->backdrop.patternColor
+			? to.colors.patternColor
 			: anim::color(
-				state->now.gift->backdrop.patternColor,
-				state->next.gift->backdrop.patternColor,
+				from.colors.patternColor,
+				to.colors.patternColor,
 				progress);
 		const auto color = (progress == 0.)
-			? state->now.gift->backdrop.textColor
+			? from.colors.textColor
 			: (progress == 1.)
-			? state->next.gift->backdrop.textColor
+			? to.colors.textColor
 			: anim::color(
-				state->now.gift->backdrop.textColor,
-				state->next.gift->backdrop.textColor,
+				from.colors.textColor,
+				to.colors.textColor,
 				progress);
 		if (updateLinkFg) {
 			released->link.update(color);
 		}
 		released->fg = color;
 		released->subtitle->setTextColorOverride(color);
+	};
+	const auto updateColors = [=](float64 progress) {
+		if (repaintedHook) {
+			repaintedHook(state->now.gift, state->next.gift, progress);
+		}
+		updateColorsFromBackdrops(
+			state->now.backdrop,
+			state->next.backdrop,
+			progress);
 	};
 	if (args.resalePrice) {
 		auto background = rpl::duplicate(
@@ -3522,12 +3537,16 @@ void AddUniqueGiftCover(
 				PatternView &pattern,
 				const BackdropView &backdrop,
 				float64 shown) {
+			const auto color = backdrop.colors.patternColor;
+			const auto key = (color.red() << 16)
+				| (color.green() << 8)
+				| color.blue();
 			Ui::PaintBgPoints(
 				p,
 				Ui::PatternBgPoints(),
-				pattern.emojis,
+				pattern.emojis[key],
 				pattern.emoji.get(),
-				backdrop.colors,
+				color,
 				QRect(0, 0, width, st::uniqueGiftSubtitleTop),
 				shown);
 		};
@@ -3590,18 +3609,32 @@ void AddUniqueGiftCover(
 					state->spinner->state = to;
 				}
 			};
-			switchTo(SpinnerState::FinishedBackdrop, kBackdropStopsAt);
-			switchTo(SpinnerState::FinishedPattern, kPatternStopsAt);
-			switchTo(SpinnerState::Finished, kModelStopsAt);
+			if (anim::Disabled()) {
+				current = SpinnerState::FinishedModel;
+				state->spinner->state = current;
+			}
+			if (state->backdropSpin.willIndex != 0) {
+				switchTo(SpinnerState::FinishedBackdrop, kBackdropStopsAt);
+			}
+			if (current == SpinnerState::FinishedBackdrop
+				&& state->patternSpin.willIndex != 0) {
+				switchTo(SpinnerState::FinishedPattern, kPatternStopsAt);
+			}
+			if (current == SpinnerState::FinishedPattern
+				&& state->modelSpin.willIndex != 0) {
+				// We want to start final model move not from the middle.
+				switchTo(SpinnerState::FinishedModel, kModelStopsAt);
+			}
 
 			const auto actualize = [&](
 					AttributeSpin &spin,
 					auto &&list,
-					SpinnerState finishState) {
+					SpinnerState finishState,
+					int slowdown = 1) {
 				if (spin.progress() < 1.) {
 					return;
 				} else if (current >= finishState) {
-					spin.startToTarget([=] { cover->update(); });
+					spin.startToTarget([=] { cover->update(); }, slowdown);
 				} else {
 					spin.startWithin(list.size(), [=] { cover->update(); });
 				}
@@ -3617,7 +3650,8 @@ void AddUniqueGiftCover(
 			actualize(
 				state->modelSpin,
 				state->spinnerModels,
-				SpinnerState::Finished);
+				SpinnerState::FinishedModel,
+				2);
 
 			auto &backdropNow = select(
 				state->spinnerBackdrops,
@@ -3628,17 +3662,10 @@ void AddUniqueGiftCover(
 				state->backdropSpin.willIndex,
 				state->now.backdrop);
 			const auto backdropProgress = state->backdropSpin.progress();
-			if (backdropProgress >= 1.) {
-				p.drawImage(0, 0, getBackdrop(backdropWill));
-			} else {
-				p.drawImage(0, 0, getBackdrop(backdropNow));
-				if (backdropProgress > 0.) {
-					const auto w = base::SafeRound(width * backdropProgress);
-					p.setClipRect(0, 0, int(w), cover->height());
-					p.drawImage(0, 0, getBackdrop(backdropWill));
-					p.setClipping(false);
-				}
-			}
+			updateColorsFromBackdrops(
+				backdropNow,
+				backdropWill,
+				backdropProgress);
 
 			auto &patternNow = select(
 				state->spinnerPatterns,
@@ -3649,12 +3676,52 @@ void AddUniqueGiftCover(
 				state->patternSpin.willIndex,
 				state->now.pattern);
 			const auto patternProgress = state->patternSpin.progress();
-			if (patternProgress >= 1.) {
-				paintPattern(p, patternWill, backdropWill, 1.);
+			const auto paintPatterns = [&](
+					QPainter &p,
+					const BackdropView &backdrop) {
+				if (patternProgress >= 1.) {
+					paintPattern(p, patternWill, backdrop, 1.);
+				} else {
+					paintPattern(p, patternNow, backdrop, 1. - patternProgress);
+					if (patternProgress > 0.) {
+						paintPattern(p, patternWill, backdrop, patternProgress);
+					}
+				}
+			};
+
+			if (backdropProgress >= 1.) {
+				p.drawImage(0, 0, getBackdrop(backdropWill));
+				paintPatterns(p, backdropWill);
 			} else {
-				paintPattern(p, patternNow, backdropWill, 1. - patternProgress);
-				if (patternProgress > 0.) {
-					paintPattern(p, patternWill, backdropWill, patternProgress);
+				p.drawImage(0, 0, getBackdrop(backdropNow));
+				paintPatterns(p, backdropNow);
+
+				const auto fade = width / 2;
+				const auto from = anim::interpolate(
+					-fade,
+					width,
+					backdropProgress);
+				if (const auto till = from + fade; till > 0) {
+					auto faded = getBackdrop(backdropWill);
+					auto q = QPainter(&faded);
+					paintPatterns(q, backdropWill);
+
+					q.setCompositionMode(
+						QPainter::CompositionMode_DestinationIn);
+					auto brush = QLinearGradient(from, 0, till, 0);
+					brush.setStops({
+						{ 0., QColor(255, 255, 255, 255) },
+						{ 1., QColor(255, 255, 255, 0) },
+					});
+					const auto ratio = int(faded.devicePixelRatio());
+					const auto height = faded.height() / ratio;
+					q.fillRect(from, 0, fade, height, brush);
+					q.end();
+
+					p.drawImage(
+						QRect(0, 0, till, height),
+						faded,
+						QRect(0, 0, till * ratio, faded.height()));
 				}
 			}
 
@@ -3686,12 +3753,44 @@ void AddUniqueGiftCover(
 					p.restore();
 				}
 			};
-			const auto willProgress = -1. + modelProgress * 2 / 3.;
-			const auto nowProgress = willProgress + 2 / 3.;
-			const auto wasProgress = 1. + (modelProgress - 1.) * 2 / 3.;
-			paintOne(modelWas, wasProgress);
+			const auto initial = (state->modelSpin.nowIndex < 0);
+			const auto ending = (current == SpinnerState::FinishedModel)
+				&& !state->modelSpin.willIndex;
+			const auto willProgress = ending
+				? (modelProgress - 1.)
+				: (-1. + modelProgress * 2 / 3.);
+			const auto nowProgress = ending
+				? (modelProgress * 4 / 3. - 1 / 3.)
+				: initial
+				? (modelProgress * 1 / 3.)
+				: (willProgress + 2 / 3.);
+			const auto wasProgress = ending
+				? std::min(nowProgress + 2 / 3., 1.)
+				: 1. + (modelProgress - 1.) * 2 / 3.;
+			if (!initial) {
+				paintOne(modelWas, wasProgress);
+			}
 			paintOne(modelNow, nowProgress);
 			paintOne(modelWill, willProgress);
+
+			if (anim::Disabled()
+				|| (ending
+					&& modelProgress >= 1.
+					&& backdropProgress >= 1.
+					&& patternProgress >= 1.)) {
+				const auto take = [&](auto &&list) {
+					auto result = std::move(list.front());
+					list.clear();
+					return result;
+				};
+				state->now.gift = *state->spinner->target;
+				state->now.backdrop = take(state->spinnerBackdrops);
+				state->now.pattern = take(state->spinnerPatterns);
+				state->now.model = take(state->spinnerModels);
+				state->now.forced = true;
+				state->spinStarted = 0;
+				state->spinner->state = SpinnerState::Finished;
+			}
 		} else {
 			if (progress < 1.) {
 				const auto finished = paint(state->now, 1. - progress)
@@ -3707,6 +3806,10 @@ void AddUniqueGiftCover(
 					state->crossfade.start([=] {
 						cover->update();
 					}, 0., 1., kCrossfadeDuration);
+				} else if (finished) {
+					if (const auto onstack = state->checkSpinnerStart) {
+						onstack();
+					}
 				}
 			}
 			if (progress > 0.) {
@@ -4949,6 +5052,7 @@ void UpgradeBox(
 		.backdrops = args.backdrops,
 		.patterns = args.patterns,
 	};
+
 	AddUpgradeGiftCover(
 		show,
 		container,
@@ -5265,6 +5369,12 @@ void UpgradeBox(
 	}
 
 	AddUniqueCloseButton(box, {});
+
+	spinner->state.value() | rpl::filter(
+		rpl::mappers::_1 == Data::GiftUpgradeSpinner::State::Finished
+	) | rpl::take(1) | rpl::on_next([=] {
+		Ui::StartFireworks(box->parentWidget());
+	}, box->lifetime());
 }
 
 void ShowStarGiftUpgradeBox(StarGiftUpgradeArgs &&args) {
