@@ -2086,7 +2086,7 @@ void GenericCreditsEntryBody(
 	Ui::AddSkip(content);
 
 	const auto showNextToUpgrade = e.nextToUpgradeShow;
-	if (!isStarGift && e.credits.stars()) {
+	if (!isStarGift && e.credits.stars() && e.credits.value()) {
 		box->addRow(CreateCreditsTermsLabel(box), style::al_top);
 	} else if (starGiftCanManage) {
 		const auto hiddenPhrase = giftToChannelCanManage
@@ -2146,7 +2146,7 @@ void GenericCreditsEntryBody(
 			toggleVisibility(!e.savedToProfile);
 			return false;
 		});
-	} else if (e.credits.stars()) {
+	} else if (e.credits.stars() && e.credits.value()) {
 		box->addRow(CreateCreditsTermsLabel(box), style::al_top);
 	} else {
 		addGiftLinkTON();
