@@ -1409,7 +1409,7 @@ void UpgradeGift(
 		bool keepDetails,
 		int stars,
 		Fn<void(bool, std::shared_ptr<Data::GiftUpgradeResult>)> done) {
-	AssertIsDebug(); return;
+	//AssertIsDebug(); return;
 	const auto session = &window->session();
 	const auto weak = base::make_weak(window);
 	auto formDone = [=](
@@ -5276,35 +5276,31 @@ void UpgradeBox(
 			state->upgrading = true;
 			UpgradeGift(controller, args.savedId, keepDetails, cost, done);
 
-			AssertIsDebug();
-			const auto modelIndex = base::RandomIndex(args.models.size());
-			const auto patternIndex = base::RandomIndex(args.patterns.size());
-			const auto backdropIndex = base::RandomIndex(args.backdrops.size());
-			const auto result = std::make_shared<Data::GiftUpgradeResult>(Data::GiftUpgradeResult{
-				.info = args.stargift,
-				.manageId = Data::SavedStarGiftId::User(123),
-				.date = base::unixtime::now(),
-				.starsForDetailsRemove = 119,
-				.saved = true,
-			});
-			result->info.unique = std::make_shared<Data::UniqueGift>(Data::UniqueGift{
-				.id = 1,
-				.initialGiftId = args.stargift.id,
-				.slug = u"hello_world"_q,
-				.title = u"Shard Test"_q,
-				.ownerId = session->userPeerId(),
-				.releasedBy = show->session().user(),
-				.model = args.models[modelIndex],
-				.pattern = args.patterns[patternIndex],
-				.backdrop = args.backdrops[backdropIndex],
-			});
-			base::call_delayed(3000, [=] {
-				done(true, result);
-			});
-
-			AssertIsDebug();
-			return;
-
+			//AssertIsDebug();
+			//const auto modelIndex = base::RandomIndex(args.models.size());
+			//const auto patternIndex = base::RandomIndex(args.patterns.size());
+			//const auto backdropIndex = base::RandomIndex(args.backdrops.size());
+			//const auto result = std::make_shared<Data::GiftUpgradeResult>(Data::GiftUpgradeResult{
+			//	.info = args.stargift,
+			//	.manageId = Data::SavedStarGiftId::User(123),
+			//	.date = base::unixtime::now(),
+			//	.starsForDetailsRemove = 119,
+			//	.saved = true,
+			//});
+			//result->info.unique = std::make_shared<Data::UniqueGift>(Data::UniqueGift{
+			//	.id = 1,
+			//	.initialGiftId = args.stargift.id,
+			//	.slug = u"hello_world"_q,
+			//	.title = u"Shard Test"_q,
+			//	.ownerId = session->userPeerId(),
+			//	.releasedBy = show->session().user(),
+			//	.model = args.models[modelIndex],
+			//	.pattern = args.patterns[patternIndex],
+			//	.backdrop = args.backdrops[backdropIndex],
+			//});
+			//base::call_delayed(3000, [=] {
+			//	done(true, result);
+			//});
 		}
 	});
 	if (!preview) {
