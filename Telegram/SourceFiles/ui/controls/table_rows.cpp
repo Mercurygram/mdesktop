@@ -174,7 +174,12 @@ object_ptr<RpWidget> MakePeerTableValue(
 	}, label->lifetime());
 	userpic->setAttribute(Qt::WA_TransparentForMouseEvents);
 	label->setAttribute(Qt::WA_TransparentForMouseEvents);
-	label->setTextColorOverride(table->st().defaultValue.palette.linkFg->c);
+	rpl::single(
+		rpl::empty_value()
+	) | rpl::then(style::PaletteChanged()) | rpl::on_next([=] {
+		label->setTextColorOverride(
+			table->st().defaultValue.palette.linkFg->c);
+	}, label->lifetime());
 
 	raw->setClickedCallback([=] {
 		show->showBox(PrepareShortInfoBox(peer, show));
@@ -289,7 +294,11 @@ object_ptr<RpWidget> MakeHiddenPeerTableValue(
 
 	userpic->setAttribute(Qt::WA_TransparentForMouseEvents);
 	label->setAttribute(Qt::WA_TransparentForMouseEvents);
-	label->setTextColorOverride(st::windowFg->c);
+	rpl::single(
+		rpl::empty_value()
+	) | rpl::then(style::PaletteChanged()) | rpl::on_next([=] {
+		label->setTextColorOverride(st::windowFg->c);
+	}, label->lifetime());
 
 	return result;
 }
