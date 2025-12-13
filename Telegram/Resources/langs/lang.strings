@@ -1270,6 +1270,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_passkeys_none_info3_title" = "Store Passkey securely";
 "lng_settings_passkeys_none_info3_about" = "Your passkey is stored safely in the cloud service you choose.";
 "lng_settings_passkeys_none_button" = "Create Passkey";
+"lng_settings_passkeys_none_button_unsupported" = "Unsupported";
 "lng_settings_passkeys_created" = "Created {date}";
 "lng_settings_passkeys_last_used" = "Last used {date}";
 "lng_settings_passkeys_unsigned_error" = "Passkeys are not available in unsigned builds. Please use an official signed version of Telegram Desktop.";
