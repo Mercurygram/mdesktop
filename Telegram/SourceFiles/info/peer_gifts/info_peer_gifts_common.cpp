@@ -159,6 +159,10 @@ GiftButton::GiftButton(
 : AbstractButton(parent)
 , _delegate(delegate)
 , _lockedTimer([=] { refreshLocked(); }) {
+	style::PaletteChanged() | rpl::on_next([=] {
+		_delegate->invalidateCache();
+		update();
+	}, lifetime());
 }
 
 GiftButton::~GiftButton() {
@@ -1128,6 +1132,11 @@ QImage Delegate::cachedBadge(const GiftBadge &badge) {
 
 bool Delegate::amPremium() {
 	return _session->premium();
+}
+
+void Delegate::invalidateCache() {
+	_bg = QImage();
+	_badges.clear();
 }
 
 DocumentData *LookupGiftSticker(
