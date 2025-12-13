@@ -501,7 +501,8 @@ void TopBar::adjustColors(const std::optional<QColor> &edgeColor) {
 	};
 	const auto collectible = effectiveCollectible();
 	const auto shouldOverrideTitle = shouldOverride(_title->st().textFg);
-	const auto shouldOverrideStatus = shouldOverrideTitle; // shouldOverride(_status->st().textFg);
+	const auto shouldOverrideStatus = shouldOverrideTitle
+		|| shouldOverride(_status->st().textFg);
 	_title->setTextColorOverride(collectible
 		? collectible->textColor
 		: shouldOverrideTitle
