@@ -503,7 +503,7 @@ void AddUniqueGiftPropertyRows(
 			unique->pattern,
 			showRarity,
 			spinner,
-			backdrops,
+			patterns,
 			SpinnerState::FinishedPattern),
 		margin);
 	AddTableRow(
@@ -514,7 +514,7 @@ void AddUniqueGiftPropertyRows(
 			unique->backdrop,
 			showRarity,
 			spinner,
-			patterns,
+			backdrops,
 			SpinnerState::FinishedBackdrop),
 		margin);
 }
