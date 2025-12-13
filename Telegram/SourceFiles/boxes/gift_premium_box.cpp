@@ -411,8 +411,8 @@ using SpinnerState = Data::GiftUpgradeSpinner::State;
 			auto q = QPainter(&state->fading);
 			auto brush = QLinearGradient(0, 0, 0, margin.top());
 			brush.setStops({
-				{ 0., QColor(255, 255, 255, 255) },
-				{ 1., QColor(255, 255, 255, 0) },
+				{ 0., anim::with_alpha(st::boxBg->c, 1.) },
+				{ 1., anim::with_alpha(st::boxBg->c, 0.) },
 			});
 			q.fillRect(0, 0, 1, margin.top(), brush);
 			brush.setStart(0, h);
