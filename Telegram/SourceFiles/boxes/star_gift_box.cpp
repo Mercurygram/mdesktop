@@ -1292,9 +1292,6 @@ void SendGift(
 		const auto &action = message.vaction();
 		action.match([&](const MTPDmessageActionStarGiftUnique &data) {
 			if (const auto gift = Api::FromTL(session, data.vgift())) {
-				const auto from = data.vfrom_id()
-					? peerFromMTP(*data.vfrom_id())
-					: PeerId();
 				const auto to = data.vpeer()
 					? peerFromMTP(*data.vpeer())
 					: PeerId();
@@ -5351,7 +5348,9 @@ void UpgradeBox(
 				rpl::single(tr::marked()),
 				costText()),
 			rpl::conditional(
-				showPrices ? state->upgrading.value() : rpl::single(true),
+				(showPrices
+					? state->upgrading.value()
+					: (rpl::single(true) | rpl::type_erased)),
 				rpl::single(tr::marked()),
 				std::move(subtext)),
 			st::resaleButtonTitle,

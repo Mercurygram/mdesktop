@@ -71,7 +71,6 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 
 	mediaPlayer->updatedNotifier(
 	) | trackFilter | rpl::map([=](const TrackState &state) {
-		const auto type = state.id.type();
 		using namespace Media::Player;
 		if (_streamed) {
 			const auto &player = _streamed->player();
