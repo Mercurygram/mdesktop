@@ -150,7 +150,7 @@ constexpr auto kBackdropSpinDuration = crl::time(300);
 constexpr auto kBackdropStopsAt = crl::time(2.5 * 1000);
 constexpr auto kPatternSpinDuration = crl::time(600);
 constexpr auto kPatternStopsAt = crl::time(4 * 1000);
-constexpr auto kModelSpinDuration = crl::time(300);
+constexpr auto kModelSpinDuration = crl::time(160);
 constexpr auto kModelStopsAt = crl::time(5.5 * 1000);
 constexpr auto kModelScaleFrom = 0.7;
 

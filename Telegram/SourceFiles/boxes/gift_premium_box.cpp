@@ -84,7 +84,7 @@ namespace {
 constexpr auto kTooltipDuration = 3 * crl::time(1000);
 constexpr auto kHorizontalBar = QChar(0x2015);
 constexpr auto kSpinnerRows = 6;
-constexpr auto kSpinDuration = crl::time(160);
+constexpr auto kSpinDuration = crl::time(120);
 
 using Ui::AddTableRow;
 using Ui::TableRowTooltipData;
