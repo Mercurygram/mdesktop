@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/compose/compose_show.h"
 #include "chat_helpers/message_field.h"
 #include "chat_helpers/share_message_phrase_factory.h"
+#include "ui/basic_click_handlers.h"
 #include "ui/controls/userpic_button.h"
 #include "ui/wrap/slide_wrap.h"
 #include "ui/widgets/fields/input_field.h"
@@ -307,6 +308,7 @@ private:
 	void addViewStatistics();
 	void addBoostChat();
 	void addToggleFee();
+	void addSetPersonalChannel();
 
 	[[nodiscard]] bool skipCreateActions() const;
 
@@ -1578,6 +1580,7 @@ void Filler::fillProfileActions() {
 	addViewStatistics();
 	addStoryArchive();
 	addManageChat();
+	addSetPersonalChannel();
 	addTopicLink();
 	addManageTopic();
 	addToggleTopicClosed();
@@ -1742,6 +1745,21 @@ void Filler::addToggleFee() {
 			Core::TextContext({ .session = &user->session() }));
 		return result;
 	} });
+}
+
+void Filler::addSetPersonalChannel() {
+	const auto channel = _peer->asChannel();
+	if (!channel
+		|| _peer->session().user()->personalChannelId()
+		|| channel->isMegagroup()
+		|| !channel->amCreator()
+		|| !channel->isPublic()) {
+		return;
+	}
+	_addAction(tr::lng_edit_channel_personal_channel(tr::now), [=] {
+		UrlClickHandler::Open(u"internal:edit_personal_channel:"_q
+			+ QString::number(channel->id.value));
+	}, &st::menuIconProfile);
 }
 
 } // namespace

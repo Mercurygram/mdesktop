@@ -1146,6 +1146,18 @@ bool ShowEditPersonalChannel(
 	} else if (controller->showFrozenError()) {
 		return true;
 	}
+	const auto maybePeerId = match->captured(1);
+
+	if (!maybePeerId.isEmpty()) {
+		if (const auto peerId = PeerId(maybePeerId.toULongLong())) {
+			if (const auto peer = controller->session().data().peer(peerId)) {
+				if (const auto channel = peer->asChannel()) {
+					SavePersonalChannel(controller, channel);
+					return true;
+				}
+			}
+		}
+	}
 
 	auto listController = std::make_unique<PersonalChannelController>(
 		controller);
@@ -1840,7 +1852,7 @@ const std::vector<LocalUrlHandler> &InternalUrlHandlers() {
 			ShowEditBirthdayPrivacy,
 		},
 		{
-			u"^edit_personal_channel$"_q,
+			u"^edit_personal_channel(?::(\\d{2,}))?$"_q,
 			ShowEditPersonalChannel,
 		},
 		{
