@@ -1147,6 +1147,7 @@ bool ShowEditPersonalChannel(
 		return true;
 	}
 	const auto maybePeerId = match->captured(1);
+	const auto maybeRemove = match->captured(2);
 
 	if (!maybePeerId.isEmpty()) {
 		if (const auto peerId = PeerId(maybePeerId.toULongLong())) {
@@ -1157,6 +1158,9 @@ bool ShowEditPersonalChannel(
 				}
 			}
 		}
+	} else if (!maybeRemove.isEmpty()) {
+		SavePersonalChannel(controller, nullptr);
+		return true;
 	}
 
 	auto listController = std::make_unique<PersonalChannelController>(
@@ -1852,7 +1856,7 @@ const std::vector<LocalUrlHandler> &InternalUrlHandlers() {
 			ShowEditBirthdayPrivacy,
 		},
 		{
-			u"^edit_personal_channel(?::(\\d{2,}))?$"_q,
+			u"^edit_personal_channel(?::(?:(\\d{2,})|(remove)))?$"_q,
 			ShowEditPersonalChannel,
 		},
 		{

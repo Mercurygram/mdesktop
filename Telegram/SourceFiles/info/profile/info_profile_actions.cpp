@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_credits.h"
 #include "api/api_statistics.h"
 #include "apiwrap.h"
+#include "base/event_filter.h"
 #include "base/options.h"
 #include "base/timer_rpl.h"
 #include "base/unixtime.h"
@@ -1806,6 +1807,30 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupPersonalChannel(
 			return text;
 		});
 	};
+	if (user->isSelf()) {
+		struct State {
+			base::unique_qptr<Ui::PopupMenu> menu;
+		};
+		const auto state = container->lifetime().make_state<State>();
+		base::install_event_filter(container, [=](
+				not_null<QEvent*> e) {
+			if (e->type() == QEvent::ContextMenu) {
+				const auto ce = static_cast<QContextMenuEvent*>(e.get());
+				state->menu = base::make_unique_q<Ui::PopupMenu>(
+					container,
+					st::defaultPopupMenu);
+				state->menu->addAction(
+					tr::lng_settings_channel_menu_remove(tr::now),
+					[] {
+						UrlClickHandler::Open(
+							u"internal:edit_personal_channel:remove"_q);
+					});
+				state->menu->popup(ce->globalPos());
+				return base::EventFilterResult::Cancel;
+			}
+			return base::EventFilterResult::Continue;
+		}, container->lifetime());
+	}
 
 	{
 		const auto onlyChannelWrap = container->add(
