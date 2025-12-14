@@ -4122,13 +4122,15 @@ void InnerWidget::refreshEmpty() {
 		_emptyButton.destroy();
 		return;
 	} else if (_emptyState == state) {
-		_empty->setVisible(_state == WidgetState::Default);
+		const auto isEmptyVisible = (_state == WidgetState::Default)
+			&& !_openedFolder;
+		_empty->setVisible(isEmptyVisible);
 		if (_emptyList) {
-			_emptyList->setVisible(_state == WidgetState::Default);
+			_emptyList->setVisible(isEmptyVisible);
 			_empty->setVisible(false);
 		}
 		if (_emptyButton) {
-			_emptyButton->setVisible(_state == WidgetState::Default);
+			_emptyButton->setVisible(isEmptyVisible);
 		}
 		return;
 	}
@@ -4173,7 +4175,15 @@ void InnerWidget::refreshEmpty() {
 	_empty->setVisible(_state == WidgetState::Default);
 
 	if (state == EmptyState::NoContacts) {
-		const auto isListVisible = _state == WidgetState::Default;
+		const auto isListVisible = (_state == WidgetState::Default)
+			&& !_openedFolder;
+		if (_openedFolder) {
+			crl::on_main(this, [=] {
+				if (_openedFolder) {
+					_controller->closeFolder();
+				}
+			});
+		}
 		_emptyList.create(this);
 		_emptyList->setVisible(isListVisible);
 
