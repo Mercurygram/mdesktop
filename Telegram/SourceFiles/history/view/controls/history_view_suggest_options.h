@@ -20,6 +20,10 @@ class NumberInput;
 class InputField;
 } // namespace Ui
 
+namespace Ui::Text {
+class CustomEmojiHelper;
+} // namespace Ui::Text
+
 namespace Main {
 class Session;
 } // namespace Main
@@ -140,7 +144,8 @@ public:
 private:
 	void updateTexts();
 
-	[[nodiscard]] TextWithEntities composeText() const;
+	[[nodiscard]] TextWithEntities composeText(
+		Ui::Text::CustomEmojiHelper &helper) const;
 
 	const std::shared_ptr<ChatHelpers::Show> _show;
 	const not_null<PeerData*> _peer;

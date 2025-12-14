@@ -1065,15 +1065,18 @@ void SuggestOptionsBar::updateTexts() {
 		((_mode == SuggestMode::New)
 			? tr::lng_suggest_bar_title(tr::now)
 			: tr::lng_suggest_options_change(tr::now)));
+
+	auto helper = Ui::Text::CustomEmojiHelper();
+	const auto text = composeText(helper);
 	_text.setMarkedText(
 		st::defaultTextStyle,
-		composeText(),
+		text,
 		kMarkupTextOptions,
-		Core::TextContext({ .session = &_peer->session() }));
+		helper.context());
 }
 
-TextWithEntities SuggestOptionsBar::composeText() const {
-	auto helper = Ui::Text::CustomEmojiHelper();
+TextWithEntities SuggestOptionsBar::composeText(
+		Ui::Text::CustomEmojiHelper &helper) const {
 	const auto amount = _values.price().ton()
 		? helper.paletteDependent(Ui::Earn::IconCurrencyEmoji({
 			.size = st::suggestBarTonIconSize,
@@ -1084,21 +1087,21 @@ TextWithEntities SuggestOptionsBar::composeText() const {
 		).append(Lang::FormatCreditsAmountDecimal(_values.price()));
 	const auto date = langDateTime(base::unixtime::parse(_values.date));
 	if (!_values.price() && !_values.date) {
-		return tr::lng_suggest_bar_text(tr::now, Ui::Text::WithEntities);
+		return tr::lng_suggest_bar_text(tr::now, tr::marked);
 	} else if (!_values.date) {
 		return tr::lng_suggest_bar_priced(
 			tr::now,
 			lt_amount,
 			amount,
-			Ui::Text::WithEntities);
+			tr::marked);
 	} else if (!_values.price()) {
 		return tr::lng_suggest_bar_dated(
 			tr::now,
 			lt_date,
-			TextWithEntities{ date },
-			Ui::Text::WithEntities);
+			tr::marked(date),
+			tr::marked);
 	}
-	return TextWithEntities().append(
+	return tr::marked().append(
 		amount
 	).append("   ").append(
 		QString::fromUtf8("\xf0\x9f\x93\x86 ")
