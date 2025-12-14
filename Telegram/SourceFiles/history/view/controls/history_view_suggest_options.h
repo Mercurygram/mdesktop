@@ -78,6 +78,8 @@ struct StarsTonPriceArgs {
 	int starsMax = 0;
 	int64 nanoTonMin = 0;
 	int64 nanoTonMax = 0;
+	bool allowEmpty = false;
+	Fn<void(CreditsAmount)> errorHook;
 	rpl::producer<TextWithEntities> starsAbout;
 	rpl::producer<TextWithEntities> tonAbout;
 };

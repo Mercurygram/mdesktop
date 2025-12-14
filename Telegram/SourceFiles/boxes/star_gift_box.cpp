@@ -4218,6 +4218,7 @@ void UniqueGiftSellBox(
 		.starsMax = appConfig.giftResaleStarsMax(),
 		.nanoTonMin = nanoTonMin,
 		.nanoTonMax = appConfig.giftResaleNanoTonMax(),
+		.allowEmpty = true,
 	});
 	state->price = std::move(priceInput.result);
 	state->computePrice = std::move(priceInput.computeResult);

@@ -293,30 +293,37 @@ StarsTonPriceInput AddStarsTonPriceInput(
 		anim::type::instant);
 
 	auto computeResult = [=]() -> std::optional<CreditsAmount> {
-		auto nanos = int64();
+		auto amount = CreditsAmount();
 		const auto ton = state->ton.current();
 		if (ton) {
 			const auto text = tonField->getLastText();
 			const auto now = Ui::ParseTonAmountString(text);
-			if (now
-				&& *now
-				&& ((*now < args.nanoTonMin) || (*now > args.nanoTonMax))) {
-				tonField->showError();
-				return {};
+			amount = CreditsAmount(
+				now.value_or(0) / Ui::kNanosInOne,
+				now.value_or(0) % Ui::kNanosInOne,
+				CreditsType::Ton);
+			const auto bad = (!now || !*now)
+				? (!args.allowEmpty)
+				: ((*now < args.nanoTonMin) || (*now > args.nanoTonMax));
+			if (!bad) {
+				return amount;
 			}
-			nanos = now.value_or(0);
+			tonField->showError();
 		} else {
 			const auto now = starsField->getLastText().toLongLong();
-			if (now && (now < args.starsMin || now > args.starsMax)) {
-				starsField->showError();
-				return {};
+			amount = CreditsAmount(now);
+			const auto bad = !now
+				? (!args.allowEmpty)
+				: ((now < args.starsMin) || (now > args.starsMax));
+			if (!bad) {
+				return amount;
 			}
-			nanos = now * Ui::kNanosInOne;
+			starsField->showError();
 		}
-		return CreditsAmount(
-			nanos / Ui::kNanosInOne,
-			nanos % Ui::kNanosInOne,
-			ton ? CreditsType::Ton : CreditsType::Stars);
+		if (const auto hook = args.errorHook) {
+			hook(amount);
+		}
+		return {};
 	};
 
 	const auto updatePrice = [=] {
@@ -407,6 +414,7 @@ void ChooseSuggestPriceBox(
 		rpl::variable<bool> ton;
 		Fn<std::optional<CreditsAmount>()> computePrice;
 		Fn<void()> save;
+		std::optional<CreditsAmount> lastSmallPrice;
 		bool savePending = false;
 		bool inButton = false;
 	};
@@ -597,22 +605,40 @@ void ChooseSuggestPriceBox(
 			rpl::single(tr::marked(args.giftName)),
 			tr::rich)
 		: tr::lng_suggest_options_ton_price_about(tr::rich);
+	const auto nanoTonMin = gift
+		? appConfig.giftResaleNanoTonMin()
+		: appConfig.suggestedPostNanoTonMin();
+	const auto nanoTonMax = gift
+		? appConfig.giftResaleNanoTonMax()
+		: appConfig.suggestedPostNanoTonMax();
+	const auto starsMin = gift
+		? appConfig.giftResaleStarsMin()
+		: appConfig.suggestedPostStarsMin();
+	const auto starsMax = gift
+		? appConfig.giftResaleStarsMax()
+		: appConfig.suggestedPostStarsMax();
+	const auto recordBadAmount = [=](CreditsAmount amount) {
+		if (false
+			|| (amount.ton()
+				&& (amount.value()
+					> (nanoTonMin + nanoTonMax) / (2. * Ui::kNanosInOne)))
+			|| (!amount.ton()
+				&& (amount.whole() >= starsMax))) {
+			state->lastSmallPrice = {};
+			return;
+		}
+		state->lastSmallPrice = amount;
+	};
 	auto priceInput = AddStarsTonPriceInput(container, {
 		.session = session,
 		.showTon = state->ton.value(),
 		.price = args.value.price(),
-		.starsMin = (gift
-			? appConfig.giftResaleStarsMin()
-			: appConfig.suggestedPostStarsMin()),
-		.starsMax = (gift
-			? appConfig.giftResaleStarsMax()
-			: appConfig.suggestedPostStarsMax()),
-		.nanoTonMin = (gift
-			? appConfig.giftResaleNanoTonMin()
-			: appConfig.suggestedPostNanoTonMin()),
-		.nanoTonMax = (gift
-			? appConfig.giftResaleNanoTonMax()
-			: appConfig.suggestedPostNanoTonMax()),
+		.starsMin = starsMin,
+		.starsMax = starsMax,
+		.nanoTonMin = nanoTonMin,
+		.nanoTonMax = nanoTonMax,
+		.allowEmpty = !gift,
+		.errorHook = recordBadAmount,
 		.starsAbout = std::move(starsAbout),
 		.tonAbout = std::move(tonAbout),
 	});
@@ -715,6 +741,19 @@ void ChooseSuggestPriceBox(
 		const auto ton = uint32(state->ton.current() ? 1 : 0);
 		const auto price = state->computePrice();
 		if (!price) {
+			if (const auto amount = state->lastSmallPrice) {
+				box->uiShow()->showToast(amount->ton()
+					? tr::lng_gift_sell_min_price_ton(
+						tr::now,
+						lt_count,
+						nanoTonMin / float64(Ui::kNanosInOne),
+						Ui::Text::RichLangValue)
+					: tr::lng_gift_sell_min_price(
+						tr::now,
+						lt_count,
+						starsMin,
+						Ui::Text::RichLangValue));
+			}
 			return;
 		}
 		const auto value = *price;
