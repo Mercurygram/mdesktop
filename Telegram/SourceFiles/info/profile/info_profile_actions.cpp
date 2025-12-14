@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_credits.h"
 #include "api/api_statistics.h"
 #include "apiwrap.h"
+#include "base/call_delayed.h"
 #include "base/event_filter.h"
 #include "base/options.h"
 #include "base/timer_rpl.h"
@@ -1780,6 +1781,7 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupPersonalChannel(
 		object_ptr<Ui::VerticalLayout>(_wrap));
 	const auto container = result->entity();
 	const auto window = _controller->parentController();
+	const auto duration = st::slideWrapDuration;
 
 	result->toggleOn(PersonalChannelValue(
 		user
@@ -1837,7 +1839,7 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupPersonalChannel(
 			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 				container,
 				object_ptr<Ui::VerticalLayout>(container)));
-		onlyChannelWrap->toggleOn(PersonalChannelValue(user) | rpl::map([=] {
+		onlyChannelWrap->toggleOn(rpl::duplicate(channel) | rpl::map([=] {
 			return user->personalChannelId()
 				&& !user->personalChannelMessageId();
 		}));
@@ -1881,9 +1883,8 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupPersonalChannel(
 			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 				container,
 				object_ptr<Ui::VerticalLayout>(container)));
-		messageChannelWrap->toggleOn(PersonalChannelValue(
-			user
-		) | rpl::map([=] {
+		messageChannelWrap->setDuration(duration);
+		messageChannelWrap->toggleOn(rpl::duplicate(channel) | rpl::map([=] {
 			return user->personalChannelId()
 				&& user->personalChannelMessageId();
 		}));
@@ -2053,7 +2054,11 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupPersonalChannel(
 		rpl::duplicate(
 			channel
 		) | rpl::on_next([=](ChannelData *channel) {
-			clear();
+			if (!channel && messageChannelWrap->animating()) {
+				base::call_delayed(duration, messageChannelWrap, clear);
+			} else {
+				clear();
+			}
 			if (!channel) {
 				return;
 			}
