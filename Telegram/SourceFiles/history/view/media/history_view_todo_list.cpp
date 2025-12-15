@@ -414,7 +414,8 @@ void TodoList::toggleCompletion(int id) {
 }
 
 void TodoList::maybeStartFireworks() {
-	if (!ranges::contains(_tasks, TimeId(), &Task::completionDate)) {
+	if (!ranges::contains(_tasks, TimeId(), &Task::completionDate)
+		&& !_fireworksAnimation) {
 		_fireworksAnimation = std::make_unique<Ui::FireworksAnimation>(
 			[=] { repaint(); });
 	}
