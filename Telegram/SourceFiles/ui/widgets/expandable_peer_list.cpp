@@ -152,7 +152,7 @@ void AddExpandablePeerList(
 
 			using namespace Info::Profile;
 			auto name = controller->data.bold
-				? NameValue(peer) | rpl::map(tr::bold)
+				? (NameValue(peer) | rpl::map(tr::bold) | rpl::type_erased)
 				: NameValue(peer) | rpl::map(tr::marked);
 			const auto userpic
 				= Ui::CreateChild<Ui::UserpicButton>(line, peer, st);

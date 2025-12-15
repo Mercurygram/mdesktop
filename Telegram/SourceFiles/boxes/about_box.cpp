@@ -38,7 +38,6 @@ rpl::producer<TextWithEntities> Text1() {
 		lt_api_link,
 		tr::lng_about_text1_api(tr::url(u"https://core.telegram.org/api"_q)),
 		tr::marked);
-	tr::link;
 }
 
 rpl::producer<TextWithEntities> Text2() {
