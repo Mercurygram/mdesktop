@@ -462,7 +462,6 @@ void Service::animateReaction(Ui::ReactionFlyAnimationArgs &&args) {
 	}
 	const auto repainter = [=] { repaint(); };
 
-	const auto item = data();
 	if (_reactions) {
 		const auto reactionsHeight = st::mediaInBubbleSkip + _reactions->height();
 		const auto reactionsLeft = 0;
