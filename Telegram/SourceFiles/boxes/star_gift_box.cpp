@@ -1301,7 +1301,12 @@ void SendGift(
 				const auto channel = (service && peerIsChannel(to))
 					? session->data().channel(peerToChannel(to)).get()
 					: nullptr;
-				const auto channelSavedId = data.vsaved_id().value_or_empty();
+				const auto channelSavedId = channel
+					? data.vsaved_id().value_or_empty()
+					: uint64();
+				const auto realGiftMsgId = (peerIsUser(to) && data.vsaved_id())
+					? MsgId(data.vsaved_id().value_or_empty())
+					: MsgId(message.vid().v);
 
 				result = std::make_shared<Data::GiftUpgradeResult>(
 					Data::GiftUpgradeResult{
@@ -1310,8 +1315,7 @@ void SendGift(
 							? Data::SavedStarGiftId::Chat(
 								channel,
 								channelSavedId)
-							: Data::SavedStarGiftId::User(
-								MsgId(message.vid().v)),
+							: Data::SavedStarGiftId::User(realGiftMsgId),
 						.date = message.vdate().v,
 						.starsForDetailsRemove = int(
 							data.vdrop_original_details_stars(

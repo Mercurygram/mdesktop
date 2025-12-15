@@ -6771,7 +6771,7 @@ void HistoryItem::applyAction(const MTPMessageAction &action) {
 			? peerFromMTP(*data.vpeer())
 			: PeerId();
 		const auto upgradeMsgId = data.vupgrade_msg_id().value_or_empty();
-		const auto realGiftMsgId = data.vgift_msg_id().value_or_empty();
+		const auto giftMsgId = data.vgift_msg_id().value_or_empty();
 		const auto title = data.vgift().match([&](const MTPDstarGift &gift) {
 			return qs(gift.vtitle().value_or_empty());
 		}, [](const MTPDstarGiftUnique &) {
@@ -6785,6 +6785,18 @@ void HistoryItem::applyAction(const MTPMessageAction &action) {
 		}, [](const MTPDstarGiftUnique &) {
 			return 0;
 		});
+		const auto channel = (service && peerIsChannel(to))
+			? history()->owner().channel(peerToChannel(to)).get()
+			: nullptr;
+		const auto channelSavedId = channel
+			? data.vsaved_id().value_or_empty()
+			: uint64();
+		const auto realGiftMsgId = (peerIsUser(to) && data.vsaved_id())
+			? MsgId(data.vsaved_id().value_or_empty())
+			: upgradeMsgId
+			? upgradeMsgId
+			: giftMsgId;
+
 		using Fields = Data::GiftCode;
 		auto fields = Fields{
 			.message = (data.vmessage()
@@ -6798,17 +6810,15 @@ void HistoryItem::applyAction(const MTPMessageAction &action) {
 				? history()->owner().peer(
 					peerFromMTP(*data.vto_id())).get()
 				: nullptr,
-			.channel = ((service && peerIsChannel(to))
-				? history()->owner().channel(peerToChannel(to)).get()
-				: nullptr),
+			.channel = channel,
 			.channelFrom = ((service && from)
 				? history()->owner().peer(from).get()
 				: nullptr),
-			.channelSavedId = data.vsaved_id().value_or_empty(),
+			.channelSavedId = channelSavedId,
 			.giftPrepayUpgradeHash = qs(
 				data.vprepaid_upgrade_hash().value_or_empty()),
 			.giftTitle = title,
-			.realGiftMsgId = (upgradeMsgId ? upgradeMsgId : realGiftMsgId),
+			.realGiftMsgId = realGiftMsgId,
 			.starsConverted = int(data.vconvert_stars().value_or_empty()),
 			.starsUpgradedBySender = int(
 				data.vupgrade_stars().value_or_empty()),
@@ -6845,15 +6855,24 @@ void HistoryItem::applyAction(const MTPMessageAction &action) {
 		const auto to = data.vpeer()
 			? peerFromMTP(*data.vpeer())
 			: PeerId();
+		const auto channel = (service && peerIsChannel(to))
+			? history()->owner().channel(peerToChannel(to)).get()
+			: nullptr;
+		const auto channelSavedId = channel
+			? data.vsaved_id().value_or_empty()
+			: uint64();
+		const auto realGiftMsgId = (peerIsUser(to) && data.vsaved_id())
+			? MsgId(data.vsaved_id().value_or_empty())
+			: id;
+
 		using Fields = Data::GiftCode;
 		auto fields = Fields{
-			.channel = ((service && peerIsChannel(to))
-				? history()->owner().channel(peerToChannel(to)).get()
-				: nullptr),
+			.channel = channel,
 			.channelFrom = ((service && from)
 				? history()->owner().peer(from).get()
 				: nullptr),
-			.channelSavedId = data.vsaved_id().value_or_empty(),
+			.channelSavedId = channelSavedId,
+			.realGiftMsgId = realGiftMsgId,
 			.starsForDetailsRemove = int(
 				data.vdrop_original_details_stars().value_or_empty()),
 			.type = Data::GiftType::StarGift,
