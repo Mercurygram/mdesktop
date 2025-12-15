@@ -440,8 +440,10 @@ bool SendDice(MessageToSend &message) {
 		.effectId = action.options.effectId,
 		.suggest = HistoryMessageSuggestInfo(action.options),
 	}, TextWithEntities(), MTP_messageMediaDice(
+		MTP_flags(0),
 		MTP_int(0),
-		MTP_string(emoji)));
+		MTP_string(emoji),
+		MTPmessages_EmojiGameOutcome()));
 	histories.sendPreparedMessage(
 		history,
 		action.replyTo,
