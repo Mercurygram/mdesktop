@@ -1297,8 +1297,8 @@ void History::applyServiceChanges(
 							payment->amount,
 							EntityType::Bold),
 						lt_title,
-						Ui::Text::Bold(paid->title),
-						Ui::Text::WithEntities),
+						tr::bold(paid->title),
+						tr::marked),
 					.textContext = Core::TextContext({
 						.session = &session(),
 					}),

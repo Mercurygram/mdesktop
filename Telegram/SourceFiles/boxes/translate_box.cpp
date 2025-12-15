@@ -246,7 +246,7 @@ void TranslateBox(
 			const auto &list = data.vresult().v;
 			if (list.isEmpty()) {
 				showText(
-					Ui::Text::Italic(tr::lng_translate_box_error(tr::now)));
+					tr::italic(tr::lng_translate_box_error(tr::now)));
 			} else {
 				showText(Api::ParseTextWithEntities(
 					&peer->session(),
@@ -254,7 +254,7 @@ void TranslateBox(
 			}
 		}).fail([=](const MTP::Error &error) {
 			showText(
-				Ui::Text::Italic(tr::lng_translate_box_error(tr::now)));
+				tr::italic(tr::lng_translate_box_error(tr::now)));
 		}).send();
 	};
 	state->to.value() | rpl::on_next(send, box->lifetime());

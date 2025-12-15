@@ -225,8 +225,8 @@ private:
 		const auto push = [=] {
 			const auto now = base::unixtime::now();
 			consumer.put_next(Data::OnlineTextActive(user, now)
-				? Ui::Text::Link(Data::OnlineText(user, now))
-				: Ui::Text::WithEntities(Data::OnlineText(user, now)));
+				? tr::link(Data::OnlineText(user, now))
+				: tr::marked(Data::OnlineText(user, now)));
 			timer->callOnce(Data::OnlineChangeTimeout(user, now));
 		};
 		timer->setCallback(push);
@@ -406,13 +406,13 @@ void SetupBirthday(
 		tr::lng_settings_birthday_contacts(
 			lt_link,
 			tr::lng_settings_birthday_contacts_link(
-			) | Ui::Text::ToLink(u"internal:edit_privacy_birthday"_q),
-			Ui::Text::WithEntities),
+				tr::url(u"internal:edit_privacy_birthday"_q)),
+			tr::marked),
 		tr::lng_settings_birthday_about(
 			lt_link,
 			tr::lng_settings_birthday_about_link(
-			) | Ui::Text::ToLink(u"internal:edit_privacy_birthday"_q),
-			Ui::Text::WithEntities)));
+				tr::url(u"internal:edit_privacy_birthday"_q)),
+			tr::marked)));
 }
 
 void SetupPersonalChannel(
@@ -469,7 +469,7 @@ void SetupRows(
 	AddRow(
 		container,
 		tr::lng_settings_name_label(),
-		Info::Profile::NameValue(self) | Ui::Text::ToWithEntities(),
+		Info::Profile::NameValue(self) | rpl::map(tr::marked),
 		tr::lng_profile_copy_fullname(tr::now),
 		showEditName,
 		{ &st::menuIconProfile });

@@ -93,7 +93,7 @@ constexpr auto kShowChatNamesCount = 8;
 				result,
 				lt_chat,
 				wrapName(*i),
-				Ui::Text::WithEntities);
+				tr::marked);
 		}
 		return result;
 	}();
@@ -104,7 +104,7 @@ constexpr auto kShowChatNamesCount = 8;
 			(count - shown),
 			lt_chats,
 			accumulated,
-			Ui::Text::WithEntities)
+			tr::marked)
 		: accumulated;
 }
 
