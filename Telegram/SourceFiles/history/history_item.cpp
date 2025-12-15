@@ -1929,6 +1929,15 @@ not_null<Data::Thread*> HistoryItem::notificationThread() const {
 	return _history;
 }
 
+Data::Thread *HistoryItem::maybeNotificationThread() const {
+	if (const auto rootId = topicRootId()) {
+		if (const auto forum = _history->asForum()) {
+			return forum->topicFor(rootId);
+		}
+	}
+	return _history;
+}
+
 Data::ForumTopic *HistoryItem::topic() const {
 	if (const auto rootId = topicRootId()) {
 		if (const auto forum = _history->asForum()) {

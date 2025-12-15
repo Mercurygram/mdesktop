@@ -290,7 +290,9 @@ System::SkipState System::skipNotification(
 	const auto item = notification.item;
 	const auto type = notification.type;
 	const auto messageType = (type == Data::ItemNotificationType::Message);
-	if (!item->notificationThread()->currentNotification()
+	const auto thread = item->maybeNotificationThread();
+	if (!thread
+		|| !thread->currentNotification()
 		|| (messageType && item->skipNotification())
 		|| (type == Data::ItemNotificationType::Reaction
 			&& skipReactionNotification(item))) {
