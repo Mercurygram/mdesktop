@@ -4593,17 +4593,20 @@ void HistoryWidget::saveEditMessage(Api::SendOptions options) {
 	options.invertCaption = _mediaEditManager.invertCaption();
 	options.suggest = suggestOptions(true);
 
-	const auto withPaymentApproved = [=](int approved) {
-		auto copy = options;
-		copy.starsApproved = approved;
-		saveEditMessage(copy);
-	};
-	const auto checked = checkSendPayment(
-		1 + int(_forwardPanel->items().size()),
-		options,
-		withPaymentApproved);
-	if (!checked) {
-		return;
+	if (item->computeSuggestionActions()
+		== SuggestionActions::AcceptAndDecline) {
+		const auto withPaymentApproved = [=](int approved) {
+			auto copy = options;
+			copy.starsApproved = approved;
+			saveEditMessage(copy);
+		};
+		const auto checked = checkSendPayment(
+			1 + int(_forwardPanel->items().size()),
+			options,
+			withPaymentApproved);
+		if (!checked) {
+			return;
+		}
 	}
 
 	_saveEditMsgRequestId = Api::EditTextMessage(
