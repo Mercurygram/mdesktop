@@ -157,10 +157,9 @@ constexpr auto kPopularAppBotsLimit = 100;
 				.requestWriteAccess = data.is_request_write_access(),
 			} : std::optional<AttachWebViewBot>();
 	});
-	if (result && result->icon) {
-		result->icon->forceToCache(true);
-	}
-	if (const auto icon = result->icon) {
+	if (const auto icon = result ? result->icon : nullptr) {
+		icon->forceToCache(true);
+
 		result->media = icon->createMediaView();
 		icon->save(Data::FileOrigin(), {});
 	}
