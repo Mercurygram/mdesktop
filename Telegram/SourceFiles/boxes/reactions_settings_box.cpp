@@ -330,6 +330,8 @@ void AddReactionAnimatedIcon(
 			return true;
 		};
 		if (check(state->select) && check(state->appear)) {
+			state->select.icon->setCustomEndFrame(1);
+			state->select.icon->animate([] {});
 			state->loadingLifetime.destroy();
 		}
 	}, state->loadingLifetime);
@@ -353,6 +355,11 @@ void AddReactionAnimatedIcon(
 		}
 		if (appear && appear->animating()) {
 			paintFrame(appear);
+			if (appear->frameIndex() == appear->framesCount() - 1) {
+				if (const auto select = state->select.icon.get()) {
+					select->setCustomEndFrame(select->framesCount() - 1);
+				}
+			}
 		} else if (const auto select = state->select.icon.get()) {
 			paintFrame(select);
 		}
