@@ -47,6 +47,7 @@ Dice::Dice(not_null<Element*> parent, not_null<Data::MediaDice*> dice)
 
 	if (const auto outcome = _dice->outcome()) {
 		_outcomeSet = true;
+		_outcomeValue = _dice->value();
 		_outcomeNanoTon = outcome.nanoTon;
 		updateOutcomeMessage();
 	}
@@ -75,7 +76,7 @@ void Dice::updateOutcomeMessage() {
 				lt_amount,
 				amount,
 				tr::marked))
-		: !_dice->value()
+		: !_outcomeValue
 		? tr::lng_action_stake_game_loading(tr::now, tr::marked)
 		: (out
 			? tr::lng_action_stake_game_nothing_you(tr::now, tr::marked)
@@ -103,11 +104,15 @@ bool Dice::updateItemData() {
 	const auto outcome = _dice->outcome();
 	const auto outcomeSet = !!outcome;
 	const auto outcomeNanoTon = outcomeSet ? outcome.nanoTon : 0;
-	if (_outcomeSet == outcomeSet && _outcomeNanoTon == outcomeNanoTon) {
+	const auto outcomeValue = _dice->value();
+	if (_outcomeSet == outcomeSet
+		&& _outcomeNanoTon == outcomeNanoTon
+		&& _outcomeValue == outcomeValue) {
 		return false;
 	}
 	_outcomeSet = outcomeSet;
 	_outcomeNanoTon = outcomeNanoTon;
+	_outcomeValue = outcomeValue;
 	updateOutcomeMessage();
 	return true;
 }

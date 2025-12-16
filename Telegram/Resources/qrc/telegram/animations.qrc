@@ -67,6 +67,13 @@
     <file alias="slot_pull.tgs">../../animations/dice/slot_pull.tgs</file>
     <file alias="winners.tgs">../../animations/dice/winners.tgs</file>
 
+    <file alias="dice_1.tgs">../../animations/dice/dice_1.tgs</file>
+    <file alias="dice_2.tgs">../../animations/dice/dice_2.tgs</file>
+    <file alias="dice_3.tgs">../../animations/dice/dice_3.tgs</file>
+    <file alias="dice_4.tgs">../../animations/dice/dice_4.tgs</file>
+    <file alias="dice_5.tgs">../../animations/dice/dice_5.tgs</file>
+    <file alias="dice_6.tgs">../../animations/dice/dice_6.tgs</file>
+
     <file alias="star_reaction_appear.tgs">../../animations/star_reaction/appear.tgs</file>
     <file alias="star_reaction_center.tgs">../../animations/star_reaction/center.tgs</file>
     <file alias="star_reaction_select.tgs">../../animations/star_reaction/select.tgs</file>

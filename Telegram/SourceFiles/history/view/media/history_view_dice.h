@@ -53,6 +53,7 @@ private:
 	std::optional<Sticker> _start;
 	std::optional<Sticker> _end;
 	int64 _outcomeNanoTon = false;
+	int _outcomeValue = 0;
 	mutable bool _showLastFrame = false;
 	mutable bool _drawingEnd = false;
 	bool _outcomeSet = false;
