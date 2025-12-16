@@ -35,6 +35,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "ui/vertical_list.h"
 #include "window/section_widget.h"
+#include "window/themes/window_theme.h"
 #include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
 #include "styles/style_chat.h"
@@ -134,15 +135,19 @@ void AddMessage(
 			rightSize.height()).translated(st::settingsReactionCornerSkip);
 	};
 
+	using ThemePtr = std::unique_ptr<Ui::ChatTheme>;
+	const auto theme = widget->lifetime().make_state<ThemePtr>(
+		Window::Theme::DefaultChatThemeOn(widget->lifetime()));
 	widget->paintRequest(
 	) | rpl::on_next([=](const QRect &rect) {
+		Painter p(widget);
+		p.setClipRect(rect);
 		Window::SectionWidget::PaintBackground(
-			controller,
-			controller->defaultChatTheme().get(), // #TODO themes
-			widget,
+			p,
+			theme->get(),
+			QSize(widget->width(), widget->window()->height()),
 			rect);
 
-		Painter p(widget);
 		auto hq = PainterHighQualityEnabler(p);
 		const auto theme = controller->defaultChatTheme().get();
 		auto context = theme->preparePaintContext(
