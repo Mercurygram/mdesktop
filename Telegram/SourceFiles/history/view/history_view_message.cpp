@@ -3278,8 +3278,9 @@ bool Message::updateBottomInfo() {
 void Message::itemDataChanged() {
 	const auto infoChanged = updateBottomInfo();
 	const auto reactionsChanged = updateReactions();
-
-	if (infoChanged || reactionsChanged) {
+	const auto media = this->media();
+	const auto mediaChanged = media && media->updateItemData();
+	if (infoChanged || reactionsChanged || mediaChanged) {
 		history()->owner().requestViewResize(this);
 	} else {
 		repaint();

@@ -653,14 +653,41 @@ private:
 
 };
 
+struct DiceGameOptions {
+	QByteArray seedHash;
+	int64 previousSteakNanoTon = 0;
+	std::array<int, 6> milliRewards;
+	int jackpotMilliReward = 0;
+	int currentStreak = 0;
+	int playsLeft = 0;
+
+	explicit operator bool() const {
+		return !seedHash.isEmpty();
+	}
+};
+
+struct DiceGameOutcome {
+	int64 nanoTon = 0;
+	QByteArray seed;
+
+	explicit operator bool() const {
+		return !seed.isEmpty();
+	}
+};
+
 class MediaDice final : public Media {
 public:
-	MediaDice(not_null<HistoryItem*> parent, QString emoji, int value);
+	MediaDice(
+		not_null<HistoryItem*> parent,
+		DiceGameOutcome outcome,
+		QString emoji,
+		int value);
 
 	std::unique_ptr<Media> clone(not_null<HistoryItem*> parent) override;
 
 	[[nodiscard]] QString emoji() const;
 	[[nodiscard]] int value() const;
+	[[nodiscard]] DiceGameOutcome outcome() const;
 
 	bool allowsRevoke(TimeId now) const override;
 	TextWithEntities notificationText() const override;
@@ -681,6 +708,7 @@ public:
 		const QString &emoji);
 
 private:
+	DiceGameOutcome _outcome;
 	QString _emoji;
 	int _value = 0;
 

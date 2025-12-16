@@ -42,14 +42,20 @@ public:
 		}
 	}
 
+	bool updateItemData() override;
+
 private:
+	void updateOutcomeMessage();
+
 	const not_null<Element*> _parent;
 	const not_null<Data::MediaDice*> _dice;
 	ClickHandlerPtr _link;
 	std::optional<Sticker> _start;
 	std::optional<Sticker> _end;
+	int64 _outcomeNanoTon = false;
 	mutable bool _showLastFrame = false;
 	mutable bool _drawingEnd = false;
+	bool _outcomeSet = false;
 
 };
 

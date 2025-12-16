@@ -12,7 +12,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 #include "history/history_item.h"
 #include "history/history_item_components.h"
+#include "history/history_item_helpers.h"
 #include "history/view/history_view_element.h"
+#include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "styles/style_chat.h"
 
@@ -42,9 +44,52 @@ Dice::Dice(not_null<Element*> parent, not_null<Data::MediaDice*> dice)
 	if (_showLastFrame) {
 		_drawingEnd = true;
 	}
+
+	if (const auto outcome = _dice->outcome()) {
+		_outcomeSet = true;
+		_outcomeNanoTon = outcome.nanoTon;
+		updateOutcomeMessage();
+	}
 }
 
 Dice::~Dice() = default;
+
+void Dice::updateOutcomeMessage() {
+	const auto item = _parent->data();
+	const auto from = item->from();
+	const auto out = item->out() || from->isSelf();
+	const auto amount = tr::marked(QString::fromUtf8("\xf0\x9f\x92\x8e")
+		+ " "
+		+ QString::number(_outcomeNanoTon / 1e9));
+	const auto text = _outcomeNanoTon
+		? (out
+			? tr::lng_action_stake_game_won_you(
+				tr::now,
+				lt_amount,
+				amount,
+				tr::marked)
+			: tr::lng_action_stake_game_won(
+				tr::now,
+				lt_from,
+				tr::link(st::wrap_rtl(from->name()), 1),
+				lt_amount,
+				amount,
+				tr::marked))
+		: !_dice->value()
+		? tr::lng_action_stake_game_loading(tr::now, tr::marked)
+		: (out
+			? tr::lng_action_stake_game_nothing_you(tr::now, tr::marked)
+			: tr::lng_action_stake_game_nothing(
+				tr::now,
+				lt_from,
+				tr::link(st::wrap_rtl(from->name()), 1),
+				tr::marked));
+	auto prepared = PreparedServiceText{ text };
+	if (!out) {
+		prepared.links.push_back(from->createOpenLink());
+	}
+	_parent->setServicePreMessage(prepared, _link);
+}
 
 QSize Dice::countOptimalSize() {
 	return _start ? _start->countOptimalSize() : Sticker::EmojiSize();
@@ -52,6 +97,19 @@ QSize Dice::countOptimalSize() {
 
 ClickHandlerPtr Dice::link() {
 	return _link;
+}
+
+bool Dice::updateItemData() {
+	const auto outcome = _dice->outcome();
+	const auto outcomeSet = !!outcome;
+	const auto outcomeNanoTon = outcomeSet ? outcome.nanoTon : 0;
+	if (_outcomeSet == outcomeSet && _outcomeNanoTon == outcomeNanoTon) {
+		return false;
+	}
+	_outcomeSet = outcomeSet;
+	_outcomeNanoTon = outcomeNanoTon;
+	updateOutcomeMessage();
+	return true;
 }
 
 void Dice::draw(Painter &p, const PaintContext &context, const QRect &r) {

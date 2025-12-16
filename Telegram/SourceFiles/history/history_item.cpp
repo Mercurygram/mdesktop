@@ -366,8 +366,15 @@ std::unique_ptr<Data::Media> HistoryItem::CreateMedia(
 			item,
 			item->history()->owner().processTodoList(item->fullId(), media));
 	}, [&](const MTPDmessageMediaDice &media) -> Result {
+		auto outcome = Data::DiceGameOutcome();
+		if (const auto game = media.vgame_outcome()) {
+			const auto &data = game->data();
+			outcome.seed = data.vseed().v;
+			outcome.nanoTon = data.vton_amount().v;
+		}
 		return std::make_unique<Data::MediaDice>(
 			item,
+			outcome,
 			qs(media.vemoticon()),
 			media.vvalue().v);
 	}, [&](const MTPDmessageMediaStory &media) -> Result {

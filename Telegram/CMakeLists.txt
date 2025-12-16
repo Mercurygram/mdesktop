@@ -1642,6 +1642,8 @@ PRIVATE
     tde2e/tde2e_integration.h
     ui/boxes/edit_invite_link_session.cpp
     ui/boxes/edit_invite_link_session.h
+    ui/boxes/emoji_stake_box.cpp
+    ui/boxes/emoji_stake_box.h
     ui/boxes/peer_qr_box.cpp
     ui/boxes/peer_qr_box.h
     ui/chat/attach/attach_item_single_file_preview.cpp

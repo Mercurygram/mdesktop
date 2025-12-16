@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/layers/generic_box.h"
 #include "ui/text/text_utilities.h"
 #include "ui/boxes/choose_date_time.h"
+#include "ui/boxes/emoji_stake_box.h"
 #include "ui/boxes/single_choice_box.h"
 #include "ui/controls/ton_common.h"
 #include "ui/widgets/fields/number_input.h"
@@ -73,19 +74,6 @@ namespace {
 	) | rpl::filter([=](CreditsAmount amount) {
 		return amount.ton();
 	}));
-}
-
-[[nodiscard]] not_null<Ui::RpWidget*> AddMoneyInputIcon(
-		not_null<QWidget*> parent,
-		Ui::Text::PaletteDependentEmoji emoji) {
-	auto helper = Ui::Text::CustomEmojiHelper();
-	auto text = helper.paletteDependent(std::move(emoji));
-	return Ui::CreateChild<Ui::FlatLabel>(
-		parent,
-		rpl::single(std::move(text)),
-		st::defaultFlatLabel,
-		st::defaultPopupMenu,
-		helper.context());
 }
 
 } // namespace
@@ -151,60 +139,6 @@ void AddApproximateUsd(
 		return base::EventFilterResult::Continue;
 	});
 	usd->widthValue() | rpl::on_next(move, usd->lifetime());
-}
-
-not_null<Ui::NumberInput*> AddStarsInputField(
-		not_null<Ui::VerticalLayout*> container,
-		StarsInputFieldArgs &&args) {
-	const auto wrap = container->add(
-		object_ptr<Ui::FixedHeightWidget>(
-			container,
-			st::editTagField.heightMin),
-		st::boxRowPadding);
-	const auto result = Ui::CreateChild<Ui::NumberInput>(
-		wrap,
-		st::editTagField,
-		rpl::single(u"0"_q),
-		args.value ? QString::number(*args.value) : QString(),
-		args.max ? args.max : std::numeric_limits<int>::max());
-	const auto icon = AddMoneyInputIcon(
-		result,
-		Ui::Earn::IconCreditsEmoji());
-
-	wrap->widthValue() | rpl::on_next([=](int width) {
-		icon->move(st::starsFieldIconPosition);
-		result->move(0, 0);
-		result->resize(width, result->height());
-		wrap->resize(width, result->height());
-	}, wrap->lifetime());
-
-	return result;
-}
-
-not_null<Ui::InputField*> AddTonInputField(
-		not_null<Ui::VerticalLayout*> container,
-		TonInputFieldArgs &&args) {
-	const auto wrap = container->add(
-		object_ptr<Ui::FixedHeightWidget>(
-			container,
-			st::editTagField.heightMin),
-		st::boxRowPadding);
-	const auto result = Ui::CreateTonAmountInput(
-		wrap,
-		rpl::single('0' + Ui::TonAmountSeparator() + '0'),
-		args.value);
-	const auto icon = AddMoneyInputIcon(
-		result,
-		Ui::Earn::IconCurrencyEmoji());
-
-	wrap->widthValue() | rpl::on_next([=](int width) {
-		icon->move(st::tonFieldIconPosition);
-		result->move(0, 0);
-		result->resize(width, result->height());
-		wrap->resize(width, result->height());
-	}, wrap->lifetime());
-
-	return result;
 }
 
 StarsTonPriceInput AddStarsTonPriceInput(

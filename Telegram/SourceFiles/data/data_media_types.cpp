@@ -40,6 +40,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/media/history_view_unique_gift.h"
 #include "history/view/media/history_view_userpic_suggestion.h"
 #include "dialogs/ui/dialogs_message_view.h"
+#include "ui/boxes/emoji_stake_box.h"
 #include "ui/image/image.h"
 #include "ui/effects/spoiler_mess.h"
 #include "ui/text/format_song_document_name.h"
@@ -2420,14 +2421,19 @@ std::unique_ptr<HistoryView::Media> MediaTodoList::createView(
 		replacing);
 }
 
-MediaDice::MediaDice(not_null<HistoryItem*> parent, QString emoji, int value)
+MediaDice::MediaDice(
+	not_null<HistoryItem*> parent,
+	DiceGameOutcome outcome,
+	QString emoji,
+	int value)
 : Media(parent)
+, _outcome(outcome)
 , _emoji(emoji)
 , _value(value) {
 }
 
 std::unique_ptr<Media> MediaDice::clone(not_null<HistoryItem*> parent) {
-	return std::make_unique<MediaDice>(parent, _emoji, _value);
+	return std::make_unique<MediaDice>(parent, _outcome, _emoji, _value);
 }
 
 QString MediaDice::emoji() const {
@@ -2436,6 +2442,10 @@ QString MediaDice::emoji() const {
 
 int MediaDice::value() const {
 	return _value;
+}
+
+DiceGameOutcome MediaDice::outcome() const {
+	return _outcome;
 }
 
 bool MediaDice::allowsRevoke(TimeId now) const {
@@ -2470,8 +2480,18 @@ bool MediaDice::updateSentMedia(const MTPMessageMedia &media) {
 	if (media.type() != mtpc_messageMediaDice) {
 		return false;
 	}
-	_value = media.c_messageMediaDice().vvalue().v;
-	parent()->history()->owner().requestItemRepaint(parent());
+	const auto &data = media.c_messageMediaDice();
+	_value = data.vvalue().v;
+	if (const auto outcome = data.vgame_outcome()) {
+		const auto &data = outcome->data();
+		_outcome = Data::DiceGameOutcome{
+			.nanoTon = int64(data.vton_amount().v),
+			.seed = data.vseed().v,
+		};
+	} else {
+		_outcome = {};
+	}
+	parent()->history()->owner().notifyItemDataChange(parent());
 	return true;
 }
 
@@ -2504,6 +2524,8 @@ ClickHandlerPtr MediaDice::MakeHandler(
 		}
 	};
 	return std::make_shared<LambdaClickHandler>([=](ClickContext context) {
+		const auto my = context.other.value<ClickHandlerContext>();
+		const auto weak = my.sessionWindow;
 		auto config = Ui::Toast::Config{
 			.text = { tr::lng_about_random(tr::now, lt_emoji, emoji) },
 			.st = &st::historyDiceToast,
@@ -2517,13 +2539,38 @@ ClickHandlerPtr MediaDice::MakeHandler(
 			config.filter = crl::guard(&history->session(), [=](
 					const ClickHandlerPtr &handler,
 					Qt::MouseButton button) {
+				const auto pack = &history->session().diceStickersPacks();
 				if (button == Qt::LeftButton && !ShownToast.empty()) {
-					auto message = Api::MessageToSend(
-						Api::SendAction(history));
-					message.action.clearDraft = false;
-					message.textWithTags.text = emoji;
+					pack->resolveGameOptions([=](
+							const Data::DiceGameOptions &options) {
+						const auto window = weak.get();
+						const auto seedHash = options.seedHash;
+						const auto sendWithStake = [=](int64 stakeNanoTon) {
+							auto message = Api::MessageToSend(
+								Api::SendAction(history));
+							message.textWithTags.text = emoji;
 
-					Api::SendDice(message);
+							auto &action = message.action;
+							action.clearDraft = false;
+
+							auto &options = action.options;
+							options.stakeNanoTon = stakeNanoTon;
+							options.stakeSeedHash = seedHash;
+
+							Api::SendDice(message);
+						};
+						if (!options || !window) {
+							sendWithStake(0);
+						} else {
+							window->show(Ui::MakeEmojiGameStakeBox({
+								.session = &window->session(),
+								.currentStake = options.previousSteakNanoTon,
+								.milliRewards = options.milliRewards,
+								.jackpotMilliReward = options.jackpotMilliReward,
+								.submit = sendWithStake,
+							}));
+						}
+					});
 					HideExisting();
 				}
 				return false;
@@ -2531,8 +2578,6 @@ ClickHandlerPtr MediaDice::MakeHandler(
 		}
 
 		HideExisting();
-		const auto my = context.other.value<ClickHandlerContext>();
-		const auto weak = my.sessionWindow;
 		if (const auto strong = weak.get()) {
 			ShownToast = strong->showToast(std::move(config));
 		} else {

@@ -548,6 +548,8 @@ void ApiWrap::sendMessageFail(
 			}
 		}
 		peer->updateFull();
+	} else if (show) {
+		show->showToast(error);
 	}
 	if (const auto item = _session->data().message(itemId)) {
 		Assert(randomId != 0);
