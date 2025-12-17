@@ -1127,13 +1127,15 @@ void AttributesList::validateButtons() {
 			});
 			if (unused != end(_views)) {
 				views.push_back(base::take(*unused));
+				views.back().document = document;
 				views.back().button->setDescriptor(descriptor);
 			} else {
 				views.push_back({
 					.button = std::make_unique<AttributeButton>(
 						this,
 						_delegate,
-						descriptor)
+						descriptor),
+					.document = document,
 				});
 				views.back().button->show();
 			}
