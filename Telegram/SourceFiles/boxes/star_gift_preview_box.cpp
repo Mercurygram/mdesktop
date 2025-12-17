@@ -1340,8 +1340,9 @@ void StarGiftPreviewBox(
 		state->delegate.update(now, next, progress);
 	};
 
-	const auto container = box->verticalLayout();
-	AddUniqueGiftCover(container, state->gift.value(), {
+	const auto top = box->setPinnedToTopContent(
+		object_ptr<VerticalLayout>(box));
+	AddUniqueGiftCover(top, state->gift.value(), {
 		.subtitle = rpl::conditional(
 			state->paused.value(),
 			tr::lng_auction_preview_selected(tr::marked),
@@ -1349,8 +1350,10 @@ void StarGiftPreviewBox(
 		.attributesInfo = true,
 		.repaintedHook = repaintedHook,
 	});
+
 	AddUniqueCloseButton(box, {});
 
+	const auto container = box->verticalLayout();
 	state->list = container->add(object_ptr<AttributesList>(
 		box,
 		&state->delegate,
