@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unixtime.h"
 #include "core/application.h"
 #include "history/history.h"
+#include "history/history_item.h"
 #include "api/api_chat_invite.h"
 #include "api/api_invite_links.h"
 #include "apiwrap.h"
@@ -1208,6 +1209,19 @@ TimeId ChannelData::subscriptionUntilDate() const {
 
 void ChannelData::updateSubscriptionUntilDate(TimeId subscriptionUntilDate) {
 	_subscriptionUntilDate = subscriptionUntilDate;
+}
+
+MTPInputChannel ChannelData::inputChannel() const {
+	const auto item = isLoaded() ? nullptr : owner().messageWithPeer(id);
+	if (item) {
+		return MTP_inputChannelFromMessage(
+			item->history()->peer->input(),
+			MTP_int(item->id.bare),
+			MTP_long(peerToChannel(id).bare));
+	}
+	return MTP_inputChannel(
+		MTP_long(peerToChannel(id).bare),
+		MTP_long(_accessHash));
 }
 
 namespace Data {

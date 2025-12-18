@@ -313,6 +313,10 @@ const Data::AllowedReactions &ChatData::allowedReactions() const {
 	return _allowedReactions;
 }
 
+MTPlong ChatData::inputChat() const {
+	return MTP_long(peerToChat(id).bare);
+}
+
 namespace Data {
 
 void ApplyChatUpdate(

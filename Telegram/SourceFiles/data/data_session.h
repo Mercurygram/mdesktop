@@ -918,6 +918,9 @@ public:
 
 	void clearLocalStorage();
 
+	void fillMessagePeers(const MTPMessage &message);
+	[[nodiscard]] HistoryItem *messageWithPeer(PeerId id) const;
+
 private:
 	using Messages = std::unordered_map<MsgId, not_null<HistoryItem*>>;
 
@@ -1258,6 +1261,8 @@ private:
 	base::flat_map<
 		not_null<ChannelData*>,
 		mtpRequestId> _viewAsMessagesRequests;
+
+	mutable base::flat_map<PeerId, std::vector<FullMsgId>> _messagesWithPeer;
 
 	Groups _groups;
 	const std::unique_ptr<ChatFilters> _chatsFilters;

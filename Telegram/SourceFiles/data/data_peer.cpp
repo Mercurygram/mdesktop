@@ -2014,6 +2014,41 @@ int PeerData::peerGiftsCount() const {
 	return 0;
 }
 
+MTPInputPeer PeerData::input() const {
+	if (const auto user = asUser()) {
+		const auto specific = user->inputUser();
+		return specific.match([](const MTPDinputUser &data) {
+			return MTP_inputPeerUser(data.vuser_id(), data.vaccess_hash());
+		}, [](const MTPDinputUserFromMessage &data) {
+			return MTP_inputPeerUserFromMessage(
+				data.vpeer(),
+				data.vmsg_id(),
+				data.vuser_id());
+		}, [](const MTPDinputUserEmpty &) {
+			return MTP_inputPeerEmpty();
+		}, [](const MTPDinputUserSelf &) {
+			return MTP_inputPeerSelf();
+		});
+	} else if (const auto chat = asChat()) {
+		return MTP_inputPeerChat(chat->inputChat());
+	} else if (const auto channel = asChannel()) {
+		const auto &specific = channel->inputChannel();
+		return specific.match([](const MTPDinputChannel &data) {
+			return MTP_inputPeerChannel(
+				data.vchannel_id(),
+				data.vaccess_hash());
+		}, [](const MTPDinputChannelFromMessage &data) {
+			return MTP_inputPeerChannelFromMessage(
+				data.vpeer(),
+				data.vmsg_id(),
+				data.vchannel_id());
+		}, [](const MTPDinputChannelEmpty &) {
+			return MTP_inputPeerEmpty();
+		});
+	}
+	return MTP_inputPeerEmpty();
+}
+
 void PeerData::setIsBlocked(bool is) {
 	const auto status = is
 		? BlockStatus::Blocked

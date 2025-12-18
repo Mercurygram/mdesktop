@@ -286,7 +286,7 @@ public:
 	[[nodiscard]] MsgId personalChannelMessageId() const;
 	void setPersonalChannel(ChannelId channelId, MsgId messageId);
 
-	MTPInputUser inputUser = MTP_inputUserEmpty();
+	[[nodiscard]] MTPInputUser inputUser() const;
 
 	QString firstName;
 	QString lastName;

@@ -5363,4 +5363,83 @@ void Session::clearLocalStorage() {
 	_bigFileCache->clear();
 }
 
+void Session::fillMessagePeers(const MTPMessage &message) {
+	const auto id = IdFromMessage(message);
+	const auto peerId = PeerFromMessage(message);
+	if (!id || !peerId) {
+		return;
+	}
+	const auto fullId = FullMsgId(peerId, id);
+	const auto fill = [&](PeerId peerId) {
+		if (!peerLoaded(peerId)) {
+			_messagesWithPeer[peerId].push_back(fullId);
+		}
+	};
+	const auto fillForwardedInfo = [&](const MTPMessageFwdHeader &header) {
+		return header.match([&](const MTPDmessageFwdHeader &data) {
+			if (const auto fromId = data.vfrom_id()) {
+				fill(peerFromMTP(*fromId));
+			}
+		});
+	};
+	const auto fillMentionUsers = [&](
+			const MTPVector<MTPMessageEntity> &entities) {
+		for (const auto &entity : entities.v) {
+			entity.match([&](const MTPDmessageEntityMentionName &data) {
+				fill(peerFromUser(data.vuser_id()));
+			}, [&](const MTPDinputMessageEntityMentionName &data) {
+				data.vuser_id().match([&](const MTPDinputUser &data) {
+					fill(peerFromUser(data.vuser_id()));
+				}, [](const auto &) {});
+			}, [](const auto &) {});
+		}
+	};
+	return message.match([&](const MTPDmessage &message) {
+		if (const auto fromId = message.vfrom_id()) {
+			fill(peerFromMTP(*fromId));
+		}
+		if (const auto viaBotId = message.vvia_bot_id()) {
+			fill(peerFromUser(*viaBotId));
+		}
+		if (const auto fwd = message.vfwd_from()) {
+			fillForwardedInfo(*fwd);
+		}
+		if (const auto entities = message.ventities()) {
+			fillMentionUsers(*entities);
+		}
+	}, [&](const MTPDmessageService &message) {
+		if (const auto fromId = message.vfrom_id()) {
+			fill(peerFromMTP(*fromId));
+		}
+		return message.vaction().match(
+		[&](const MTPDmessageActionChatAddUser &action) {
+			for (const auto &userId : action.vusers().v) {
+				fill(peerFromUser(userId));
+			}
+		}, [&](const MTPDmessageActionChatJoinedByLink &action) {
+			fill(peerFromUser(action.vinviter_id()));
+		}, [&](const MTPDmessageActionChatDeleteUser &action) {
+			fill(peerFromUser(action.vuser_id()));
+		}, [](const auto &) {
+		});
+	}, [](const MTPDmessageEmpty &message) {
+	});
+}
+
+HistoryItem *Session::messageWithPeer(PeerId id) const {
+	const auto i = _messagesWithPeer.find(id);
+	if (i == end(_messagesWithPeer)) {
+		return nullptr;
+	}
+	auto &list = i->second;
+	for (auto j = begin(list); j != end(list);) {
+		if (const auto item = message(*j)) {
+			return item;
+		}
+		j = list.erase(j);
+	}
+	_messagesWithPeer.erase(i);
+	return nullptr;
+}
+
 } // namespace Data
