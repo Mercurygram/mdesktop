@@ -721,7 +721,7 @@ void DeleteContactNote(
 		not_null<UserData*> user,
 		Fn<void(const QString &)> showError = nullptr) {
 	user->session().api().request(MTPcontacts_UpdateContactNote(
-		user->inputUser,
+		user->inputUser(),
 		MTP_textWithEntities(MTP_string(), MTP_vector<MTPMessageEntity>())
 	)).done([=] {
 		user->setNote(TextWithEntities());
@@ -1296,9 +1296,9 @@ void ReportReactionBox(
 			}
 		}
 		data.group->session().api().request(MTPmessages_ReportReaction(
-			data.group->input,
+			data.group->input(),
 			MTP_int(data.messageId.bare),
-			participant->input
+			participant->input()
 		)).done(crl::guard(controller, [=] {
 			controller->showToast(tr::lng_report_thanks(tr::now));
 		})).send();
@@ -2153,7 +2153,7 @@ void DetailsFiller::setupBotPermissions() {
 		user->botInfo->canManageEmojiStatus = allowed;
 		const auto session = &user->session();
 		session->api().request(MTPbots_ToggleUserEmojiStatusPermission(
-			user->inputUser,
+			user->inputUser(),
 			MTP_bool(allowed)
 		)).send();
 	}, emoji->lifetime());

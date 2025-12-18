@@ -1208,7 +1208,7 @@ void ShowWhoReadInfo(
 				}
 			};
 			session->api().request(MTPchannels_GetMessageAuthor(
-				channel->inputChannel,
+				channel->inputChannel(),
 				MTP_int(id.msg.bare)
 			)).done([=](const MTPUser &result) {
 				finishWith(session->data().processUser(result));

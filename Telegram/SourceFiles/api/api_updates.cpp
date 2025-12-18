@@ -653,7 +653,7 @@ void Updates::getChannelDifference(
 	}
 	api().request(MTPupdates_GetChannelDifference(
 		MTP_flags(flags),
-		channel->inputChannel,
+		channel->inputChannel(),
 		filter,
 		MTP_int(channel->pts()),
 		MTP_int(kChannelGetDifferenceLimit)
@@ -732,7 +732,7 @@ void Updates::channelRangeDifferenceSend(
 			MTP_int(range.till - 1))));
 	const auto requestId = api().request(MTPupdates_GetChannelDifference(
 		MTP_flags(MTPupdates_GetChannelDifference::Flag::f_force),
-		channel->inputChannel,
+		channel->inputChannel(),
 		filter,
 		MTP_int(pts),
 		MTP_int(limit)
@@ -1419,18 +1419,7 @@ void Updates::applyUpdates(
 
 	case mtpc_updateShortMessage: {
 		auto &d = updates.c_updateShortMessage();
-		const auto viaBotId = d.vvia_bot_id();
-		const auto entities = d.ventities();
-		const auto fwd = d.vfwd_from();
-		if (!session().data().userLoaded(d.vuser_id())
-			|| (viaBotId && !session().data().userLoaded(*viaBotId))
-			|| (entities && !MentionUsersLoaded(&session(), *entities))
-			|| (fwd && !ForwardedInfoDataLoaded(&session(), *fwd))) {
-			MTP_LOG(0, ("getDifference "
-				"{ good - getting user for updateShortMessage }%1"
-				).arg(_session->mtp().isTestMode() ? " TESTMODE" : ""));
-			return getDifference();
-		}
+		_session->data().fillMessagePeers(d);
 		if (updateAndApply(d.vpts().v, d.vpts_count().v, updates)) {
 			// Update date as well.
 			setState(0, d.vdate().v, _updatesQts, _updatesSeq);
@@ -1439,24 +1428,7 @@ void Updates::applyUpdates(
 
 	case mtpc_updateShortChatMessage: {
 		auto &d = updates.c_updateShortChatMessage();
-		const auto noFrom = !session().data().userLoaded(d.vfrom_id());
-		const auto chat = session().data().chatLoaded(d.vchat_id());
-		const auto viaBotId = d.vvia_bot_id();
-		const auto entities = d.ventities();
-		const auto fwd = d.vfwd_from();
-		if (!chat
-			|| noFrom
-			|| (viaBotId && !session().data().userLoaded(*viaBotId))
-			|| (entities && !MentionUsersLoaded(&session(), *entities))
-			|| (fwd && !ForwardedInfoDataLoaded(&session(), *fwd))) {
-			MTP_LOG(0, ("getDifference "
-				"{ good - getting user for updateShortChatMessage }%1"
-				).arg(_session->mtp().isTestMode() ? " TESTMODE" : ""));
-			if (chat && noFrom) {
-				session().api().requestFullPeer(chat);
-			}
-			return getDifference();
-		}
+		_session->data().fillMessagePeers(d);
 		if (updateAndApply(d.vpts().v, d.vpts_count().v, updates)) {
 			// Update date as well.
 			setState(0, d.vdate().v, _updatesQts, _updatesSeq);
@@ -1486,13 +1458,7 @@ void Updates::applyUpdates(
 			const auto wasAlready = (lookupMessage() != nullptr);
 			feedUpdate(MTP_updateMessageID(d.vid(), MTP_long(randomId))); // ignore real date
 			if (const auto item = lookupMessage()) {
-				const auto list = d.ventities();
-				if (list && !MentionUsersLoaded(&session(), *list)) {
-					session().api().requestMessageData(
-						item->history()->peer,
-						item->id,
-						nullptr);
-				}
+				_session->data().fillMessagePeers(item->fullId(), d);
 				item->applySentMessage(sent.text, d, wasAlready);
 			}
 		}
@@ -1519,7 +1485,6 @@ void Updates::feedUpdate(const MTPUpdate &update) {
 	// New messages.
 	case mtpc_updateNewMessage: {
 		auto &d = update.c_updateNewMessage();
-		_session->data().fillMessagePeers(d.vmessage());
 		updateAndApply(d.vpts().v, d.vpts_count().v, update);
 	} break;
 
@@ -1546,7 +1511,6 @@ void Updates::feedUpdate(const MTPUpdate &update) {
 			}
 			return;
 		}
-		_session->data().fillMessagePeers(d.vmessage());
 		if (channel && !_handlingChannelDifference) {
 			if (channel->ptsRequesting()) { // skip global updates while getting channel difference
 				MTP_LOG(0, ("Skipping new channel message because getting the difference."));

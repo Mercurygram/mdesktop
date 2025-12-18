@@ -116,8 +116,6 @@ std::unique_ptr<Data::SavedMessages> MegagroupInfo::takeMonoforumData() {
 
 ChannelData::ChannelData(not_null<Data::Session*> owner, PeerId id)
 : PeerData(owner, id)
-, inputChannel(
-	MTP_inputChannel(MTP_long(peerToChannel(id).bare), MTP_long(0)))
 , _ptsWaiter(&owner->session().updates()) {
 }
 
@@ -176,13 +174,7 @@ bool ChannelData::isUsernameEditable(QString username) const {
 }
 
 void ChannelData::setAccessHash(uint64 accessHash) {
-	access = accessHash;
-	input = MTP_inputPeerChannel(
-		MTP_long(peerToChannel(id).bare),
-		MTP_long(accessHash));
-	inputChannel = MTP_inputChannel(
-		MTP_long(peerToChannel(id).bare),
-		MTP_long(accessHash));
+	_accessHash = accessHash;
 }
 
 void ChannelData::setFlags(ChannelDataFlags which) {
@@ -604,7 +596,7 @@ void ChannelData::markForbidden() {
 			? MTPDchannelForbidden::Flag::f_megagroup
 			: MTPDchannelForbidden::Flag::f_broadcast),
 		MTP_long(peerToChannel(id).bare),
-		MTP_long(access),
+		MTP_long(_accessHash),
 		MTP_string(name()),
 		MTPint()));
 }

@@ -599,7 +599,7 @@ void PeerData::updateUserpic(
 				isSelf() ? peerToUser(id) : UserId(),
 				MTP_inputPeerPhotoFileLocation(
 					MTP_flags(0),
-					input,
+					input(),
 					MTP_long(photoId))) },
 			kUserpicSize,
 			kUserpicSize),
@@ -874,7 +874,7 @@ void PeerData::saveTranslationDisabled(bool disabled) {
 	using Flag = MTPmessages_TogglePeerTranslations::Flag;
 	session().api().request(MTPmessages_TogglePeerTranslations(
 		MTP_flags(disabled ? Flag::f_disabled : Flag()),
-		input
+		input()
 	)).send();
 }
 

@@ -231,7 +231,7 @@ void SavePersonalChannel(
 			&& self->personalChannelMessageId() != messageId)) {
 		self->setPersonalChannel(channelId, messageId);
 		self->session().api().request(MTPaccount_UpdatePersonalChannel(
-			channel ? channel->inputChannel : MTP_inputChannelEmpty()
+			channel ? channel->inputChannel() : MTP_inputChannelEmpty()
 		)).done(crl::guard(window, [=] {
 			window->showToast((channel
 				? tr::lng_settings_channel_saved
@@ -993,7 +993,7 @@ bool ShowEditBirthday(
 		const auto save = [=](Data::Birthday result) {
 			using BFlag = MTPDbirthday::Flag;
 			controller->session().api().request(MTPusers_SuggestBirthday(
-				targetUser->inputUser,
+				targetUser->inputUser(),
 				MTP_birthday(
 					MTP_flags(result.year() ? BFlag::f_year : BFlag()),
 					MTP_int(result.day()),

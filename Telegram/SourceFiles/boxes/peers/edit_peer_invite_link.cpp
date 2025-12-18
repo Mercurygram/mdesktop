@@ -902,11 +902,11 @@ void Controller::loadMoreRows() {
 	_requestId = _api.request(MTPmessages_GetChatInviteImporters(
 		MTP_flags(Flag::f_link
 			| (_role == Role::Requested ? Flag::f_requested : Flag(0))),
-		_peer->input,
+		_peer->input(),
 		MTP_string(_link),
 		MTPstring(), // q
 		MTP_int(_lastUser ? _lastUser->date : 0),
-		_lastUser ? _lastUser->user->inputUser : MTP_inputUserEmpty(),
+		_lastUser ? _lastUser->user->inputUser() : MTP_inputUserEmpty(),
 		MTP_int(_lastUser ? kPerPage : kFirstPage)
 	)).done([=](const MTPmessages_ChatInviteImporters &result) {
 		_requestId = 0;

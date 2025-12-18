@@ -168,7 +168,7 @@ public:
 
 	void madeAction(TimeId when); // pseudo-online
 
-	uint64 accessHash() const {
+	[[nodiscard]] uint64 accessHash() const {
 		return _accessHash;
 	}
 	void setAccessHash(uint64 accessHash);

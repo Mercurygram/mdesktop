@@ -1475,7 +1475,7 @@ void GiftUpgrade(
 	RequestStarsFormAndSubmit(
 		window->uiShow(),
 		MTP_inputInvoiceStarGiftPrepaidUpgrade(
-			peer->input,
+			peer->input(),
 			MTP_string(giftPrepayUpgradeHash)),
 		std::move(formDone));
 }
@@ -1820,7 +1820,7 @@ void CheckMaybeGiftLocked(
 						window->uiShow(),
 						MTP_inputInvoiceStarGiftTransfer(
 							Api::InputSavedStarGiftId(savedId, unique),
-							peer->input),
+							peer->input()),
 						formReady);
 				} else if (star && star->resale) {
 					const auto id = star->info.id;
@@ -4356,7 +4356,7 @@ void SendOfferBuyGift(
 	using Flag = MTPpayments_SendStarGiftOffer::Flag;
 	show->session().api().request(MTPpayments_SendStarGiftOffer(
 		MTP_flags(starsPerMessage ? Flag::f_allow_paid_stars : Flag()),
-		owner->input,
+		owner->input(),
 		MTP_string(unique->slug),
 		StarsAmountToTL(options.price()),
 		MTP_int(options.offerDuration),
