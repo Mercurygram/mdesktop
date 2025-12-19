@@ -2467,11 +2467,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_action_not_enough_funds" = "Transaction failed.";
 "lng_you_paid_stars#one" = "You paid {count} Star.";
 "lng_you_paid_stars#other" = "You paid {count} Stars.";
-"lng_action_stake_game_loading" = "Trying luck in a game...";
 "lng_action_stake_game_nothing" = "{from} didn't win anything";
 "lng_action_stake_game_nothing_you" = "You didn't win anything";
 "lng_action_stake_game_won" = "{from} won {amount}";
 "lng_action_stake_game_won_you" = "You won {amount}";
+"lng_action_stake_game_lost" = "{from} lost {amount}";
+"lng_action_stake_game_lost_you" = "You lost {amount}";
 
 "lng_stake_game_title" = "Emoji Stake";
 "lng_stake_game_beta" = "Beta";

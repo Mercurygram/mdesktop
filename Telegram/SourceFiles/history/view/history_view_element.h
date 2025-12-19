@@ -317,7 +317,8 @@ struct ServicePreMessage : RuntimeComponent<ServicePreMessage, Element> {
 		not_null<Element*> view,
 		PreparedServiceText string,
 		ClickHandlerPtr fullClickHandler,
-		std::unique_ptr<Media> media = nullptr);
+		std::unique_ptr<Media> media,
+		bool below);
 
 	int resizeToWidth(int newWidth, ElementChatMode mode);
 
@@ -336,6 +337,7 @@ struct ServicePreMessage : RuntimeComponent<ServicePreMessage, Element> {
 	ClickHandlerPtr handler;
 	int width = 0;
 	int height = 0;
+	bool below = false;
 
 };
 
@@ -480,6 +482,10 @@ public:
 	// For blocks context this should be called only from recountDisplayDate().
 	void setDisplayDate(bool displayDate);
 	void setServicePreMessage(
+		PreparedServiceText text,
+		ClickHandlerPtr fullClickHandler = nullptr,
+		std::unique_ptr<Media> media = nullptr);
+	void setServicePostMessage(
 		PreparedServiceText text,
 		ClickHandlerPtr fullClickHandler = nullptr,
 		std::unique_ptr<Media> media = nullptr);

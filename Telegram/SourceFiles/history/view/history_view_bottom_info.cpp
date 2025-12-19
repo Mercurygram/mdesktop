@@ -141,7 +141,8 @@ bool BottomInfo::isWide() const {
 		|| !_data.author.isEmpty()
 		|| !_views.isEmpty()
 		|| !_replies.isEmpty()
-		|| _effect;
+		|| _effect
+		|| _data.tonStake;
 }
 
 TextState BottomInfo::textState(
@@ -478,6 +479,11 @@ void BottomInfo::layoutDateText() {
 			Ui::Text::IconEmoji(&st::starIconEmojiSmall)
 		).append(Lang::FormatCountToShort(count).string).append(u", "_q);
 	}
+	if (const auto stake = _data.tonStake) {
+		marked.append(QString::number(stake / 1e9)
+			+ QString::fromUtf8("\xf0\x9f\x92\x8e")
+			+ " ");
+	}
 	marked.append(full);
 	_authorEditedDate.setMarkedText(
 		st::msgDateTextStyle,
@@ -636,14 +642,19 @@ BottomInfo::Data BottomInfoDataFromMessage(not_null<Message*> message) {
 		result.flags |= Flag::Sending;
 	}
 	if (!item->history()->peer->isUser()) {
-		const auto media = message->media();
 		const auto mine = PaidInformation{
 			.messages = 1,
 			.stars = item->starsPaid(),
 		};
+		const auto media = message->media();
 		auto info = media ? media->paidInformation().value_or(mine) : mine;
 		if (const auto total = info.stars) {
 			result.stars = total;
+		}
+	}
+	if (const auto media = item->media()) {
+		if (const auto outcome = media->diceGameOutcome()) {
+			result.tonStake = outcome.stakeNanoTon;
 		}
 	}
 	const auto forwarded = item->Get<HistoryMessageForwarded>();

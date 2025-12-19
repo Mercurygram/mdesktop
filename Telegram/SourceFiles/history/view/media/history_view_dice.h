@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "base/weak_ptr.h"
 #include "history/view/media/history_view_media_unwrapped.h"
 #include "history/view/media/history_view_sticker.h"
 
@@ -16,7 +17,9 @@ class MediaDice;
 
 namespace HistoryView {
 
-class Dice final : public UnwrappedMedia::Content {
+class Dice final
+	: public UnwrappedMedia::Content
+	, public base::has_weak_ptr {
 public:
 	Dice(not_null<Element*> parent, not_null<Data::MediaDice*> dice);
 	~Dice();
@@ -58,6 +61,8 @@ private:
 	mutable bool _showLastFrame = false;
 	mutable bool _drawingEnd = false;
 	bool _outcomeSet = false;
+	bool _outcomeLastPainted = false;
+	bool _outcomeStartedUnknown = false;
 
 };
 

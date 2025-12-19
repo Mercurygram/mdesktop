@@ -778,7 +778,9 @@ int Message::marginTop() const {
 		result += bar->height();
 	}
 	if (const auto service = Get<ServicePreMessage>()) {
-		result += service->height;
+		if (!service->below) {
+			result += service->height;
+		}
 	}
 	if (const auto margins = Get<ViewAddedMargins>()) {
 		result += margins->top;
@@ -791,6 +793,11 @@ int Message::marginBottom() const {
 		return 0;
 	}
 	auto result = st::msgMargin.bottom();
+	if (const auto service = Get<ServicePreMessage>()) {
+		if (service->below) {
+			result += service->height;
+		}
+	}
 	if (const auto margins = Get<ViewAddedMargins>()) {
 		result += margins->bottom;
 	}

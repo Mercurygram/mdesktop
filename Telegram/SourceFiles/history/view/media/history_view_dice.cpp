@@ -44,12 +44,12 @@ Dice::Dice(not_null<Element*> parent, not_null<Data::MediaDice*> dice)
 	if (_showLastFrame) {
 		_drawingEnd = true;
 	}
-
-	if (const auto outcome = _dice->outcome()) {
+	if (const auto outcome = _dice->diceGameOutcome()) {
 		_outcomeSet = true;
 		_outcomeValue = _dice->value();
 		_outcomeNanoTon = outcome.nanoTon;
 		_outcomeStakeNanoTon = outcome.stakeNanoTon;
+		_outcomeStartedUnknown = (_outcomeValue == 0);
 		updateOutcomeMessage();
 	}
 }
@@ -57,40 +57,40 @@ Dice::Dice(not_null<Element*> parent, not_null<Data::MediaDice*> dice)
 Dice::~Dice() = default;
 
 void Dice::updateOutcomeMessage() {
+	if ((_outcomeStartedUnknown && !_outcomeLastPainted)
+		|| (!_outcomeValue && !_outcomeNanoTon)) {
+		_parent->setServicePostMessage({});
+		return;
+	}
 	const auto item = _parent->data();
 	const auto from = item->from();
 	const auto out = item->out() || from->isSelf();
+	const auto won = (_outcomeNanoTon - _outcomeStakeNanoTon);
 	const auto amount = tr::marked(QString::fromUtf8("\xf0\x9f\x92\x8e")
 		+ " "
-		+ QString::number(_outcomeNanoTon / 1e9));
-	const auto text = _outcomeNanoTon
-		? (out
-			? tr::lng_action_stake_game_won_you(
+		+ QString::number(std::abs(won) / 1e9));
+	const auto text = out
+		? (won > 0
+			? tr::lng_action_stake_game_won_you
+			: tr::lng_action_stake_game_lost_you)(
 				tr::now,
 				lt_amount,
 				amount,
 				tr::marked)
-			: tr::lng_action_stake_game_won(
+		: (won > 0
+			? tr::lng_action_stake_game_won
+			: tr::lng_action_stake_game_lost)(
 				tr::now,
 				lt_from,
 				tr::link(st::wrap_rtl(from->name()), 1),
 				lt_amount,
 				amount,
-				tr::marked))
-		: !_outcomeValue
-		? tr::lng_action_stake_game_loading(tr::now, tr::marked)
-		: (out
-			? tr::lng_action_stake_game_nothing_you(tr::now, tr::marked)
-			: tr::lng_action_stake_game_nothing(
-				tr::now,
-				lt_from,
-				tr::link(st::wrap_rtl(from->name()), 1),
-				tr::marked));
+				tr::marked);
 	auto prepared = PreparedServiceText{ text };
 	if (!out) {
 		prepared.links.push_back(from->createOpenLink());
 	}
-	_parent->setServicePreMessage(prepared, _link);
+	_parent->setServicePostMessage(prepared, _link);
 }
 
 QSize Dice::countOptimalSize() {
@@ -102,7 +102,7 @@ ClickHandlerPtr Dice::link() {
 }
 
 bool Dice::updateItemData() {
-	const auto outcome = _dice->outcome();
+	const auto outcome = _dice->diceGameOutcome();
 	const auto outcomeSet = !!outcome;
 	const auto outcomeNanoTon = outcomeSet ? outcome.nanoTon : 0;
 	const auto outcomeStakeNanoTon = outcomeSet ? outcome.stakeNanoTon : 0;
@@ -143,6 +143,15 @@ void Dice::draw(Painter &p, const PaintContext &context, const QRect &r) {
 	}
 	if (_drawingEnd) {
 		_end->draw(p, context, r);
+		if (!_outcomeLastPainted && _end->stoppedOnLastFrame()) {
+			_outcomeLastPainted = true;
+			if (_outcomeSet) {
+				crl::on_main(this, [=] {
+					updateOutcomeMessage();
+					_parent->history()->owner().requestViewResize(_parent);
+				});
+			}
+		}
 	} else if (_start) {
 		_start->draw(p, context, r);
 		if (_end

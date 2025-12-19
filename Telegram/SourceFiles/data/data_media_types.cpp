@@ -687,6 +687,10 @@ const GiveawayResults *Media::giveawayResults() const {
 	return nullptr;
 }
 
+DiceGameOutcome Media::diceGameOutcome() const {
+	return {};
+}
+
 bool Media::uploading() const {
 	return false;
 }
@@ -2444,7 +2448,7 @@ int MediaDice::value() const {
 	return _value;
 }
 
-DiceGameOutcome MediaDice::outcome() const {
+DiceGameOutcome MediaDice::diceGameOutcome() const {
 	return _outcome;
 }
 
