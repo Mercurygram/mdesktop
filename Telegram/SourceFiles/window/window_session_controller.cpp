@@ -2110,17 +2110,21 @@ void SessionController::setActiveChatEntry(Dialogs::RowDescriptor row) {
 	if (windowId().type == SeparateType::SharedMedia) {
 		return;
 	}
-	const auto was = _activeChatEntry.current().key.history();
-	const auto now = row.key.history();
-	if (was && was != now) {
+	const auto was = _activeChatEntry.current();
+	if (was.key && was.key != row.key) {
+		session().api().saveCurrentDraftToCloud();
+	}
+	const auto wasHistory = was.key.history();
+	const auto nowHistory = row.key.history();
+	if (wasHistory && wasHistory != nowHistory) {
 		_activeHistoryLifetime.destroy();
-		was->setFakeUnreadWhileOpened(false);
+		wasHistory->setFakeUnreadWhileOpened(false);
 		_invitePeekTimer.cancel();
 	}
 	_activeChatEntry = row;
-	if (now) {
-		now->setFakeUnreadWhileOpened(true);
-		if (const auto channel = now->peer->asChannel()
+	if (nowHistory) {
+		nowHistory->setFakeUnreadWhileOpened(true);
+		if (const auto channel = nowHistory->peer->asChannel()
 			; channel && !channel->isForum()) {
 			Data::PeerFlagValue(
 				channel,
