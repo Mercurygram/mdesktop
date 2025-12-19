@@ -7433,6 +7433,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mac_menu_player_resume" = "Resume";
 "lng_mac_menu_player_next" = "Next";
 "lng_mac_menu_player_previous" = "Previous";
+"lng_mac_menu_profiles" = "Profiles";
 
 "lng_mac_touchbar_favorite_stickers" = "Favorite stickers";
 
