@@ -371,6 +371,7 @@ std::unique_ptr<Data::Media> HistoryItem::CreateMedia(
 			const auto &data = game->data();
 			outcome.seed = data.vseed().v;
 			outcome.nanoTon = data.vton_amount().v;
+			outcome.stakeNanoTon = data.vstake_ton_amount().v;
 		}
 		return std::make_unique<Data::MediaDice>(
 			item,

@@ -2486,6 +2486,7 @@ bool MediaDice::updateSentMedia(const MTPMessageMedia &media) {
 		const auto &data = outcome->data();
 		_outcome = Data::DiceGameOutcome{
 			.nanoTon = int64(data.vton_amount().v),
+			.stakeNanoTon = int64(data.vstake_ton_amount().v),
 			.seed = data.vseed().v,
 		};
 	} else {

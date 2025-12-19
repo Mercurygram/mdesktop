@@ -52,7 +52,8 @@ private:
 	ClickHandlerPtr _link;
 	std::optional<Sticker> _start;
 	std::optional<Sticker> _end;
-	int64 _outcomeNanoTon = false;
+	int64 _outcomeNanoTon = 0;
+	int64 _outcomeStakeNanoTon = 0;
 	int _outcomeValue = 0;
 	mutable bool _showLastFrame = false;
 	mutable bool _drawingEnd = false;

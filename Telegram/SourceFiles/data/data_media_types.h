@@ -668,6 +668,7 @@ struct DiceGameOptions {
 
 struct DiceGameOutcome {
 	int64 nanoTon = 0;
+	int64 stakeNanoTon = 0;
 	QByteArray seed;
 
 	explicit operator bool() const {

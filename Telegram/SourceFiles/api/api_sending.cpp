@@ -449,7 +449,10 @@ bool SendDice(MessageToSend &message) {
 			: MTPDmessageMediaDice::Flag()),
 		MTP_int(0),
 		MTP_string(emoji),
-		MTP_messages_emojiGameOutcome(MTP_bytes(seed), MTP_long(0))));
+		MTP_messages_emojiGameOutcome(
+			MTP_bytes(seed),
+			MTP_long(stake),
+			MTP_long(0))));
 	histories.sendPreparedMessage(
 		history,
 		action.replyTo,

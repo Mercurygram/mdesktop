@@ -49,6 +49,7 @@ Dice::Dice(not_null<Element*> parent, not_null<Data::MediaDice*> dice)
 		_outcomeSet = true;
 		_outcomeValue = _dice->value();
 		_outcomeNanoTon = outcome.nanoTon;
+		_outcomeStakeNanoTon = outcome.stakeNanoTon;
 		updateOutcomeMessage();
 	}
 }
@@ -104,14 +105,17 @@ bool Dice::updateItemData() {
 	const auto outcome = _dice->outcome();
 	const auto outcomeSet = !!outcome;
 	const auto outcomeNanoTon = outcomeSet ? outcome.nanoTon : 0;
+	const auto outcomeStakeNanoTon = outcomeSet ? outcome.stakeNanoTon : 0;
 	const auto outcomeValue = _dice->value();
 	if (_outcomeSet == outcomeSet
 		&& _outcomeNanoTon == outcomeNanoTon
+		&& _outcomeStakeNanoTon == outcomeStakeNanoTon
 		&& _outcomeValue == outcomeValue) {
 		return false;
 	}
 	_outcomeSet = outcomeSet;
 	_outcomeNanoTon = outcomeNanoTon;
+	_outcomeStakeNanoTon = outcomeStakeNanoTon;
 	_outcomeValue = outcomeValue;
 	updateOutcomeMessage();
 	return true;
