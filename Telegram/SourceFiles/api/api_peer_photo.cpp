@@ -390,6 +390,10 @@ void PeerPhoto::ready(
 				_session->storage().add(Storage::UserPhotosSetBack(
 					peerToUser(peer->id),
 					photoId));
+			} else {
+				_session->storage().add(Storage::UserPhotosAddNew(
+					peerToUser(peer->id),
+					photoId));
 			}
 			if (done) {
 				done();
