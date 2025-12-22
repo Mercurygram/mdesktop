@@ -652,6 +652,12 @@ not_null<UserData*> Session::processUser(const MTPUser &data) {
 			result->setPhoto(MTP_userProfilePhotoEmpty());
 			status = &emptyStatus;
 		} else {
+			if (const auto accessHash = data.vaccess_hash()) {
+				if (!minimal || !result->accessHash()) {
+					result->setAccessHash(accessHash->v);
+				}
+			}
+
 			// apply first_name and last_name from minimal user only if we don't have
 			// local values for first name and last name already, otherwise skip
 			const auto noLocalName = result->firstName.isEmpty()
@@ -715,9 +721,6 @@ not_null<UserData*> Session::processUser(const MTPUser &data) {
 				} else {
 					result->setPhoto(MTP_userProfilePhotoEmpty());
 				}
-			}
-			if (const auto accessHash = data.vaccess_hash()) {
-				result->setAccessHash(accessHash->v);
 			}
 			status = data.vstatus();
 			if (!minimal) {
@@ -903,6 +906,12 @@ not_null<PeerData*> Session::processChat(const MTPChat &data) {
 			LOG(("API Warning: not loaded minimal channel applied."));
 		}
 
+		if (const auto accessHash = data.vaccess_hash()) {
+			if (!minimal || !channel->accessHash()) {
+				channel->setAccessHash(accessHash->v);
+			}
+		}
+
 		const auto wasInChannel = channel->amIn();
 		const auto canViewAdmins = channel->canViewAdmins();
 		const auto canViewMembers = channel->canViewMembers();
@@ -927,12 +936,7 @@ not_null<PeerData*> Session::processChat(const MTPChat &data) {
 		} else {
 			channel->setEmojiStatus(EmojiStatusId());
 		}
-		if (minimal) {
-			if (channel->input().type() == mtpc_inputPeerEmpty
-				|| channel->inputChannel().type() == mtpc_inputChannelEmpty) {
-				channel->setAccessHash(data.vaccess_hash().value_or_empty());
-			}
-		} else {
+		if (!minimal) {
 			if (const auto rights = data.vadmin_rights()) {
 				channel->setAdminRights(ChatAdminRightsInfo(*rights).flags);
 			} else if (channel->hasAdminRights()) {
@@ -943,8 +947,6 @@ not_null<PeerData*> Session::processChat(const MTPChat &data) {
 			} else if (channel->hasRestrictions()) {
 				channel->setRestrictions(ChatRestrictionsInfo());
 			}
-			channel->setAccessHash(
-				data.vaccess_hash().value_or(channel->accessHash()));
 			channel->date = data.vdate().v;
 			channel->setUnavailableReasons(Data::UnavailableReason::Extract(
 				data.vrestriction_reason()));
