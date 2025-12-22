@@ -318,15 +318,20 @@ void PeerPhoto::set(not_null<PeerData*> peer, not_null<PhotoData*> photo) {
 		return;
 	}
 	if (peer == _session->user()) {
+		const auto photoId = photo->id;
+		const auto peerId = peer->id;
 		_api.request(MTPphotos_UpdateProfilePhoto(
 			MTP_flags(0),
 			MTPInputUser(), // bot
 			photo->mtpInput()
 		)).done([=](const MTPphotos_Photo &result) {
-			result.match([&](const MTPDphotos_photo &data) {
-				_session->data().processPhoto(data.vphoto());
-				_session->data().processUsers(data.vusers());
-			});
+			const auto newPhoto = _session->data().processPhoto(
+				result.data().vphoto());
+			_session->data().processUsers(result.data().vusers());
+			_session->storage().replace(Storage::UserPhotosReplace(
+				peerToUser(peerId),
+				photoId,
+				newPhoto->id));
 		}).send();
 	} else {
 		const auto applier = [=](const MTPUpdates &result) {
