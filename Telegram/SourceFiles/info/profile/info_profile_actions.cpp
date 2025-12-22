@@ -1186,6 +1186,10 @@ private:
 	object_ptr<Ui::RpWidget> setupInfo();
 	void setupMainApp();
 	void setupBotPermissions();
+	void addShowTopicsListButton(
+		Ui::MultiSlideTracker &tracker,
+		not_null<Data::Forum*> forum,
+		Ui::MultiSlideTracker *buttonTracker);
 	void addViewChannelButton(
 		Ui::MultiSlideTracker &tracker,
 		not_null<ChannelData*> channel,
@@ -2263,6 +2267,38 @@ void DetailsFiller::addViewChannelButton(
 		buttonTracker);
 }
 
+void DetailsFiller::addShowTopicsListButton(
+		Ui::MultiSlideTracker &tracker,
+		not_null<Data::Forum*> forum,
+		Ui::MultiSlideTracker *buttonTracker) {
+	using namespace rpl::mappers;
+
+	const auto window = _controller->parentController();
+	const auto peer = forum->peer();
+	auto showTopicsVisible = rpl::combine(
+		window->adaptive().oneColumnValue(),
+		window->shownForum().value(),
+		_1 || (_2 != forum));
+	const auto callback = [=] {
+		if (const auto forum = peer->forum()) {
+			if (peer->useSubsectionTabs()) {
+				window->searchInChat(forum->history());
+			} else {
+				window->showForum(forum);
+			}
+		}
+	};
+	AddMainButton(
+		_wrap,
+		(forum->peer()->isBot()
+			? tr::lng_bot_show_threads_list()
+			: tr::lng_forum_show_topics_list()),
+		std::move(showTopicsVisible),
+		callback,
+		tracker,
+		buttonTracker);
+}
+
 object_ptr<Ui::RpWidget> DetailsFiller::fill() {
 	Expects(!_topic || !_topic->creating());
 
@@ -2309,6 +2345,13 @@ object_ptr<Ui::RpWidget> DetailsFiller::fill() {
 		if (!channel->isMegagroup()) {
 			_dividerOverridden.force_assign(false);
 			addViewChannelButton(_mainTracker, channel, &lastButtonTracker);
+		}
+		if (const auto forum = channel->forum()) {
+			_dividerOverridden.force_assign(false);
+			addShowTopicsListButton(
+				_mainTracker,
+				forum,
+				&lastButtonTracker);
 		}
 	}
 	add(CreateSlideSkipWidget(_wrap))->toggleOn(
