@@ -73,6 +73,7 @@ constexpr auto kFirstPage = 20;
 constexpr auto kPerPage = 100;
 // constexpr auto kShareQrSize = 768;
 // constexpr auto kShareQrPadding = 16;
+constexpr auto kMaxShownJoined = 3;
 
 using LinkData = Api::InviteLink;
 
@@ -1389,7 +1390,8 @@ void AddPermanentLinkBlock(
 	}) | rpl::flatten_latest(
 	) | rpl::on_next([=](const Api::JoinedByLinkSlice &slice) {
 		auto list = std::vector<HistoryView::UserpicInRow>();
-		list.reserve(slice.users.size());
+		const auto take = std::min(int(slice.users.size()), kMaxShownJoined);
+		list.reserve(take);
 		for (const auto &item : slice.users) {
 			const auto i = ranges::find(
 				state->list,
@@ -1399,6 +1401,9 @@ void AddPermanentLinkBlock(
 				list.push_back(std::move(*i));
 			} else {
 				list.push_back({ item.user });
+			}
+			if (list.size() == take) {
+				break;
 			}
 		}
 		state->count = slice.count;
