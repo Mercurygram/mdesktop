@@ -243,12 +243,16 @@ void PeerPhoto::suggest(not_null<PeerData*> peer, UserPhoto &&photo) {
 void PeerPhoto::clear(not_null<PhotoData*> photo) {
 	const auto self = _session->user();
 	if (self->userpicPhotoId() == photo->id) {
+		const auto photoId = photo->id;
+		const auto peerId = self->id;
 		_api.request(MTPphotos_UpdateProfilePhoto(
 			MTP_flags(0),
 			MTPInputUser(), // bot
 			MTP_inputPhotoEmpty()
 		)).done([=](const MTPphotos_Photo &result) {
 			self->setPhoto(MTP_userProfilePhotoEmpty());
+			_session->storage().remove(
+				Storage::UserPhotosRemoveOne(peerToUser(peerId), photoId));
 		}).send();
 	} else if (photo->peer && photo->peer->userpicPhotoId() == photo->id) {
 		const auto applier = [=](const MTPUpdates &result) {
