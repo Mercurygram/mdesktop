@@ -4392,6 +4392,7 @@ void HistoryInner::mouseActionUpdate() {
 						// stop enumeration if we've found a userpic under the cursor
 						if (point.y() >= userpicTop && point.y() < userpicTop + st::msgPhotoSize) {
 							dragState = TextState(nullptr, view->fromPhotoLink());
+							dragState.cursor = CursorState::FromPhoto;
 							dragStateUserpic = true;
 							_dragStateItem = nullptr;
 							lnkhost = view;
@@ -4411,6 +4412,7 @@ void HistoryInner::mouseActionUpdate() {
 	if (dragState.link
 		|| dragState.cursor == CursorState::Date
 		|| dragState.cursor == CursorState::Forwarded
+		|| dragState.cursor == CursorState::FromPhoto
 		|| dragState.customTooltip) {
 		Ui::Tooltip::Show(1000, this);
 	}
@@ -5049,6 +5051,11 @@ QString HistoryInner::tooltipText() const {
 		}
 	}
 	if (const auto view = Element::Moused()) {
+		if (_mouseCursorState == CursorState::FromPhoto) {
+			if (const auto from = view->data()->displayFrom()) {
+				return from->name();
+			}
+		}
 		StateRequest request;
 		const auto local = mapFromGlobal(_mousePosition);
 		const auto point = _widget->clampMousePosition(local);
