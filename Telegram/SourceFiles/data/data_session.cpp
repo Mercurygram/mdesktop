@@ -5339,7 +5339,7 @@ void Session::clearLocalStorage() {
 }
 
 void Session::fillMessagePeer(FullMsgId fullId, PeerId peerId) {
-	if (!peerLoaded(peerId)) {
+	if (!peerLoaded(peerId) && fullId.peer != peerId) {
 		_messagesWithPeer[peerId].push_back(fullId);
 	}
 }

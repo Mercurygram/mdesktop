@@ -1419,6 +1419,12 @@ void Updates::applyUpdates(
 
 	case mtpc_updateShortMessage: {
 		auto &d = updates.c_updateShortMessage();
+		if (!session().data().userLoaded(d.vuser_id())) {
+			MTP_LOG(0, ("getDifference "
+				"{ good - getting user for updateShortMessage }%1"
+			).arg(_session->mtp().isTestMode() ? " TESTMODE" : ""));
+			return getDifference();
+		}
 		_session->data().fillMessagePeers(d);
 		if (updateAndApply(d.vpts().v, d.vpts_count().v, updates)) {
 			// Update date as well.
@@ -1428,6 +1434,13 @@ void Updates::applyUpdates(
 
 	case mtpc_updateShortChatMessage: {
 		auto &d = updates.c_updateShortChatMessage();
+		const auto chat = session().data().chatLoaded(d.vchat_id());
+		if (!chat) {
+			MTP_LOG(0, ("getDifference "
+				"{ good - getting chat for updateShortChatMessage }%1"
+			).arg(_session->mtp().isTestMode() ? " TESTMODE" : ""));
+			return getDifference();
+		}
 		_session->data().fillMessagePeers(d);
 		if (updateAndApply(d.vpts().v, d.vpts_count().v, updates)) {
 			// Update date as well.
@@ -1485,6 +1498,16 @@ void Updates::feedUpdate(const MTPUpdate &update) {
 	// New messages.
 	case mtpc_updateNewMessage: {
 		auto &d = update.c_updateNewMessage();
+		if (!requestingDifference()) {
+			const auto peerId = PeerFromMessage(d.vmessage());
+			const auto peer = session().data().peerLoaded(peerId);
+			if (peerId && !peer) {
+				MTP_LOG(0, ("getDifference "
+					"{ good - getting peer for updateNewMessage }%1"
+				).arg(_session->mtp().isTestMode() ? " TESTMODE" : ""));
+				return getDifference();
+			}
+		}
 		updateAndApply(d.vpts().v, d.vpts_count().v, update);
 	} break;
 

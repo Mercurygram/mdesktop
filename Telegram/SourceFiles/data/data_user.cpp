@@ -321,6 +321,9 @@ void UserData::setPersonalChannel(ChannelId channelId, MsgId messageId) {
 MTPInputUser UserData::inputUser() const {
 	const auto item = isLoaded() ? nullptr : owner().messageWithPeer(id);
 	if (item) {
+		const auto peer = item->history()->peer;
+		Assert(peer.get() != this);
+
 		return MTP_inputUserFromMessage(
 			item->history()->peer->input(),
 			MTP_int(item->id.bare),
