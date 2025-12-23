@@ -7,7 +7,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/view/controls/history_view_suggest_options.h"
 
-#include "base/event_filter.h"
 #include "base/unixtime.h"
 #include "boxes/star_gift_box.h"
 #include "chat_helpers/compose/compose_show.h"
@@ -21,7 +20,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_item.h"
 #include "history/history_item_components.h"
 #include "history/history_item_helpers.h"
-#include "info/channel_statistics/earn/earn_format.h"
 #include "info/channel_statistics/earn/earn_icons.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
@@ -109,36 +107,6 @@ void ChooseSuggestTimeBox(
 		: tr::lng_suggest_options_date_any(), [=] {
 		done(TimeId());
 	});
-}
-
-void AddApproximateUsd(
-		not_null<QWidget*> field,
-		not_null<Main::Session*> session,
-		rpl::producer<CreditsAmount> price) {
-	auto value = std::move(price) | rpl::map([=](CreditsAmount amount) {
-		if (!amount) {
-			return QString();
-		}
-		const auto appConfig = &session->appConfig();
-		const auto rate = amount.ton()
-			? appConfig->currencySellRate()
-			: (appConfig->starsSellRate() / 100.);
-		return Info::ChannelEarn::ToUsd(amount, rate, 2);
-	});
-	const auto usd = Ui::CreateChild<Ui::FlatLabel>(
-		field,
-		std::move(value),
-		st::suggestPriceEstimate);
-	const auto move = [=] {
-		usd->moveToRight(0, st::suggestPriceEstimateTop);
-	};
-	base::install_event_filter(field, [=](not_null<QEvent*> e) {
-		if (e->type() == QEvent::Resize) {
-			move();
-		}
-		return base::EventFilterResult::Continue;
-	});
-	usd->widthValue() | rpl::on_next(move, usd->lifetime());
 }
 
 StarsTonPriceInput AddStarsTonPriceInput(

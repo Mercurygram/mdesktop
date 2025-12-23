@@ -34,6 +34,11 @@ struct TonInputFieldArgs {
 	not_null<VerticalLayout*> container,
 	TonInputFieldArgs &&args);
 
+void AddApproximateUsd(
+	not_null<QWidget*> field,
+	not_null<Main::Session*> session,
+	rpl::producer<CreditsAmount> price);
+
 struct EmojiGameStakeArgs {
 	not_null<Main::Session*> session;
 	int64 currentStake = 0;

@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/message_bubble.h"
 #include "ui/chat/chat_style.h"
 #include "ui/effects/reaction_fly_animation.h"
+#include "ui/text/custom_emoji_helper.h"
 #include "ui/text/format_values.h"
 #include "ui/text/text_options.h"
 #include "ui/text/text_utilities.h"
@@ -473,6 +474,8 @@ void BottomInfo::layoutDateText() {
 		: name.isEmpty()
 		? date
 		: (name + afterAuthor);
+	auto helper = Ui::Text::CustomEmojiHelper(
+		Core::TextContext({ .session = &_reactionsOwner->session() }));
 	auto marked = TextWithEntities();
 	if (const auto count = _data.stars) {
 		marked.append(
@@ -480,16 +483,24 @@ void BottomInfo::layoutDateText() {
 		).append(Lang::FormatCountToShort(count).string).append(u", "_q);
 	}
 	if (const auto stake = _data.tonStake) {
-		marked.append(QString::number(stake / 1e9)
-			+ QString::fromUtf8("\xf0\x9f\x92\x8e")
-			+ " ");
+		marked.append(
+			QString::number(stake / 1e9)
+		).append(helper.image({
+			.image = Ui::Emoji::SinglePixmap(
+				Ui::Emoji::Find(QString::fromUtf8("\xf0\x9f\x92\x8e")),
+				Ui::Emoji::GetSizeNormal()).toImage().scaledToHeight(
+					st::stakeIconEmojiSize * style::DevicePixelRatio(),
+					Qt::SmoothTransformation),
+			.margin = QMargins(0, st::stakeIconEmojiTop, 0, 0),
+			.textColor = false,
+		})).append("  ");
 	}
 	marked.append(full);
 	_authorEditedDate.setMarkedText(
 		st::msgDateTextStyle,
 		marked,
 		Ui::NameTextOptions(),
-		Core::TextContext({ .session = &_reactionsOwner->session() }));
+		helper.context());
 }
 
 void BottomInfo::layoutViewsText() {

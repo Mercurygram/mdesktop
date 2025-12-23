@@ -1459,3 +1459,12 @@ messageGiftIconSkip: 30px;
 
 newChatIcon: icon{{ "chat/new_topic", windowFgActive }};
 newChatIconPadding: margins(2px, 2px, 2px, 2px);
+
+stakeEmojiSize: 20px;
+stakeEmojiTop: 8px;
+stakeEmojiIcon: IconEmoji {
+	icon: icon{{ "chat/mini_roll-18x18", activeButtonFg }};
+	padding: margins(1px, 2px, 1px, 0px);
+}
+stakeIconEmojiSize: 12px;
+stakeIconEmojiTop: 3px;

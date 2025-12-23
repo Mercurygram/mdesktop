@@ -7,15 +7,18 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "ui/boxes/emoji_stake_box.h"
 
+#include "base/event_filter.h"
 #include "base/object_ptr.h"
 #include "chat_helpers/stickers_lottie.h"
 #include "data/components/credits.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "data/data_document.h"
 #include "data/data_session.h"
+#include "info/channel_statistics/earn/earn_format.h"
 #include "info/channel_statistics/earn/earn_icons.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
+#include "main/main_app_config.h"
 #include "main/main_session.h"
 #include "settings/settings_common.h" // CreateLottieIcon
 #include "settings/settings_credits_graphics.h" // AddBalanceWidget
@@ -39,6 +42,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_settings.h" // settingsCloudPasswordIconSize
 #include "styles/style_widgets.h"
 
+#include <QtSvg/QSvgRenderer>
+
 namespace Ui {
 namespace {
 
@@ -55,12 +60,30 @@ namespace {
 		helper.context());
 }
 
+[[nodiscard]] QImage MakeEmojiFrame(int index, int size) {
+	const auto path = u":/gui/dice/dice%1.svg"_q.arg(index);
+
+	const auto ratio = style::DevicePixelRatio();
+	auto svg = QSvgRenderer(path);
+	auto result = QImage(
+		QSize(size, size) * ratio,
+		QImage::Format_ARGB32_Premultiplied);
+	result.setDevicePixelRatio(ratio);
+	result.fill(Qt::transparent);
+
+	auto p = QPainter(&result);
+	svg.render(&p, QRect(0, 0, size, size));
+	p.end();
+
+	return result;
+}
+
 [[nodiscard]] object_ptr<RpWidget> MakeLogo(not_null<GenericBox*> box) {
 	const auto &size = st::settingsCloudPasswordIconSize;
 	auto icon = Settings::CreateLottieIcon(
 		box->verticalLayout(),
 		{ .name = u"dice_6"_q, .sizeOverride = { size, size } },
-		st::settingLocalPasscodeIconPadding);
+		QMargins());
 	const auto animate = std::move(icon.animate);
 	box->showFinishes() | rpl::take(1) | rpl::on_next([=] {
 		animate(anim::repeat::once);
@@ -75,19 +98,17 @@ namespace {
 	const auto raw = result.data();
 
 	struct State {
-		std::array<std::unique_ptr<Text::CustomEmoji>, 6> dices;
+		std::array<QImage, 6> dices;
 		std::array<Text::String, 7> multiplicators;
 	};
 	const auto state = raw->lifetime().make_state<State>();
 	const auto serialize = [&](int milliReward) {
 		return QString(QChar(0xD7)) + QString::number(milliReward / 1000.);
 	};
-	const auto esize = st::largeEmojiSize;
+	const auto esize = st::stakeEmojiSize;
 	for (auto i = 0; i != 6; ++i) {
-		state->dices[i] = Lottie::MakeEmoji({
-			.name = u"dice_%1"_q.arg(i + 1),
-			.sizeOverride = QSize(esize, esize),
-		}, [=] { raw->update(); });
+		state->dices[i] = MakeEmojiFrame(i + 1, esize);
+
 		const auto value = (i < args.milliRewards.size())
 			? args.milliRewards[i]
 			: 0;
@@ -137,13 +158,12 @@ namespace {
 		auto hq = PainterHighQualityEnabler(p);
 		p.drawPath(path);
 
-		const auto etop = -style::ConvertScale(10);
+		const auto etop = st::stakeEmojiTop;
 		const auto ttop = etop + esize;
 		{
 			auto left = border + half;
 			const auto width = (inner.width() - 3 * border) / 4.;
 			auto top = border + half;
-			const auto now = crl::now();
 			for (auto i = 0; i != 7; ++i, left += width + border) {
 				if (i == 4) {
 					left -= 4 * (width + border);
@@ -157,25 +177,17 @@ namespace {
 				const auto w = (right - x);
 
 				if (i < 6) {
-					state->dices[i]->paint(p, {
-						.textColor = st::windowBoldFg->c,
-						.now = now,
-						.position = QPoint(x + (w - esize) / 2, y + etop),
-						.paused = true,
-						.internal = { .forceLastFrame = true }
-					});
+					p.drawImage(
+						x + (w - esize) / 2,
+						y + etop,
+						state->dices[i]);
 				} else {
-					const auto e = state->dices.back().get();
+					const auto &last = state->dices.back();
 					for (auto j = 0; j != 3; ++j) {
-						e->paint(p, {
-							.textColor = st::windowBoldFg->c,
-							.now = now,
-							.position = QPoint(
-								x + (w - 3 * esize) / 2 + (esize * j),
-								y + etop),
-							.paused = true,
-							.internal = { .forceLastFrame = true }
-						});
+						p.drawImage(
+							x + (w - 3 * esize) / 2 + (esize * j),
+							y + etop,
+							last);
 					}
 				}
 
@@ -249,6 +261,36 @@ not_null<InputField*> AddTonInputField(
 	return result;
 }
 
+void AddApproximateUsd(
+		not_null<QWidget*> field,
+		not_null<Main::Session*> session,
+		rpl::producer<CreditsAmount> price) {
+	auto value = std::move(price) | rpl::map([=](CreditsAmount amount) {
+		if (!amount) {
+			return QString();
+		}
+		const auto appConfig = &session->appConfig();
+		const auto rate = amount.ton()
+			? appConfig->currencySellRate()
+			: (appConfig->starsSellRate() / 100.);
+		return Info::ChannelEarn::ToUsd(amount, rate, 2);
+	});
+	const auto usd = Ui::CreateChild<Ui::FlatLabel>(
+		field,
+		std::move(value),
+		st::suggestPriceEstimate);
+	const auto move = [=] {
+		usd->moveToRight(0, st::suggestPriceEstimateTop);
+	};
+	base::install_event_filter(field, [=](not_null<QEvent*> e) {
+		if (e->type() == QEvent::Resize) {
+			move();
+		}
+		return base::EventFilterResult::Continue;
+	});
+	usd->widthValue() | rpl::on_next(move, usd->lifetime());
+}
+
 void EmojiGameStakeBox(
 		not_null<GenericBox*> box,
 		EmojiGameStakeArgs &&args) {
@@ -268,6 +310,10 @@ void EmojiGameStakeBox(
 		Text::CustomEmojiTextBadge(
 			tr::lng_stake_game_beta(tr::now),
 			st::customEmojiTextBadge));
+	const auto sixText = helper.image({
+		.image = MakeEmojiFrame(6, st::emojiSize),
+		.textColor = false,
+	});
 	auto title = tr::lng_stake_game_title(
 		tr::marked
 	) | rpl::map([=](TextWithEntities &&text) {
@@ -304,12 +350,7 @@ void EmojiGameStakeBox(
 		st::boxRowPadding + QMargins(-half, 0, -half, skip / 2),
 		style::al_top);
 
-	const auto six = Lottie::IconDescriptor{
-		.name = u"dice_6"_q,
-		.sizeOverride = { st::emojiSize, st::emojiSize },
-	};
-	const auto sixText = Text::LottieEmoji(six);
-	const auto sixContext = Text::LottieEmojiContext(six);
+	const auto sixContext = helper.context();
 	const auto factory = [=](
 			QStringView data,
 			const Text::MarkedContext &context) {
@@ -352,15 +393,35 @@ void EmojiGameStakeBox(
 		field->setFocusFast();
 	});
 
+	const auto price = field->lifetime().make_state<rpl::variable<int64>>(
+		args.currentStake);
+	auto priceValue = price->value() | rpl::map([=](int64 amount) {
+		return CreditsAmount(
+			amount / Ui::kNanosInOne,
+			amount % Ui::kNanosInOne,
+			CreditsType::Ton);
+	});
+	AddApproximateUsd(
+		field,
+		args.session,
+		std::move(priceValue));
+
+	field->changes() | rpl::on_next([=] {
+		*price = Ui::ParseTonAmountString(field->getLastText()).value_or(0);
+	}, field->lifetime());
+
 	const auto submit = args.submit;
 	const auto callback = [=] {
 		const auto text = field->getLastText();
-		const auto now = Ui::ParseTonAmountString(text);
-		if (!now) {
+		const auto now = Ui::ParseTonAmountString(text).value_or(0);
+		const auto appConfig = &args.session->appConfig();
+		const auto min = appConfig->stakeDiceNanoTonMin();
+		const auto max = appConfig->stakeDiceNanoTonMax();
+		if (!now || now < min || now > max) {
 			field->showError();
 		} else {
 			box->closeBox();
-			submit(*now);
+			submit(now);
 		}
 	};
 	field->submits() | rpl::on_next(callback, field->lifetime());
@@ -368,7 +429,8 @@ void EmojiGameStakeBox(
 
 	button->setText(tr::lng_stake_game_save_and_roll(
 	) | rpl::map([=](QString text) {
-		return tr::marked(
+		return Text::IconEmoji(
+			&st::stakeEmojiIcon,
 			QString::fromUtf8("\xf0\x9f\x8e\xb2")
 		).append(' ').append(text);
 	}));
