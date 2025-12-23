@@ -1483,3 +1483,8 @@ stakePresetButton: RoundButton(defaultLightButton) {
 	textBg: lightButtonBgOver;
 }
 stakePresetButtonSkip: point(8px, 8px);
+stakeChangeBadge: RoundButton(defaultTableSmallButton) {
+	textFg: mediaviewTextLinkFg;
+	textFgOver: mediaviewTextLinkFg;
+}
+stateChangeBadgeMargin: margins(0px, 1px, 0px, 0px);

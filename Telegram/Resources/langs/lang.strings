@@ -4577,6 +4577,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 "lng_about_random" = "Send a {emoji} emoji to any chat to try your luck.";
 "lng_about_random_send" = "Send";
+"lng_about_random_stake" = "Stake: {amount}";
+"lng_about_random_stake_change" = "change";
 
 "lng_open_this_link" = "Open this link?";
 "lng_open_link" = "Open";

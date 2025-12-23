@@ -26,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/custom_emoji_helper.h"
 #include "ui/text/custom_emoji_text_badge.h"
 #include "ui/text/text_lottie_custom_emoji.h"
+#include "ui/toast/toast.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/fields/number_input.h"
 #include "ui/widgets/buttons.h"
@@ -428,7 +429,7 @@ void EmojiGameStakeBox(
 	auto helper = Text::CustomEmojiHelper();
 	const auto beta = helper.paletteDependent(
 		Text::CustomEmojiTextBadge(
-			tr::lng_stake_game_beta(tr::now),
+			tr::lng_stake_game_beta(tr::now).toUpper(),
 			st::customEmojiTextBadge));
 	const auto sixText = helper.image({
 		.image = MakeEmojiFrame(6, st::emojiSize),
@@ -587,6 +588,64 @@ void EmojiGameStakeBox(
 			st::creditsHistoryRightSkip);
 		balance->update();
 	}, balance->lifetime());
+}
+
+Toast::Config MakeEmojiGameStakeToast(
+		std::shared_ptr<Show> show,
+		EmojiGameStakeArgs &&args) {
+	auto config = Toast::Config{
+		.st = &st::historyDiceToast,
+		.duration = Ui::Toast::kDefaultDuration * 2,
+	};
+	auto helper = Text::CustomEmojiHelper();
+	static const auto makeBg = [] {
+		auto result = st::mediaviewTextLinkFg->c;
+		result.setAlphaF(0.12);
+		return result;
+	};
+	struct State {
+		State() : bg(makeBg), badge(st::stakeChangeBadge) {
+			badge.textBg = badge.textBgOver = bg.color();
+		}
+
+		style::complex_color bg;
+		style::RoundButton badge;
+	};
+	auto state = std::make_shared<State>();
+	const auto badge = helper.paletteDependent(
+		Ui::Text::CustomEmojiTextBadge(
+			tr::lng_about_random_stake_change(tr::now),
+			state->badge,
+			st::stateChangeBadgeMargin));
+	const auto diamond = QString::fromUtf8("\xf0\x9f\x92\x8e");
+	config.text.append(
+		tr::lng_about_random_stake(
+			tr::now,
+			lt_amount,
+			tr::bold(diamond + Ui::FormatTonAmount(args.currentStake).full),
+			tr::marked)
+	).append(' ').append(
+		tr::link(badge, u"internal:stake_change"_q)
+	).append(u" "_q.repeated(10)).append(tr::link(
+		tr::semibold(tr::lng_about_random_send(tr::now)),
+		u"internal:stake_send"_q));
+	config.textContext = helper.context();
+
+	config.filter = [=, state = std::move(state)](
+			const ClickHandlerPtr &handler,
+			Qt::MouseButton button) {
+		if (button == Qt::LeftButton) {
+			const auto url = handler ? handler->url() : QString();
+			if (url == u"internal:stake_change"_q) {
+				show->show(Ui::MakeEmojiGameStakeBox(base::duplicate(args)));
+			} else if (url == u"internal:stake_send"_q) {
+				args.submit(args.currentStake);
+			}
+		}
+		return false;
+	};
+
+	return config;
 }
 
 } // namespace Ui

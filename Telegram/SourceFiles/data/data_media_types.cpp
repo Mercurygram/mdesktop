@@ -2529,64 +2529,83 @@ ClickHandlerPtr MediaDice::MakeHandler(
 		}
 	};
 	return std::make_shared<LambdaClickHandler>([=](ClickContext context) {
+		const auto found = Ui::Emoji::Find(emoji);
+		const auto id = found ? found->id() : QString();
+		const auto game = (id == QString::fromUtf8("\xf0\x9f\x8e\xb2"));
 		const auto my = context.other.value<ClickHandlerContext>();
 		const auto weak = my.sessionWindow;
-		auto config = Ui::Toast::Config{
-			.text = { tr::lng_about_random(tr::now, lt_emoji, emoji) },
-			.st = &st::historyDiceToast,
-			.duration = Ui::Toast::kDefaultDuration * 2,
+		const auto sendWith = [=](const QByteArray &hash, int64 nanoTon) {
+			auto message = Api::MessageToSend(
+				Api::SendAction(history));
+			message.textWithTags.text = emoji;
+
+			auto &action = message.action;
+			action.clearDraft = false;
+
+			auto &options = action.options;
+			options.stakeNanoTon = nanoTon;
+			options.stakeSeedHash = hash;
+
+			Api::SendDice(message);
+
+			HideExisting();
 		};
-		if (CanSend(history->peer, ChatRestriction::SendOther)) {
-			auto link = tr::link(tr::lng_about_random_send(tr::now));
-			link.entities.push_back(
-				EntityInText(EntityType::Semibold, 0, link.text.size()));
-			config.text.append(' ').append(std::move(link));
-			config.filter = crl::guard(&history->session(), [=](
-					const ClickHandlerPtr &handler,
-					Qt::MouseButton button) {
-				const auto pack = &history->session().diceStickersPacks();
-				if (button == Qt::LeftButton && !ShownToast.empty()) {
-					pack->resolveGameOptions([=](
-							const Data::DiceGameOptions &options) {
-						const auto window = weak.get();
-						const auto seedHash = options.seedHash;
-						const auto sendWithStake = [=](int64 stakeNanoTon) {
-							auto message = Api::MessageToSend(
-								Api::SendAction(history));
-							message.textWithTags.text = emoji;
-
-							auto &action = message.action;
-							action.clearDraft = false;
-
-							auto &options = action.options;
-							options.stakeNanoTon = stakeNanoTon;
-							options.stakeSeedHash = seedHash;
-
-							Api::SendDice(message);
-						};
-						if (!options || !window) {
-							sendWithStake(0);
-						} else {
-							window->show(Ui::MakeEmojiGameStakeBox({
-								.session = &window->session(),
-								.currentStake = options.previousSteakNanoTon,
-								.milliRewards = options.milliRewards,
-								.jackpotMilliReward = options.jackpotMilliReward,
-								.submit = sendWithStake,
-							}));
-						}
-					});
-					HideExisting();
-				}
-				return false;
-			});
-		}
-
-		HideExisting();
-		if (const auto strong = weak.get()) {
-			ShownToast = strong->showToast(std::move(config));
+		const auto sendAllowed = CanSend(
+			history->peer,
+			ChatRestriction::SendOther);
+		const auto showToast = [=](Ui::Toast::Config &&config) {
+			HideExisting();
+			if (const auto strong = weak.get()) {
+				ShownToast = strong->showToast(std::move(config));
+			} else {
+				ShownToast = Ui::Toast::Show(std::move(config));
+			}
+		};
+		const auto showSimple = [=] {
+			auto config = Ui::Toast::Config{
+				.text = { tr::lng_about_random(tr::now, lt_emoji, emoji) },
+				.st = &st::historyDiceToast,
+				.duration = Ui::Toast::kDefaultDuration * 2,
+			};
+			if (sendAllowed) {
+				auto link = tr::link(tr::lng_about_random_send(tr::now));
+				link.entities.push_back(
+					EntityInText(EntityType::Semibold, 0, link.text.size()));
+				config.text.append(' ').append(std::move(link));
+				config.filter = crl::guard(&history->session(), [=](
+						const ClickHandlerPtr &handler,
+						Qt::MouseButton button) {
+					if (button == Qt::LeftButton && !ShownToast.empty()) {
+						sendWith(QByteArray(), 0);
+					}
+					return false;
+				});
+			}
+			showToast(std::move(config));
+		};
+		if (!game || !sendAllowed) {
+			showSimple();
 		} else {
-			ShownToast = Ui::Toast::Show(std::move(config));
+			const auto pack = &history->session().diceStickersPacks();
+			pack->resolveGameOptions([=](
+					const Data::DiceGameOptions &options) {
+				const auto window = weak.get();
+				const auto seedHash = options.seedHash;
+				const auto sendWithStake = [=](int64 stakeNanoTon) {
+					sendWith(seedHash, stakeNanoTon);
+				};
+				if (!options || !window) {
+					showSimple();
+				} else {
+					showToast(Ui::MakeEmojiGameStakeToast(window->uiShow(), {
+						.session = &window->session(),
+						.currentStake = options.previousSteakNanoTon,
+						.milliRewards = options.milliRewards,
+						.jackpotMilliReward = options.jackpotMilliReward,
+						.submit = sendWithStake,
+					}));
+				}
+			});
 		}
 	});
 }

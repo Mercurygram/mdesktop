@@ -13,8 +13,13 @@ namespace Main {
 class Session;
 } // namespace Main
 
+namespace Ui::Toast {
+struct Config;
+} // namespace Ui::Toast
+
 namespace Ui {
 
+class Show;
 class InputField;
 class NumberInput;
 class VerticalLayout;
@@ -56,5 +61,9 @@ void EmojiGameStakeBox(not_null<GenericBox*> box, EmojiGameStakeArgs &&args);
 		EmojiGameStakeArgs &&args) {
 	return Box(EmojiGameStakeBox, std::move(args));
 }
+
+[[nodiscard]] Toast::Config MakeEmojiGameStakeToast(
+	std::shared_ptr<Show> show,
+	EmojiGameStakeArgs &&args);
 
 } // namespace Ui
