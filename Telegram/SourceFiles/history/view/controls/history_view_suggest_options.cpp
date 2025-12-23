@@ -665,7 +665,8 @@ void ChooseSuggestPriceBox(
 				state->savePending = true;
 				return;
 			} else if (credits->tonBalance() < value) {
-				box->uiShow()->show(Box(InsufficientTonBox, usePeer, value));
+				box->uiShow()->show(
+					Box(Ui::InsufficientTonBox, session, value));
 				return;
 			}
 		}
@@ -834,60 +835,6 @@ QString FormatAfterCommissionPercent(
 		? appConfig->suggestedPostCommissionStars()
 		: appConfig->suggestedPostCommissionTon();
 	return QString::number(mul / 10.) + '%';
-}
-
-void InsufficientTonBox(
-		not_null<Ui::GenericBox*> box,
-		not_null<PeerData*> peer,
-		CreditsAmount required) {
-	box->setStyle(st::suggestPriceBox);
-	box->addTopButton(st::boxTitleClose, [=] {
-		box->closeBox();
-	});
-
-	auto icon = Settings::CreateLottieIcon(
-		box->verticalLayout(),
-		{
-			.name = u"diamond"_q,
-			.sizeOverride = st::normalBoxLottieSize,
-		},
-		{});
-	box->setShowFinishedCallback([animate = std::move(icon.animate)] {
-		animate(anim::repeat::loop);
-	});
-	box->addRow(std::move(icon.widget), st::lowTonIconPadding);
-	const auto add = required - peer->session().credits().tonBalance();
-	const auto nano = add.whole() * Ui::kNanosInOne + add.nano();
-	const auto amount = Ui::FormatTonAmount(nano).full;
-	box->addRow(
-		object_ptr<Ui::FlatLabel>(
-			box,
-			tr::lng_suggest_low_ton_title(tr::now, lt_amount, amount),
-			st::boxTitle),
-		st::boxRowPadding + st::lowTonTitlePadding,
-		style::al_top);
-	const auto label = box->addRow(
-		object_ptr<Ui::FlatLabel>(
-			box,
-			tr::lng_suggest_low_ton_text(tr::rich),
-			st::lowTonText),
-		st::boxRowPadding + st::lowTonTextPadding,
-		style::al_top);
-	label->setTryMakeSimilarLines(true);
-	label->resizeToWidth(
-		st::boxWidth - st::boxRowPadding.left() - st::boxRowPadding.right());
-
-	const auto url = tr::lng_suggest_low_ton_fragment_url(tr::now);
-	const auto button = box->addButton(
-		tr::lng_suggest_low_ton_fragment(),
-		[=] { UrlClickHandler::Open(url); });
-	const auto buttonWidth = st::boxWidth
-		- rect::m::sum::h(st::suggestPriceBox.buttonPadding);
-	button->widthValue() | rpl::filter([=] {
-		return (button->widthNoMargins() != buttonWidth);
-	}) | rpl::on_next([=] {
-		button->resizeToWidth(buttonWidth);
-	}, button->lifetime());
 }
 
 SuggestOptionsBar::SuggestOptionsBar(

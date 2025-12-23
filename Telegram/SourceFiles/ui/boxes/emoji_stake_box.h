@@ -39,6 +39,11 @@ void AddApproximateUsd(
 	not_null<Main::Session*> session,
 	rpl::producer<CreditsAmount> price);
 
+void InsufficientTonBox(
+	not_null<Ui::GenericBox*> box,
+	not_null<Main::Session*> session,
+	CreditsAmount required);
+
 struct EmojiGameStakeArgs {
 	not_null<Main::Session*> session;
 	int64 currentStake = 0;

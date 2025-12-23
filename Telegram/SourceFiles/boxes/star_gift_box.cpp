@@ -78,6 +78,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_premium.h"
 #include "ui/boxes/boost_box.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/boxes/emoji_stake_box.h" // InsufficientTonBox
 #include "ui/chat/chat_style.h"
 #include "ui/chat/chat_theme.h"
 #include "ui/controls/button_labels.h"
@@ -5623,7 +5624,7 @@ void SubmitTonForm(
 		state->lifetime.destroy();
 
 		if (session->credits().tonBalance() < ton) {
-			show->show(Box(InsufficientTonBox, session->user(), ton));
+			show->show(Box(Ui::InsufficientTonBox, session, ton));
 		} else {
 			ready();
 		}

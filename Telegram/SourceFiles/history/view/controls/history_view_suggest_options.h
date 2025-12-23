@@ -100,11 +100,6 @@ void ChooseSuggestPriceBox(
 	not_null<Main::Session*> session,
 	CreditsAmount price);
 
-void InsufficientTonBox(
-	not_null<Ui::GenericBox*> box,
-	not_null<PeerData*> peer,
-	CreditsAmount required);
-
 class SuggestOptionsBar final {
 public:
 	SuggestOptionsBar(

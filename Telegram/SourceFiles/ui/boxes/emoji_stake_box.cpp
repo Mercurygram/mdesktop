@@ -32,8 +32,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/labels.h"
 #include "ui/wrap/padding_wrap.h"
 #include "ui/wrap/vertical_layout.h"
+#include "ui/basic_click_handlers.h" // UrlClickHandler
 #include "ui/painter.h"
+#include "ui/rect.h"
 #include "ui/vertical_list.h"
+#include "styles/style_boxes.h"
 #include "styles/style_calls.h" // confcallJoinBox
 #include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h"
@@ -291,6 +294,60 @@ void AddApproximateUsd(
 	usd->widthValue() | rpl::on_next(move, usd->lifetime());
 }
 
+void InsufficientTonBox(
+		not_null<Ui::GenericBox*> box,
+		not_null<Main::Session*> session,
+		CreditsAmount required) {
+	box->setStyle(st::suggestPriceBox);
+	box->addTopButton(st::boxTitleClose, [=] {
+		box->closeBox();
+	});
+
+	auto icon = Settings::CreateLottieIcon(
+		box->verticalLayout(),
+		{
+			.name = u"diamond"_q,
+			.sizeOverride = st::normalBoxLottieSize,
+		},
+		{});
+	box->setShowFinishedCallback([animate = std::move(icon.animate)] {
+		animate(anim::repeat::loop);
+	});
+	box->addRow(std::move(icon.widget), st::lowTonIconPadding);
+	const auto add = required - session->credits().tonBalance();
+	const auto nano = add.whole() * Ui::kNanosInOne + add.nano();
+	const auto amount = Ui::FormatTonAmount(nano).full;
+	box->addRow(
+		object_ptr<Ui::FlatLabel>(
+			box,
+			tr::lng_suggest_low_ton_title(tr::now, lt_amount, amount),
+			st::boxTitle),
+		st::boxRowPadding + st::lowTonTitlePadding,
+		style::al_top);
+	const auto label = box->addRow(
+		object_ptr<Ui::FlatLabel>(
+			box,
+			tr::lng_suggest_low_ton_text(tr::rich),
+			st::lowTonText),
+		st::boxRowPadding + st::lowTonTextPadding,
+		style::al_top);
+	label->setTryMakeSimilarLines(true);
+	label->resizeToWidth(
+		st::boxWidth - st::boxRowPadding.left() - st::boxRowPadding.right());
+
+	const auto url = tr::lng_suggest_low_ton_fragment_url(tr::now);
+	const auto button = box->addButton(
+		tr::lng_suggest_low_ton_fragment(),
+		[=] { UrlClickHandler::Open(url); });
+	const auto buttonWidth = st::boxWidth
+		- rect::m::sum::h(st::suggestPriceBox.buttonPadding);
+	button->widthValue() | rpl::filter([=] {
+		return (button->widthNoMargins() != buttonWidth);
+	}) | rpl::on_next([=] {
+		button->resizeToWidth(buttonWidth);
+	}, button->lifetime());
+}
+
 void EmojiGameStakeBox(
 		not_null<GenericBox*> box,
 		EmojiGameStakeArgs &&args) {
@@ -393,35 +450,39 @@ void EmojiGameStakeBox(
 		field->setFocusFast();
 	});
 
-	const auto price = field->lifetime().make_state<rpl::variable<int64>>(
-		args.currentStake);
-	auto priceValue = price->value() | rpl::map([=](int64 amount) {
+	const auto fromNanoTon = [](int64 nanoton) {
 		return CreditsAmount(
-			amount / Ui::kNanosInOne,
-			amount % Ui::kNanosInOne,
+			nanoton / Ui::kNanosInOne,
+			nanoton % Ui::kNanosInOne,
 			CreditsType::Ton);
-	});
+	};
+	const auto price = field->lifetime().make_state<
+		rpl::variable<CreditsAmount>
+	>(rpl::single(
+		args.currentStake
+	) | rpl::then(field->changes() | rpl::map([=] {
+		return Ui::ParseTonAmountString(field->getLastText()).value_or(0);
+	})) | rpl::map(fromNanoTon));
 	AddApproximateUsd(
 		field,
 		args.session,
-		std::move(priceValue));
-
-	field->changes() | rpl::on_next([=] {
-		*price = Ui::ParseTonAmountString(field->getLastText()).value_or(0);
-	}, field->lifetime());
+		price->value());
 
 	const auto submit = args.submit;
 	const auto callback = [=] {
 		const auto text = field->getLastText();
-		const auto now = Ui::ParseTonAmountString(text).value_or(0);
+		const auto now = price->current();
+		const auto credits = &args.session->credits();
 		const auto appConfig = &args.session->appConfig();
-		const auto min = appConfig->stakeDiceNanoTonMin();
-		const auto max = appConfig->stakeDiceNanoTonMax();
+		const auto min = fromNanoTon(appConfig->stakeDiceNanoTonMin());
+		const auto max = fromNanoTon(appConfig->stakeDiceNanoTonMax());
 		if (!now || now < min || now > max) {
 			field->showError();
+		} else if (credits->tonBalance() < now) {
+			box->uiShow()->show(Box(InsufficientTonBox, args.session, now));
 		} else {
 			box->closeBox();
-			submit(now);
+			submit(now.whole() * Ui::kNanosInOne + now.nano());
 		}
 	};
 	field->submits() | rpl::on_next(callback, field->lifetime());
