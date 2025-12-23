@@ -31,8 +31,19 @@ public:
 		mtpRequestId requestId = 0;
 	};
 
+	struct SummaryEntry {
+		TextWithEntities result;
+		bool shown = false;
+		bool loading = false;
+		mtpRequestId requestId = 0;
+	};
+
 	void toggle(not_null<HistoryItem*> item);
 	[[nodiscard]] const Entry &entry(not_null<HistoryItem*> item) const;
+
+	void toggleSummary(not_null<HistoryItem*> item);
+	[[nodiscard]] const SummaryEntry &summary(
+		not_null<HistoryItem*> item) const;
 
 	void apply(const MTPDupdateTranscribedAudio &update);
 
@@ -47,6 +58,7 @@ public:
 
 private:
 	void load(not_null<HistoryItem*> item);
+	void summarize(not_null<HistoryItem*> item);
 
 	const not_null<Main::Session*> _session;
 	MTP::Sender _api;
@@ -57,6 +69,8 @@ private:
 
 	base::flat_map<FullMsgId, Entry> _map;
 	base::flat_map<uint64, FullMsgId> _ids;
+
+	base::flat_map<FullMsgId, SummaryEntry> _summaries;
 
 };
 

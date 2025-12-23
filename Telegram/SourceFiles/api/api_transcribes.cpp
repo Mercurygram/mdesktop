@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_transcribes.h"
 
 #include "apiwrap.h"
+#include "api/api_text_entities.h"
 #include "data/data_channel.h"
 #include "data/data_document.h"
 #include "data/data_peer.h"
@@ -114,11 +115,29 @@ void Transcribes::toggle(not_null<HistoryItem*> item) {
 	}
 }
 
+void Transcribes::toggleSummary(not_null<HistoryItem*> item) {
+	const auto id = item->fullId();
+	auto i = _summaries.find(id);
+	if (i == _summaries.end()) {
+		summarize(item);
+		_session->data().requestItemResize(item);
+	} else if (!i->second.loading) {
+		i->second.shown = !i->second.shown;
+		_session->data().requestItemResize(item);
+	}
+}
+
 const Transcribes::Entry &Transcribes::entry(
 		not_null<HistoryItem*> item) const {
 	static auto empty = Entry();
 	const auto i = _map.find(item->fullId());
 	return (i != _map.end()) ? i->second : empty;
+}
+
+const Transcribes::SummaryEntry &Transcribes::summary(
+		not_null<HistoryItem*> item) const {
+	const auto i = _summaries.find(item->fullId());
+	return (i != _summaries.end()) ? i->second : SummaryEntry();
 }
 
 void Transcribes::apply(const MTPDupdateTranscribedAudio &update) {
@@ -206,6 +225,49 @@ void Transcribes::load(not_null<HistoryItem*> item) {
 	entry.shown = true;
 	entry.failed = false;
 	entry.pending = false;
+}
+
+void Transcribes::summarize(not_null<HistoryItem*> item) {
+	if (!item->isHistoryEntry() || item->isLocal()) {
+		return;
+	}
+	const auto id = item->fullId();
+	const auto requestId = _api.request(MTPmessages_TranslateText(
+		MTP_flags(MTPmessages_TranslateText::Flag::f_peer
+			| MTPmessages_TranslateText::Flag::f_id),
+		item->history()->peer->input(),
+		MTP_vector<MTPint>(1, MTP_int(item->id)),
+		MTPVector<MTPTextWithEntities>(),
+		MTP_string("sum")
+	)).done([=](const MTPmessages_TranslatedText &result) {
+		const auto &list = result.data().vresult().v;
+		if (!list.isEmpty()) {
+			const auto &tl = list.front().data();
+			auto &entry = _summaries[id];
+			entry.requestId = 0;
+			entry.loading = false;
+			entry.result = TextWithEntities(
+				qs(tl.vtext()),
+				Api::EntitiesFromMTP(_session, tl.ventities().v));
+			if (const auto item = _session->data().message(id)) {
+				_session->data().requestItemResize(item);
+			}
+		}
+	}).fail([=] {
+		auto &entry = _summaries[id];
+		entry.requestId = 0;
+		entry.loading = false;
+		if (const auto item = _session->data().message(id)) {
+			_session->data().requestItemResize(item);
+		}
+	}).send();
+	auto &entry = _summaries.emplace(id).first->second;
+	entry.requestId = requestId;
+	entry.shown = true;
+	entry.loading = true;
+	if (const auto item = _session->data().message(id)) {
+		_session->data().requestItemResize(item);
+	}
 }
 
 } // namespace Api

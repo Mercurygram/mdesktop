@@ -19,11 +19,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/chat_style.h"
 #include "ui/effects/radial_animation.h"
 #include "ui/effects/ripple_animation.h"
+#include "ui/effects/ministar_particles.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
+#include "ui/ui_utility.h"
 #include "api/api_transcribes.h"
 #include "apiwrap.h"
 #include "styles/style_chat.h"
+#include "styles/style_media_view.h"
 #include "window/window_session_controller.h"
 
 namespace HistoryView {
@@ -51,10 +54,12 @@ void ClipPainterForLock(QPainter &p, bool roundview, const QRect &r) {
 
 TranscribeButton::TranscribeButton(
 	not_null<HistoryItem*> item,
-	bool roundview)
+	bool roundview,
+	bool summarize)
 : _item(item)
 , _roundview(roundview)
-, _size(!roundview
+, _summarize(summarize)
+, _size(!roundview && !_summarize
 	? st::historyTranscribeSize
 	: QSize(st::historyFastShareSize, st::historyFastShareSize)) {
 }
@@ -80,6 +85,10 @@ void TranscribeButton::setLoading(bool loading, Fn<void()> update) {
 	}
 }
 
+bool TranscribeButton::loading() const {
+	return _loading;
+}
+
 void TranscribeButton::paint(
 		QPainter &p,
 		int x,
@@ -88,7 +97,7 @@ void TranscribeButton::paint(
 	auto hq = PainterHighQualityEnabler(p);
 	const auto opened = _openedAnimation.value(_opened ? 1. : 0.);
 	const auto stm = context.messageStyle();
-	if (_roundview) {
+	if (_roundview || _summarize) {
 		_lastPaintedPoint = { x, y };
 		const auto r = QRect(QPoint(x, y), size());
 
@@ -119,7 +128,34 @@ void TranscribeButton::paint(
 				r.topLeft() + st::historyFastTranscribeLockPos,
 				r.width());
 		} else {
-			context.st->historyFastTranscribeIcon().paintInCenter(p, r);
+			if (_summarize) {
+				if (!_particles) {
+					_particles = std::make_unique<Ui::StarParticles>(
+						Ui::StarParticles::Type::RadialInside,
+						7,
+						st::lineWidth * 4);
+					_particles->setColor(st::msgServiceFg->c);
+					_particles->setSpeed(0.2);
+				}
+				p.setClipRegion(QRegion(r, QRegion::Ellipse));
+				_particles->paint(p, r, crl::now());
+				p.setClipping(false);
+				const auto session = &_item->history()->session();
+				Ui::PostponeCall(session, [=, itemId = _item->fullId()] {
+					if (const auto item = session->data().message(itemId)) {
+						session->data().requestItemRepaint(item);
+					}
+				});
+				(_item->history()->session().api().transcribes().summary(
+						_item).shown
+					? st::mediaviewFullScreenButton.icon
+					: st::mediaviewFullScreenOutIcon).paintInCenter(
+						p,
+						r,
+						st::msgServiceFg->c);
+			} else {
+				context.st->historyFastTranscribeIcon().paintInCenter(p, r);
+			}
 		}
 
 		const auto state = _animation
@@ -259,13 +295,17 @@ ClickHandlerPtr TranscribeButton::link() {
 	}
 	const auto session = &_item->history()->session();
 	const auto id = _item->fullId();
+	const auto summarize = _summarize;
 	_link = std::make_shared<LambdaClickHandler>([=](ClickContext context) {
 		const auto item = session->data().message(id);
 		if (!item) {
 			return;
 		}
 		if (session->premium()) {
-			return session->api().transcribes().toggle(item);
+			auto &transcribes = session->api().transcribes();
+			return summarize
+				? transcribes.toggleSummary(item)
+				: transcribes.toggle(item);
 		}
 		const auto my = context.other.value<ClickHandlerContext>();
 		if (hasLock()) {
@@ -288,7 +328,10 @@ ClickHandlerPtr TranscribeButton::link() {
 					}
 				}
 			}
-			session->api().transcribes().toggle(item);
+			auto &transcribes = session->api().transcribes();
+			summarize
+				? transcribes.toggleSummary(item)
+				: transcribes.toggle(item);
 		}
 	});
 	return _link;

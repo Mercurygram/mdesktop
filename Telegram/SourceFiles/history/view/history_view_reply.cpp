@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/view/history_view_reply.h"
 
+#include "apiwrap.h"
+#include "api/api_transcribes.h"
 #include "core/click_handler_types.h"
 #include "core/ui_integration.h"
 #include "data/stickers/data_custom_emoji.h"
@@ -409,6 +411,63 @@ void Reply::update(
 	} else {
 		_spoiler = nullptr;
 	}
+}
+
+void Reply::updateForSummary(not_null<Element*> view) {
+	const auto item = view->data();
+
+	_externalSender = nullptr;
+	_colorPeer = nullptr;
+	_hiddenSenderColorIndexPlusOne = 1;
+	_hasPreview = 0;
+	_displaying = 1;
+	_multiline = 1;
+	_replyToStory = 0;
+	_hasQuoteIcon = 0;
+	_spoiler = nullptr;
+
+	using namespace Ui;
+	_summarize = std::make_unique<SummarizeAnimation>(
+		StarParticles(StarParticles::Type::Right, 15, st::lineWidth * 8));
+	_summarize->particles.setSpeed(0.05);
+
+	const auto repaint = [=] { item->customEmojiRepaint(); };
+	auto helper = Ui::Text::CustomEmojiHelper(Core::TextContext({
+		.session = &view->history()->session(),
+		.repaint = repaint,
+	}));
+
+	_text.setMarkedText(
+		st::defaultTextStyle,
+		tr::lng_summarize_header_about(tr::now, tr::rich),
+		Ui::ItemTextDefaultOptions(),
+		helper.context());
+
+	_name.setMarkedText(
+		st::msgNameStyle,
+		tr::lng_summarize_header_title(tr::now, tr::rich),
+		Ui::NameTextOptions());
+	_nameVersion = 0;
+	// updateName(view, data);
+	_nameVersion = 1;
+	_maxWidth = st::historyReplyPadding.left()
+		+ 200
+		+ st::historyReplyPadding.right();
+	_minHeight = st::historyReplyPadding.top()
+		+ st::msgServiceNameFont->height * 2
+		// + optimalTextSize.height()
+		+ st::historyReplyPadding.bottom();
+
+	_link = std::make_shared<LambdaClickHandler>([=](ClickContext context) {
+		const auto my = context.other.value<ClickHandlerContext>();
+		const auto controller = my.sessionWindow.get();
+		if (!controller) {
+			return;
+		}
+		if (const auto i = controller->session().data().message(my.itemId)) {
+			controller->session().api().transcribes().toggleSummary(i);
+		}
+	});
 }
 
 bool Reply::expand() {
@@ -816,6 +875,32 @@ void Reply::paint(
 	}
 	if (!inBubble) {
 		cache->bg = rippleColor;
+	}
+
+	if (_summarize) {
+		const auto size = QSize(w, _height);
+		if (_summarize->cachedSize != size) {
+			_summarize->path = QPainterPath();
+			_summarize->path.addRoundedRect(
+				QRect(0, 0, w, _height),
+				quoteSt.radius,
+				quoteSt.radius);
+			_summarize->cachedSize = size;
+		}
+		p.translate(x, y);
+		p.setClipPath(_summarize->path);
+		const auto nameColor = !inBubble
+			? st->msgImgReplyBarColor()->c
+			: (colorCollectible || colorIndexPlusOne)
+			? FromNameFg(
+				context,
+				colorIndexPlusOne - 1,
+				colorCollectible)
+			: stm->msgServiceFg->c;
+		_summarize->particles.setColor(nameColor);
+		_summarize->particles.paint(p, QRect(0, 0, w, _height), context.now);
+		p.setClipping(false);
+		p.translate(-x, -y);
 	}
 
 	if (_ripple.animation) {

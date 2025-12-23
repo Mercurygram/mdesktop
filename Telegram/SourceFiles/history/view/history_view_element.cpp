@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/view/history_view_element.h"
 
+#include "apiwrap.h"
+#include "api/api_transcribes.h"
 #include "history/view/history_view_service_message.h"
 #include "history/view/history_view_message.h"
 #include "history/view/media/history_view_media_generic.h"
@@ -1666,6 +1668,19 @@ void Element::validateText() {
 					: tr::lng_forwarded_story_expired(tr::now)));
 			}
 			return;
+		}
+	}
+	{
+		const auto &summary
+			= item->history()->session().api().transcribes().summary(item);
+		if (!summary.result.empty() && summary.shown) {
+			_textItem = item;
+			setTextWithLinks(summary.result);
+			return;
+		}
+		if (!summary.result.empty() && !summary.shown) {
+			_textItem = item;
+			setTextWithLinks(item->originalText());
 		}
 	}
 

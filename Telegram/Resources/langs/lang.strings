@@ -7392,6 +7392,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_context_bank_card_copy" = "Copy Card Number";
 "lng_context_bank_card_copied" = "Card number copied to clipboard.";
 
+"lng_summarize_header_title" = "AI summary";
+"lng_summarize_header_about" = "Click to see original text";
+
 // Wnd specific
 
 "lng_wnd_choose_program_menu" = "Choose Default Program...";
