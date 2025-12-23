@@ -37,7 +37,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/rect.h"
 #include "ui/vertical_list.h"
 #include "styles/style_boxes.h"
-#include "styles/style_calls.h" // confcallJoinBox
+#include "styles/style_calls.h" // confcallLinkFooterOr
 #include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h"
 #include "styles/style_credits.h" // creditsHistoryRightSkip
@@ -348,10 +348,73 @@ void InsufficientTonBox(
 	}, button->lifetime());
 }
 
+void AddStakePresets(
+		not_null<VerticalLayout*> container,
+		not_null<Main::Session*> session,
+		Fn<void(int64)> callback) {
+	const auto presets = session->appConfig().stakeDiceNanoTonSuggested();
+	if (presets.empty()) {
+		return;
+	}
+	constexpr auto kPerRow = 4;
+	const auto count = int(presets.size());
+	const auto rows = (count + kPerRow - 1) / kPerRow;
+	const auto smallrow = count / rows;
+	const auto bigrow = smallrow + 1;
+	const auto bigrows = count % rows;
+	struct State {
+		std::vector<std::vector<not_null<RoundButton*>>> buttons;
+	};
+	const auto wrap = container->add(
+		object_ptr<FixedHeightWidget>(
+			container,
+			(rows * st::stakePresetButton.height
+				+ (rows - 1) * st::stakePresetButtonSkip.y())),
+		(st::boxRowPadding
+			+ QMargins(0, st::stakeBox.buttonPadding.top(), 0, 0)));
+	const auto diamond = QString::fromUtf8(" \xf0\x9f\x92\x8e");
+	const auto state = wrap->lifetime().make_state<State>();
+	for (auto i = 0; i != rows; ++i) {
+		const auto big = (i < bigrows);
+		const auto cols = big ? bigrow : smallrow;
+		auto &row = state->buttons.emplace_back();
+		row.reserve(cols);
+		for (auto j = 0; j != cols; ++j) {
+			const auto index = i * bigrow + j - std::max(0, i - bigrows);
+			const auto nanoTon = presets[index];
+			const auto button = CreateChild<RoundButton>(
+				wrap,
+				rpl::single(FormatTonAmount(nanoTon).full + diamond),
+				st::stakePresetButton);
+			button->setClickedCallback([=] {
+				callback(nanoTon);
+			});
+			row.push_back(button);
+		}
+	}
+	wrap->widthValue() | rpl::on_next([=](int width) {
+		auto y = 0;
+		const auto xskip = st::stakePresetButtonSkip.x();
+		const auto yskip = st::stakePresetButtonSkip.y();
+		for (auto i = 0; i != state->buttons.size(); ++i) {
+			const auto &row = state->buttons[i];
+			const auto cols = int(row.size());
+			const auto singlew = (width - (cols - 1) * xskip) / cols;
+			auto x = 0;
+			for (const auto button : row) {
+				button->setFullWidth(singlew);
+				button->move(x, y);
+				x += singlew + xskip;
+			}
+			y += st::stakePresetButton.height + yskip;
+		}
+	}, wrap->lifetime());
+}
+
 void EmojiGameStakeBox(
 		not_null<GenericBox*> box,
 		EmojiGameStakeArgs &&args) {
-	box->setStyle(st::confcallJoinBox);
+	box->setStyle(st::stakeBox);
 	box->setWidth(st::boxWideWidth);
 	box->setNoContentMargin(true);
 	const auto container = box->verticalLayout();
@@ -467,6 +530,10 @@ void EmojiGameStakeBox(
 		field,
 		args.session,
 		price->value());
+
+	AddStakePresets(container, args.session, [=](int64 nanoTon) {
+		field->setText(Ui::FormatTonAmount(nanoTon).full);
+	});
 
 	const auto submit = args.submit;
 	const auto callback = [=] {

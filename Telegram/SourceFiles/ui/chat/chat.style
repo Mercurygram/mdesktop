@@ -1460,6 +1460,17 @@ messageGiftIconSkip: 30px;
 newChatIcon: icon{{ "chat/new_topic", windowFgActive }};
 newChatIconPadding: margins(2px, 2px, 2px, 2px);
 
+stakeBox: Box(defaultBox) {
+	buttonPadding: margins(24px, 12px, 24px, 24px);
+	buttonHeight: 42px;
+	buttonWide: true;
+	button: RoundButton(defaultActiveButton) {
+		height: 42px;
+		textTop: 12px;
+		style: semiboldTextStyle;
+	}
+	shadowIgnoreTopSkip: true;
+}
 stakeEmojiSize: 20px;
 stakeEmojiTop: 8px;
 stakeEmojiIcon: IconEmoji {
@@ -1468,3 +1479,7 @@ stakeEmojiIcon: IconEmoji {
 }
 stakeIconEmojiSize: 12px;
 stakeIconEmojiTop: 3px;
+stakePresetButton: RoundButton(defaultLightButton) {
+	textBg: lightButtonBgOver;
+}
+stakePresetButtonSkip: point(8px, 8px);
