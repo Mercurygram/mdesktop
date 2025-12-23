@@ -3986,7 +3986,7 @@ void AttachGiftSenderBadge(
 				PostponeCall(badge, updateGeometry);
 			}
 			return base::EventFilterResult::Continue;
-		});
+		}, badge->lifetime());
 	}
 
 	base::install_event_filter(widget, [=](not_null<QEvent*> e) {
@@ -4001,7 +4001,7 @@ void AttachGiftSenderBadge(
 			PostponeCall(badge, [=] { badge->raise(); });
 		}
 		return base::EventFilterResult::Continue;
-	});
+	}, badge->lifetime());
 	badge->setVisible(!widget->isHidden());
 
 	base::install_event_filter(parent, [=](not_null<QEvent*> e) {
@@ -4012,7 +4012,7 @@ void AttachGiftSenderBadge(
 			PostponeCall(badge, updateGeometry);
 		}
 		return base::EventFilterResult::Continue;
-	});
+	}, badge->lifetime());
 	badge->raise();
 
 	box->boxClosing() | rpl::on_next([=] {
