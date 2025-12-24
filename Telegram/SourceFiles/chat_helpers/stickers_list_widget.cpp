@@ -552,38 +552,56 @@ int StickersListWidget::countDesiredHeight(int newWidth) {
 }
 
 void StickersListWidget::sendSearchRequest() {
-	if (_searchRequestId || _searchNextQuery.isEmpty() || _isEffects) {
+	if (_searchSetsRequestId
+		|| _searchStickersRequestId
+		|| _searchNextQuery.isEmpty()
+		|| _isEffects) {
 		return;
 	}
 
 	_searchRequestTimer.cancel();
 	_searchQuery = _searchNextQuery;
 
-	auto it = _searchCache.find(_searchQuery);
-	if (it != _searchCache.cend()) {
+	auto it = _searchStickersCache.find(_searchQuery);
+	if (it != _searchStickersCache.cend()) {
 		toggleSearchLoading(false);
 		return;
 	}
 	toggleSearchLoading(true);
 	if (_searchQuery == Ui::PremiumGroupFakeEmoticon()) {
 		toggleSearchLoading(false);
-		_searchRequestId = 0;
-		_searchCache.emplace(_searchQuery, std::vector<uint64>());
+		_searchSetsRequestId = 0;
+		_searchSetsCache.emplace(_searchQuery, std::vector<uint64>());
+		_searchStickersCache.emplace(_searchQuery, std::vector<DocumentId>());
 		showSearchResults();
 		return;
 	}
 
 	const auto hash = uint64(0);
-	_searchRequestId = _api.request(MTPmessages_SearchStickerSets(
+	_searchStickersRequestId = _api.request(MTPmessages_SearchStickers(
 		MTP_flags(0),
 		MTP_string(_searchQuery),
+		MTPstring(), // emoticon
+		MTP_vector<MTPstring>(), // lang_code
+		MTP_int(0), // offset
+		MTP_int(50), // limit
 		MTP_long(hash)
-	)).done([=](const MTPmessages_FoundStickerSets &result) {
-		searchResultsDone(result);
+	)).done([=](const MTPmessages_FoundStickers &result) {
+		searchStickersResultsDone(result);
 	}).fail([=] {
-		// show error?
-		toggleSearchLoading(false);
-		_searchRequestId = 0;
+		_searchStickersRequestId = 0;
+		_searchStickersCache.emplace(_searchQuery, std::vector<DocumentId>());
+
+		_searchSetsRequestId = _api.request(MTPmessages_SearchStickerSets(
+			MTP_flags(0),
+			MTP_string(_searchQuery),
+			MTP_long(hash)
+		)).done([=](const MTPmessages_FoundStickerSets &result) {
+			searchResultsDone(result);
+		}).fail([=] {
+			toggleSearchLoading(false);
+			_searchSetsRequestId = 0;
+		}).handleAllErrors().send();
 	}).handleAllErrors().send();
 }
 
@@ -609,10 +627,14 @@ void StickersListWidget::searchForSets(
 	}
 	if (_searchQuery != cleaned) {
 		toggleSearchLoading(false);
-		if (const auto requestId = base::take(_searchRequestId)) {
+		if (const auto requestId = base::take(_searchSetsRequestId)) {
 			_api.request(requestId).cancel();
 		}
-		if (_searchCache.find(cleaned) != _searchCache.cend()) {
+		if (const auto requestId = base::take(_searchStickersRequestId)) {
+			_api.request(requestId).cancel();
+		}
+		if (_searchStickersCache.find(cleaned) != _searchStickersCache.cend()
+			|| _searchSetsCache.find(cleaned) != _searchSetsCache.cend()) {
 			_searchRequestTimer.cancel();
 			_searchQuery = _searchNextQuery = cleaned;
 		} else {
@@ -625,14 +647,18 @@ void StickersListWidget::searchForSets(
 
 void StickersListWidget::cancelSetsSearch() {
 	toggleSearchLoading(false);
-	if (const auto requestId = base::take(_searchRequestId)) {
+	if (const auto requestId = base::take(_searchSetsRequestId)) {
+		_api.request(requestId).cancel();
+	}
+	if (const auto requestId = base::take(_searchStickersRequestId)) {
 		_api.request(requestId).cancel();
 	}
 	_searchRequestTimer.cancel();
 	_searchQuery = _searchNextQuery = QString();
 	_filteredStickers.clear();
 	_filterStickersCornerEmoji.clear();
-	_searchCache.clear();
+	_searchSetsCache.clear();
+	_searchStickersCache.clear();
 	refreshSearchRows(nullptr);
 }
 
@@ -642,8 +668,8 @@ void StickersListWidget::showSearchResults() {
 }
 
 void StickersListWidget::refreshSearchRows() {
-	auto it = _searchCache.find(_searchQuery);
-	auto sets = (it != end(_searchCache))
+	auto it = _searchSetsCache.find(_searchQuery);
+	auto sets = (it != end(_searchSetsCache))
 		? &it->second
 		: nullptr;
 	refreshSearchRows(sets);
@@ -661,9 +687,19 @@ void StickersListWidget::refreshSearchRows(
 		}
 	});
 
+	const auto foundStickersIt = _searchStickersCache.find(_searchNextQuery);
+	const auto hasCloudFoundStickers = true
+		&& (foundStickersIt != _searchStickersCache.end())
+		&& !foundStickersIt->second.empty();
+
 	fillFilteredStickersRow();
+
 	if (!_isEffects) {
 		fillLocalSearchRows(_searchNextQuery);
+	}
+
+	if (hasCloudFoundStickers) {
+		fillFoundStickersRow(foundStickersIt->second);
 	}
 	if (!cloudSets && _searchNextQuery.isEmpty()) {
 		showStickerSet(!_mySets.empty()
@@ -733,6 +769,33 @@ void StickersListWidget::fillCloudSearchRows(
 	}
 }
 
+void StickersListWidget::fillFoundStickersRow(
+		const std::vector<DocumentId> &stickerIds) {
+	if (stickerIds.empty()) {
+		return;
+	}
+	auto elements = std::vector<Sticker>();
+	elements.reserve(stickerIds.size());
+	for (const auto id : stickerIds) {
+		if (const auto document = session().data().document(id)) {
+			elements.push_back(Sticker{ document });
+		}
+	}
+	if (elements.empty()) {
+		return;
+	}
+
+	_searchSets.emplace_back(
+		SearchEmojiSectionSetId(),
+		nullptr,
+		Data::StickersSetFlag::Special,
+		QString(),
+		QString(),
+		elements.size(),
+		false, // externalLayout
+		std::move(elements));
+}
+
 void StickersListWidget::fillFilteredStickersRow() {
 	if (_filteredStickers.empty()) {
 		return;
@@ -773,6 +836,10 @@ void StickersListWidget::addSearchRow(not_null<StickersSet*> set) {
 void StickersListWidget::toggleSearchLoading(bool loading) {
 	if (_search) {
 		_search->setLoading(loading);
+	}
+	if (_searchLoading != loading) {
+		_searchLoading = loading;
+		update();
 	}
 }
 
@@ -822,7 +889,7 @@ void StickersListWidget::takeHeavyData(Set &to, Set &from) {
 			}
 		}
 		for (const auto &sticker : fromList) {
-			if (sticker.lottie) {
+			if (sticker.lottie && to.lottiePlayer) {
 				to.lottiePlayer->remove(sticker.lottie);
 			}
 		}
@@ -855,10 +922,49 @@ auto StickersListWidget::shownSets() -> std::vector<Set> & {
 	Unexpected("Section in StickersListWidget.");
 }
 
+void StickersListWidget::searchStickersResultsDone(
+		const MTPmessages_FoundStickers &result) {
+	_searchStickersRequestId = 0;
+
+	result.match([&](const MTPDmessages_foundStickersNotModified &data) {
+		LOG(("API: messages.foundStickersNotModified."));
+	}, [&](const MTPDmessages_foundStickers &data) {
+		auto it = _searchStickersCache.find(_searchQuery);
+		if (it == _searchStickersCache.cend()) {
+			it = _searchStickersCache.emplace(
+				_searchQuery,
+				std::vector<DocumentId>()).first;
+		}
+
+		for (const auto &sticker : data.vstickers().v) {
+			if (const auto doc = session().data().processDocument(sticker)) {
+				it->second.push_back(doc->id);
+			}
+		}
+
+		if (!it->second.empty()) {
+			toggleSearchLoading(false);
+			showSearchResults();
+		} else {
+			const auto hash = uint64(0);
+			_searchSetsRequestId = _api.request(MTPmessages_SearchStickerSets(
+				MTP_flags(0),
+				MTP_string(_searchQuery),
+				MTP_long(hash)
+			)).done([=](const MTPmessages_FoundStickerSets &result) {
+				searchResultsDone(result);
+			}).fail([=] {
+				toggleSearchLoading(false);
+				_searchSetsRequestId = 0;
+			}).handleAllErrors().send();
+		}
+	});
+}
+
 void StickersListWidget::searchResultsDone(
 		const MTPmessages_FoundStickerSets &result) {
 	toggleSearchLoading(false);
-	_searchRequestId = 0;
+	_searchSetsRequestId = 0;
 
 	if (result.type() == mtpc_messages_foundStickerSetsNotModified) {
 		LOG(("API Error: "
@@ -868,9 +974,9 @@ void StickersListWidget::searchResultsDone(
 
 	Assert(result.type() == mtpc_messages_foundStickerSets);
 
-	auto it = _searchCache.find(_searchQuery);
-	if (it == _searchCache.cend()) {
-		it = _searchCache.emplace(
+	auto it = _searchSetsCache.find(_searchQuery);
+	if (it == _searchSetsCache.cend()) {
+		it = _searchSetsCache.emplace(
 			_searchQuery,
 			std::vector<uint64>()).first;
 	}
@@ -933,7 +1039,14 @@ void StickersListWidget::paintStickers(Painter &p, QRect clip) {
 	const auto paused = On(PowerSaving::kStickersPanel)
 		|| this->paused();
 	if (sets.empty() && _section == Section::Search) {
-		paintEmptySearchResults(p);
+		const auto loading = _searchLoading || _searchRequestTimer.isActive();
+		Inner::paintEmptySearchResults(
+			p,
+			st::stickersEmpty,
+			loading
+				? tr::lng_contacts_loading(tr::now)
+				: tr::lng_stickers_nothing_found(tr::now),
+			loading);
 	}
 	const auto badgeText = tr::lng_stickers_creator_badge(tr::now);
 	const auto &badgeFont = st::stickersHeaderBadgeFont;
@@ -1211,13 +1324,6 @@ void StickersListWidget::pauseInvisibleLottieIn(const SectionInfo &info) {
 			info.rowsCount);
 		pauseInRows(info.rowsCount - pauseRows, info.rowsCount);
 	}
-}
-
-void StickersListWidget::paintEmptySearchResults(Painter &p) {
-	Inner::paintEmptySearchResults(
-		p,
-		st::stickersEmpty,
-		tr::lng_stickers_nothing_found(tr::now));
 }
 
 int StickersListWidget::megagroupSetInfoLeft() const {
