@@ -433,6 +433,10 @@ ListWidget::ListWidget(
 			refreshItem(view);
 		}
 	}, lifetime());
+	_session->data().itemShowHighlightRequest(
+	) | rpl::on_next([this](auto item) {
+		showItemHighlight(item);
+	}, lifetime());
 	_session->data().viewLayoutChanged(
 	) | rpl::on_next([this](auto view) {
 		if (view->delegate() == this) {
@@ -4127,6 +4131,25 @@ void ListWidget::refreshItem(not_null<const Element*> view) {
 		viewReplaced(view, i->second.get());
 
 		refreshAttachmentsAtIndex(index);
+	}
+}
+
+void ListWidget::showItemHighlight(not_null<HistoryItem*> item) {
+	const auto history = _delegate->listTranslateHistory();
+	if (history && item->history() != history) {
+		return;
+	} else if (!history && !viewForItem(item)) {
+		return;
+	}
+	const auto position = item->position();
+	auto params = Window::SectionShow{
+		Window::SectionShow::Way::Forward
+	};
+	params.animated = anim::type::normal;
+	if (!showAtPositionNow(position, params, nullptr)) {
+		showAroundPosition(position, [=, this] {
+			return showAtPositionNow(position, params, nullptr);
+		});
 	}
 }
 

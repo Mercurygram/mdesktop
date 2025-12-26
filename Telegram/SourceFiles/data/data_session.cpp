@@ -2012,6 +2012,14 @@ rpl::producer<not_null<ViewElement*>> Session::viewResizeRequest() const {
 	return _viewResizeRequest.events();
 }
 
+void Session::requestItemShowHighlight(not_null<HistoryItem*> item) {
+	_itemShowHighlightRequest.fire_copy(item);
+}
+
+rpl::producer<not_null<HistoryItem*>> Session::itemShowHighlightRequest() const {
+	return _itemShowHighlightRequest.events();
+}
+
 void Session::requestItemViewRefresh(not_null<const HistoryItem*> item) {
 	if (const auto view = item->mainView()) {
 		notifyHistoryChangeDelayed(item->history());

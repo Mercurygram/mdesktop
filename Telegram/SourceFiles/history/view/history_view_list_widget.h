@@ -571,6 +571,7 @@ private:
 	void repaintItem(const Element *view);
 	void resizeItem(not_null<Element*> view);
 	void refreshItem(not_null<const Element*> view);
+	void showItemHighlight(not_null<HistoryItem*> item);
 	void itemRemoved(not_null<const HistoryItem*> item);
 	QPoint mapPointToItem(QPoint point, const Element *view) const;
 

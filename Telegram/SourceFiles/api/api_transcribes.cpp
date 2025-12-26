@@ -124,6 +124,9 @@ void Transcribes::toggleSummary(not_null<HistoryItem*> item) {
 	} else if (!i->second.loading) {
 		i->second.shown = !i->second.shown;
 		_session->data().requestItemResize(item);
+		if (i->second.shown) {
+			_session->data().requestItemShowHighlight(item);
+		}
 	}
 }
 
@@ -252,6 +255,7 @@ void Transcribes::summarize(not_null<HistoryItem*> item) {
 				Api::EntitiesFromMTP(_session, tl.ventities().v));
 			if (const auto item = _session->data().message(id)) {
 				_session->data().requestItemResize(item);
+				_session->data().requestItemShowHighlight(item);
 			}
 		}
 	}).fail([=] {

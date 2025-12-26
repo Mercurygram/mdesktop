@@ -619,6 +619,17 @@ HistoryWidget::HistoryWidget(
 		}
 	}, lifetime());
 
+	session().data().itemShowHighlightRequest(
+	) | rpl::on_next([=](not_null<HistoryItem*> item) {
+		const auto history = item->history();
+		if (history == _history || history == _migrated) {
+			if (item->mainView()) {
+				enqueueMessageHighlight({ item });
+				animatedScrollToItem(item->id);
+			}
+		}
+	}, lifetime());
+
 	session().data().itemDataChanges(
 	) | rpl::filter([=](not_null<HistoryItem*> item) {
 		return !_list && (item->mainView() != nullptr);
