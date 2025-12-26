@@ -5269,7 +5269,7 @@ void UpgradeBox(
 				args.addDetailsDefault),
 			st::defaultCheckbox.margin,
 			style::al_top);
-		checkbox->checkedChanges() | rpl::on_next([=](bool checked) {
+		checkbox->checkedValue() | rpl::on_next([=](bool checked) {
 			state->preserveDetails = checked;
 		}, checkbox->lifetime());
 	}
