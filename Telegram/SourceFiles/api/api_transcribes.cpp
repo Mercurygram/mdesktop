@@ -136,8 +136,9 @@ const Transcribes::Entry &Transcribes::entry(
 
 const Transcribes::SummaryEntry &Transcribes::summary(
 		not_null<HistoryItem*> item) const {
+	static const auto empty = SummaryEntry();
 	const auto i = _summaries.find(item->fullId());
-	return (i != _summaries.end()) ? i->second : SummaryEntry();
+	return (i != _summaries.end()) ? i->second : empty;
 }
 
 void Transcribes::apply(const MTPDupdateTranscribedAudio &update) {
