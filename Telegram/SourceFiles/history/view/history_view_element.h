@@ -397,6 +397,7 @@ public:
 		TopicRootReply           = 0x0400,
 		MediaOverriden           = 0x0800,
 		HeavyCustomEmoji         = 0x1000,
+		SummaryShown             = 0x2000,
 	};
 	using Flags = base::flags<Flag>;
 	friend inline constexpr auto is_flag_type(Flag) { return true; }

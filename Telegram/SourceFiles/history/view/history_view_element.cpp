@@ -1670,18 +1670,20 @@ void Element::validateText() {
 			return;
 		}
 	}
-	{
-		const auto &summary
-			= item->history()->session().api().transcribes().summary(item);
-		if (!summary.result.empty() && summary.shown) {
+	const auto summaryShownWas = (_flags & Flag::SummaryShown) != 0;
+	const auto transcribes = &history()->session().api().transcribes();
+	const auto &summary = transcribes->summary(item);
+	const auto summaryShownNow = !summary.result.empty() && summary.shown;
+	const auto summaryShownChanged = (summaryShownWas != summaryShownNow);
+	if (summaryShownNow) {
+		_flags |= Flag::SummaryShown;
+		if (summaryShownChanged) {
 			_textItem = item;
 			setTextWithLinks(summary.result);
-			return;
 		}
-		if (!summary.result.empty() && !summary.shown) {
-			_textItem = item;
-			setTextWithLinks(item->originalText());
-		}
+		return;
+	} else {
+		_flags &= ~Flag::SummaryShown;
 	}
 
 	// Albums may show text of a different item than the parent one.
@@ -1693,7 +1695,7 @@ void Element::validateText() {
 		return;
 	}
 	const auto &text = _textItem->_text;
-	if (_text.isEmpty() == text.empty()) {
+	if (!summaryShownChanged && _text.isEmpty() == text.empty()) {
 	} else if (_flags & Flag::ServiceMessage) {
 		const auto contextDependentText = contextDependentServiceText();
 		const auto &markedText = contextDependentText.text.empty()
