@@ -4971,6 +4971,23 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_translate_settings" = "Settings";
 "lng_translate_undo" = "Undo";
 
+"lng_translate_cocoon_menu" = "Translations are powered by\n**{emoji} Cocoon**. {link}";
+"lng_translate_cocoon_link" = "How does it work?";
+"lng_translate_cocoon_title" = "Cocoon";
+"lng_translate_cocoon_subtitle" = "**Cocoon** ({text}) handles AI tasks **safely** and **efficiently**.";
+"lng_translate_cocoon_explain" = "**Co**nfidential **Co**mpute **O**pen **N**etwork";
+"lng_translate_cocoon_private_title" = "Private";
+"lng_translate_cocoon_private_text" = "No third party can access any data, such as translations, inside {mention}.";
+"lng_translate_cocoon_private_mention" = "@cocoon";
+"lng_translate_cocoon_efficient_title" = "Efficient";
+"lng_translate_cocoon_efficient_text" = "Cocoon has allowed Telegram to reduce translation costs by 6x.";
+"lng_translate_cocoon_everyone_title" = "For Everyone";
+"lng_translate_cocoon_everyone_text" = "Any developer can use Cocoon for AI features. Learn more at {domain}.";
+"lng_translate_cocoon_everyone_domain" = "cocoon.org";
+"lng_translate_cocoon_text" = "Want to integrate Cocoon into your projects?\nReach out at {link}";
+"lng_translate_cocoon_text_link" = "t.me/cocoon?direct";
+"lng_translate_cocoon_done" = "Understood";
+
 "lng_downloads_section" = "Downloads";
 "lng_downloads_view_in_chat" = "View in chat";
 "lng_downloads_view_in_section" = "View in downloads";

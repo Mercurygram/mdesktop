@@ -971,6 +971,32 @@ historyTranslateSettings: IconButton(defaultIconButton) {
 	}
 }
 historyTranslateMenuPosition: point(-6px, 30px);
+historyTranslateCocoonLabel: FlatLabel(historyHasCustomEmoji) {
+	style: TextStyle(defaultTextStyle) {
+		font: font(12px);
+	}
+	margin: margins(4px, 8px, 4px, 8px);
+}
+
+cocoonLogoTop: 32px;
+cocoonLogoSize: 96px;
+cocoonTitleFont: font(36px semibold);
+cocoonTitleTop: 12px;
+cocoonSubtitle: FlatLabel(defaultFlatLabel) {
+	minWidth: 120px;
+	align: align(top);
+}
+cocoonSubtitleTop: 8px;
+cocoonSubtitleBottom: 16px;
+cocoonJoinSeparatorPadding: margins(24px, 4px, 24px, 12px);
+cocoonJoinLabel: FlatLabel(defaultFlatLabel) {
+	style: TextStyle(defaultTextStyle) {
+		font: font(12px);
+	}
+	textFg: windowSubTextFg;
+	minWidth: 120px;
+	align: align(top);
+}
 
 historySponsoredAboutMenuLabelPosition: point(54px, 4px);
 
