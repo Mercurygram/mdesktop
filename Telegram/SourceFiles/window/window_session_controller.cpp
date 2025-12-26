@@ -3557,6 +3557,11 @@ HistoryView::PaintContext SessionController::preparePaintContext(
 		Ui::ChatPaintContextArgs &&args) {
 	const auto visibleAreaTopLocal = content()->mapFromGlobal(
 		args.visibleAreaPositionGlobal).y();
+	const auto area = QRect(
+		0,
+		args.visibleAreaTop,
+		args.visibleAreaWidth,
+		args.visibleAreaHeight);
 	const auto viewport = QRect(
 		0,
 		args.visibleAreaTop - visibleAreaTopLocal,
@@ -3565,6 +3570,7 @@ HistoryView::PaintContext SessionController::preparePaintContext(
 	return args.theme->preparePaintContext(
 		_chatStyle.get(),
 		viewport,
+		area,
 		args.clip,
 		isGifPausedAtLeastFor(GifPauseReason::Any));
 }

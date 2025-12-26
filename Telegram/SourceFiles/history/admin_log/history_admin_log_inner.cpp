@@ -1055,6 +1055,7 @@ Ui::ChatPaintContext InnerWidget::preparePaintContext(QRect clip) const {
 		.visibleAreaPositionGlobal = mapToGlobal(QPoint(0, _visibleTop)),
 		.visibleAreaTop = _visibleTop,
 		.visibleAreaWidth = width(),
+		.visibleAreaHeight = _visibleBottom - _visibleTop,
 	});
 }
 

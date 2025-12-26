@@ -364,6 +364,7 @@ void PreviewWrap::paintEvent(QPaintEvent *e) {
 	auto context = _theme->preparePaintContext(
 		_style.get(),
 		rect(),
+		rect(),
 		clip,
 		!window()->isActiveWindow());
 

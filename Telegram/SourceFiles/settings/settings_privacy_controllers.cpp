@@ -1112,6 +1112,7 @@ object_ptr<Ui::RpWidget> ForwardsPrivacyController::setupAboveWidget(
 			_chatStyle.get(),
 			widget->rect(),
 			widget->rect(),
+			widget->rect(),
 			controller->isGifPausedAtLeastFor(
 				Window::GifPauseReason::Layer));
 		p.translate(padding / 2, padding + view->marginBottom());

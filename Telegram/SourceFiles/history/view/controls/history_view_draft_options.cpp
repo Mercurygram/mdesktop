@@ -443,6 +443,7 @@ void PreviewWrap::paintEvent(QPaintEvent *e) {
 	auto context = _theme->preparePaintContext(
 		_style.get(),
 		rect(),
+		rect(),
 		e->rect(),
 		!window()->isActiveWindow());
 	for (const auto &entry : _entries) {

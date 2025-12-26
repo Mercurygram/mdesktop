@@ -1064,6 +1064,7 @@ Ui::ChatPaintContext HistoryInner::preparePaintContext(
 		.visibleAreaPositionGlobal = visibleAreaPositionGlobal,
 		.visibleAreaTop = _visibleAreaTop,
 		.visibleAreaWidth = width(),
+		.visibleAreaHeight = _visibleAreaBottom - _visibleAreaTop,
 	});
 }
 
