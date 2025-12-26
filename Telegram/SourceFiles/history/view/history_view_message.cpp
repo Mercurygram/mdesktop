@@ -57,6 +57,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace HistoryView {
 namespace {
 
+constexpr auto kSummarizeThreshold = 512;
 constexpr auto kPlayStatusLimit = 2;
 const auto kPsaTooltipPrefix = "cloud_lng_tooltip_psa_";
 
@@ -4576,7 +4577,9 @@ const HistoryMessageEdited *Message::displayedEditBadge() const {
 
 void Message::ensureSummarizeButton() const {
 	const auto item = data();
-	if (item->isPost()/* && item->history()->session().premium()*/) {
+	if (item->isPost()
+		&& item->originalText().text.size() >= kSummarizeThreshold
+		/* && item->history()->session().premium()*/) {
 		if (!_summarize) {
 			_summarize
 				= std::make_unique<TranscribeButton>(item, false, true);
