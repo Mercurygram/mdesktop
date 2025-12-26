@@ -5133,7 +5133,8 @@ void Session::insertCheckedServiceNotification(
 				MTPint(), // report_delivery_until_date
 				MTPlong(), // paid_message_stars
 				MTPSuggestedPost(),
-				MTPint()), // schedule_repeat_period
+				MTPint(), // schedule_repeat_period
+				MTPstring()), // summary_from_language
 			localFlags,
 			NewMessageType::Unread);
 	}
