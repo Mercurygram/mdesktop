@@ -4604,14 +4604,10 @@ void Message::paintSummarize(
 	if (bottomY < g.top()) {
 		return;
 	}
-	const auto buttonY = std::max(
-		std::min(
-			bottomY,
-			(context.area.y()
-				+ context.area.height()
-				- s.height()
-				- st::msgDateImgDelta)),
-		g.top());
+	const auto topY = g.top();
+	const auto buttonY = std::min(
+		std::max(topY, context.area.y() + st::msgDateImgDelta),
+		bottomY);
 	_summarize->paint(
 		p,
 		x - (right ? 0 : s.width()),
