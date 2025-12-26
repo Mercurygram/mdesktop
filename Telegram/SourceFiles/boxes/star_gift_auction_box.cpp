@@ -1607,7 +1607,7 @@ base::weak_qptr<BoxContent> ChooseAndShowAuctionBox(
 rpl::lifetime ShowStarGiftAuction(
 		not_null<Window::SessionController*> controller,
 		PeerData *peer,
-		QString slug,
+		uint64 giftId,
 		Fn<void()> finishRequesting,
 		Fn<void()> boxClosed) {
 	const auto weak = base::make_weak(controller);
@@ -1618,7 +1618,7 @@ rpl::lifetime ShowStarGiftAuction(
 	};
 	const auto state = std::make_shared<State>();
 	auto result = session->giftAuctions().state(
-		slug
+		giftId
 	) | rpl::on_next([=](Data::GiftAuctionState &&value) {
 		if (const auto onstack = finishRequesting) {
 			onstack();
@@ -1912,7 +1912,7 @@ rpl::producer<TextWithEntities> ActiveAuctionsButton(
 }
 
 struct Single {
-	QString slug;
+	uint64 giftId = 0;
 	not_null<DocumentData*> document;
 	int round = 0;
 	int total = 0;
@@ -1926,7 +1926,7 @@ object_ptr<Ui::RpWidget> MakeActiveAuctionRow(
 		not_null<QWidget*> parent,
 		not_null<Window::SessionController*> window,
 		not_null<DocumentData*> document,
-		const QString &slug,
+		uint64 giftId,
 		rpl::producer<Single> value) {
 	auto result = object_ptr<Ui::VerticalLayout>(parent);
 	const auto raw = result.data();
@@ -2023,7 +2023,7 @@ object_ptr<Ui::RpWidget> MakeActiveAuctionRow(
 			Ui::Text::Colorized(NiceCountdownText(seconds)));
 	}));
 	button->setClickedCallback([=] {
-		window->showStarGiftAuction(slug);
+		window->showStarGiftAuction(giftId);
 	});
 	button->setFullRadius(true);
 	raw->widthValue() | rpl::on_next([=](int width) {
@@ -2039,9 +2039,9 @@ Fn<void()> ActiveAuctionsCallback(
 	const auto &list = auctions.list;
 	const auto count = int(list.size());
 	if (count == 1) {
-		const auto slug = list.front()->gift->auctionSlug;
+		const auto giftId = list.front()->gift->id;
 		return [=] {
-			window->showStarGiftAuction(slug);
+			window->showStarGiftAuction(giftId);
 		};
 	}
 	struct Auctions {
@@ -2050,7 +2050,7 @@ Fn<void()> ActiveAuctionsCallback(
 	const auto state = std::make_shared<Auctions>();
 	const auto singleFrom = [](const Data::GiftAuctionState &state) {
 		return Single{
-			.slug = state.gift->auctionSlug,
+			.giftId = state.gift->id,
 			.document = state.gift->document,
 			.round = state.currentRound,
 			.total = state.totalRounds,
@@ -2080,7 +2080,7 @@ Fn<void()> ActiveAuctionsCallback(
 
 				const auto &now = entry.current();
 				entry = auctions->state(
-					now.slug
+					now.giftId
 				) | rpl::filter([=](const GiftAuctionState &state) {
 					return state.my.bid != 0;
 				}) | rpl::map(singleFrom);
@@ -2091,12 +2091,12 @@ Fn<void()> ActiveAuctionsCallback(
 						box,
 						window,
 						now.document,
-						now.slug,
+						now.giftId,
 						entry.value()),
 					st::boxRowPadding + QMargins(0, skip, 0, skip));
 
 				auctions->state(
-					now.slug
+					now.giftId
 				) | rpl::on_next([=](const GiftAuctionState &state) {
 					if (!state.my.bid) {
 						delete row;

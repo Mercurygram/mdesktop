@@ -34,7 +34,7 @@ class GenericBox;
 [[nodiscard]] rpl::lifetime ShowStarGiftAuction(
 	not_null<Window::SessionController*> controller,
 	PeerData *peer,
-	QString slug,
+	uint64 giftId,
 	Fn<void()> finishRequesting,
 	Fn<void()> boxClosed);
 

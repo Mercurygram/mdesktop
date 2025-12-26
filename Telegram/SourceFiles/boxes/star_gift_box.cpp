@@ -1850,7 +1850,7 @@ void CheckMaybeGiftLocked(
 						state->resaleLifetime = ShowStarGiftAuction(
 							window,
 							peer,
-							star->info.auctionSlug,
+							id,
 							[=] { state->resaleRequestingId = 0; },
 							crl::guard(raw, [=] {
 								state->resaleLifetime.destroy();
