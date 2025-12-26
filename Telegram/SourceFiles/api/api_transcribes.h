@@ -17,6 +17,13 @@ class Session;
 
 namespace Api {
 
+struct SummaryEntry {
+	TextWithEntities result;
+	bool shown = false;
+	bool loading = false;
+	mtpRequestId requestId = 0;
+};
+
 class Transcribes final {
 public:
 	explicit Transcribes(not_null<ApiWrap*> api);
@@ -31,19 +38,12 @@ public:
 		mtpRequestId requestId = 0;
 	};
 
-	struct SummaryEntry {
-		TextWithEntities result;
-		bool shown = false;
-		bool loading = false;
-		mtpRequestId requestId = 0;
-	};
-
 	void toggle(not_null<HistoryItem*> item);
 	[[nodiscard]] const Entry &entry(not_null<HistoryItem*> item) const;
 
 	void toggleSummary(not_null<HistoryItem*> item);
 	[[nodiscard]] const SummaryEntry &summary(
-		not_null<HistoryItem*> item) const;
+		not_null<const HistoryItem*> item) const;
 
 	void apply(const MTPDupdateTranscribedAudio &update);
 

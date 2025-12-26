@@ -1670,9 +1670,8 @@ void Element::validateText() {
 			return;
 		}
 	}
+	const auto &summary = item->summaryEntry();
 	const auto summaryShownWas = (_flags & Flag::SummaryShown) != 0;
-	const auto transcribes = &history()->session().api().transcribes();
-	const auto &summary = transcribes->summary(item);
 	const auto summaryShownNow = !summary.result.empty() && summary.shown;
 	const auto summaryShownChanged = (summaryShownWas != summaryShownNow);
 	if (summaryShownNow) {

@@ -361,6 +361,7 @@ enum class MessageFlag : uint64 {
 	SavedMusicItem        = (1ULL << 55),
 
 	HasHiddenLinks        = (1ULL << 56),
+	HasSummaryEntry       = (1ULL << 57),
 };
 inline constexpr bool is_flag_type(MessageFlag) { return true; }
 using MessageFlags = base::flags<MessageFlag>;

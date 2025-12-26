@@ -7,8 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/view/history_view_message.h"
 
-#include "api/api_transcribes.h"
 #include "api/api_suggest_post.h"
+#include "api/api_transcribes.h"
 #include "base/qt/qt_key_modifiers.h"
 #include "base/unixtime.h"
 #include "core/click_handler_types.h" // ClickHandlerContext
@@ -469,8 +469,7 @@ QSize Message::performCountOptimalSize() {
 	const auto item = data();
 
 	const auto replyData = item->Get<HistoryMessageReply>();
-	const auto &transcribes = item->history()->session().api().transcribes();
-	const auto &summary = transcribes.summary(item);
+	const auto &summary = item->summaryEntry();
 	const auto showSummaryReply = !summary.result.empty() && summary.shown;
 
 	if ((replyData && !_hideReply) || showSummaryReply) {
@@ -518,8 +517,7 @@ QSize Message::performCountOptimalSize() {
 	};
 	const auto oldKey = reactionsKey();
 	if (_summarize) {
-		const auto &summary
-			= history()->session().api().transcribes().summary(item);
+		const auto &summary = item->summaryEntry();
 		if (_summarize->loading() != summary.loading) {
 			_summarize->setLoading(summary.loading, [this] { repaint(); });
 		}

@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "api/api_premium.h"
 #include "api/api_sensitive_content.h"
+#include "api/api_transcribes.h"
 #include "lang/lang_keys.h"
 #include "calls/calls_instance.h" // Core::App().calls().joinGroupCall.
 #include "history/view/history_view_item_preview.h"
@@ -1823,6 +1824,18 @@ TextWithEntities HistoryItem::factcheckText() const {
 		return factcheck->data.text;
 	}
 	return {};
+}
+
+const Api::SummaryEntry &HistoryItem::summaryEntry() const {
+	if (!(_flags & MessageFlag::HasSummaryEntry)) {
+		static const auto empty = Api::SummaryEntry();
+		return empty;
+	}
+	return history()->session().api().transcribes().summary(this);
+}
+
+void HistoryItem::setHasSummaryEntry() {
+	_flags |= MessageFlag::HasSummaryEntry;
 }
 
 PeerData *HistoryItem::specialNotificationPeer() const {

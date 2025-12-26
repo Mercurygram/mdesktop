@@ -104,7 +104,6 @@ void Transcribes::toggle(not_null<HistoryItem*> item) {
 	auto i = _map.find(id);
 	if (i == _map.end()) {
 		load(item);
-		//_session->data().requestItemRepaint(item);
 		_session->data().requestItemResize(item);
 	} else if (!i->second.requestId) {
 		i->second.shown = !i->second.shown;
@@ -120,7 +119,6 @@ void Transcribes::toggleSummary(not_null<HistoryItem*> item) {
 	auto i = _summaries.find(id);
 	if (i == _summaries.end()) {
 		summarize(item);
-		_session->data().requestItemResize(item);
 	} else if (!i->second.loading) {
 		i->second.shown = !i->second.shown;
 		_session->data().requestItemResize(item);
@@ -137,8 +135,8 @@ const Transcribes::Entry &Transcribes::entry(
 	return (i != _map.end()) ? i->second : empty;
 }
 
-const Transcribes::SummaryEntry &Transcribes::summary(
-		not_null<HistoryItem*> item) const {
+const SummaryEntry &Transcribes::summary(
+		not_null<const HistoryItem*> item) const {
 	static const auto empty = SummaryEntry();
 	const auto i = _summaries.find(item->fullId());
 	return (i != _summaries.end()) ? i->second : empty;
@@ -235,6 +233,7 @@ void Transcribes::summarize(not_null<HistoryItem*> item) {
 	if (!item->isHistoryEntry() || item->isLocal()) {
 		return;
 	}
+
 	const auto id = item->fullId();
 	const auto requestId = _api.request(MTPmessages_TranslateText(
 		MTP_flags(MTPmessages_TranslateText::Flag::f_peer
@@ -266,13 +265,14 @@ void Transcribes::summarize(not_null<HistoryItem*> item) {
 			_session->data().requestItemResize(item);
 		}
 	}).send();
+
 	auto &entry = _summaries.emplace(id).first->second;
 	entry.requestId = requestId;
 	entry.shown = true;
 	entry.loading = true;
-	if (const auto item = _session->data().message(id)) {
-		_session->data().requestItemResize(item);
-	}
+
+	item->setHasSummaryEntry();
+	_session->data().requestItemResize(item);
 }
 
 } // namespace Api
