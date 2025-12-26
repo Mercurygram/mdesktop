@@ -594,7 +594,9 @@ QString Reply::senderName(
 bool Reply::isNameUpdated(
 		not_null<const Element*> view,
 		not_null<HistoryMessageReply*> data) const {
-	if (const auto from = sender(view, data)) {
+	if (_summarize) {
+		return false;
+	} else if (const auto from = sender(view, data)) {
 		if (_nameVersion < from->nameVersion()) {
 			updateName(view, data, from);
 			return true;
