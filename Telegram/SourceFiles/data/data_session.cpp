@@ -643,6 +643,12 @@ not_null<UserData*> Session::processUser(const MTPUser &data) {
 			result->setUnavailableReasons(Data::UnavailableReason::Extract(
 				data.vrestriction_reason()));
 		}
+
+		if (const auto accessHash = data.vaccess_hash()) {
+			if (!minimal || !result->accessHash()) {
+				result->setAccessHash(accessHash->v);
+			}
+		}
 		if (data.is_deleted()) {
 			if (!result->phone().isEmpty()) {
 				result->setPhone(QString());
@@ -652,12 +658,6 @@ not_null<UserData*> Session::processUser(const MTPUser &data) {
 			result->setPhoto(MTP_userProfilePhotoEmpty());
 			status = &emptyStatus;
 		} else {
-			if (const auto accessHash = data.vaccess_hash()) {
-				if (!minimal || !result->accessHash()) {
-					result->setAccessHash(accessHash->v);
-				}
-			}
-
 			// apply first_name and last_name from minimal user only if we don't have
 			// local values for first name and last name already, otherwise skip
 			const auto noLocalName = result->firstName.isEmpty()
