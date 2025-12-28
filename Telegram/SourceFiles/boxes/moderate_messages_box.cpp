@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_blocked_peers.h"
 #include "api/api_chat_participants.h"
 #include "api/api_messages_search.h"
+#include "api/api_report.h"
 #include "apiwrap.h"
 #include "base/event_filter.h"
 #include "base/timer.h"
@@ -273,17 +274,7 @@ void CreateModerateMessagesBox(
 		handleConfirmation(report, controller, [=](
 				not_null<PeerData*> p,
 				not_null<ChannelData*> c) {
-			auto filtered = ranges::views::all(
-				ids
-			) | ranges::views::transform([](const FullMsgId &id) {
-				return MTP_int(id.msg);
-			}) | ranges::to<QVector<MTPint>>();
-			c->session().api().request(
-				MTPchannels_ReportSpam(
-					c->inputChannel(),
-					p->input(),
-					MTP_vector<MTPint>(std::move(filtered)))
-			).send();
+			Api::ReportSpam(p, ids);
 		});
 	}
 
