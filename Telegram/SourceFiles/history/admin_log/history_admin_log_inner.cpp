@@ -33,6 +33,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "api/api_chat_participants.h"
 #include "api/api_attached_stickers.h"
+#include "api/api_report.h"
 #include "window/window_session_controller.h"
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
@@ -916,6 +917,7 @@ void InnerWidget::addEvents(Direction direction, const QVector<MTPChannelAdminLo
 		: newItemsForDownDirection;
 	addToItems.reserve(oldItemsCount + events.size() * 2);
 
+	const auto canRestrict = InnerWidget::canRestrict();
 	const auto antiSpamUserId = _antiSpamValidator.userId();
 	for (const auto &event : events) {
 		const auto &data = event.data();
@@ -936,10 +938,15 @@ void InnerWidget::addEvents(Direction direction, const QVector<MTPChannelAdminLo
 			}
 			_eventIds.emplace(id);
 			_itemsByData.emplace(item->data(), item.get());
-			if (rememberRealMsgId && realId) {
-				_antiSpamValidator.addEventMsgId(
-					item->data()->fullId(),
-					realId);
+			if (realId) {
+				if (rememberRealMsgId) {
+					_antiSpamValidator.addEventMsgId(
+						item->data()->fullId(),
+						realId);
+				}
+				if (canRestrict) {
+					_realIdsForReport[item->data()->fullId()] = realId;
+				}
 			}
 			addToItems.push_back(std::move(item));
 			++count;
@@ -1382,7 +1389,15 @@ void InnerWidget::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 		}
 	} else if (fromId) { // suggest to block
 		if (const auto participant = session().data().peer(fromId)) {
-			suggestRestrictParticipant(participant);
+			const auto item = view ? view->data().get() : nullptr;
+			auto realId = FullMsgId();
+			if (const auto itemId = item ? item->fullId() : FullMsgId()) {
+				const auto it = _realIdsForReport.find(itemId);
+				if (it != _realIdsForReport.end()) {
+					realId = FullMsgId(_channel->id, it->second);
+				}
+			}
+			suggestRestrictParticipant(participant, realId);
 		}
 	} else { // maybe cursor on some text history item?
 		const auto item = view ? view->data().get() : nullptr;
@@ -1532,12 +1547,11 @@ void InnerWidget::copyContextText(FullMsgId itemId) {
 }
 
 void InnerWidget::suggestRestrictParticipant(
-		not_null<PeerData*> participant) {
+		not_null<PeerData*> participant,
+		FullMsgId realId) {
 	Expects(_menu != nullptr);
 
-	if (!_channel->isMegagroup()
-		|| !_channel->canBanMembers()
-		|| _admins.empty()) {
+	if (!canRestrict()) {
 		return;
 	}
 	if (ranges::contains(_admins, participant)) {
@@ -1640,12 +1654,26 @@ void InnerWidget::suggestRestrictParticipant(
 				participant,
 				{ _channel->restrictions(), 0 });
 		};
-		Ui::Menu::CreateAddActionCallback(_menu)({
+		const auto addAction = Ui::Menu::CreateAddActionCallback(_menu);
+		addAction({
 			.text = tr::lng_context_ban_user(tr::now),
-			.handler = std::move(handler),
+			.handler = handler,
 			.icon = &st::menuIconBlockAttention,
 			.isAttention = true,
 		});
+
+		if (realId) {
+			addAction({
+				.text = tr::lng_report_and_ban(tr::now),
+				.handler = [=, show = _controller->uiShow()] {
+					Api::ReportSpam(participant, { realId });
+					handler();
+					show->showToast(tr::lng_report_spam_done(tr::now));
+				},
+				.icon = &st::menuIconReportAttention,
+				.isAttention = true,
+			});
+		}
 	}
 }
 
@@ -1680,6 +1708,12 @@ void InnerWidget::restrictParticipantDone(
 	}
 	_downLoaded = false;
 	checkPreloadMore();
+}
+
+bool InnerWidget::canRestrict() const {
+	return _channel->isMegagroup()
+		&& _channel->canBanMembers()
+		&& !_admins.empty();
 }
 
 void InnerWidget::mousePressEvent(QMouseEvent *e) {

@@ -213,7 +213,9 @@ private:
 	void copyContextText(FullMsgId itemId);
 	void copySelectedText();
 	TextForMimeData getSelectedText() const;
-	void suggestRestrictParticipant(not_null<PeerData*> participant);
+	void suggestRestrictParticipant(
+		not_null<PeerData*> participant,
+		FullMsgId realId);
 	void restrictParticipant(
 		not_null<PeerData*> participant,
 		ChatRestrictionsInfo oldRights,
@@ -221,6 +223,7 @@ private:
 	void restrictParticipantDone(
 		not_null<PeerData*> participant,
 		ChatRestrictionsInfo rights);
+	[[nodiscard]] bool canRestrict() const;
 
 	void requestAdmins();
 	void checkPreloadMore();
@@ -286,6 +289,7 @@ private:
 	base::flat_set<FullMsgId> _animatedStickersPlayed;
 	base::flat_map<not_null<PeerData*>, Ui::PeerUserpicView> _userpics;
 	base::flat_map<not_null<PeerData*>, Ui::PeerUserpicView> _userpicsCache;
+	base::flat_map<FullMsgId, MsgId> _realIdsForReport;
 	int _itemsTop = 0;
 	int _itemsWidth = 0;
 	int _itemsHeight = 0;
