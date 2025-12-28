@@ -336,6 +336,9 @@ public:
 	[[nodiscard]] bool showSimilarChannels() const {
 		return _flags & MessageFlag::ShowSimilarChannels;
 	}
+	[[nodiscard]] bool canBeSummarized() const {
+		return _flags & MessageFlag::CanBeSummarized;
+	}
 	[[nodiscard]] bool hasRealFromId() const;
 	[[nodiscard]] bool isPostHidingAuthor() const;
 	[[nodiscard]] bool isPostShowingAuthor() const;

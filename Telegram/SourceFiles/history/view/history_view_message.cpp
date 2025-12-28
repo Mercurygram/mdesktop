@@ -1222,7 +1222,9 @@ void Message::draw(Painter &p, const PaintContext &context) const {
 					st::historyFastShareBottom)
 				: st::historyFastShareBottom;
 			const auto fastShareLeft = hasRightLayout()
-				? (g.left() - rightActionWidth - st::historyFastShareLeft)
+				? (g.left()
+					- (_summarize ? 0 : rightActionWidth)
+					- st::historyFastShareLeft)
 				: (g.left() + g.width() + st::historyFastShareLeft);
 			const auto fastShareTop = g.top() + (data()->isSponsored()
 				? fastShareSkip
@@ -4574,13 +4576,11 @@ const HistoryMessageEdited *Message::displayedEditBadge() const {
 }
 
 void Message::ensureSummarizeButton() const {
-	const auto item = data();
-	if (item->isPost()
-		&& item->originalText().text.size() >= kSummarizeThreshold
-		/* && item->history()->session().premium()*/) {
+	if (data()->canBeSummarized()
+		/*&& item->originalText().text.size() >= kSummarizeThreshold*/) {
 		if (!_summarize) {
 			_summarize
-				= std::make_unique<TranscribeButton>(item, false, true);
+				= std::make_unique<TranscribeButton>(data(), false, true);
 		}
 	} else {
 		_summarize = nullptr;

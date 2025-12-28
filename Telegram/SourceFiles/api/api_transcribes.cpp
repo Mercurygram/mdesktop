@@ -235,27 +235,25 @@ void Transcribes::summarize(not_null<HistoryItem*> item) {
 	}
 
 	const auto id = item->fullId();
-	const auto requestId = _api.request(MTPmessages_TranslateText(
-		MTP_flags(MTPmessages_TranslateText::Flag::f_peer
-			| MTPmessages_TranslateText::Flag::f_id),
+	const auto langSummary = summaryFromLang(id);
+	const auto requestId = _api.request(MTPmessages_SummarizeText(
+		langSummary.isEmpty()
+			? MTP_flags(0)
+			: MTP_flags(MTPmessages_summarizeText::Flag::f_to_lang),
 		item->history()->peer->input(),
-		MTP_vector<MTPint>(1, MTP_int(item->id)),
-		MTPVector<MTPTextWithEntities>(),
-		MTP_string("sum")
-	)).done([=](const MTPmessages_TranslatedText &result) {
-		const auto &list = result.data().vresult().v;
-		if (!list.isEmpty()) {
-			const auto &tl = list.front().data();
-			auto &entry = _summaries[id];
-			entry.requestId = 0;
-			entry.loading = false;
-			entry.result = TextWithEntities(
-				qs(tl.vtext()),
-				Api::EntitiesFromMTP(_session, tl.ventities().v));
-			if (const auto item = _session->data().message(id)) {
-				_session->data().requestItemResize(item);
-				_session->data().requestItemShowHighlight(item);
-			}
+		MTP_int(item->id),
+		langSummary.isEmpty() ? MTPstring() : MTP_string(langSummary)
+	)).done([=](const MTPTextWithEntities &result) {
+		const auto &data = result.data();
+		auto &entry = _summaries[id];
+		entry.requestId = 0;
+		entry.loading = false;
+		entry.result = TextWithEntities(
+			qs(data.vtext()),
+			Api::EntitiesFromMTP(_session, data.ventities().v));
+		if (const auto item = _session->data().message(id)) {
+			_session->data().requestItemResize(item);
+			_session->data().requestItemShowHighlight(item);
 		}
 	}).fail([=] {
 		auto &entry = _summaries[id];
@@ -273,6 +271,15 @@ void Transcribes::summarize(not_null<HistoryItem*> item) {
 
 	item->setHasSummaryEntry();
 	_session->data().requestItemResize(item);
+}
+
+void Transcribes::setSummaryFromLang(FullMsgId id, QString &&text) {
+	_summariesFromLang[id] = std::move(text);
+}
+
+QString Transcribes::summaryFromLang(FullMsgId id) const {
+	const auto i = _summariesFromLang.find(id);
+	return (i != _summariesFromLang.end()) ? i->second : QString();
 }
 
 } // namespace Api

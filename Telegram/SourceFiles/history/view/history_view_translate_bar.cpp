@@ -206,7 +206,7 @@ void AddCocoonBoxCover(not_null<Ui::VerticalLayout*> container) {
 			auto metrics = QFontMetrics(font);
 
 			const auto text = tr::lng_translate_cocoon_title(tr::now);
-			const auto textw = metrics.width(text);
+			const auto textw = metrics.horizontalAdvance(text);
 			const auto left = (width - textw) / 2;
 
 			auto q = QPainter(&state->gradient);

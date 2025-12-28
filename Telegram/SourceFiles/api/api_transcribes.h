@@ -44,6 +44,8 @@ public:
 	void toggleSummary(not_null<HistoryItem*> item);
 	[[nodiscard]] const SummaryEntry &summary(
 		not_null<const HistoryItem*> item) const;
+	void setSummaryFromLang(FullMsgId, QString &&summaryFromLang);
+	[[nodiscard]] QString summaryFromLang(FullMsgId) const;
 
 	void apply(const MTPDupdateTranscribedAudio &update);
 
@@ -71,6 +73,7 @@ private:
 	base::flat_map<uint64, FullMsgId> _ids;
 
 	base::flat_map<FullMsgId, SummaryEntry> _summaries;
+	base::flat_map<FullMsgId, QString> _summariesFromLang;
 
 };
 
