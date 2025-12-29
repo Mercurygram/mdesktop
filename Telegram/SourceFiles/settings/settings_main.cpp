@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_main.h"
 
+#include "settings/builder/settings_main_builder.h"
 #include "api/api_credits.h"
 #include "core/application.h"
 #include "core/click_handler_types.h"
@@ -1034,7 +1035,7 @@ Main::Main(
 	not_null<Window::SessionController*> controller)
 : Section(parent)
 , _controller(controller) {
-	setupContent(controller);
+	setupContentWithBuilder(controller);
 	_controller->session().api().premium().reload();
 }
 
@@ -1092,6 +1093,35 @@ void Main::setupContent(not_null<Window::SessionController*> controller) {
 	Ui::ResizeFitChild(this, content);
 
 	// If we load this in advance it won't jump when we open its' section.
+	controller->session().api().cloudPassword().reload();
+	controller->session().api().reloadContactSignupSilent();
+	controller->session().api().sensitiveContent().reload();
+	controller->session().api().globalPrivacy().reload();
+	controller->session().data().cloudThemes().refresh();
+}
+
+void Main::setupContentWithBuilder(
+		not_null<Window::SessionController*> controller) {
+	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
+
+	content->add(object_ptr<Cover>(
+		content,
+		controller,
+		controller->session().user()));
+
+	Builder::BuildMainSection(content, controller, showOtherMethod());
+
+	if (HasInterfaceScale()) {
+		Ui::AddDivider(content);
+		Ui::AddSkip(content);
+		SetupInterfaceScale(&controller->window(), content);
+		Ui::AddSkip(content);
+	}
+	SetupPremium(controller, content, showOtherMethod());
+	SetupHelp(controller, content);
+
+	Ui::ResizeFitChild(this, content);
+
 	controller->session().api().cloudPassword().reload();
 	controller->session().api().reloadContactSignupSilent();
 	controller->session().api().sensitiveContent().reload();
