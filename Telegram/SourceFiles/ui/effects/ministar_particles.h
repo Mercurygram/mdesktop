@@ -25,7 +25,7 @@ public:
 	void setVisible(float visible);
 	void setColor(const QColor &color);
 	void setColors(std::vector<QColor> colors);
-	void paint(QPainter &p, const QRect &rect, crl::time now);
+	void paint(QPainter &p, const QRect &rect, crl::time now, bool paused);
 
 private:
 	struct Particle {
@@ -54,6 +54,9 @@ private:
 	std::vector<Particle> _particles;
 	base::flat_map<QRgb, QImage> _starCache;
 	crl::time _lastTime = 0;
+
+	crl::time _pausedAt = 0;
+	crl::time _pauseOffset = 0;
 };
 
 } // namespace Ui

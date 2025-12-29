@@ -900,7 +900,11 @@ void Reply::paint(
 				colorCollectible)
 			: stm->msgServiceFg->c;
 		_summarize->particles.setColor(nameColor);
-		_summarize->particles.paint(p, QRect(0, 0, w, _height), context.now);
+		_summarize->particles.paint(
+			p,
+			QRect(0, 0, w, _height),
+			context.now,
+			context.paused);
 		p.setClipping(false);
 		p.translate(-x, -y);
 	}

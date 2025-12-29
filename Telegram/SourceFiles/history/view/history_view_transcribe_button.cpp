@@ -138,7 +138,7 @@ void TranscribeButton::paint(
 					_particles->setSpeed(0.2);
 				}
 				p.setClipRegion(QRegion(r, QRegion::Ellipse));
-				_particles->paint(p, r, crl::now());
+				_particles->paint(p, r, context.now, context.paused);
 				p.setClipping(false);
 				const auto session = &_item->history()->session();
 				Ui::PostponeCall(session, [=, itemId = _item->fullId()] {

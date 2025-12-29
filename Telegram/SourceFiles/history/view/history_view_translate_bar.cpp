@@ -235,7 +235,7 @@ void AddCocoonBoxCover(not_null<Ui::VerticalLayout*> container) {
 		const auto particlesRect = logoRect.marginsAdded(
 			{ paddingAdd, paddingAdd, paddingAdd, paddingAdd });
 
-		state->particles->paint(p, particlesRect, crl::now());
+		state->particles->paint(p, particlesRect, crl::now(), false);
 		if (!anim::Disabled() && !state->animation.animating()) {
 			state->animation.start();
 		}

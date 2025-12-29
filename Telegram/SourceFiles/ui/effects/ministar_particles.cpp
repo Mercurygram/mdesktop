@@ -140,10 +140,27 @@ void StarParticles::generate() {
 	}
 }
 
-void StarParticles::paint(QPainter &p, const QRect &rect, crl::time now) {
+void StarParticles::paint(
+		QPainter &p,
+		const QRect &rect,
+		crl::time now,
+		bool paused) {
 	if (_lastTime == 0) {
 		_lastTime = now;
 		return;
+	}
+
+	if (paused) {
+		if (!_pausedAt) {
+			_pausedAt = now;
+		}
+		now = _pausedAt - _pauseOffset;
+	} else {
+		if (_pausedAt) {
+			_pauseOffset += now - _pausedAt;
+			_pausedAt = 0;
+		}
+		now = now - _pauseOffset;
 	}
 
 	const auto validate = [&](int colorIndex) {
