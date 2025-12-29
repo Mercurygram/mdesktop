@@ -198,6 +198,7 @@ private:
 	void performDrag();
 	int itemTop(not_null<const Element*> view) const;
 	void repaintItem(const Element *view);
+	void repaintItem(const Element *view, QRect rect);
 	void refreshItem(not_null<const Element*> view);
 	void resizeItem(not_null<Element*> view);
 	QPoint mapPointToItem(QPoint point, const Element *view) const;

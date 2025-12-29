@@ -569,6 +569,7 @@ private:
 	int itemTop(not_null<const Element*> view) const;
 	void repaintItem(FullMsgId itemId);
 	void repaintItem(const Element *view);
+	void repaintItem(const Element *view, QRect rect);
 	void resizeItem(not_null<Element*> view);
 	void refreshItem(not_null<const Element*> view);
 	void showItemHighlight(not_null<HistoryItem*> item);

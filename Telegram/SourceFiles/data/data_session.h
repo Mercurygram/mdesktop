@@ -373,9 +373,9 @@ public:
 	[[nodiscard]] rpl::producer<GiftsUpdate> giftsUpdates() const;
 	void notifyGiftAuctionGot(GiftAuctionGot &&update);
 	[[nodiscard]] rpl::producer<GiftAuctionGot> giftAuctionGots() const;
-	void requestItemRepaint(not_null<const HistoryItem*> item);
+	void requestItemRepaint(not_null<const HistoryItem*> item, QRect r = QRect());
 	[[nodiscard]] rpl::producer<not_null<const HistoryItem*>> itemRepaintRequest() const;
-	void requestViewRepaint(not_null<const ViewElement*> view);
+	void requestViewRepaint(not_null<const ViewElement*> view, QRect r = QRect());
 	[[nodiscard]] rpl::producer<RequestViewRepaint> viewRepaintRequest() const;
 	void requestItemResize(not_null<const HistoryItem*> item);
 	[[nodiscard]] rpl::producer<not_null<const HistoryItem*>> itemResizeRequest() const;

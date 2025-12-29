@@ -418,7 +418,7 @@ ListWidget::ListWidget(
 	_session->data().viewRepaintRequest(
 	) | rpl::on_next([this](Data::RequestViewRepaint data) {
 		if (data.view->delegate() == this) {
-			repaintItem(data.view);
+			repaintItem(data.view, data.rect);
 		}
 	}, lifetime());
 	_session->data().viewResizeRequest(
@@ -4039,6 +4039,17 @@ void ListWidget::repaintItem(const Element *view) {
 	if (area) {
 		update(*area);
 	}
+}
+
+void ListWidget::repaintItem(const Element *view, QRect rect) {
+	if (rect.isNull()) {
+		return repaintItem(view);
+	}
+	if (!view) {
+		return;
+	}
+	const auto top = itemTop(view);
+	update(rect.translated(0, top));
 }
 
 void ListWidget::repaintItem(FullMsgId itemId) {

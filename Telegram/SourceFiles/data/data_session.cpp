@@ -1944,14 +1944,14 @@ rpl::producer<Session::IdChange> Session::itemIdChanged() const {
 	return _itemIdChanges.events();
 }
 
-void Session::requestItemRepaint(not_null<const HistoryItem*> item) {
+void Session::requestItemRepaint(not_null<const HistoryItem*> item, QRect r) {
 	_itemRepaintRequest.fire_copy(item);
 	auto repaintGroupLeader = false;
 	auto repaintView = [&](not_null<const ViewElement*> view) {
 		if (view->isHiddenByGroup()) {
 			repaintGroupLeader = true;
 		} else {
-			requestViewRepaint(view);
+			requestViewRepaint(view, r);
 		}
 	};
 	enumerateItemViews(item, repaintView);
@@ -1983,8 +1983,8 @@ rpl::producer<not_null<const HistoryItem*>> Session::itemRepaintRequest() const 
 	return _itemRepaintRequest.events();
 }
 
-void Session::requestViewRepaint(not_null<const ViewElement*> view) {
-	_viewRepaintRequest.fire_copy({ view });
+void Session::requestViewRepaint(not_null<const ViewElement*> view, QRect r) {
+	_viewRepaintRequest.fire_copy({ view, r });
 }
 
 rpl::producer<RequestViewRepaint> Session::viewRepaintRequest() const {
