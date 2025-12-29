@@ -79,10 +79,10 @@ void TranscribeButton::setLoading(bool loading, Fn<void()> update) {
 	if (_loading) {
 		_animation = std::make_unique<Ui::InfiniteRadialAnimation>(
 			update,
-			st::defaultInfiniteRadialAnimation);
+			st::historyTranscribeRadialAnimation);
 		_animation->start();
 	} else if (_animation) {
-		_animation->stop();
+		_animation->stopWithFade();
 	}
 }
 

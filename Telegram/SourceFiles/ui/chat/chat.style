@@ -544,6 +544,14 @@ historyTranscribeOutLockSelected: icon {{ "chat/mini_lock", msgFileOutBgSelected
 historyTranscribeLockPos: point(17px, 9px);
 historyTranscribeLockOverlayPos: point(19px, 11px);
 historyTranscribeLockOverlaySize: size(5px, 10px);
+historyTranscribeRadialAnimation: InfiniteRadialAnimation(defaultInfiniteRadialAnimation) {
+	linearPeriod: 700;
+	sinePeriod: 2400;
+	sineDuration: 700;
+	sineShift: 1100;
+	arcMin: 0.0625;
+	arcMax: 0.35;
+}
 
 historyVideoMessageMute: icon {{ "volume_mute", historyFileThumbIconFg }};
 historyVideoMessageMuteSelected: icon {{ "volume_mute", historyFileThumbIconFgSelected }};
