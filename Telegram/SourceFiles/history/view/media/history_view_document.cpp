@@ -440,8 +440,7 @@ QSize Document::countOptimalSize() {
 			const auto &entry = transcribes->entry(_realParent);
 			const auto update = [=] { repaint(); };
 			voice->transcribe->setLoading(
-				entry.shown && (entry.requestId || entry.pending),
-				update);
+				entry.shown && (entry.requestId || entry.pending));
 			const auto pending = entry.pending;
 			auto descriptor = pending
 				? Lottie::IconDescriptor{

@@ -31,7 +31,7 @@ public:
 	[[nodiscard]] QSize size() const;
 
 	void setOpened(bool opened, Fn<void()> update);
-	void setLoading(bool loading, Fn<void()> update);
+	void setLoading(bool loading);
 	[[nodiscard]] bool loading() const;
 	void paint(QPainter &p, int x, int y, const PaintContext &context);
 	void addRipple(Fn<void()> callback);

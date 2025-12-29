@@ -71,14 +71,23 @@ QSize TranscribeButton::size() const {
 	return _size;
 }
 
-void TranscribeButton::setLoading(bool loading, Fn<void()> update) {
+void TranscribeButton::setLoading(bool loading) {
 	if (_loading == loading) {
 		return;
 	}
 	_loading = loading;
 	if (_loading) {
+		const auto session = &_item->history()->session();
 		_animation = std::make_unique<Ui::InfiniteRadialAnimation>(
-			update,
+			[=, itemId = _item->fullId()] {
+				if (const auto item = session->data().message(itemId)) {
+					session->data().requestItemRepaint(
+						item,
+						_lastPaintedPoint.isNull()
+							? QRect()
+							: QRect(_lastPaintedPoint, size()));
+				}
+			},
 			st::historyTranscribeRadialAnimation);
 		_animation->start();
 	} else if (_animation) {

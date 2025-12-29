@@ -519,7 +519,7 @@ QSize Message::performCountOptimalSize() {
 	if (_summarize) {
 		const auto &summary = item->summaryEntry();
 		if (_summarize->loading() != summary.loading) {
-			_summarize->setLoading(summary.loading, [this] { repaint(); });
+			_summarize->setLoading(summary.loading);
 		}
 	}
 	validateText();
