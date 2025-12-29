@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/effects/ripple_animation.h"
 #include "ui/effects/ministar_particles.h"
 #include "ui/painter.h"
+#include "ui/power_saving.h"
 #include "ui/rect.h"
 #include "ui/ui_utility.h"
 #include "api/api_transcribes.h"
@@ -138,14 +139,19 @@ void TranscribeButton::paint(
 					_particles->setSpeed(0.2);
 				}
 				p.setClipRegion(QRegion(r, QRegion::Ellipse));
-				_particles->paint(p, r, context.now, context.paused);
+				const auto paused = context.paused
+					|| (!_summarizeHovered && !_loading)
+					|| On(PowerSaving::kChatEffects);
+				_particles->paint(p, r, context.now, paused);
 				p.setClipping(false);
-				const auto session = &_item->history()->session();
-				Ui::PostponeCall(session, [=, itemId = _item->fullId()] {
-					if (const auto item = session->data().message(itemId)) {
-						session->data().requestItemRepaint(item);
-					}
-				});
+				if (!paused) {
+					const auto session = &_item->history()->session();
+					Ui::PostponeCall(session, [=, itemId = _item->fullId()] {
+						if (const auto i = session->data().message(itemId)) {
+							session->data().requestItemRepaint(i, r);
+						}
+					});
+				}
 				(_item->history()->session().api().transcribes().summary(
 						_item).shown
 					? st::mediaviewFullScreenButton.icon
@@ -339,7 +345,12 @@ ClickHandlerPtr TranscribeButton::link() {
 
 bool TranscribeButton::contains(const QPoint &p) {
 	_lastStatePoint = p - _lastPaintedPoint;
-	return QRect(_lastPaintedPoint, size()).contains(p);
+	if (_summarize) {
+		_summarizeHovered = QRect(_lastPaintedPoint, size()).contains(p);
+		return _summarizeHovered;
+	} else {
+		return QRect(_lastPaintedPoint, size()).contains(p);
+	}
 }
 
 void TranscribeButton::addRipple(Fn<void()> callback) {

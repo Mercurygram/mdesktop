@@ -48,16 +48,17 @@ private:
 	const bool _summarize = false;
 	const QSize _size;
 
-	mutable std::unique_ptr<Ui::InfiniteRadialAnimation> _animation;
-	mutable std::unique_ptr<Ui::StarParticles> _particles;
-	std::unique_ptr<Ui::RippleAnimation> _ripple;
 	ClickHandlerPtr _link;
-	QString _text;
+	std::unique_ptr<Ui::InfiniteRadialAnimation> _animation;
+	std::unique_ptr<Ui::StarParticles> _particles;
+	std::unique_ptr<Ui::RippleAnimation> _ripple;
 	Ui::Animations::Simple _openedAnimation;
-	bool _loading = false;
-	bool _opened = false;
+	QString _text;
 	QPoint _lastPaintedPoint;
 	QPoint _lastStatePoint;
+	bool _summarizeHovered = false;
+	bool _loading = false;
+	bool _opened = false;
 
 };
 

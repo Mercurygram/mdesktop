@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_options.h"
 #include "ui/text/text_utilities.h"
 #include "ui/painter.h"
+#include "ui/ui_utility.h"
 #include "ui/power_saving.h"
 #include "window/window_session_controller.h"
 #include "styles/style_chat.h"
@@ -900,11 +901,21 @@ void Reply::paint(
 				colorCollectible)
 			: stm->msgServiceFg->c;
 		_summarize->particles.setColor(nameColor);
+		const auto paused = context.paused || On(PowerSaving::kChatEffects);
 		_summarize->particles.paint(
 			p,
 			QRect(0, 0, w, _height),
 			context.now,
-			context.paused);
+			paused);
+		if (!paused) {
+			const auto session = &view->history()->session();
+			const auto r = QRect(x, y, w, _height);
+			Ui::PostponeCall(session, [=, itemId = view->data()->fullId()] {
+				if (const auto i = session->data().message(itemId)) {
+					session->data().requestItemRepaint(i, r);
+				}
+			});
+		}
 		p.setClipping(false);
 		p.translate(-x, -y);
 	}
