@@ -403,8 +403,8 @@ HistoryInner::HistoryInner(
 		mouseActionCancel();
 	}, lifetime());
 	session().data().viewRepaintRequest(
-	) | rpl::on_next([this](not_null<const Element*> view) {
-		repaintItem(view);
+	) | rpl::on_next([this](Data::RequestViewRepaint data) {
+		repaintItem(data.view);
 	}, lifetime());
 	session().data().viewLayoutChanged(
 	) | rpl::filter([=](not_null<const Element*> view) {

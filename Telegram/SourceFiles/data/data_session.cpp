@@ -1984,10 +1984,10 @@ rpl::producer<not_null<const HistoryItem*>> Session::itemRepaintRequest() const 
 }
 
 void Session::requestViewRepaint(not_null<const ViewElement*> view) {
-	_viewRepaintRequest.fire_copy(view);
+	_viewRepaintRequest.fire_copy({ view });
 }
 
-rpl::producer<not_null<const ViewElement*>> Session::viewRepaintRequest() const {
+rpl::producer<RequestViewRepaint> Session::viewRepaintRequest() const {
 	return _viewRepaintRequest.events();
 }
 

@@ -162,8 +162,8 @@ PreviewWrap::PreviewWrap(
 
 	const auto session = &_item->history()->session();
 	session->data().viewRepaintRequest(
-	) | rpl::on_next([=](not_null<const HistoryView::Element*> view) {
-		if (view == _element.get()) {
+	) | rpl::on_next([=](Data::RequestViewRepaint data) {
+		if (data.view == _element.get()) {
 			update(_elementGeometry);
 		}
 	}, lifetime());

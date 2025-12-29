@@ -274,9 +274,9 @@ InnerWidget::InnerWidget(
 	setMouseTracking(true);
 	_scrollDateHideTimer.setCallback([=] { scrollDateHideByTimer(); });
 	session().data().viewRepaintRequest(
-	) | rpl::on_next([=](auto view) {
-		if (myView(view)) {
-			repaintItem(view);
+	) | rpl::on_next([=](Data::RequestViewRepaint data) {
+		if (myView(data.view)) {
+			repaintItem(data.view);
 		}
 	}, lifetime());
 	session().data().viewResizeRequest(

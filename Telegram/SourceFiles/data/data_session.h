@@ -140,6 +140,11 @@ struct RecentJoinChat {
 	PeerId joinedPeerId = 0;
 };
 
+struct RequestViewRepaint {
+	not_null<const HistoryView::Element*> view;
+	QRect rect;
+};
+
 class Session final {
 public:
 	using ViewElement = HistoryView::Element;
@@ -371,7 +376,7 @@ public:
 	void requestItemRepaint(not_null<const HistoryItem*> item);
 	[[nodiscard]] rpl::producer<not_null<const HistoryItem*>> itemRepaintRequest() const;
 	void requestViewRepaint(not_null<const ViewElement*> view);
-	[[nodiscard]] rpl::producer<not_null<const ViewElement*>> viewRepaintRequest() const;
+	[[nodiscard]] rpl::producer<RequestViewRepaint> viewRepaintRequest() const;
 	void requestItemResize(not_null<const HistoryItem*> item);
 	[[nodiscard]] rpl::producer<not_null<const HistoryItem*>> itemResizeRequest() const;
 	void requestViewResize(not_null<ViewElement*> view);
@@ -1103,7 +1108,7 @@ private:
 	rpl::event_stream<GiftsUpdate> _giftsUpdates;
 	rpl::event_stream<GiftAuctionGot> _giftAuctionGots;
 	rpl::event_stream<not_null<const HistoryItem*>> _itemRepaintRequest;
-	rpl::event_stream<not_null<const ViewElement*>> _viewRepaintRequest;
+	rpl::event_stream<RequestViewRepaint> _viewRepaintRequest;
 	rpl::event_stream<not_null<const HistoryItem*>> _itemResizeRequest;
 	rpl::event_stream<not_null<ViewElement*>> _viewResizeRequest;
 	rpl::event_stream<not_null<HistoryItem*>> _itemShowHighlightRequest;
