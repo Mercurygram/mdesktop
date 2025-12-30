@@ -226,4 +226,9 @@ void AddLottieIconWithCircle(
 	QMargins iconPadding,
 	QSize circleSize);
 
+[[nodiscard]] not_null<Button*> AddPremiumStar(
+	not_null<Button*> button,
+	bool credits,
+	Fn<bool()> isPaused);
+
 } // namespace Settings

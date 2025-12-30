@@ -29,6 +29,15 @@ void SetupInterfaceScale(
 	not_null<Ui::VerticalLayout*> container,
 	bool icon = true);
 
+void SetupValidatePhoneNumberSuggestion(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container,
+	Fn<void(Type)> showOther);
+void SetupValidatePasswordSuggestion(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container,
+	Fn<void(Type)> showOther);
+
 void OpenFaq(base::weak_ptr<Window::SessionController> weak);
 
 class Main : public Section<Main> {
@@ -44,7 +53,6 @@ protected:
 	void keyPressEvent(QKeyEvent *e) override;
 
 private:
-	void setupContent(not_null<Window::SessionController*> controller);
 	void setupContentWithBuilder(not_null<Window::SessionController*> controller);
 
 	const not_null<Window::SessionController*> _controller;

@@ -27,6 +27,11 @@ namespace style {
 struct SettingsButton;
 } // namespace style
 
+namespace Ui {
+template <typename Widget>
+class SlideWrap;
+} // namespace Ui
+
 namespace Settings::Builder {
 
 struct SearchEntry {
@@ -39,6 +44,7 @@ struct WidgetContext {
 	not_null<Ui::VerticalLayout*> container;
 	not_null<Window::SessionController*> controller;
 	Fn<void(Type)> showOther;
+	Fn<bool()> isPaused;
 };
 
 struct SearchContext {
@@ -81,8 +87,47 @@ public:
 	};
 	Ui::SettingsButton *addSectionButton(SectionArgs &&args);
 
+	struct SlideButtonArgs {
+		QString id;
+		rpl::producer<QString> title;
+		const style::SettingsButton *st = nullptr;
+		IconDescriptor icon;
+		rpl::producer<bool> shown;
+		Fn<void()> onClick;
+		QStringList keywords;
+	};
+	Ui::SlideWrap<Ui::SettingsButton> *addSlideButton(SlideButtonArgs &&args);
+
+	struct SlideLabeledButtonArgs {
+		QString id;
+		rpl::producer<QString> title;
+		const style::SettingsButton *st = nullptr;
+		IconDescriptor icon;
+		rpl::producer<QString> label;
+		rpl::producer<bool> shown;
+		Fn<void()> onClick;
+		QStringList keywords;
+	};
+	Ui::SlideWrap<Ui::SettingsButton> *addSlideLabeledButton(
+		SlideLabeledButtonArgs &&args);
+
+	struct PremiumButtonArgs {
+		QString id;
+		rpl::producer<QString> title;
+		rpl::producer<QString> label;
+		bool credits = false;
+		Fn<void()> onClick;
+		QStringList keywords;
+	};
+	Ui::SettingsButton *addPremiumButton(PremiumButtonArgs &&args);
+
 	void addDivider();
+	void addDividerText(rpl::producer<QString> text);
 	void addSkip();
+	void addSkip(int height);
+
+	[[nodiscard]] Window::SessionController *controller() const;
+	[[nodiscard]] Fn<void(Type)> showOther() const;
 
 private:
 	BuildContext _context;

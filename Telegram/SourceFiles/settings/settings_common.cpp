@@ -8,11 +8,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_common.h"
 
 #include "lottie/lottie_icon.h"
+#include "ui/effects/premium_graphics.h"
+#include "ui/effects/premium_top_bar.h"
 #include "ui/painter.h"
+#include "ui/rect.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/continuous_sliders.h"
 #include "ui/widgets/labels.h"
 #include "ui/wrap/vertical_layout.h"
+#include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
 
 #include <QAction>
@@ -352,6 +356,85 @@ void AddLottieIconWithCircle(
 	iconRow->geometryValue() | rpl::on_next([=](const QRect &g) {
 		circle->setGeometry(g);
 	}, circle->lifetime());
+}
+
+not_null<Button*> AddPremiumStar(
+		not_null<Button*> button,
+		bool credits,
+		Fn<bool()> isPaused) {
+	const auto stops = credits
+		? Ui::Premium::CreditsIconGradientStops()
+		: Ui::Premium::ButtonGradientStops();
+
+	const auto ministarsContainer = Ui::CreateChild<Ui::RpWidget>(button);
+	const auto &buttonSt = button->st();
+	const auto fullHeight = buttonSt.height
+		+ rect::m::sum::v(buttonSt.padding);
+	using MiniStars = Ui::Premium::ColoredMiniStars;
+	const auto ministars = button->lifetime().make_state<MiniStars>(
+		ministarsContainer,
+		false);
+	ministars->setColorOverride(stops);
+
+	const auto isPausedValue
+		= button->lifetime().make_state<rpl::variable<bool>>(isPaused());
+	isPausedValue->value() | rpl::on_next([=](bool value) {
+		ministars->setPaused(value);
+	}, ministarsContainer->lifetime());
+
+	ministarsContainer->paintRequest(
+	) | rpl::on_next([=] {
+		(*isPausedValue) = isPaused();
+		auto p = QPainter(ministarsContainer);
+		{
+			constexpr auto kScale = 0.35;
+			const auto r = ministarsContainer->rect();
+			p.translate(r.center());
+			p.scale(kScale, kScale);
+			p.translate(-r.center());
+		}
+		ministars->paint(p);
+	}, ministarsContainer->lifetime());
+
+	const auto badge = Ui::CreateChild<Ui::RpWidget>(button.get());
+
+	auto star = [&] {
+		const auto factor = style::DevicePixelRatio();
+		const auto size = Size(st::settingsButtonNoIcon.style.font->ascent);
+		auto image = QImage(
+			size * factor,
+			QImage::Format_ARGB32_Premultiplied);
+		image.setDevicePixelRatio(factor);
+		image.fill(Qt::transparent);
+		{
+			auto p = QPainter(&image);
+			auto star = QSvgRenderer(Ui::Premium::ColorizedSvg(stops));
+			star.render(&p, Rect(size));
+		}
+		return image;
+	}();
+	badge->resize(star.size() / style::DevicePixelRatio());
+	badge->paintRequest(
+	) | rpl::on_next([=] {
+		auto p = QPainter(badge);
+		p.drawImage(0, 0, star);
+	}, badge->lifetime());
+
+	button->sizeValue(
+	) | rpl::on_next([=](const QSize &s) {
+		badge->moveToLeft(
+			button->st().iconLeft
+				+ (st::menuIconShop.width() - badge->width()) / 2,
+			(s.height() - badge->height()) / 2);
+		ministarsContainer->moveToLeft(
+			badge->x() - (fullHeight - badge->height()) / 2,
+			0);
+	}, badge->lifetime());
+
+	ministarsContainer->resize(fullHeight, fullHeight);
+	ministars->setCenter(ministarsContainer->rect());
+
+	return button;
 }
 
 } // namespace Settings

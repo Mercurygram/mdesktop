@@ -8,77 +8,53 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_main.h"
 
 #include "settings/builder/settings_main_builder.h"
-#include "api/api_credits.h"
-#include "core/application.h"
-#include "core/click_handler_types.h"
-#include "settings/cloud_password/settings_cloud_password_input.h"
-#include "settings/settings_advanced.h"
-#include "settings/settings_business.h"
-#include "settings/settings_calls.h"
-#include "settings/settings_chat.h"
-#include "settings/settings_codes.h"
-#include "settings/settings_credits.h"
-#include "settings/settings_folders.h"
-#include "settings/settings_information.h"
-#include "settings/settings_notifications.h"
-#include "settings/settings_power_saving.h"
-#include "settings/settings_premium.h"
-#include "settings/settings_privacy_security.h"
-#include "settings/settings_scale_preview.h"
+#include "apiwrap.h"
+#include "api/api_cloud_password.h"
+#include "api/api_global_privacy.h"
+#include "api/api_peer_photo.h"
+#include "api/api_premium.h"
+#include "api/api_sensitive_content.h"
+#include "base/call_delayed.h"
+#include "base/platform/base_platform_info.h"
 #include "boxes/language_box.h"
 #include "boxes/username_box.h"
-#include "boxes/about_box.h"
-#include "boxes/star_gift_box.h"
-#include "ui/basic_click_handlers.h"
-#include "ui/boxes/confirm_box.h"
-#include "ui/controls/userpic_button.h"
-#include "ui/effects/premium_graphics.h"
-#include "ui/effects/premium_top_bar.h" // Ui::Premium::ColorizedSvg.
-#include "ui/wrap/slide_wrap.h"
-#include "ui/widgets/menu/menu_add_action_callback.h"
-#include "ui/widgets/continuous_sliders.h"
-#include "ui/widgets/popup_menu.h"
-#include "ui/text/format_values.h"
-#include "ui/text/text_utilities.h"
-#include "ui/toast/toast.h"
-#include "ui/new_badges.h"
-#include "ui/rect.h"
-#include "ui/vertical_list.h"
-#include "info/channel_statistics/earn/earn_icons.h"
+#include "core/application.h"
+#include "core/click_handler_types.h"
+#include "data/components/promo_suggestions.h"
+#include "data/data_cloud_themes.h"
+#include "data/data_session.h"
+#include "data/data_user.h"
 #include "info/profile/info_profile_badge.h"
 #include "info/profile/info_profile_emoji_status_panel.h"
-#include "data/components/credits.h"
-#include "data/components/promo_suggestions.h"
-#include "data/data_user.h"
-#include "data/data_session.h"
-#include "data/data_cloud_themes.h"
-#include "data/data_chat_filters.h"
+#include "info/profile/info_profile_values.h"
 #include "lang/lang_cloud_manager.h"
 #include "lang/lang_instance.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
-#include "storage/localstorage.h"
-#include "main/main_session.h"
-#include "main/main_session_settings.h"
-#include "main/main_account.h"
 #include "main/main_domain.h"
-#include "main/main_app_config.h"
-#include "apiwrap.h"
-#include "api/api_peer_photo.h"
-#include "api/api_cloud_password.h"
-#include "api/api_global_privacy.h"
-#include "api/api_sensitive_content.h"
-#include "api/api_premium.h"
-#include "info/profile/info_profile_values.h"
+#include "main/main_session.h"
+#include "settings/cloud_password/settings_cloud_password_input.h"
+#include "settings/settings_codes.h"
+#include "settings/settings_information.h"
+#include "settings/settings_scale_preview.h"
+#include "storage/localstorage.h"
+#include "ui/basic_click_handlers.h"
+#include "ui/boxes/confirm_box.h"
+#include "ui/controls/userpic_button.h"
+#include "ui/rect.h"
+#include "ui/text/format_values.h"
+#include "ui/text/text_utilities.h"
+#include "ui/vertical_list.h"
+#include "ui/widgets/continuous_sliders.h"
+#include "ui/widgets/menu/menu_add_action_callback.h"
+#include "ui/widgets/popup_menu.h"
+#include "ui/wrap/slide_wrap.h"
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
-#include "base/call_delayed.h"
-#include "base/platform/base_platform_info.h"
-#include "styles/style_chat.h"
-#include "styles/style_settings.h"
 #include "styles/style_info.h"
-#include "styles/style_layers.h" // boxLabel
+#include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
+#include "styles/style_settings.h"
 
 #include <QtGui/QGuiApplication>
 #include <QtGui/QClipboard>
@@ -290,99 +266,7 @@ void Cover::refreshUsernameGeometry(int newWidth) {
 	_username->moveToLeft(usernameLeft, usernameTop, newWidth);
 }
 
-[[nodiscard]] not_null<Ui::SettingsButton*> AddPremiumStar(
-		not_null<Ui::SettingsButton*> button,
-		bool credits,
-		Fn<bool()> isPaused) {
-	const auto stops = credits
-		? Ui::Premium::CreditsIconGradientStops()
-		: Ui::Premium::ButtonGradientStops();
-
-	const auto ministarsContainer = Ui::CreateChild<Ui::RpWidget>(button);
-	const auto &buttonSt = button->st();
-	const auto fullHeight = buttonSt.height
-		+ rect::m::sum::v(buttonSt.padding);
-	using MiniStars = Ui::Premium::ColoredMiniStars;
-	const auto ministars = button->lifetime().make_state<MiniStars>(
-		ministarsContainer,
-		false);
-	ministars->setColorOverride(stops);
-
-	const auto isPausedValue
-		= button->lifetime().make_state<rpl::variable<bool>>(isPaused());
-	isPausedValue->value() | rpl::on_next([=](bool value) {
-		ministars->setPaused(value);
-	}, ministarsContainer->lifetime());
-
-	ministarsContainer->paintRequest(
-	) | rpl::on_next([=] {
-		(*isPausedValue) = isPaused();
-		auto p = QPainter(ministarsContainer);
-		{
-			constexpr auto kScale = 0.35;
-			const auto r = ministarsContainer->rect();
-			p.translate(r.center());
-			p.scale(kScale, kScale);
-			p.translate(-r.center());
-		}
-		ministars->paint(p);
-	}, ministarsContainer->lifetime());
-
-	const auto badge = Ui::CreateChild<Ui::RpWidget>(button.get());
-
-	auto star = [&] {
-		const auto factor = style::DevicePixelRatio();
-		const auto size = Size(st::settingsButtonNoIcon.style.font->ascent);
-		auto image = QImage(
-			size * factor,
-			QImage::Format_ARGB32_Premultiplied);
-		image.setDevicePixelRatio(factor);
-		image.fill(Qt::transparent);
-		{
-			auto p = QPainter(&image);
-			auto star = QSvgRenderer(Ui::Premium::ColorizedSvg(stops));
-			star.render(&p, Rect(size));
-		}
-		return image;
-	}();
-	badge->resize(star.size() / style::DevicePixelRatio());
-	badge->paintRequest(
-	) | rpl::on_next([=] {
-		auto p = QPainter(badge);
-		p.drawImage(0, 0, star);
-	}, badge->lifetime());
-
-	button->sizeValue(
-	) | rpl::on_next([=](const QSize &s) {
-		badge->moveToLeft(
-			button->st().iconLeft
-				+ (st::menuIconShop.width() - badge->width()) / 2,
-			(s.height() - badge->height()) / 2);
-		ministarsContainer->moveToLeft(
-			badge->x() - (fullHeight - badge->height()) / 2,
-			0);
-	}, badge->lifetime());
-
-	ministarsContainer->resize(fullHeight, fullHeight);
-	ministars->setCenter(ministarsContainer->rect());
-
-	return button;
-}
-
 } // namespace
-
-void SetupPowerSavingButton(
-		not_null<Window::Controller*> window,
-		not_null<Ui::VerticalLayout*> container) {
-	const auto button = AddButtonWithIcon(
-		container,
-		tr::lng_settings_power_menu(),
-		st::settingsButton,
-		{ &st::menuIconPowerUsage });
-	button->setClickedCallback([=] {
-		window->show(Box(PowerSavingBox));
-	});
-}
 
 void SetupLanguageButton(
 		not_null<Window::Controller*> window,
@@ -596,214 +480,6 @@ void SetupValidatePasswordSuggestion(
 	Ui::AddSkip(content);
 }
 
-void SetupSections(
-		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container,
-		Fn<void(Type)> showOther) {
-	Ui::AddDivider(container);
-	Ui::AddSkip(container);
-
-	SetupValidatePhoneNumberSuggestion(
-		controller,
-		container,
-		showOther);
-	SetupValidatePasswordSuggestion(
-		controller,
-		container,
-		showOther);
-
-	const auto addSection = [&](
-			rpl::producer<QString> label,
-			Type type,
-			IconDescriptor &&descriptor) {
-		AddButtonWithIcon(
-			container,
-			std::move(label),
-			st::settingsButton,
-			std::move(descriptor)
-		)->addClickHandler([=] {
-			showOther(type);
-		});
-	};
-	if (controller->session().supportMode()) {
-		SetupSupport(controller, container);
-
-		Ui::AddDivider(container);
-		Ui::AddSkip(container);
-	} else {
-		addSection(
-			tr::lng_settings_my_account(),
-			Information::Id(),
-			{ &st::menuIconProfile });
-	}
-
-	addSection(
-		tr::lng_settings_section_notify(),
-		Notifications::Id(),
-		{ &st::menuIconNotifications });
-	addSection(
-		tr::lng_settings_section_privacy(),
-		PrivacySecurity::Id(),
-		{ &st::menuIconLock });
-	addSection(
-		tr::lng_settings_section_chat_settings(),
-		Chat::Id(),
-		{ &st::menuIconChatBubble });
-
-	const auto preload = [=] {
-		controller->session().data().chatsFilters().requestSuggested();
-	};
-	const auto account = &controller->session().account();
-	const auto slided = container->add(
-		object_ptr<Ui::SlideWrap<Ui::SettingsButton>>(
-			container,
-			CreateButtonWithIcon(
-				container,
-				tr::lng_settings_section_filters(),
-				st::settingsButton,
-				{ &st::menuIconShowInFolder }))
-	)->setDuration(0);
-	if (controller->session().data().chatsFilters().has()
-		|| controller->session().settings().dialogsFiltersEnabled()) {
-		slided->show(anim::type::instant);
-		preload();
-	} else {
-		const auto enabled = [=] {
-			const auto result = account->appConfig().get<bool>(
-				u"dialog_filters_enabled"_q,
-				false);
-			if (result) {
-				preload();
-			}
-			return result;
-		};
-		const auto preloadIfEnabled = [=](bool enabled) {
-			if (enabled) {
-				preload();
-			}
-		};
-		slided->toggleOn(
-			rpl::single(rpl::empty) | rpl::then(
-				account->appConfig().refreshed()
-			) | rpl::map(
-				enabled
-			) | rpl::before_next(preloadIfEnabled));
-	}
-	slided->entity()->setClickedCallback([=] {
-		showOther(Folders::Id());
-	});
-
-	addSection(
-		tr::lng_settings_advanced(),
-		Advanced::Id(),
-		{ &st::menuIconManage });
-	addSection(
-		tr::lng_settings_section_devices(),
-		Calls::Id(),
-		{ &st::menuIconUnmute });
-
-	SetupPowerSavingButton(&controller->window(), container);
-	SetupLanguageButton(&controller->window(), container);
-
-	Ui::AddSkip(container);
-}
-
-void SetupPremium(
-		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container,
-		Fn<void(Type)> showOther) {
-	if (!controller->session().premiumPossible()) {
-		return;
-	}
-	Ui::AddDivider(container);
-	Ui::AddSkip(container);
-
-	const auto isPaused = Window::PausedIn(
-		controller,
-		Window::GifPauseReason::Any);
-
-	AddPremiumStar(
-		AddButtonWithIcon(
-			container,
-			tr::lng_premium_summary_title(),
-			st::settingsButton),
-		false,
-		isPaused
-	)->addClickHandler([=] {
-		controller->setPremiumRef("settings");
-		showOther(PremiumId());
-	});
-	{
-		controller->session().credits().load();
-		AddPremiumStar(
-			AddButtonWithLabel(
-				container,
-				tr::lng_settings_credits(),
-				controller->session().credits().balanceValue(
-				) | rpl::map([=](CreditsAmount c) {
-					return c
-						? Lang::FormatCreditsAmountToShort(c).string
-						: QString();
-				}),
-				st::settingsButton),
-			true,
-			isPaused
-		)->addClickHandler([=] {
-			controller->setPremiumRef("settings");
-			showOther(CreditsId());
-		});
-	}
-	{
-		const auto wrap = container->add(
-			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-				container,
-				object_ptr<Ui::VerticalLayout>(container)));
-		wrap->toggleOn(
-			controller->session().credits().tonBalanceValue(
-			) | rpl::map([](CreditsAmount c) -> bool { return !c.empty(); }));
-		wrap->finishAnimating();
-		controller->session().credits().tonLoad();
-		const auto button = AddButtonWithLabel(
-			wrap->entity(),
-			tr::lng_settings_currency(),
-			controller->session().credits().tonBalanceValue(
-			) | rpl::map([=](CreditsAmount c) {
-				return c
-					? Lang::FormatCreditsAmountToShort(c).string
-					: QString();
-			}),
-			st::settingsButton,
-			{ &st::menuIconTon });
-		button->addClickHandler([=] {
-			controller->setPremiumRef("settings");
-			showOther(CurrencyId());
-		});
-	}
-	const auto button = AddButtonWithIcon(
-		container,
-		tr::lng_business_title(),
-		st::settingsButton,
-		{ .icon = &st::menuIconShop });
-	button->addClickHandler([=] {
-		showOther(BusinessId());
-	});
-
-	if (controller->session().premiumCanBuy()) {
-		const auto button = AddButtonWithIcon(
-			container,
-			tr::lng_settings_gift_premium(),
-			st::settingsButton,
-			{ .icon = &st::menuIconGiftPremium }
-		);
-		Ui::NewBadge::AddToRight(button);
-
-		button->addClickHandler([=] {
-			Ui::ChooseStarGiftRecipient(controller);
-		});
-	}
-	Ui::AddSkip(container);
-}
-
 bool HasInterfaceScale() {
 	return true;
 }
@@ -961,75 +637,6 @@ void SetupInterfaceScale(
 	}
 }
 
-void SetupHelp(
-		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container) {
-	Ui::AddDivider(container);
-	Ui::AddSkip(container);
-
-	AddButtonWithIcon(
-		container,
-		tr::lng_settings_faq(),
-		st::settingsButton,
-		{ &st::menuIconFaq }
-	)->addClickHandler([=] {
-		OpenFaq(controller);
-	});
-
-	AddButtonWithIcon(
-		container,
-		tr::lng_settings_features(),
-		st::settingsButton,
-		{ &st::menuIconEmojiObjects }
-	)->setClickedCallback([=] {
-		UrlClickHandler::Open(tr::lng_telegram_features_url(tr::now));
-	});
-
-	const auto button = AddButtonWithIcon(
-		container,
-		tr::lng_settings_ask_question(),
-		st::settingsButton,
-		{ &st::menuIconDiscussion });
-	const auto requestId = button->lifetime().make_state<mtpRequestId>();
-	button->lifetime().add([=] {
-		if (*requestId) {
-			controller->session().api().request(*requestId).cancel();
-		}
-	});
-	button->addClickHandler([=] {
-		const auto sure = crl::guard(button, [=] {
-			if (*requestId) {
-				return;
-			}
-			*requestId = controller->session().api().request(
-				MTPhelp_GetSupport()
-			).done([=](const MTPhelp_Support &result) {
-				*requestId = 0;
-				result.match([&](const MTPDhelp_support &data) {
-					auto &owner = controller->session().data();
-					if (const auto user = owner.processUser(data.vuser())) {
-						controller->showPeerHistory(user);
-					}
-				});
-			}).fail([=] {
-				*requestId = 0;
-			}).send();
-		});
-		auto box = Ui::MakeConfirmBox({
-			.text = tr::lng_settings_ask_sure(),
-			.confirmed = sure,
-			.cancelled = [=](Fn<void()> close) {
-				OpenFaq(controller);
-				close();
-			},
-			.confirmText = tr::lng_settings_ask_ok(),
-			.cancelText = tr::lng_settings_faq_button(),
-			.strictCancel = true,
-		});
-		controller->show(std::move(box));
-	});
-}
-
 Main::Main(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
@@ -1072,34 +679,6 @@ void Main::keyPressEvent(QKeyEvent *e) {
 	return Section::keyPressEvent(e);
 }
 
-void Main::setupContent(not_null<Window::SessionController*> controller) {
-	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
-
-	content->add(object_ptr<Cover>(
-		content,
-		controller,
-		controller->session().user()));
-
-	SetupSections(controller, content, showOtherMethod());
-	if (HasInterfaceScale()) {
-		Ui::AddDivider(content);
-		Ui::AddSkip(content);
-		SetupInterfaceScale(&controller->window(), content);
-		Ui::AddSkip(content);
-	}
-	SetupPremium(controller, content, showOtherMethod());
-	SetupHelp(controller, content);
-
-	Ui::ResizeFitChild(this, content);
-
-	// If we load this in advance it won't jump when we open its' section.
-	controller->session().api().cloudPassword().reload();
-	controller->session().api().reloadContactSignupSilent();
-	controller->session().api().sensitiveContent().reload();
-	controller->session().api().globalPrivacy().reload();
-	controller->session().data().cloudThemes().refresh();
-}
-
 void Main::setupContentWithBuilder(
 		not_null<Window::SessionController*> controller) {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
@@ -1110,15 +689,6 @@ void Main::setupContentWithBuilder(
 		controller->session().user()));
 
 	Builder::BuildMainSection(content, controller, showOtherMethod());
-
-	if (HasInterfaceScale()) {
-		Ui::AddDivider(content);
-		Ui::AddSkip(content);
-		SetupInterfaceScale(&controller->window(), content);
-		Ui::AddSkip(content);
-	}
-	SetupPremium(controller, content, showOtherMethod());
-	SetupHelp(controller, content);
 
 	Ui::ResizeFitChild(this, content);
 

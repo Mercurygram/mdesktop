@@ -28,7 +28,8 @@ public:
 
 	void setInnerFocus() override;
 
-	static base::binary_guard Show(Window::SessionController *controller);
+	[[nodiscard]] static base::binary_guard Show(
+		Window::SessionController *controller);
 
 protected:
 	void prepare() override;
