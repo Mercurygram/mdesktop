@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_app_config.h"
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
+#include "spellcheck/spellcheck_types.h"
 
 namespace Api {
 
@@ -235,14 +236,17 @@ void Transcribes::summarize(not_null<HistoryItem*> item) {
 	}
 
 	const auto id = item->fullId();
-	const auto langSummary = summaryFromLang(id);
+	const auto translatedTo = item->history()->translatedTo();
+	const auto langCode = translatedTo
+		? translatedTo.twoLetterCode()
+		: QString();
 	const auto requestId = _api.request(MTPmessages_SummarizeText(
-		langSummary.isEmpty()
+		langCode.isEmpty()
 			? MTP_flags(0)
 			: MTP_flags(MTPmessages_summarizeText::Flag::f_to_lang),
 		item->history()->peer->input(),
 		MTP_int(item->id),
-		langSummary.isEmpty() ? MTPstring() : MTP_string(langSummary)
+		langCode.isEmpty() ? MTPstring() : MTP_string(langCode)
 	)).done([=](const MTPTextWithEntities &result) {
 		const auto &data = result.data();
 		auto &entry = _summaries[id];
