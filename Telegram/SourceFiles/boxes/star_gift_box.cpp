@@ -26,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/premium_preview_box.h"
 #include "boxes/send_credits_box.h"
 #include "boxes/star_gift_auction_box.h"
+#include "boxes/star_gift_preview_box.h"
 #include "boxes/star_gift_resale_box.h"
 #include "boxes/transfer_gift_box.h"
 #include "chat_helpers/emoji_suggestions_widget.h"
@@ -2864,6 +2865,7 @@ void AddUniqueGiftCover(
 		base::unique_qptr<FlatLabel> subtitle;
 		base::unique_qptr<AbstractButton> subtitleButton;
 		rpl::variable<int> subtitleHeight;
+		bool outlined = false;
 		QColor bg;
 		QColor fg;
 	};
@@ -3277,15 +3279,19 @@ void AddUniqueGiftCover(
 				tr::marked);
 	});
 	released->by.value() | rpl::on_next([=](PeerData *by) {
-		released->st = by
+		released->outlined = by || args.subtitleOutlined;
+		released->st = released->outlined
 			? st::uniqueGiftReleasedBy
 			: st::uniqueGiftSubtitle;
 		released->st.palette.linkFg = released->link.color();
 
+		const auto session = &state->now.gift->model.document->session();
 		released->subtitle = base::make_unique_q<FlatLabel>(
 			cover,
 			released->subtitleText.value(),
-			released->st);
+			released->st,
+			st::defaultPopupMenu,
+			Core::TextContext({ .session = session }));
 		const auto subtitle = released->subtitle.get();
 		subtitle->show();
 
@@ -3300,12 +3306,13 @@ void AddUniqueGiftCover(
 		}, subtitle->lifetime());
 		released->subtitleHeight = subtitle->heightValue();
 
-		if (const auto handler = args.subtitleClick) {
+		if (!args.subtitleOutlined && args.subtitleClick) {
+			const auto handler = args.subtitleClick;
 			subtitle->setClickHandlerFilter([=](const auto &...) {
 				handler();
 				return false;
 			});
-		} else if (by) {
+		} else if (released->outlined) {
 			released->subtitleButton = base::make_unique_q<AbstractButton>(
 				cover);
 			const auto button = released->subtitleButton.get();
@@ -3314,9 +3321,9 @@ void AddUniqueGiftCover(
 			subtitle->raise();
 			subtitle->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-			button->setClickedCallback([=] {
-				GiftReleasedByHandler(by);
-			});
+			button->setClickedCallback(args.subtitleClick
+				? args.subtitleClick
+				: [=] { GiftReleasedByHandler(by); });
 			subtitle->geometryValue(
 			) | rpl::on_next([=](QRect geometry) {
 				button->setGeometry(
@@ -4620,6 +4627,7 @@ struct UpgradeArgs : StarGiftUpgradeArgs {
 	std::vector<Data::UniqueGiftBackdrop> backdrops;
 	std::vector<UpgradePrice> prices;
 	std::vector<UpgradePrice> nextPrices;
+	Data::UniqueGiftAttributes all;
 };
 
 [[nodiscard]] rpl::producer<UniqueGiftCover> MakeUpgradeGiftStream(
@@ -4720,12 +4728,34 @@ void AddUpgradeGiftCover(
 			})
 			: MakeUpgradeGiftStream(args);
 	}) | rpl::flatten_latest();
+
+	auto emoji = tr::marked();
+	if (const auto &models = args.all.models; !models.empty()) {
+		const auto indices = RandomIndicesSubset(models.size(), 3);
+		for (const auto index : indices) {
+			auto single = Data::SingleCustomEmoji(models[index].document);
+			single.entities.front() = EntityInText(
+				single.entities.front().type(),
+				single.entities.front().offset(),
+				single.entities.front().length(),
+				u"scaled-custom:"_q + single.entities.front().data());
+			emoji.append(single).append(' ');
+		}
+	}
+
 	auto subtitle = state->upgraded.value(
 	) | rpl::map([=](std::shared_ptr<Data::GiftUpgradeResult> upgraded) {
 		return upgraded
 			? rpl::single(tr::marked())
 			: args.savedId
-			? tr::lng_gift_upgrade_about(tr::marked)
+			? (emoji.empty()
+				? tr::lng_gift_upgrade_about(tr::marked)
+				: tr::lng_gift_upgrade_view_all(
+					lt_emoji,
+					rpl::single(emoji),
+					lt_arrow,
+					rpl::single(Text::IconEmoji(&st::textMoreIconEmoji)),
+					tr::link))
 			: (args.peer->isBroadcast()
 				? tr::lng_gift_upgrade_preview_about_channel
 				: tr::lng_gift_upgrade_preview_about)(
@@ -4733,8 +4763,18 @@ void AddUpgradeGiftCover(
 					rpl::single(tr::marked(args.peer->shortName())),
 					tr::marked);
 	}) | rpl::flatten_latest();
+	const auto hasAll = !args.all.models.empty();
+	const auto title = args.stargift.resellTitle;
+	const auto showAll = [=, list = args.all] {
+		const auto type = Data::GiftAttributeIdType::Model;
+		const auto null = nullptr;
+		show->show(Box(StarGiftPreviewBox, title, list, type, null));
+	};
 	AddUniqueGiftCover(container, std::move(gifts), {
 		.subtitle = std::move(subtitle),
+		.subtitleClick = hasAll ? showAll : Fn<void()>(),
+		.subtitleLinkColored = hasAll,
+		.subtitleOutlined = hasAll,
 		.resalePrice = std::move(resalePrice),
 		.resaleClick = std::move(resaleClick),
 		.upgradeSpinner = upgradeSpinner,
@@ -5495,6 +5535,32 @@ void UpgradeBox(
 	}, box->lifetime());
 }
 
+void GetVariantsAndShowUpgradeBox(UpgradeArgs &&args) {
+	const auto weak = base::make_weak(args.controller);
+	const auto session = &args.peer->session();
+	const auto auctions = &session->giftAuctions();
+	const auto guard = base::make_weak(args.controller);
+	const auto done = crl::guard(args.controller, [](UpgradeArgs &&args) {
+		const auto onstack = args.ready;
+		const auto window = args.controller;
+		window->show(Box(UpgradeBox, window, std::move(args)));
+		if (onstack) {
+			onstack(true);
+		}
+	});
+	const auto giftId = args.stargift.id;
+	if (auto attributes = auctions->attributes(args.stargift.id)) {
+		args.all = std::move(*attributes);
+		done(std::move(args));
+	} else {
+		auctions->requestAttributes(giftId, crl::guard(guard, [=] {
+			auto copy = args;
+			copy.all = std::move(*auctions->attributes(giftId));
+			done(std::move(copy));
+		}));
+	}
+}
+
 void ShowStarGiftUpgradeBox(StarGiftUpgradeArgs &&args) {
 	const auto weak = base::make_weak(args.controller);
 	const auto session = &args.peer->session();
@@ -5521,10 +5587,7 @@ void ShowStarGiftUpgradeBox(StarGiftUpgradeArgs &&args) {
 				upgrade.backdrops.push_back(Api::FromTL(data));
 			}, [](const auto &) {});
 		}
-		strong->show(Box(UpgradeBox, strong, std::move(upgrade)));
-		if (const auto onstack = args.ready) {
-			onstack(true);
-		}
+		GetVariantsAndShowUpgradeBox(std::move(upgrade));
 	}).fail([=](const MTP::Error &error) {
 		if (const auto strong = weak.get()) {
 			strong->showToast(error.type());

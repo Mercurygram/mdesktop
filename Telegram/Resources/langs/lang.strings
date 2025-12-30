@@ -3915,6 +3915,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_sell_small#other" = "sell for {count} Stars";
 "lng_gift_upgrade_title" = "Upgrade Gift";
 "lng_gift_upgrade_about" = "Turn your gift into a unique collectible\nthat you can transfer or auction.";
+"lng_gift_upgrade_view_all" = "{emoji} View all variants {arrow}";
 "lng_gift_upgrade_preview_title" = "Make Unique";
 "lng_gift_upgrade_preview_about" = "Let {name} turn your gift into a unique collectible.";
 "lng_gift_upgrade_preview_about_channel" = "Let the admins of {name} turn your gift into a unique collectible.";

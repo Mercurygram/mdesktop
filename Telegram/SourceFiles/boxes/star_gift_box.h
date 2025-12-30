@@ -70,6 +70,7 @@ struct UniqueGiftCoverArgs {
 	rpl::producer<TextWithEntities> subtitle;
 	Fn<void()> subtitleClick;
 	bool subtitleLinkColored = false;
+	bool subtitleOutlined = false;
 	rpl::producer<CreditsAmount> resalePrice;
 	Fn<void()> resaleClick;
 	bool attributesInfo = false;

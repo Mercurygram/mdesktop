@@ -955,30 +955,6 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 		helper.context());
 }
 
-[[nodiscard]] std::vector<int> RandomIndicesSubset(int total, int subset) {
-	const auto take = std::min(total, subset);
-	if (!take) {
-		return {};
-	}
-	auto result = std::vector<int>();
-	auto taken = base::flat_set<int>();
-	result.reserve(take);
-	taken.reserve(take);
-	for (auto i = 0; i < take; ++i) {
-		auto index = base::RandomIndex(total - i);
-		for (const auto already : taken) {
-			if (index >= already) {
-				++index;
-			} else {
-				break;
-			}
-		}
-		taken.emplace(index);
-		result.push_back(index);
-	}
-	return result;
-}
-
 [[nodiscard]] object_ptr<TableLayout> AuctionInfoTable(
 		not_null<QWidget*> parent,
 		not_null<VerticalLayout*> container,
@@ -2113,6 +2089,30 @@ Fn<void()> ActiveAuctionsCallback(
 			box->addButton(tr::lng_box_ok(), [=] { box->closeBox(); });
 		}));
 	};
+}
+
+std::vector<int> RandomIndicesSubset(int total, int subset) {
+	const auto take = std::min(total, subset);
+	if (!take) {
+		return {};
+	}
+	auto result = std::vector<int>();
+	auto taken = base::flat_set<int>();
+	result.reserve(take);
+	taken.reserve(take);
+	for (auto i = 0; i < take; ++i) {
+		auto index = base::RandomIndex(total - i);
+		for (const auto already : taken) {
+			if (index >= already) {
+				++index;
+			} else {
+				break;
+			}
+		}
+		taken.emplace(index);
+		result.push_back(index);
+	}
+	return result;
 }
 
 } // namespace Ui

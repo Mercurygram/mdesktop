@@ -77,4 +77,6 @@ struct ManyAuctionsState {
 	not_null<Window::SessionController*> window,
 	const Data::ActiveAuctions &auctions);
 
+[[nodiscard]] std::vector<int> RandomIndicesSubset(int total, int subset);
+
 } // namespace Ui
