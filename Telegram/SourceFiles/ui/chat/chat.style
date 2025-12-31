@@ -591,10 +591,11 @@ historyGoToOriginalIcon: icon {{ "filled_go_to_message", msgServiceFg, point(0px
 historyFastCommentsIcon: icon {{ "fast_comments", msgServiceFg }};
 historyFastCloseSize: 30px;
 historyFastCloseIcon: icon {{ "box_button_close", msgServiceFg }};
-historyFastMoreIcon: icon {{ "title_menu_dots", msgServiceFg, point(0px, -2px)  }};
+historyFastMoreIcon: icon {{ "title_menu_dots", msgServiceFg, point(0px, -2px) }};
 historyFastTranscribeIcon: icon {{ "chat/voice_to_text", msgServiceFg }};
 historyFastTranscribeLock: icon {{ "chat/mini_lock", msgServiceFg }};
 historyFastTranscribeLockPos: point(18px, 13px);
+historyFastSummaryLockPos: point(13px, 13px);
 historyFastTranscribeLockOverlayPos: point(21px, 13px);
 historyFastTranscribeLockOverlaySize: size(6px, 10px);
 

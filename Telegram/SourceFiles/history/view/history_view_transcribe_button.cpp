@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "main/main_session.h"
 #include "lang/lang_keys.h"
+#include "settings/settings_premium.h"
 #include "ui/chat/chat_style.h"
 #include "ui/effects/radial_animation.h"
 #include "ui/effects/ripple_animation.h"
@@ -129,7 +130,43 @@ void TranscribeButton::paint(
 		p.setBrush(context.st->msgServiceBg());
 
 		p.drawEllipse(r);
-		if (!_loading && hasLock()) {
+		if (_summarize) {
+			if (!_particles) {
+				_particles = std::make_unique<Ui::StarParticles>(
+					Ui::StarParticles::Type::RadialInside,
+					7,
+					st::lineWidth * 4);
+				_particles->setColor(st::msgServiceFg->c);
+				_particles->setSpeed(0.2);
+			}
+			p.setClipRegion(QRegion(r, QRegion::Ellipse));
+			const auto paused = context.paused
+				|| (!_summarizeHovered && !_loading)
+				|| On(PowerSaving::kChatEffects);
+			_particles->paint(p, r, context.now, paused);
+			p.setClipping(false);
+			if (hasLock()) {
+				context.st->historyFastTranscribeLock().paint(
+					p,
+					r.topLeft() + st::historyFastSummaryLockPos,
+					r.width());
+			}
+			if (!paused) {
+				const auto session = &_item->history()->session();
+				Ui::PostponeCall(session, [=, itemId = _item->fullId()] {
+					if (const auto i = session->data().message(itemId)) {
+						session->data().requestItemRepaint(i, r);
+					}
+				});
+			}
+			(_item->history()->session().api().transcribes().summary(
+					_item).shown
+				? st::mediaviewFullScreenButton.icon
+				: st::mediaviewFullScreenOutIcon).paintInCenter(
+					p,
+					r,
+					st::msgServiceFg->c);
+		} else if (!_loading && hasLock()) {
 			ClipPainterForLock(p, true, r);
 			context.st->historyFastTranscribeIcon().paintInCenter(p, r);
 			p.setClipping(false);
@@ -138,39 +175,7 @@ void TranscribeButton::paint(
 				r.topLeft() + st::historyFastTranscribeLockPos,
 				r.width());
 		} else {
-			if (_summarize) {
-				if (!_particles) {
-					_particles = std::make_unique<Ui::StarParticles>(
-						Ui::StarParticles::Type::RadialInside,
-						7,
-						st::lineWidth * 4);
-					_particles->setColor(st::msgServiceFg->c);
-					_particles->setSpeed(0.2);
-				}
-				p.setClipRegion(QRegion(r, QRegion::Ellipse));
-				const auto paused = context.paused
-					|| (!_summarizeHovered && !_loading)
-					|| On(PowerSaving::kChatEffects);
-				_particles->paint(p, r, context.now, paused);
-				p.setClipping(false);
-				if (!paused) {
-					const auto session = &_item->history()->session();
-					Ui::PostponeCall(session, [=, itemId = _item->fullId()] {
-						if (const auto i = session->data().message(itemId)) {
-							session->data().requestItemRepaint(i, r);
-						}
-					});
-				}
-				(_item->history()->session().api().transcribes().summary(
-						_item).shown
-					? st::mediaviewFullScreenButton.icon
-					: st::mediaviewFullScreenOutIcon).paintInCenter(
-						p,
-						r,
-						st::msgServiceFg->c);
-			} else {
-				context.st->historyFastTranscribeIcon().paintInCenter(p, r);
-			}
+			context.st->historyFastTranscribeIcon().paintInCenter(p, r);
 		}
 
 		const auto state = _animation
@@ -273,10 +278,14 @@ void TranscribeButton::paint(
 
 bool TranscribeButton::hasLock() const {
 	const auto session = &_item->history()->session();
+	if (session->premium()) {
+		return false;
+	}
 	const auto transcribes = &session->api().transcribes();
-	if (session->premium()
-		|| transcribes->freeFor(_item)
-		|| transcribes->trialsCount()) {
+	if (_summarize) {
+		return transcribes->summary(_item).premiumRequired;
+	}
+	if (transcribes->freeFor(_item) || transcribes->trialsCount()) {
 		return false;
 	}
 	const auto until = transcribes->trialsRefreshAt();
@@ -319,15 +328,19 @@ ClickHandlerPtr TranscribeButton::link() {
 		if (session->premium()) {
 			auto &transcribes = session->api().transcribes();
 			return summarize
-				? transcribes.toggleSummary(item)
+				? transcribes.toggleSummary(item, nullptr)
 				: transcribes.toggle(item);
 		}
 		const auto my = context.other.value<ClickHandlerContext>();
 		if (hasLock()) {
 			if (const auto controller = my.sessionWindow.get()) {
-				ShowPremiumPreviewBox(
-					controller,
-					PremiumFeature::VoiceToText);
+				if (summarize) {
+					Settings::ShowPremium(controller, u"summary"_q);
+				} else {
+					ShowPremiumPreviewBox(
+						controller,
+						PremiumFeature::VoiceToText);
+				}
 			}
 		} else {
 			const auto max = session->api().transcribes().trialsMaxLengthMs();
@@ -343,10 +356,19 @@ ClickHandlerPtr TranscribeButton::link() {
 					}
 				}
 			}
-			auto &transcribes = session->api().transcribes();
-			summarize
-				? transcribes.toggleSummary(item)
-				: transcribes.toggle(item);
+			if (summarize) {
+				const auto weak = my.sessionWindow;
+				session->api().transcribes().toggleSummary(item, [=] {
+					if (const auto strong = weak.get()) {
+						Settings::ShowPremium(strong, u"summary"_q);
+						// ShowPremiumPreviewBox(
+						// 	strong,
+						// 	PremiumFeature::VoiceToText);
+					}
+				});
+			} else {
+				session->api().transcribes().toggle(item);
+			}
 		}
 	});
 	return _link;

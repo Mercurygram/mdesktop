@@ -115,13 +115,19 @@ void Transcribes::toggle(not_null<HistoryItem*> item) {
 	}
 }
 
-void Transcribes::toggleSummary(not_null<HistoryItem*> item) {
+void Transcribes::toggleSummary(
+		not_null<HistoryItem*> item,
+		Fn<void()> onPremiumRequired) {
 	const auto id = item->fullId();
 	auto i = _summaries.find(id);
 	if (i == _summaries.end()) {
+		auto &entry = _summaries.emplace(id).first->second;
+		entry.onPremiumRequired = std::move(onPremiumRequired);
 		summarize(item);
 	} else if (!i->second.loading) {
-		i->second.shown = !i->second.shown;
+		i->second.shown = i->second.premiumRequired
+			? false
+			: !i->second.shown;
 		_session->data().requestItemResize(item);
 		if (i->second.shown) {
 			_session->data().requestItemShowHighlight(item);
@@ -252,6 +258,8 @@ void Transcribes::summarize(not_null<HistoryItem*> item) {
 		auto &entry = _summaries[id];
 		entry.requestId = 0;
 		entry.loading = false;
+		entry.premiumRequired = false;
+		entry.onPremiumRequired = nullptr;
 		entry.result = TextWithEntities(
 			qs(data.vtext()),
 			Api::EntitiesFromMTP(_session, data.ventities().v));
@@ -259,10 +267,18 @@ void Transcribes::summarize(not_null<HistoryItem*> item) {
 			_session->data().requestItemResize(item);
 			_session->data().requestItemShowHighlight(item);
 		}
-	}).fail([=] {
+	}).fail([=](const MTP::Error &error) {
 		auto &entry = _summaries[id];
+		if (error.type() == u"SUMMARY_FLOOD_PREMIUM"_q) {
+			if (!entry.premiumRequired && entry.onPremiumRequired) {
+				entry.onPremiumRequired();
+			}
+			entry.premiumRequired = true;
+		}
 		entry.requestId = 0;
+		entry.shown = false;
 		entry.loading = false;
+		entry.onPremiumRequired = nullptr;
 		if (const auto item = _session->data().message(id)) {
 			_session->data().requestItemResize(item);
 		}

@@ -466,7 +466,9 @@ void Reply::updateForSummary(not_null<Element*> view) {
 			return;
 		}
 		if (const auto i = controller->session().data().message(my.itemId)) {
-			controller->session().api().transcribes().toggleSummary(i);
+			controller->session().api().transcribes().toggleSummary(
+				i,
+				nullptr);
 		}
 	});
 }

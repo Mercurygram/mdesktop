@@ -18,9 +18,11 @@ class Session;
 namespace Api {
 
 struct SummaryEntry {
+	Fn<void()> onPremiumRequired = nullptr;
 	TextWithEntities result;
 	bool shown = false;
 	bool loading = false;
+	bool premiumRequired = false;
 	mtpRequestId requestId = 0;
 };
 
@@ -41,7 +43,9 @@ public:
 	void toggle(not_null<HistoryItem*> item);
 	[[nodiscard]] const Entry &entry(not_null<HistoryItem*> item) const;
 
-	void toggleSummary(not_null<HistoryItem*> item);
+	void toggleSummary(
+		not_null<HistoryItem*> item,
+		Fn<void()> onPremiumRequired);
 	[[nodiscard]] const SummaryEntry &summary(
 		not_null<const HistoryItem*> item) const;
 	void setSummaryFromLang(FullMsgId, QString &&summaryFromLang);
