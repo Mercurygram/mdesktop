@@ -50,6 +50,17 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_layers.h"
 #include "styles/style_window.h"
 
+#include "boxes/peer_list_box.h"
+#include "main/main_session_settings.h"
+#include "ui/painter.h"
+#include "ui/rect.h"
+#include "ui/widgets/menu/menu_multiline_action.h"
+#include "ui/widgets/popup_menu.h"
+#include "ui/widgets/menu/menu_action.h"
+#include "ui/effects/round_checkbox.h"
+#include "styles/style_chat.h"
+#include "styles/style_info.h"
+
 namespace {
 
 struct ModerateOptions final {
@@ -133,6 +144,155 @@ ModerateOptions CalculateModerateOptions(const HistoryItemsList &items) {
 	};
 }
 
+using CommonGroups = std::vector<not_null<PeerData*>>;
+using CollectCommon = std::shared_ptr<std::vector<PeerId>>;
+
+void FillMenuModerateCommonGroups(
+		not_null<Ui::PopupMenu*> menu,
+		CommonGroups common,
+		CollectCommon collectCommon) {
+	const auto resultList
+		= menu->lifetime().make_state<base::flat_set<PeerId>>();
+	const auto rememberCheckbox = Ui::CreateChild<Ui::Checkbox>(
+		menu,
+		QString());
+	auto multiline = base::make_unique_q<Ui::Menu::MultilineAction>(
+		menu->menu(),
+		menu->st().menu,
+		st::historyHasCustomEmoji,
+		st::historyHasCustomEmojiPosition,
+		tr::lng_restrict_users_kick_from_common_group(tr::now, tr::rich));
+	multiline->setDisabled(true);
+	multiline->setAttribute(Qt::WA_TransparentForMouseEvents);
+	menu->addAction(std::move(multiline));
+	const auto session = &common.front()->session();
+	const auto save = [=] {
+		auto result = std::vector<PeerId>(
+			resultList->begin(),
+			resultList->end());
+		if (rememberCheckbox->checked()) {
+			session->settings().setModerateCommonGroups(result);
+			session->saveSettingsDelayed();
+		}
+		*collectCommon = std::move(result);
+	};
+	for (const auto &group : common) {
+		struct State {
+			std::optional<Ui::RoundImageCheckbox> checkbox;
+			Ui::RpWidget *checkboxWidget = nullptr;
+		};
+		auto item = base::make_unique_q<Ui::Menu::Action>(
+			menu->menu(),
+			menu->st().menu,
+			Ui::Menu::CreateAction(
+				menu->menu(),
+				group->name(),
+				[] {}),
+			nullptr,
+			nullptr);
+		const auto state = item->lifetime().make_state<State>();
+		item->AbstractButton::setDisabled(true);
+		item->Ui::Menu::ItemBase::setClickedCallback([=, peerId = group->id] {
+			state->checkbox->setChecked(!state->checkbox->checked());
+			if (state->checkbox->checked()) {
+				resultList->insert(peerId);
+			} else {
+				resultList->erase(peerId);
+			}
+			save();
+		});
+		const auto raw = item.get();
+		state->checkboxWidget = Ui::CreateChild<Ui::RpWidget>(raw);
+		state->checkboxWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
+		state->checkboxWidget->resize(item->width() * 2, item->height());
+		state->checkboxWidget->show();
+		state->checkbox.emplace(
+			st::moderateCommonGroupsCheckbox,
+			[=] { state->checkboxWidget->update(); },
+			PaintUserpicCallback(group, true),
+			[=](int size) { return (group->isForum() || group->isMonoforum())
+				? int(size * Ui::ForumUserpicRadiusMultiplier())
+				: std::optional<int>(); });
+		state->checkbox->setChecked(
+			ranges::contains(
+				session->settings().moderateCommonGroups(),
+				group->id)
+			|| (collectCommon
+				&& ranges::contains(*collectCommon, group->id)),
+			anim::type::instant);
+		state->checkboxWidget->paintOn([=](QPainter &p) {
+			auto pp = Painter(state->checkboxWidget);
+			state->checkbox->paint(
+				pp,
+				st::menuWithIcons.itemIconPosition.x(),
+				st::menuWithIcons.itemIconPosition.y(),
+				raw->width());
+		});
+		menu->addAction(std::move(item));
+	}
+	menu->addSeparator();
+	{
+		auto item = base::make_unique_q<Ui::Menu::Action>(
+			menu->menu(),
+			menu->st().menu,
+			Ui::Menu::CreateAction(
+				menu->menu(),
+				tr::lng_remember(tr::now),
+				[] {}),
+			nullptr,
+			nullptr);
+		item->AbstractButton::setDisabled(true);
+		item->Ui::Menu::ItemBase::setClickedCallback([=] {
+			rememberCheckbox->setChecked(!rememberCheckbox->checked());
+		});
+		rememberCheckbox->setParent(item.get());
+		rememberCheckbox->setAttribute(Qt::WA_TransparentForMouseEvents);
+		rememberCheckbox->move(st::lineWidth * 8, -st::lineWidth * 2);
+		rememberCheckbox->show();
+		menu->addAction(std::move(item));
+	}
+}
+
+void ProccessCommonGroups(
+		const HistoryItemsList &items,
+		Fn<void(CommonGroups)> processHas) {
+	const auto moderateOptions = CalculateModerateOptions(items);
+	if (moderateOptions.participants.size() != 1
+		|| !moderateOptions.allCanBan) {
+		return;
+	}
+	const auto participant = moderateOptions.participants.front();
+	const auto user = participant->asUser();
+	if (!user) {
+		return;
+	}
+	const auto currentGroupId = items.front()->history()->peer->id;
+	user->session().api().requestBotCommonGroups(user, [=] {
+		const auto commonGroups = user->session().api().botCommonGroups(user);
+		if (!commonGroups || commonGroups->empty()) {
+			return;
+		}
+
+		auto filtered = CommonGroups();
+		for (const auto &group : *commonGroups) {
+			if (group->id == currentGroupId) {
+				continue;
+			}
+			const auto channel = group->asChannel();
+			if (channel && channel->canRestrictParticipant(user)) {
+				if (channel->isGroupAdmin(user) && !channel->amCreator()) {
+					continue;
+				}
+				filtered.push_back(group);
+			}
+		}
+
+		if (!filtered.empty()) {
+			processHas(filtered);
+		}
+	});
+}
+
 } // namespace
 
 void CreateModerateMessagesBox(
@@ -150,6 +310,7 @@ void CreateModerateMessagesBox(
 	Assert(!participants.empty());
 
 	const auto confirms = inner->lifetime().make_state<rpl::event_stream<>>();
+	const auto collectCommon = std::make_shared<std::vector<PeerId>>();
 
 	const auto isSingle = participants.size() == 1;
 	const auto buttonPadding = isSingle
@@ -167,6 +328,32 @@ void CreateModerateMessagesBox(
 	const auto session = &history->session();
 	const auto historyPeerId = history->peer->id;
 	const auto ids = session->data().itemsToIds(items);
+
+	ProccessCommonGroups(
+		items,
+		[=](CommonGroups groups) {
+			using namespace Ui;
+			const auto top = box->addTopButton(st::infoTopBarMenu);
+			auto &lifetime = top->lifetime();
+			const auto menu
+				= lifetime.make_state<base::unique_qptr<Ui::PopupMenu>>();
+
+			top->setClickedCallback([=] {
+				top->setForceRippled(true);
+				*menu = base::make_unique_q<Ui::PopupMenu>(
+					top,
+					st::popupMenuExpandedSeparator);
+				(*menu)->setDestroyedCallback([=, weak = top] {
+					if (const auto strong = weak.data()) {
+						strong->setForceRippled(false);
+					}
+				});
+				FillMenuModerateCommonGroups(*menu, groups, collectCommon);
+				(*menu)->setForcedOrigin(PanelAnimation::Origin::TopRight);
+				const auto point = QPoint(top->width(), top->height());
+				(*menu)->popup(top->mapToGlobal(point));
+			});
+		});
 
 	using Request = Fn<void(not_null<PeerData*>, not_null<ChannelData*>)>;
 	const auto sequentiallyRequest = [=](
@@ -548,7 +735,16 @@ void CreateModerateMessagesBox(
 						}
 					}
 				};
-				sequentiallyRequest(request, controller->collectRequests());
+				if (collectCommon && !collectCommon->empty()) {
+					sequentiallyRequest(
+						request,
+						controller->collectRequests(),
+						*collectCommon);
+				} else {
+					sequentiallyRequest(
+						request,
+						controller->collectRequests());
+				}
 			}
 		}, ban->lifetime());
 	}

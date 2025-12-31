@@ -4346,6 +4346,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_restrict_users_part_single_header" = "What can this user do?";
 "lng_restrict_users_part_header#one" = "What can {count} selected user do?";
 "lng_restrict_users_part_header#other" = "What can {count} selected users do?";
+"lng_restrict_users_kick_from_common_group" = "Also ban from:";
 "lng_report_spam" = "Report Spam";
 "lng_report_spam_and_leave" = "Report spam and leave";
 "lng_report_spam_done" = "Thank you for your report";
