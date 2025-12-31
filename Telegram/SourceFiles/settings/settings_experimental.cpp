@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/gl/gl_detection.h"
 #include "ui/chat/chat_style_radius.h"
 #include "base/options.h"
+#include "boxes/moderate_messages_box.h"
 #include "core/application.h"
 #include "core/launcher.h"
 #include "chat_helpers/tabbed_panel.h"
@@ -170,6 +171,7 @@ void SetupExperimental(
 	}
 	addToggle(Window::kOptionDisableTouchbar);
 	addToggle(Info::kAlternativeScrollProcessing);
+	addToggle(kModerateCommonGroups);
 }
 
 } // namespace

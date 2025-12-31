@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_report.h"
 #include "apiwrap.h"
 #include "base/event_filter.h"
+#include "base/options.h"
 #include "base/timer.h"
 #include "boxes/delete_messages_box.h"
 #include "boxes/peers/edit_peer_permissions_box.h"
@@ -60,6 +61,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/effects/round_checkbox.h"
 #include "styles/style_chat.h"
 #include "styles/style_info.h"
+
+base::options::toggle ModerateCommonGroups({
+	.id = kModerateCommonGroups,
+	.name = "Ban users from several groups at once.",
+});
+
+const char kModerateCommonGroups[] = "moderate-common-groups";
 
 namespace {
 
@@ -329,6 +337,7 @@ void CreateModerateMessagesBox(
 	const auto historyPeerId = history->peer->id;
 	const auto ids = session->data().itemsToIds(items);
 
+	if (ModerateCommonGroups.value() || session->supportMode()) {
 	ProccessCommonGroups(
 		items,
 		[=](CommonGroups groups) {
@@ -354,6 +363,7 @@ void CreateModerateMessagesBox(
 				(*menu)->popup(top->mapToGlobal(point));
 			});
 		});
+	}
 
 	using Request = Fn<void(not_null<PeerData*>, not_null<ChannelData*>)>;
 	const auto sequentiallyRequest = [=](
