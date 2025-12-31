@@ -170,10 +170,6 @@ void SetupExperimental(
 	}
 	addToggle(Window::kOptionDisableTouchbar);
 	addToggle(Info::kAlternativeScrollProcessing);
-
-#ifdef Q_OS_MAC
-	addToggle("text-recognition-mac");
-#endif // Q_OS_MAC
 }
 
 } // namespace
