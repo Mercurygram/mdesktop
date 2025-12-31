@@ -171,26 +171,35 @@ void CreateModerateMessagesBox(
 	using Request = Fn<void(not_null<PeerData*>, not_null<ChannelData*>)>;
 	const auto sequentiallyRequest = [=](
 			Request request,
-			Participants participants) {
+			Participants participants,
+			std::optional<std::vector<PeerId>> channelIds = {}) {
 		constexpr auto kSmallDelayMs = 5;
 		const auto participantIds = ranges::views::all(
 			participants
 		) | ranges::views::transform([](not_null<PeerData*> peer) {
 			return peer->id;
 		}) | ranges::to_vector;
+		const auto channelIdList = channelIds.value_or(
+			std::vector<PeerId>{ historyPeerId });
 		const auto lifetime = std::make_shared<rpl::lifetime>();
-		const auto counter = lifetime->make_state<int>(0);
+		const auto participantIndex = lifetime->make_state<int>(0);
+		const auto channelIndex = lifetime->make_state<int>(0);
 		const auto timer = lifetime->make_state<base::Timer>();
 		timer->setCallback(crl::guard(session, [=] {
-			if ((*counter) < participantIds.size()) {
-				const auto peer = session->data().peer(historyPeerId);
-				const auto channel = peer ? peer->asChannel() : nullptr;
-				const auto from = session->data().peer(
-					participantIds[*counter]);
-				if (channel && from) {
-					request(from, channel);
+			if ((*participantIndex) < participantIds.size()) {
+				if ((*channelIndex) < channelIdList.size()) {
+					const auto from = session->data().peer(
+						participantIds[*participantIndex]);
+					const auto channel = session->data().peer(
+						channelIdList[*channelIndex])->asChannel();
+					if (from && channel) {
+						request(from, channel);
+					}
+					(*channelIndex)++;
+				} else {
+					(*participantIndex)++;
+					*channelIndex = 0;
 				}
-				(*counter)++;
 			} else {
 				lifetime->destroy();
 			}
