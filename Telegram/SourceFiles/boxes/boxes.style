@@ -655,8 +655,8 @@ proxyCheckingAnimation: InfiniteRadialAnimation(defaultInfiniteRadialAnimation) 
 	thickness: 1px;
 	size: size(8px, 8px);
 }
-proxyDropdownDownPosition: point(-2px, 35px);
-proxyDropdownUpPosition: point(-2px, 20px);
+proxyDropdownDownPosition: point(2px, 35px);
+proxyDropdownUpPosition: point(2px, 20px);
 
 proxyAboutPadding: margins(22px, 7px, 22px, 14px);
 proxyAboutSponsorPadding: margins(22px, 7px, 22px, 0px);
@@ -686,7 +686,7 @@ themesMenuToggle: IconButton(defaultIconButton) {
 	rippleAreaSize: 36px;
 	ripple: defaultRippleAnimationBgOver;
 }
-themesMenuPosition: point(-2px, 25px);
+themesMenuPosition: point(2px, 25px);
 
 createPollField: InputField(defaultInputField) {
 	textMargins: margins(0px, 4px, 0px, 4px);
