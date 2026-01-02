@@ -19,11 +19,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/ui_utility.h"
-#include "mainwidget.h"
-#include "mainwindow.h"
 #include "apiwrap.h"
 #include "window/themes/window_theme.h"
-#include "window/window_adaptive.h"
 #include "window/window_session_controller.h"
 #include "ui/boxes/confirm_box.h"
 #include "base/timer.h"
@@ -124,12 +121,10 @@ FixedBar::FixedBar(
 	_search->setClickedCallback([=] { showSearch(); });
 	_cancel->setClickedCallback([=] { cancelSearch(); });
 	_field->hide();
-	_field->cancelled(
-	) | rpl::on_next([=] {
+	_field->cancelled() | rpl::on_next([=] {
 		cancelSearch();
 	}, _field->lifetime());
-	_field->changes(
-	) | rpl::on_next([=] {
+	_field->changes() | rpl::on_next([=] {
 		searchUpdated();
 	}, _field->lifetime());
 	_field->submits(
@@ -213,20 +208,29 @@ void FixedBar::applySearch() {
 
 int FixedBar::resizeGetHeight(int newWidth) {
 	const auto offset = st::historySendRight + st::lineWidth;
-	auto searchShownLeft = st::topBarArrowPadding.left();
-	auto searchHiddenLeft = newWidth - _search->width() - offset;
-	auto searchShown = _searchShownAnimation.value(_searchShown ? 1. : 0.);
-	auto searchCurrentLeft = anim::interpolate(searchHiddenLeft, searchShownLeft, searchShown);
+	const auto searchShownLeft = st::topBarArrowPadding.left();
+	const auto searchHiddenLeft = newWidth - _search->width() - offset;
+	const auto searchShown = _searchShownAnimation.value(_searchShown
+		? 1.
+		: 0.);
+	const auto searchCurrentLeft = anim::interpolate(
+		searchHiddenLeft,
+		searchShownLeft,
+		searchShown);
 	_search->moveToLeft(searchCurrentLeft, 0);
 	_backButton->resizeToWidth(searchCurrentLeft);
 	_backButton->moveToLeft(0, 0);
 
-	auto cancelLeft = newWidth - _cancel->width() - offset;
+	const auto cancelLeft = newWidth - _cancel->width() - offset;
 	_cancel->moveToLeft(cancelLeft, 0);
 
-	auto newHeight = _backButton->height();
-	auto fieldLeft = searchShownLeft + _search->width();
-	_field->setGeometryToLeft(fieldLeft, st::historyAdminLogSearchTop, cancelLeft - fieldLeft, _field->height());
+	const auto newHeight = _backButton->height();
+	const auto fieldLeft = searchShownLeft + _search->width();
+	_field->setGeometryToLeft(
+		fieldLeft,
+		st::historyAdminLogSearchTop,
+		cancelLeft - fieldLeft,
+		_field->height());
 
 	return newHeight;
 }
@@ -304,7 +308,8 @@ Widget::Widget(
 		updateAdaptiveLayout();
 	}, lifetime());
 
-	_inner = _scroll->setOwnedWidget(object_ptr<InnerWidget>(this, controller, channel));
+	_inner = _scroll->setOwnedWidget(
+		object_ptr<InnerWidget>(this, controller, channel));
 	_inner->showSearchSignal(
 	) | rpl::on_next([=] {
 		_fixedBar->showSearch();
@@ -320,8 +325,7 @@ Widget::Widget(
 
 	_scroll->move(0, _fixedBar->height());
 	_scroll->show();
-	_scroll->scrolls(
-	) | rpl::on_next([=] {
+	_scroll->scrolls() | rpl::on_next([=] {
 		onScroll();
 	}, lifetime());
 
@@ -364,10 +368,15 @@ Dialogs::RowDescriptor Widget::activeChat() const {
 	};
 }
 
-QPixmap Widget::grabForShowAnimation(const Window::SectionSlideParams &params) {
-	if (params.withTopBarShadow) _fixedBarShadow->hide();
+QPixmap Widget::grabForShowAnimation(
+		const Window::SectionSlideParams &params) {
+	if (params.withTopBarShadow) {
+		_fixedBarShadow->hide();
+	}
 	auto result = Ui::GrabWidget(this);
-	if (params.withTopBarShadow) _fixedBarShadow->show();
+	if (params.withTopBarShadow) {
+		_fixedBarShadow->show();
+	}
 	return result;
 }
 
@@ -389,7 +398,9 @@ bool Widget::showInternal(
 	return false;
 }
 
-void Widget::setInternalState(const QRect &geometry, not_null<SectionMemento*> memento) {
+void Widget::setInternalState(
+		const QRect &geometry,
+		not_null<SectionMemento*> memento) {
 	setGeometry(geometry);
 	Ui::SendPendingMoveResizeEvents(this);
 	restoreState(memento);
@@ -472,15 +483,17 @@ void Widget::resizeEvent(QResizeEvent *e) {
 		return;
 	}
 
-	auto contentWidth = width();
+	const auto contentWidth = width();
 
-	auto newScrollTop = _scroll->scrollTop() + topDelta();
+	const auto newScrollTop = _scroll->scrollTop() + topDelta();
 	_fixedBar->resizeToWidth(contentWidth);
 	_fixedBarShadow->resize(contentWidth, st::lineWidth);
 
-	auto bottom = height();
-	auto scrollHeight = bottom - _fixedBar->height() - _settingsFilter->height();
-	auto scrollSize = QSize(contentWidth, scrollHeight);
+	const auto bottom = height();
+	const auto scrollHeight = bottom
+		- _fixedBar->height()
+		- _settingsFilter->height();
+	const auto scrollSize = QSize(contentWidth, scrollHeight);
 	if (_scroll->size() != scrollSize) {
 		_scroll->resize(scrollSize);
 		_inner->resizeToWidth(scrollSize.width(), _scroll->height());
@@ -494,7 +507,11 @@ void Widget::resizeEvent(QResizeEvent *e) {
 		auto scrollTop = _scroll->scrollTop();
 		_inner->setVisibleTopBottom(scrollTop, scrollTop + _scroll->height());
 	}
-	auto fullWidthButtonRect = myrtlrect(0, bottom - _settingsFilter->height(), contentWidth, _settingsFilter->height());
+	const auto fullWidthButtonRect = myrtlrect(
+		0,
+		bottom - _settingsFilter->height(),
+		contentWidth,
+		_settingsFilter->height());
 	_settingsFilter->setGeometry(fullWidthButtonRect);
 	_whatIsThis->moveToRight(
 		st::historySendRight,
@@ -527,7 +544,9 @@ void Widget::onScroll() {
 void Widget::showAnimatedHook(
 		const Window::SectionSlideParams &params) {
 	_fixedBar->setAnimatingMode(true);
-	if (params.withTopBarShadow) _fixedBarShadow->show();
+	if (params.withTopBarShadow) {
+		_fixedBarShadow->show();
+	}
 }
 
 void Widget::showFinishedHook() {
