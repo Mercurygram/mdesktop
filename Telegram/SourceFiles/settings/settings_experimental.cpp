@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/moderate_messages_box.h"
 #include "core/application.h"
 #include "core/launcher.h"
+#include "core/sandbox.h"
 #include "chat_helpers/tabbed_panel.h"
 #include "dialogs/dialogs_widget.h"
 #include "history/history_item_components.h"
@@ -163,6 +164,7 @@ void SetupExperimental(
 	addToggle(Window::Notifications::kOptionGNotification);
 	addToggle(Core::kOptionFreeType);
 	addToggle(Core::kOptionSkipUrlSchemeRegister);
+	addToggle(Core::kOptionDeadlockDetector);
 	addToggle(Data::kOptionExternalVideoPlayer);
 	addToggle(Window::kOptionNewWindowsSizeAsFirst);
 	addToggle(MTP::details::kOptionPreferIPv6);
