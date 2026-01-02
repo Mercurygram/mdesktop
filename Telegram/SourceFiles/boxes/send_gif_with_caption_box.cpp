@@ -430,6 +430,7 @@ void SendGifWithCaptionBox(
 	Ui::AddSkip(box->verticalLayout());
 	const auto d = [=](Api::SendOptions o, TextWithTags t) {
 		o.mediaSpoiler = state->hasSpoiler;
+		document->owner().stickers().notifyGifWithCaptionSent();
 		c(std::move(o), std::move(t));
 	};
 	CaptionBox(box, tr::lng_send_button(), {}, peer, details, std::move(d));
