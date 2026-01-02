@@ -253,6 +253,9 @@ PRIVATE
     platform/platform_current_geo_location.h
     platform/platform_text_recognition.h
 
+    profile/profile_back_button.cpp
+    profile/profile_back_button.h
+
     settings/settings_common.cpp
     settings/settings_common.h
     settings/cloud_password/settings_cloud_password_common.cpp

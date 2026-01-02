@@ -11,19 +11,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 class QGraphicsOpacityEffect;
 
-namespace Main {
-class Session;
-} // namespace Main
-
 namespace Profile {
 
 class BackButton final : public Ui::AbstractButton {
 public:
-	BackButton(
-		QWidget *parent,
-		not_null<Main::Session*> session,
-		const QString &text,
-		rpl::producer<bool> oneColumnValue);
+	BackButton(QWidget *parent);
 
 	void setText(const QString &text);
 	void setSubtext(const QString &subtext);
@@ -38,8 +30,6 @@ protected:
 
 private:
 	void updateCache();
-
-	const not_null<Main::Session*> _session;
 
 	rpl::lifetime _unreadBadgeLifetime;
 	QString _text;

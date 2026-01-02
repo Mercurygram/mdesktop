@@ -111,11 +111,7 @@ FixedBar::FixedBar(
 , _controller(controller)
 , _channel(channel)
 , _field(this, st::defaultMultiSelectSearchField, tr::lng_dlg_filter())
-, _backButton(
-	this,
-	&controller->session(),
-	tr::lng_admin_log_title_all(tr::now),
-	controller->adaptive().oneColumnValue())
+, _backButton(this)
 , _search(this, st::topBarSearch)
 , _cancel(this, st::historyAdminLogCancelSearch) {
 	_backButton->moveToLeft(0, 0);

@@ -7,8 +7,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "profile/profile_back_button.h"
 
-#include "main/main_session.h"
-#include "data/data_session.h"
 #include "ui/painter.h"
 #include "styles/style_widgets.h"
 #include "styles/style_window.h"
@@ -21,32 +19,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Profile {
 
-BackButton::BackButton(
-	QWidget *parent,
-	not_null<Main::Session*> session,
-	const QString &text,
-	rpl::producer<bool> oneColumnValue)
-: Ui::AbstractButton(parent)
-, _session(session)
-, _text(text) {
+BackButton::BackButton(QWidget *parent) : Ui::AbstractButton(parent) {
 	setCursor(style::cur_pointer);
-
-	std::move(
-		oneColumnValue
-	) | rpl::on_next([=](bool oneColumn) {
-		if (!oneColumn) {
-			_unreadBadgeLifetime.destroy();
-		} else if (!_unreadBadgeLifetime) {
-			_session->data().unreadBadgeChanges(
-			) | rpl::on_next([=] {
-				rtlupdate(
-					0,
-					0,
-					st::titleUnreadCounterRight,
-					st::titleUnreadCounterTop);
-			}, _unreadBadgeLifetime);
-		}
-	}, lifetime());
 }
 
 void BackButton::setText(const QString &text) {
