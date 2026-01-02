@@ -121,11 +121,34 @@ public:
 	};
 	Ui::SettingsButton *addPremiumButton(PremiumButtonArgs &&args);
 
+	struct ToggleArgs {
+		QString id;
+		rpl::producer<QString> title;
+		const style::SettingsButton *st = nullptr;
+		IconDescriptor icon;
+		rpl::producer<bool> toggled;
+		QStringList keywords;
+	};
+	Ui::SettingsButton *addToggle(ToggleArgs &&args);
+
+	struct SlideToggleArgs {
+		QString id;
+		rpl::producer<QString> title;
+		const style::SettingsButton *st = nullptr;
+		IconDescriptor icon;
+		rpl::producer<bool> toggled;
+		rpl::producer<bool> shown;
+		QStringList keywords;
+	};
+	Ui::SlideWrap<Ui::SettingsButton> *addSlideToggle(SlideToggleArgs &&args);
+
+	void addSubsectionTitle(rpl::producer<QString> text);
 	void addDivider();
 	void addDividerText(rpl::producer<QString> text);
 	void addSkip();
 	void addSkip(int height);
 
+	[[nodiscard]] Ui::VerticalLayout *container() const;
 	[[nodiscard]] Window::SessionController *controller() const;
 	[[nodiscard]] Fn<void(Type)> showOther() const;
 

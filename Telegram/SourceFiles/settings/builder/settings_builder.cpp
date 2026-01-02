@@ -250,6 +250,75 @@ Ui::SettingsButton *SectionBuilder::addPremiumButton(PremiumButtonArgs &&args) {
 	});
 }
 
+Ui::SettingsButton *SectionBuilder::addToggle(ToggleArgs &&args) {
+	return v::match(_context, [&](const WidgetContext &ctx)
+			-> Ui::SettingsButton* {
+		const auto &st = args.st ? *args.st : st::settingsButton;
+		const auto button = ctx.container->add(CreateButtonWithIcon(
+			ctx.container,
+			rpl::duplicate(args.title),
+			st,
+			std::move(args.icon)));
+		button->toggleOn(std::move(args.toggled));
+		return button;
+	}, [&](const SearchContext &ctx) -> Ui::SettingsButton* {
+		if (!args.id.isEmpty()) {
+			ctx.entries->push_back({
+				.id = std::move(args.id),
+				.title = ResolveTitle(std::move(args.title)),
+				.keywords = std::move(args.keywords),
+			});
+		}
+		return nullptr;
+	});
+}
+
+Ui::SlideWrap<Ui::SettingsButton> *SectionBuilder::addSlideToggle(
+		SlideToggleArgs &&args) {
+	return v::match(_context, [&](const WidgetContext &ctx)
+			-> Ui::SlideWrap<Ui::SettingsButton>* {
+		const auto &st = args.st ? *args.st : st::settingsButton;
+		const auto wrap = ctx.container->add(
+			object_ptr<Ui::SlideWrap<Ui::SettingsButton>>(
+				ctx.container,
+				CreateButtonWithIcon(
+					ctx.container,
+					rpl::duplicate(args.title),
+					st,
+					std::move(args.icon))));
+		if (args.shown) {
+			wrap->toggleOn(std::move(args.shown));
+		}
+		const auto button = wrap->entity();
+		button->toggleOn(std::move(args.toggled));
+		return wrap;
+	}, [&](const SearchContext &ctx) -> Ui::SlideWrap<Ui::SettingsButton>* {
+		if (!args.id.isEmpty()) {
+			ctx.entries->push_back({
+				.id = std::move(args.id),
+				.title = ResolveTitle(std::move(args.title)),
+				.keywords = std::move(args.keywords),
+			});
+		}
+		return nullptr;
+	});
+}
+
+void SectionBuilder::addSubsectionTitle(rpl::producer<QString> text) {
+	v::match(_context, [&](const WidgetContext &ctx) {
+		AddSubsectionTitle(ctx.container, std::move(text));
+	}, [](const SearchContext &) {
+	});
+}
+
+Ui::VerticalLayout *SectionBuilder::container() const {
+	return v::match(_context, [](const WidgetContext &ctx) {
+		return ctx.container.get();
+	}, [](const SearchContext &) -> Ui::VerticalLayout* {
+		return nullptr;
+	});
+}
+
 Window::SessionController *SectionBuilder::controller() const {
 	return v::match(_context, [](const WidgetContext &ctx) {
 		return ctx.controller.get();

@@ -9,6 +9,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "settings/settings_common_session.h"
 
+namespace Ui {
+class VerticalLayout;
+} // namespace Ui
+
 namespace Settings {
 
 class Notifications : public Section<Notifications> {

@@ -1571,6 +1571,8 @@ PRIVATE
     settings/builder/settings_builder.h
     settings/builder/settings_main_builder.cpp
     settings/builder/settings_main_builder.h
+    settings/builder/settings_notifications_builder.cpp
+    settings/builder/settings_notifications_builder.h
     settings/settings_notifications.cpp
     settings/settings_notifications.h
     settings/settings_notifications_type.cpp
