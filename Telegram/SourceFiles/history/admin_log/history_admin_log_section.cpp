@@ -44,7 +44,6 @@ public:
 		not_null<Window::SessionController*> controller,
 		not_null<ChannelData*> channel);
 
-	[[nodiscard]] rpl::producer<> showFilterRequests() const;
 	[[nodiscard]] rpl::producer<> searchCancelRequests() const;
 	[[nodiscard]] rpl::producer<QString> searchRequests() const;
 
@@ -81,7 +80,6 @@ private:
 	object_ptr<Profile::BackButton> _backButton;
 	object_ptr<Ui::IconButton> _search;
 	object_ptr<Ui::CrossButton> _cancel;
-	object_ptr<Ui::RoundButton> _filter;
 
 	Ui::Animations::Simple _searchShownAnimation;
 	bool _searchShown = false;
@@ -120,14 +118,12 @@ FixedBar::FixedBar(
 	tr::lng_admin_log_title_all(tr::now),
 	controller->adaptive().oneColumnValue())
 , _search(this, st::topBarSearch)
-, _cancel(this, st::historyAdminLogCancelSearch)
-, _filter(this, tr::lng_admin_log_filter(), st::topBarButton) {
+, _cancel(this, st::historyAdminLogCancelSearch) {
 	_backButton->moveToLeft(0, 0);
 	_backButton->setClickedCallback([=] { goBack(); });
 	_search->setClickedCallback([=] { showSearch(); });
 	_cancel->setClickedCallback([=] { cancelSearch(); });
 	_field->hide();
-	_filter->setTextTransform(Ui::RoundButton::TextTransform::NoTransform);
 	_field->cancelled(
 	) | rpl::on_next([=] {
 		cancelSearch();
@@ -216,29 +212,23 @@ void FixedBar::applySearch() {
 }
 
 int FixedBar::resizeGetHeight(int newWidth) {
-	auto filterLeft = newWidth - _filter->width();
-	_filter->moveToLeft(filterLeft, 0);
-
-	auto cancelLeft = filterLeft - _cancel->width();
-	_cancel->moveToLeft(cancelLeft, 0);
-
+	const auto offset = st::historySendRight + st::lineWidth;
 	auto searchShownLeft = st::topBarArrowPadding.left();
-	auto searchHiddenLeft = filterLeft - _search->width();
+	auto searchHiddenLeft = newWidth - _search->width() - offset;
 	auto searchShown = _searchShownAnimation.value(_searchShown ? 1. : 0.);
 	auto searchCurrentLeft = anim::interpolate(searchHiddenLeft, searchShownLeft, searchShown);
 	_search->moveToLeft(searchCurrentLeft, 0);
 	_backButton->resizeToWidth(searchCurrentLeft);
 	_backButton->moveToLeft(0, 0);
 
+	auto cancelLeft = newWidth - _cancel->width() - offset;
+	_cancel->moveToLeft(cancelLeft, 0);
+
 	auto newHeight = _backButton->height();
 	auto fieldLeft = searchShownLeft + _search->width();
 	_field->setGeometryToLeft(fieldLeft, st::historyAdminLogSearchTop, cancelLeft - fieldLeft, _field->height());
 
 	return newHeight;
-}
-
-rpl::producer<> FixedBar::showFilterRequests() const {
-	return _filter->clicks() | rpl::to_empty;
 }
 
 rpl::producer<> FixedBar::searchCancelRequests() const {
@@ -289,16 +279,13 @@ Widget::Widget(
 , _scroll(this, st::historyScroll, false)
 , _fixedBar(this, controller, channel)
 , _fixedBarShadow(this)
-, _whatIsThis(
-		this,
-		tr::lng_admin_log_about(tr::now),
-		st::historyComposeButton) {
+, _settingsFilter(
+	this,
+	tr::lng_menu_settings(tr::now),
+	st::historyComposeButton)
+, _whatIsThis(this, st::historyAdminLogWhatIsThis) {
 	_fixedBar->move(0, 0);
 	_fixedBar->resizeToWidth(width());
-	_fixedBar->showFilterRequests(
-	) | rpl::on_next([=] {
-		showFilter();
-	}, lifetime());
 	_fixedBar->searchCancelRequests(
 	) | rpl::on_next([=] {
 		setInnerFocus();
@@ -309,6 +296,7 @@ Widget::Widget(
 	}, lifetime());
 	_fixedBar->show();
 
+	_whatIsThis->raise();
 	_fixedBarShadow->raise();
 
 	controller->adaptive().value(
@@ -337,6 +325,9 @@ Widget::Widget(
 		onScroll();
 	}, lifetime());
 
+	_settingsFilter->setClickedCallback([=] {
+		showFilter();
+	});
 	_whatIsThis->setClickedCallback([=] {
 		controller->show(Ui::MakeInformBox(channel->isMegagroup()
 			? tr::lng_admin_log_about_text()
@@ -488,7 +479,7 @@ void Widget::resizeEvent(QResizeEvent *e) {
 	_fixedBarShadow->resize(contentWidth, st::lineWidth);
 
 	auto bottom = height();
-	auto scrollHeight = bottom - _fixedBar->height() - _whatIsThis->height();
+	auto scrollHeight = bottom - _fixedBar->height() - _settingsFilter->height();
 	auto scrollSize = QSize(contentWidth, scrollHeight);
 	if (_scroll->size() != scrollSize) {
 		_scroll->resize(scrollSize);
@@ -503,8 +494,11 @@ void Widget::resizeEvent(QResizeEvent *e) {
 		auto scrollTop = _scroll->scrollTop();
 		_inner->setVisibleTopBottom(scrollTop, scrollTop + _scroll->height());
 	}
-	auto fullWidthButtonRect = myrtlrect(0, bottom - _whatIsThis->height(), contentWidth, _whatIsThis->height());
-	_whatIsThis->setGeometry(fullWidthButtonRect);
+	auto fullWidthButtonRect = myrtlrect(0, bottom - _settingsFilter->height(), contentWidth, _settingsFilter->height());
+	_settingsFilter->setGeometry(fullWidthButtonRect);
+	_whatIsThis->moveToRight(
+		st::historySendRight,
+		bottom - _whatIsThis->height());
 }
 
 void Widget::paintEvent(QPaintEvent *e) {

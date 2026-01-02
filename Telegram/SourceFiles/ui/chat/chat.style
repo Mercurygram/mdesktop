@@ -582,6 +582,10 @@ historyAdminLogCancelSearch: CrossButton {
 }
 historyAdminLogSearchTop: 11px;
 historyAdminLogSearchSlideDuration: 150;
+historyAdminLogWhatIsThis: IconButton(historyAttach) {
+	icon: icon {{ "menu/faq", windowActiveTextFg }};
+	iconOver: icon {{ "menu/faq", windowActiveTextFg }};
+}
 
 historyFastShareSize: 31px;
 historyFastShareLeft: 13px;

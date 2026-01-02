@@ -6063,7 +6063,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 "lng_admin_log_title_all" = "All actions";
 "lng_admin_log_title_selected" = "Selected actions";
-"lng_admin_log_filter" = "Filter";
 "lng_admin_log_filter_title" = "Filter";
 "lng_admin_log_filter_all_actions" = "All actions";
 "lng_admin_log_filter_actions_type_subtitle" = "Filter actions by type";
@@ -6091,7 +6090,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_admin_log_filter_all_admins" = "All users and admins";
 "lng_admin_log_filter_actions_admins_subtitle" = "Filter actions by admins";
 "lng_admin_log_filter_actions_admins_section" = "Show Actions by All Admins";
-"lng_admin_log_about" = "What is this?";
 "lng_admin_log_about_text" = "This is a list of all notable actions by group members and admins in the last 48 hours.";
 "lng_admin_log_about_text_channel" = "This is a list of all service actions taken by the channel's admins in the last 48 hours.";
 "lng_admin_log_no_results_title" = "No actions found";
