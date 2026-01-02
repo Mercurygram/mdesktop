@@ -736,7 +736,10 @@ void ForumThreadBar::init(
 			st::semiboldTextStyle,
 			topic->titleWithIconOrLogo(),
 			kMarkupTextOptions,
-			Core::TextContext({ .session = &topic->session() }));
+			Core::TextContext({
+				.session = &topic->session(),
+				.customEmojiLoopLimit = -1, // First frame only
+			}));
 	}
 	const auto skip = st::monoforumBarUserpicSkip;
 	const auto userpic = sublist
@@ -810,7 +813,10 @@ int ForumThreadBar::PaintForGetWidth(
 			st::semiboldTextStyle,
 			topic->titleWithIconOrLogo(),
 			kMarkupTextOptions,
-			Core::TextContext({ .session = &topic->session() }));
+			Core::TextContext({
+				.session = &topic->session(),
+				.customEmojiLoopLimit = -1, // First frame only
+			}));
 	} else {
 		text.setText(st::semiboldTextStyle, sublist->sublistPeer()->name());
 	}
@@ -902,6 +908,7 @@ void ForumThreadBar::Paint(
 	text.draw(p, {
 		.position = { textLeft, textTop },
 		.availableWidth = available,
+		.paused = true,
 		.elisionLines = 1,
 	});
 
