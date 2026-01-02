@@ -11,12 +11,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/admin_log/history_admin_log_filter.h"
 #include "profile/profile_back_button.h"
 #include "core/shortcuts.h"
+#include "info/profile/info_profile_values.h"
 #include "ui/chat/chat_style.h"
 #include "ui/controls/swipe_handler.h"
 #include "ui/effects/animations.h"
 #include "ui/widgets/scroll_area.h"
 #include "ui/widgets/shadow.h"
 #include "ui/widgets/buttons.h"
+#include "ui/controls/userpic_button.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/ui_utility.h"
 #include "apiwrap.h"
@@ -132,6 +134,15 @@ FixedBar::FixedBar(
 	_searchTimer.setCallback([=] { applySearch(); });
 
 	_cancel->hide(anim::type::instant);
+
+	_backButton->setSubtext(tr::lng_admin_log_title_all(tr::now));
+	Info::Profile::NameValue(channel) | rpl::on_next([=](QString name) {
+		_backButton->setText(name);
+	}, _backButton->lifetime());
+	_backButton->setWidget(Ui::CreateChild<Ui::UserpicButton>(
+		_backButton.get(),
+		channel,
+		st::topBarInfoButton));
 }
 
 void FixedBar::applyFilter(const FilterValue &value) {
@@ -178,6 +189,7 @@ void FixedBar::searchAnimationCallback() {
 			_searchShown ? &st::topBarBg : nullptr);
 		_search->setCursor(
 			_searchShown ? style::cur_default : style::cur_pointer);
+		_backButton->setOpacity(1.);
 	}
 	resizeToWidth(width());
 }
@@ -218,6 +230,7 @@ int FixedBar::resizeGetHeight(int newWidth) {
 		searchShownLeft,
 		searchShown);
 	_search->moveToLeft(searchCurrentLeft, 0);
+	_backButton->setOpacity(1. - searchShown);
 	_backButton->resizeToWidth(searchCurrentLeft);
 	_backButton->moveToLeft(0, 0);
 
