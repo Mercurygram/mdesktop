@@ -2327,7 +2327,7 @@ TextState Message::textState(
 		keyboardHeight = keyboard->naturalHeight();
 		g.setHeight(g.height() - st::msgBotKbButton.margin - keyboardHeight);
 
-		if (item->isHistoryEntry()) {
+		if (item->isHistoryEntry() || item->isAdminLogEntry()) {
 			const auto keyboardPosition = QPoint(g.left(), g.top() + g.height() + st::msgBotKbButton.margin);
 			if (QRect(keyboardPosition, QSize(g.width(), keyboardHeight)).contains(point)) {
 				result.symbol += visibleMediaTextLen + visibleTextLen;
