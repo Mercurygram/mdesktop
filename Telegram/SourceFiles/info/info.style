@@ -638,6 +638,7 @@ infoProfileLabeledButtonQr: IconButton(defaultIconButton) {
 	ripple: defaultRippleAnimation;
 }
 infoProfileLabeledButtonQrRightSkip: 0px;
+infoProfileLabeledButtonQrInset: 5px;
 
 infoIconInformation: icon {{ "info/info_information", infoIconFg }};
 infoIconAddMember: icon {{ "info/info_add_member", infoIconFg }};

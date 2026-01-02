@@ -40,7 +40,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/localstorage.h"
 #include "ui/basic_click_handlers.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/boxes/peer_qr_box.h"
 #include "ui/controls/userpic_button.h"
+#include "ui/widgets/buttons.h"
 #include "ui/rect.h"
 #include "ui/text/format_values.h"
 #include "ui/text/text_utilities.h"
@@ -80,6 +82,7 @@ private:
 	void refreshNameGeometry(int newWidth);
 	void refreshPhoneGeometry(int newWidth);
 	void refreshUsernameGeometry(int newWidth);
+	void refreshQrButtonGeometry(int newWidth);
 
 	const not_null<Window::SessionController*> _controller;
 	const not_null<UserData*> _user;
@@ -90,6 +93,7 @@ private:
 	object_ptr<Ui::FlatLabel> _name = { nullptr };
 	object_ptr<Ui::FlatLabel> _phone = { nullptr };
 	object_ptr<Ui::FlatLabel> _username = { nullptr };
+	object_ptr<Ui::IconButton> _qrButton = { nullptr };
 
 };
 
@@ -173,6 +177,18 @@ Cover::Cover(
 	_badge.updated() | rpl::on_next([=] {
 		refreshNameGeometry(width());
 	}, _name->lifetime());
+
+	_qrButton.create(this, st::infoProfileLabeledButtonQr);
+	_qrButton->setClickedCallback([=, show = controller->uiShow()] {
+		Ui::DefaultShowFillPeerQrBoxCallback(show, _user);
+	});
+	Info::Profile::UsernamesValue(
+		_user
+	) | rpl::on_next([=](const auto &usernames) {
+		_qrButton->setVisible(!usernames.empty());
+		refreshNameGeometry(width());
+		refreshQrButtonGeometry(width());
+	}, _qrButton->lifetime());
 }
 
 Cover::~Cover() = default;
@@ -188,6 +204,7 @@ void Cover::setupChildGeometry() {
 		refreshNameGeometry(newWidth);
 		refreshPhoneGeometry(newWidth);
 		refreshUsernameGeometry(newWidth);
+		refreshQrButtonGeometry(newWidth);
 	}, lifetime());
 }
 
@@ -233,9 +250,13 @@ void Cover::initViewers() {
 void Cover::refreshNameGeometry(int newWidth) {
 	const auto nameLeft = st::settingsNameLeft;
 	const auto nameTop = st::settingsNameTop;
+	const auto qrButtonWidth = (_qrButton && !_qrButton->isHidden())
+		? (_qrButton->width() + st::settingsNameLeft)
+		: 0;
 	auto nameWidth = newWidth
 		- nameLeft
-		- st::infoProfileCover.rightSkip;
+		- st::infoProfileCover.rightSkip
+		- qrButtonWidth;
 	if (const auto width = _badge.widget() ? _badge.widget()->width() : 0) {
 		nameWidth -= st::infoVerifiedCheckPosition.x() + width;
 	}
@@ -264,6 +285,16 @@ void Cover::refreshUsernameGeometry(int newWidth) {
 	const auto usernameWidth = newWidth - usernameLeft - usernameRight;
 	_username->resizeToWidth(usernameWidth);
 	_username->moveToLeft(usernameLeft, usernameTop, newWidth);
+}
+
+void Cover::refreshQrButtonGeometry(int newWidth) {
+	if (!_qrButton) {
+		return;
+	}
+	const auto buttonTop = (height() - _qrButton->height()) / 2;
+	const auto buttonRight = st::infoProfileCover.rightSkip;
+	const auto inset = st::infoProfileLabeledButtonQrInset;
+	_qrButton->moveToRight(buttonRight - inset, buttonTop, newWidth);
 }
 
 } // namespace
