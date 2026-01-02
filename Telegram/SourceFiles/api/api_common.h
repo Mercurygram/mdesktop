@@ -35,6 +35,7 @@ struct SendOptions {
 	bool handleSupportSwitch = false;
 	bool invertCaption = false;
 	bool hideViaBot = false;
+	bool mediaSpoiler = false;
 	crl::time ttlSeconds = 0;
 	SuggestOptions suggest;
 
