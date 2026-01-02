@@ -622,8 +622,9 @@ void InnerWidget::updateEmptyText() {
 }
 
 QString InnerWidget::tooltipText() const {
-	if (_mouseCursorState == CursorState::Date
-		&& _mouseAction == MouseAction::None) {
+	if (_mouseAction == MouseAction::None
+		&& (_mouseCursorState == CursorState::Date
+			|| _mouseCursorState == CursorState::LogAdminService)) {
 		if (const auto view = Element::Hovered()) {
 			auto dateText = HistoryView::DateTooltipText(view);
 
@@ -1960,6 +1961,9 @@ void InnerWidget::updateSelected() {
 		}
 		dragState = view->textState(itemPoint, request);
 		lnkhost = view;
+		if (item->isService()) {
+			dragState.cursor = CursorState::LogAdminService;
+		}
 		if (!dragState.link && itemPoint.x() >= st::historyPhotoLeft && itemPoint.x() < st::historyPhotoLeft + st::msgPhotoSize) {
 			if (!item->isService() && view->hasFromPhoto()) {
 				enumerateUserpics([&](not_null<Element*> view, int userpicTop) {
@@ -1985,7 +1989,8 @@ void InnerWidget::updateSelected() {
 	}
 	if (dragState.link
 		|| dragState.cursor == CursorState::Date
-		|| dragState.cursor == CursorState::Forwarded) {
+		|| dragState.cursor == CursorState::Forwarded
+		|| dragState.cursor == CursorState::LogAdminService) {
 		Ui::Tooltip::Show(1000, this);
 	}
 
