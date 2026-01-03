@@ -92,7 +92,6 @@ void BackButton::paintEvent(QPaintEvent *e) {
 	updateCache();
 
 	auto p = Painter(this);
-	p.setOpacity(_opacity);
 
 	p.fillRect(e->rect(), st::profileBg);
 	st::topBarBack.paint(
@@ -100,6 +99,7 @@ void BackButton::paintEvent(QPaintEvent *e) {
 		st::historyAdminLogTopBarLeft,
 		(st::topBarHeight - st::topBarBack.height()) / 2,
 		width());
+	p.setOpacity(_opacity);
 
 	const auto textHeight = st::semiboldFont->height;
 	const auto subtextHeight = st::dialogsTextFont->height;
