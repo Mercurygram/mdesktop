@@ -1529,3 +1529,6 @@ stakeChangeBadge: RoundButton(defaultTableSmallButton) {
 	textFgOver: mediaviewTextLinkFg;
 }
 stateChangeBadgeMargin: margins(0px, 1px, 0px, 0px);
+
+historySummaryHeaderIconSize: 30px;
+historySummaryHeaderIconSizeInner: 5px;

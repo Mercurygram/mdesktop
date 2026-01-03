@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "history/view/history_view_element.h"
 #include "ui/effects/ministar_particles.h"
+#include "lottie/lottie_icon.h"
 
 namespace HistoryView {
 
@@ -52,6 +53,7 @@ public:
 	void unloadHeavyPart();
 
 private:
+	[[nodiscard]] QRect iconRect() const;
 	struct Animation {
 		Ui::StarParticles particles;
 		QPainterPath path;
@@ -64,10 +66,16 @@ private:
 		mutable std::unique_ptr<Ui::RippleAnimation> animation;
 		QPoint lastPoint;
 	} _ripple;
+	mutable struct {
+		mutable std::unique_ptr<Ui::RippleAnimation> animation;
+		QPoint lastPoint;
+	} _iconRipple;
 	mutable Ui::Text::String _name;
 	mutable Ui::Text::String _text;
 	mutable int _maxWidth = 0;
 	mutable int _height = 0;
+	mutable int _width = 0;
+	std::unique_ptr<Lottie::Icon> _lottie;
 
 };
 

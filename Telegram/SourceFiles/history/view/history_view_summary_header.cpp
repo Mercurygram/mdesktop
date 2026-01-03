@@ -9,19 +9,24 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "api/api_transcribes.h"
 #include "apiwrap.h"
+#include "core/click_handler_types.h"
 #include "core/ui_integration.h"
 #include "data/data_session.h"
 #include "history/history_item_components.h"
 #include "history/history.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
+#include "ui/boxes/about_cocoon_box.h"
 #include "ui/chat/chat_style.h"
 #include "ui/effects/ripple_animation.h"
+#include "ui/layers/generic_box.h"
 #include "ui/painter.h"
 #include "ui/power_saving.h"
+#include "ui/rect.h"
 #include "ui/text/text_options.h"
 #include "ui/text/text_utilities.h"
 #include "ui/ui_utility.h"
+#include "window/window_session_controller.h"
 #include "styles/style_chat.h"
 
 namespace HistoryView {
@@ -60,9 +65,22 @@ void SummaryHeader::update(not_null<Element*> view) {
 		+ st::maxSignatureSize / 2
 		+ st::historyReplyPadding.right();
 
+	_lottie = Lottie::MakeIcon(Lottie::IconDescriptor{
+		.name = u"cocoon"_q,
+		.sizeOverride = Size(st::historySummaryHeaderIconSize
+			- st::historySummaryHeaderIconSizeInner * 2),
+	});
+
 	const auto session = &item->history()->session();
 	const auto itemId = item->fullId();
-	_link = std::make_shared<LambdaClickHandler>([=](auto) {
+	_link = std::make_shared<LambdaClickHandler>([=](ClickContext context) {
+		if (Rect(iconRect().size()).contains(_iconRipple.lastPoint)) {
+			const auto my = context.other.value<ClickHandlerContext>();
+			if (const auto controller = my.sessionWindow.get()) {
+				controller->show(Box(Ui::AboutCocoonBox));
+				return;
+			}
+		}
 		if (const auto item = session->data().message(itemId)) {
 			session->api().transcribes().toggleSummary(item, nullptr);
 		}
@@ -78,6 +96,7 @@ int SummaryHeader::resizeToWidth(int width) const {
 	_height = st::historyReplyPadding.top()
 		+ st::msgServiceNameFont->height * 2
 		+ st::historyReplyPadding.bottom();
+	_width = width;
 	return _height;
 }
 
@@ -116,6 +135,24 @@ void SummaryHeader::paint(
 	Ui::Text::FillQuotePaint(p, rect, *cache, quoteSt);
 	if (!inBubble) {
 		cache->bg = rippleColor;
+	}
+
+	if (_lottie) {
+		const auto r = iconRect().translated(x, y);
+		const auto lottieX = r.x() + st::historySummaryHeaderIconSizeInner;
+		const auto lottieY = r.y() + st::historySummaryHeaderIconSizeInner;
+		_lottie->paint(p, lottieX, lottieY);
+		if (_iconRipple.animation) {
+			_iconRipple.animation->paint(
+				p,
+				r.x(),
+				r.y(),
+				r.width(),
+				&rippleColor);
+			if (_iconRipple.animation->empty()) {
+				_iconRipple.animation.reset();
+			}
+		}
 	}
 
 	if (_animation) {
@@ -157,10 +194,13 @@ void SummaryHeader::paint(
 	auto textTop = y + st::historyReplyPadding.top()
 		+ st::msgServiceNameFont->height;
 	if (w > st::historyReplyPadding.left()) {
+		const auto iconSpace = st::historySummaryHeaderIconSize
+			+ st::historySummaryHeaderIconSizeInner * 2;
 		const auto textw = w
 			- st::historyReplyPadding.left()
-			- st::historyReplyPadding.right();
-		const auto namew = textw - st::messageGiftIconSkip;
+			- st::historyReplyPadding.right()
+			- iconSpace;
+		const auto namew = textw;
 		if (namew > 0) {
 			p.setPen(!inBubble
 				? st->msgImgReplyBarColor()->c
@@ -213,14 +253,27 @@ void SummaryHeader::createRippleAnimation(
 			size,
 			st::messageQuoteStyle.radius),
 		[=] { view->repaint(); });
+	const auto rippleIconSize = st::historySummaryHeaderIconSize;
+	_iconRipple.animation = std::make_unique<Ui::RippleAnimation>(
+		st::defaultRippleAnimation,
+		Ui::RippleAnimation::EllipseMask(Size(rippleIconSize)),
+		[=] { view->repaint(); });
 }
 
 void SummaryHeader::saveRipplePoint(QPoint point) const {
 	_ripple.lastPoint = point;
+	const auto rect = iconRect();
+	if (rect.contains(point)) {
+		_iconRipple.lastPoint = point - rect.topLeft();
+	} else {
+		_iconRipple.lastPoint = QPoint(-1, -1);
+	}
 }
 
 void SummaryHeader::addRipple() {
-	if (_ripple.animation) {
+	if (_iconRipple.lastPoint.x() >= 0 && _iconRipple.animation) {
+		_iconRipple.animation->add(_iconRipple.lastPoint);
+	} else if (_ripple.animation) {
 		_ripple.animation->add(_ripple.lastPoint);
 	}
 }
@@ -229,11 +282,22 @@ void SummaryHeader::stopLastRipple() {
 	if (_ripple.animation) {
 		_ripple.animation->lastStop();
 	}
+	if (_iconRipple.animation) {
+		_iconRipple.animation->lastStop();
+	}
 }
 
 void SummaryHeader::unloadHeavyPart() {
 	_animation = nullptr;
 	_ripple.animation = nullptr;
+	_iconRipple.animation = nullptr;
+	_lottie = nullptr;
+}
+
+QRect SummaryHeader::iconRect() const {
+	const auto size = st::historySummaryHeaderIconSize;
+	const auto shift = st::historySummaryHeaderIconSizeInner;
+	return QRect(_width - size - shift, (_height - size) / 2, size, size);
 }
 
 } // namespace HistoryView
