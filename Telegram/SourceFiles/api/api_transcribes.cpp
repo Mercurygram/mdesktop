@@ -125,12 +125,16 @@ void Transcribes::toggleSummary(
 		entry.onPremiumRequired = std::move(onPremiumRequired);
 		summarize(item);
 	} else if (!i->second.loading) {
-		i->second.shown = i->second.premiumRequired
-			? false
-			: !i->second.shown;
-		_session->data().requestItemResize(item);
-		if (i->second.shown) {
-			_session->data().requestItemShowHighlight(item);
+		auto &entry = i->second;
+		if (entry.result.empty()) {
+			entry.onPremiumRequired = std::move(onPremiumRequired);
+			summarize(item);
+		} else {
+			entry.shown = entry.premiumRequired ? false : !entry.shown;
+			_session->data().requestItemResize(item);
+			if (entry.shown) {
+				_session->data().requestItemShowHighlight(item);
+			}
 		}
 	}
 }
