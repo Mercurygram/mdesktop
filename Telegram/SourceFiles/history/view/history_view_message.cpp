@@ -24,6 +24,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/history_view_group_call_bar.h" // UserpicInRow.
 #include "history/view/history_view_reply.h"
 #include "history/view/history_view_transcribe_button.h"
+#include "history/view/history_view_summary_header.h"
 #include "history/view/history_view_view_button.h" // ViewButton.
 #include "history/history.h"
 #include "boxes/premium_preview_box.h"
@@ -472,10 +473,15 @@ QSize Message::performCountOptimalSize() {
 	const auto &summary = item->summaryEntry();
 	const auto showSummaryReply = !summary.result.empty() && summary.shown;
 
-	if ((replyData && !_hideReply) || showSummaryReply) {
+	if (replyData && !_hideReply) {
 		AddComponents(Reply::Bit());
 	} else {
 		RemoveComponents(Reply::Bit());
+	}
+	if (showSummaryReply) {
+		AddComponents(SummaryHeader::Bit());
+	} else {
+		RemoveComponents(SummaryHeader::Bit());
 	}
 
 	if (item->history()->peer->isMonoforum()) {
@@ -559,10 +565,12 @@ QSize Message::performCountOptimalSize() {
 
 	const auto reply = Get<Reply>();
 	if (reply) {
-		if (showSummaryReply && !replyData) {
-			reply->updateForSummary(this);
-		} else {
-			reply->update(this, replyData);
+		reply->update(this, replyData);
+	}
+	const auto summaryHeader = Get<SummaryHeader>();
+	if (summaryHeader) {
+		if (showSummaryReply) {
+			summaryHeader->update(this);
 		}
 	}
 
@@ -714,6 +722,12 @@ QSize Message::performCountOptimalSize() {
 					+ reply->maxWidth()
 					+ st::msgPadding.right();
 				accumulate_max(maxWidth, replyw);
+			}
+			if (summaryHeader) {
+				const auto summaryHeaderWidth = st::msgPadding.left()
+					+ summaryHeader->maxWidth()
+					+ st::msgPadding.right();
+				accumulate_max(maxWidth, summaryHeaderWidth);
 			}
 			if (check) {
 				accumulate_max(maxWidth, check->maxWidth());
@@ -1076,6 +1090,7 @@ void Message::draw(Painter &p, const PaintContext &context) const {
 			paintForwardedInfo(p, trect, context);
 			paintViaBotIdInfo(p, trect, context);
 			paintReplyInfo(p, trect, context);
+			paintSummaryHeaderInfo(p, trect, context);
 		}
 		if (entry) {
 			trect.setHeight(trect.height() - entry->height());
@@ -1834,6 +1849,23 @@ void Message::paintReplyInfo(
 	}
 }
 
+void Message::paintSummaryHeaderInfo(
+		Painter &p,
+		QRect &trect,
+		const PaintContext &context) const {
+	if (const auto summaryHeader = Get<SummaryHeader>()) {
+		summaryHeader->paint(
+			p,
+			this,
+			context,
+			trect.x(),
+			trect.y(),
+			trect.width(),
+			true);
+		trect.setY(trect.y() + summaryHeader->height());
+	}
+}
+
 void Message::paintViaBotIdInfo(
 		Painter &p,
 		QRect &trect,
@@ -2028,6 +2060,9 @@ void Message::clickHandlerPressedChanged(
 	} else if (const auto reply = Get<Reply>()
 		; reply && (handler == reply->link())) {
 		toggleReplyRipple(pressed);
+	} else if (const auto summaryHeader = Get<SummaryHeader>()
+		; summaryHeader && (handler == summaryHeader->link())) {
+		toggleSummaryHeaderRipple(pressed);
 	} else if (_summarize && (handler == _summarize->link())) {
 		if (pressed) {
 			_summarize->addRipple([=] { repaint(); });
@@ -2095,6 +2130,26 @@ void Message::toggleReplyRipple(bool pressed) {
 		reply->addRipple();
 	} else {
 		reply->stopLastRipple();
+	}
+}
+
+void Message::toggleSummaryHeaderRipple(bool pressed) {
+	const auto summaryHeader = Get<SummaryHeader>();
+	if (!summaryHeader) {
+		return;
+	}
+
+	if (pressed) {
+		if (!unwrapped()) {
+			const auto size = QSize(
+				countGeometry().width() - rect::m::sum::h(st::msgPadding),
+				summaryHeader->height()
+					- rect::m::sum::v(summaryHeader->margins()));
+			summaryHeader->createRippleAnimation(this, size);
+		}
+		summaryHeader->addRipple();
+	} else {
+		summaryHeader->stopLastRipple();
 	}
 }
 
@@ -2414,6 +2469,9 @@ TextState Message::textState(
 				return result;
 			}
 			if (getStateReplyInfo(point, trect, &result)) {
+				return result;
+			}
+			if (getStateSummaryHeaderInfo(point, trect, &result)) {
 				return result;
 			}
 		}
@@ -2845,6 +2903,32 @@ bool Message::getStateReplyInfo(
 	return false;
 }
 
+bool Message::getStateSummaryHeaderInfo(
+		QPoint point,
+		QRect &trect,
+		not_null<TextState*> outResult) const {
+	if (const auto summaryHeader = Get<SummaryHeader>()) {
+		const auto margins = summaryHeader->margins();
+		const auto height = summaryHeader->height();
+		if (point.y() >= trect.top() && point.y() < trect.top() + height) {
+			const auto g = QRect(
+				trect.x(),
+				trect.y() + margins.top(),
+				trect.width(),
+				height - margins.top() - margins.bottom());
+			if (g.contains(point)) {
+				if (const auto link = summaryHeader->link()) {
+					outResult->link = summaryHeader->link();
+					summaryHeader->saveRipplePoint(point - g.topLeft());
+				}
+			}
+			return true;
+		}
+		trect.setTop(trect.top() + height);
+	}
+	return false;
+}
+
 bool Message::getStateViaBotIdInfo(
 		QPoint point,
 		QRect &trect,
@@ -2929,6 +3013,9 @@ void Message::updatePressed(QPoint point) {
 			}
 			if (const auto reply = Get<Reply>()) {
 				trect.setTop(trect.top() + reply->height());
+			}
+			if (const auto summaryHeader = Get<SummaryHeader>()) {
+				trect.setTop(trect.top() + summaryHeader->height());
 			}
 			if (item->Has<HistoryMessageVia>()) {
 				if (!displayFromName() && !displayForwardedFrom()) {
@@ -4430,6 +4517,11 @@ int Message::resizeContentGetHeight(int newWidth) {
 
 		if (reply) {
 			newHeight += reply->resizeToWidth(contentWidth
+				- st::msgPadding.left()
+				- st::msgPadding.right());
+		}
+		if (const auto summaryHeader = Get<SummaryHeader>()) {
+			newHeight += summaryHeader->resizeToWidth(contentWidth
 				- st::msgPadding.left()
 				- st::msgPadding.right());
 		}

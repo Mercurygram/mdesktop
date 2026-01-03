@@ -8,7 +8,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "history/view/history_view_element.h"
-#include "ui/effects/ministar_particles.h"
 
 namespace Data {
 class Session;
@@ -72,8 +71,6 @@ public:
 		not_null<Element*> view,
 		not_null<HistoryMessageReply*> data);
 
-	void updateForSummary(not_null<Element*> view);
-
 	[[nodiscard]] bool isNameUpdated(
 		not_null<const Element*> view,
 		not_null<HistoryMessageReply*> data) const;
@@ -116,12 +113,6 @@ public:
 		const FullReplyTo &replyTo);
 
 private:
-	struct SummarizeAnimation {
-		Ui::StarParticles particles;
-		QPainterPath path;
-		QSize cachedSize;
-	};
-
 	[[nodiscard]] Ui::Text::GeometryDescriptor textGeometry(
 		int available,
 		int firstLineSkip,
@@ -145,7 +136,6 @@ private:
 
 	ClickHandlerPtr _link;
 	std::unique_ptr<Ui::SpoilerAnimation> _spoiler;
-	std::unique_ptr<SummarizeAnimation> _summarize;
 	mutable PeerData *_externalSender = nullptr;
 	mutable PeerData *_colorPeer = nullptr;
 	mutable struct {
