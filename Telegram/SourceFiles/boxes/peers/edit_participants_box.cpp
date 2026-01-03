@@ -33,12 +33,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/menu/menu_multiline_action.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/text/text_utilities.h"
-#include "ui/rect.h"
 #include "info/profile/info_profile_values.h"
 #include "window/window_session_controller.h"
 #include "history/history.h"
 #include "styles/style_chat.h"
-#include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 
 namespace {
@@ -1212,17 +1210,6 @@ rpl::producer<int> ParticipantsBoxController::onlineCountValue() const {
 
 rpl::producer<int> ParticipantsBoxController::fullCountValue() const {
 	return _fullCountValue.value();
-}
-
-rpl::producer<int> ParticipantsBoxController::boxHeightValue() const {
-	return _fullCountValue.value() | rpl::map([=](int count) {
-		const auto &st = computeListSt();
-		const auto searchHeight = st.item.height;
-		const auto listHeight = count * st.item.height;
-		return std::max(
-			searchHeight + listHeight + rect::m::sum::v(st.padding),
-			st::boxMaxListHeight);
-	});
 }
 
 void ParticipantsBoxController::setStoriesShown(bool shown) {

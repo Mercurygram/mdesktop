@@ -202,7 +202,6 @@ public:
 
 	[[nodiscard]] rpl::producer<int> onlineCountValue() const;
 	[[nodiscard]] rpl::producer<int> fullCountValue() const;
-	[[nodiscard]] rpl::producer<int> boxHeightValue() const override;
 
 	void setStoriesShown(bool shown);
 
