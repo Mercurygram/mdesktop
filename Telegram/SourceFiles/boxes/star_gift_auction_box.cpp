@@ -1358,7 +1358,7 @@ void AuctionInfoBox(
 	});
 	AddSkip(container, st::defaultVerticalListSkip * 2);
 
-	AddUniqueCloseButton(
+	Settings::AddUniqueCloseMoreButton(
 		box,
 		{},
 		now.finished() ? nullptr : MakeAuctionFillMenuCallback(show, now));

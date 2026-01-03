@@ -142,11 +142,6 @@ struct StarGiftUpgradeArgs {
 };
 void ShowStarGiftUpgradeBox(StarGiftUpgradeArgs &&args);
 
-void AddUniqueCloseButton(
-	not_null<GenericBox*> box,
-	Settings::CreditsEntryBoxStyleOverrides st,
-	Fn<void(not_null<PopupMenu*>)> fillMenu = nullptr);
-
 void SubmitStarsForm(
 	std::shared_ptr<Main::SessionShow> show,
 	MTPInputInvoice invoice,
