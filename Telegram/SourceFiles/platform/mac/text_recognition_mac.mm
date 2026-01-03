@@ -71,7 +71,11 @@ Result RecognizeText(const QImage &image) {
 							* imageSize.height;
 						result.items.push_back({
 							NS2QString(text),
-							QRect(x, y, width, height)
+							QRect(
+								style::ConvertScale(x),
+								style::ConvertScale(y),
+								style::ConvertScale(width),
+								style::ConvertScale(height))
 						});
 					}
 				}
