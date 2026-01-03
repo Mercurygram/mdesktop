@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 #include "history/history_item.h"
 #include "history/history_item_helpers.h"
+#include "lang/lang_keys.h"
 #include "main/main_app_config.h"
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
@@ -264,11 +265,12 @@ void Transcribes::summarize(not_null<HistoryItem*> item) {
 		entry.loading = false;
 		entry.premiumRequired = false;
 		entry.onPremiumRequired = nullptr;
+		entry.languageId = translatedTo;
 		entry.result = TextWithEntities(
 			qs(data.vtext()),
 			Api::EntitiesFromMTP(_session, data.ventities().v));
 		if (const auto item = _session->data().message(id)) {
-			_session->data().requestItemResize(item);
+			_session->data().requestItemTextRefresh(item);
 			_session->data().requestItemShowHighlight(item);
 		}
 	}).fail([=](const MTP::Error &error) {
@@ -284,7 +286,7 @@ void Transcribes::summarize(not_null<HistoryItem*> item) {
 		entry.loading = false;
 		entry.onPremiumRequired = nullptr;
 		if (const auto item = _session->data().message(id)) {
-			_session->data().requestItemResize(item);
+			_session->data().requestItemTextRefresh(item);
 		}
 	}).send();
 
@@ -297,13 +299,20 @@ void Transcribes::summarize(not_null<HistoryItem*> item) {
 	_session->data().requestItemResize(item);
 }
 
-void Transcribes::setSummaryFromLang(FullMsgId id, QString &&text) {
-	_summariesFromLang[id] = std::move(text);
-}
-
-QString Transcribes::summaryFromLang(FullMsgId id) const {
-	const auto i = _summariesFromLang.find(id);
-	return (i != _summariesFromLang.end()) ? i->second : QString();
+void Transcribes::checkSummaryToTranslate(FullMsgId id) {
+	const auto i = _summaries.find(id);
+	if (i == _summaries.end() || i->second.result.empty()) {
+		return;
+	}
+	const auto item = _session->data().message(id);
+	if (!item) {
+		return;
+	}
+	const auto translatedTo = item->history()->translatedTo();
+	if (i->second.languageId != translatedTo) {
+		i->second.result = tr::lng_contacts_loading(tr::now, tr::italic);
+		summarize(item);
+	}
 }
 
 } // namespace Api

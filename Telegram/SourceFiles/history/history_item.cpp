@@ -483,12 +483,6 @@ HistoryItem::HistoryItem(
 			history->owner().histories().reportDelivery(this);
 		}
 	}
-
-	if (const auto summaryFromLang = data.vsummary_from_language()) {
-		history->session().api().transcribes().setSummaryFromLang(
-			fullId(),
-			qs(*summaryFromLang));
-	}
 }
 
 HistoryItem::HistoryItem(

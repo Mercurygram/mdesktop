@@ -2283,6 +2283,9 @@ void Message::unloadHeavyPart() {
 		_fromNameStatus->custom = nullptr;
 		_fromNameStatus->id = EmojiStatusId();
 	}
+	if (const auto summaryHeader = Get<SummaryHeader>()) {
+		summaryHeader->unloadHeavyPart();
+	}
 }
 
 bool Message::hasFromPhoto() const {

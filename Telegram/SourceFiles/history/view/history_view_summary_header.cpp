@@ -231,4 +231,9 @@ void SummaryHeader::stopLastRipple() {
 	}
 }
 
+void SummaryHeader::unloadHeavyPart() {
+	_animation = nullptr;
+	_ripple.animation = nullptr;
+}
+
 } // namespace HistoryView
