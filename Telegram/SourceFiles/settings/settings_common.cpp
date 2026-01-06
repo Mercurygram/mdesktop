@@ -16,7 +16,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/rect.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/continuous_sliders.h"
+#include "ui/widgets/elastic_scroll.h"
 #include "ui/widgets/labels.h"
+#include "ui/widgets/scroll_area.h"
 #include "ui/wrap/vertical_layout.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
@@ -28,9 +30,32 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Settings {
 namespace {
 
+[[nodiscard]] HighlightArgs MaybeFillFromRipple(
+		not_null<QWidget*> target,
+		HighlightArgs args) {
+	if (!args.rippleShape) {
+		return args;
+	}
+	const auto widget = target.get();
+	if (const auto icon = dynamic_cast<Ui::IconButton*>(widget)) {
+		const auto &st = icon->st();
+		args.shape = HighlightShape::Ellipse;
+		args.margin = QMargins(
+			st.rippleAreaPosition.x(),
+			st.rippleAreaPosition.y(),
+			st.width - st.rippleAreaPosition.x() - st.rippleAreaSize,
+			st.height - st.rippleAreaPosition.y() - st.rippleAreaSize);
+	} else if (const auto round = dynamic_cast<Ui::RoundButton*>(widget)) {
+		const auto &st = round->st();
+		args.shape = HighlightShape::Rect;
+		args.radius = st.radius ? st.radius : st::buttonRadius;
+	}
+	return args;
+}
+
 class HighlightOverlay final : public Ui::RpWidget {
 public:
-	HighlightOverlay(not_null<QWidget*> target, HighlightArgs args);
+	HighlightOverlay(not_null<QWidget*> target, HighlightArgs &&args);
 
 protected:
 	bool eventFilter(QObject *o, QEvent *e) override;
@@ -62,11 +87,11 @@ private:
 
 HighlightOverlay::HighlightOverlay(
 	not_null<QWidget*> target,
-	HighlightArgs args)
+	HighlightArgs &&args)
 : RpWidget(target->parentWidget())
 , _target(target.get())
-, _args(args)
-, _color(args.color ? *args.color : st::windowBgActive)
+, _args(MaybeFillFromRipple(target, std::move(args)))
+, _color(_args.color ? *_args.color : st::windowBgActive)
 , _shownTimer([=] { startFadeOut(); }) {
 	setAttribute(Qt::WA_TransparentForMouseEvents);
 
@@ -138,16 +163,9 @@ bool HighlightOverlay::eventFilter(QObject *o, QEvent *e) {
 }
 
 void HighlightOverlay::updateGeometryFromTarget() {
-	if (!_target) {
-		return;
+	if (_target) {
+		setGeometry(_target->geometry().marginsRemoved(_args.margin));
 	}
-	auto r = _target->geometry();
-	r = r.marginsAdded(QMargins(
-		_args.margin.left(),
-		_args.margin.top(),
-		_args.margin.right(),
-		_args.margin.bottom()));
-	setGeometry(r);
 }
 
 void HighlightOverlay::updateZOrder() {
@@ -208,8 +226,42 @@ void HighlightOverlay::finish() {
 
 } // namespace
 
-void HighlightWidget(not_null<QWidget*> target, HighlightArgs args) {
-	new HighlightOverlay(target, args);
+void HighlightWidget(not_null<QWidget*> target, HighlightArgs &&args) {
+	new HighlightOverlay(target, std::move(args));
+}
+
+void ScrollToWidget(not_null<QWidget*> target) {
+	const auto scrollIn = [&](auto &&scroll) {
+		if (const auto inner = scroll->widget()) {
+			const auto globalPosition = target->mapToGlobal(QPoint(0, 0));
+			const auto localPosition = inner->mapFromGlobal(globalPosition);
+			const auto localTop = localPosition.y();
+			const auto targetHeight = target->height();
+			const auto scrollHeight = scroll->height();
+			const auto centered = localTop - (scrollHeight - targetHeight) / 2;
+			const auto top = std::clamp(centered, 0, scroll->scrollTopMax());
+			scroll->scrollToY(top);
+		}
+	};
+	for (auto parent = target->parentWidget()
+		; parent
+		; parent = parent->parentWidget()) {
+		if (const auto scroll = dynamic_cast<Ui::ScrollArea*>(parent)) {
+			scrollIn(scroll);
+			return;
+		}
+		if (const auto scroll = dynamic_cast<Ui::ElasticScroll*>(parent)) {
+			scrollIn(scroll);
+			return;
+		}
+	}
+}
+
+void ScrollAndHighlightWidget(
+		not_null<QWidget*> target,
+		HighlightArgs &&args) {
+	ScrollToWidget(target);
+	HighlightWidget(target, std::move(args));
 }
 
 Icon::Icon(IconDescriptor descriptor) : _icon(descriptor.icon) {
