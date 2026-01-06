@@ -142,6 +142,10 @@ public:
 
 	[[nodiscard]] std::shared_ptr<Ui::Show> uiShow();
 
+	void setHighlightControlId(const QString &id);
+	[[nodiscard]] QString highlightControlId() const;
+	[[nodiscard]] bool takeHighlightControlId(const QString &id);
+
 	[[nodiscard]] rpl::lifetime &lifetime();
 
 private:
@@ -177,6 +181,8 @@ private:
 	FloatDelegate *_defaultFloatPlayerDelegate = nullptr;
 	FloatDelegate *_replacementFloatPlayerDelegate = nullptr;
 	rpl::variable<FloatDelegate*> _floatPlayerDelegate = nullptr;
+
+	QString _highlightControlId;
 
 	rpl::lifetime _accountLifetime;
 	rpl::lifetime _lifetime;

@@ -3680,6 +3680,18 @@ void SessionController::showStarGiftAuction(uint64 giftId) {
 		[=] { _starGiftAuctionLifetime.destroy(); });
 }
 
+void SessionController::setHighlightControlId(const QString &id) {
+	_window->setHighlightControlId(id);
+}
+
+QString SessionController::highlightControlId() const {
+	return _window->highlightControlId();
+}
+
+bool SessionController::takeHighlightControlId(const QString &id) {
+	return _window->takeHighlightControlId(id);
+}
+
 SessionController::~SessionController() {
 	resetFakeUnreadWhileOpened();
 	dropSubsectionTabs();

@@ -615,6 +615,22 @@ std::shared_ptr<Ui::Show> Controller::uiShow() {
 	return std::make_shared<Show>(this);
 }
 
+void Controller::setHighlightControlId(const QString &id) {
+	_highlightControlId = id;
+}
+
+QString Controller::highlightControlId() const {
+	return _highlightControlId;
+}
+
+bool Controller::takeHighlightControlId(const QString &id) {
+	if (_highlightControlId == id) {
+		_highlightControlId = QString();
+		return true;
+	}
+	return false;
+}
+
 rpl::lifetime &Controller::lifetime() {
 	return _lifetime;
 }

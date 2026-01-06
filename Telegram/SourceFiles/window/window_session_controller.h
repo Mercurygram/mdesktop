@@ -700,6 +700,10 @@ public:
 	void showStarGiftAuction(const QString &slug);
 	void showStarGiftAuction(uint64 giftId);
 
+	void setHighlightControlId(const QString &id);
+	[[nodiscard]] QString highlightControlId() const;
+	[[nodiscard]] bool takeHighlightControlId(const QString &id);
+
 	[[nodiscard]] rpl::lifetime &lifetime() {
 		return _lifetime;
 	}
