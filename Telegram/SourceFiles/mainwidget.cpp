@@ -826,11 +826,11 @@ void MainWidget::searchMessages(
 			const auto account = not_null(&session().account());
 			if (const auto window = Core::App().windowFor(account)) {
 				if (const auto controller = window->sessionController()) {
+					controller->widget()->activate();
 					controller->content()->searchMessages(
 						query,
 						inChat,
 						searchFrom);
-					controller->widget()->activate();
 				}
 			}
 		}
