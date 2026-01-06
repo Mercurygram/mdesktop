@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "dialogs/dialogs_key.h"
 #include "mainwidget.h"
+#include "mainwindow.h"
 #include "window/window_session_controller.h"
 
 namespace Core::DeepLinks {
@@ -22,6 +23,15 @@ Result FocusSearch(const Context &ctx) {
 	return Result::Handled;
 }
 
+Result ShowEmojiStatus(const Context &ctx) {
+	if (!ctx.controller) {
+		return Result::NeedsAuth;
+	}
+	ctx.controller->setHighlightControlId(u"main-menu/emoji-status"_q);
+	ctx.controller->widget()->showMainMenu();
+	return Result::Handled;
+}
+
 } // namespace
 
 void RegisterChatsHandlers(Router &router) {
@@ -29,6 +39,11 @@ void RegisterChatsHandlers(Router &router) {
 		.path = u"search"_q,
 		.action = CodeBlock{ FocusSearch },
 		.skipActivation = true,
+	});
+
+	router.add(u"chats"_q, {
+		.path = u"emoji-status"_q,
+		.action = CodeBlock{ ShowEmojiStatus },
 	});
 }
 

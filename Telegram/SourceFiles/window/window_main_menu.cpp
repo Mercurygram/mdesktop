@@ -27,6 +27,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_user.h"
 #include "info/info_memento.h"
 #include "info/profile/info_profile_badge.h"
+#include "settings/settings_common.h"
 #include "info/profile/info_profile_emoji_status_panel.h"
 #include "info/profile/info_profile_icon.h"
 #include "info/stories/info_stories_widget.h"
@@ -635,6 +636,14 @@ void MainMenu::parentResized() {
 
 void MainMenu::showFinished() {
 	_showFinished = true;
+
+	if (_controller->takeHighlightControlId(u"main-menu/emoji-status"_q)) {
+		const auto radius = st::roundRadiusSmall;
+		Settings::HighlightWidget(_setEmojiStatus, {
+			.margin = { radius, 0, radius, 0 },
+			.radius = radius,
+		});
+	}
 }
 
 void MainMenu::setupMenu() {
