@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "core/local_url_handlers.h"
 
+#include "core/deep_links/deep_links_router.h"
 #include "api/api_authorizations.h"
 #include "api/api_cloud_password.h"
 #include "api/api_confirm_phone.h"
@@ -1711,6 +1712,12 @@ bool ResolveTonSettings(
 }
 
 } // namespace
+
+bool TryRouterForLocalUrl(
+		Window::SessionController *controller,
+		const QString &command) {
+	return DeepLinks::Router::Instance().tryHandle(controller, command);
+}
 
 const std::vector<LocalUrlHandler> &LocalUrlHandlers() {
 	static auto Result = std::vector<LocalUrlHandler>{

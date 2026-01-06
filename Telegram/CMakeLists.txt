@@ -490,6 +490,17 @@ PRIVATE
     core/crash_reports.h
     core/credits_amount.h
     core/deadlock_detector.h
+    core/deep_links/deep_links_chats.cpp
+    core/deep_links/deep_links_chats.h
+    core/deep_links/deep_links_contacts.cpp
+    core/deep_links/deep_links_contacts.h
+    core/deep_links/deep_links_new.cpp
+    core/deep_links/deep_links_new.h
+    core/deep_links/deep_links_router.cpp
+    core/deep_links/deep_links_router.h
+    core/deep_links/deep_links_settings.cpp
+    core/deep_links/deep_links_settings.h
+    core/deep_links/deep_links_types.h
     core/file_utilities.cpp
     core/file_utilities.h
     core/launcher.cpp
