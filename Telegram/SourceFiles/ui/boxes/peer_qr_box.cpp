@@ -17,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "qr/qr_generate.h"
+#include "settings/settings_common.h"
 #include "ui/controls/userpic_button.h"
 #include "ui/dynamic_image.h"
 #include "ui/dynamic_thumbnails.h"
@@ -981,6 +982,19 @@ void FillPeerQrBox(
 			saveButton->height() / 2);
 		AddChildToWidgetCenter(saveButton, loadingAnimation);
 		loadingAnimation->showOn(state->saveButtonBusy.value());
+
+		box->showFinishes(
+		) | rpl::take(1) | rpl::on_next([=] {
+			if (const auto window = Core::App().findWindow(box)) {
+				if (window->takeHighlightControlId(u"self-qr-code/copy"_q)) {
+					Settings::HighlightWidget(saveButton, {
+						.radius = st::boxRadius,
+						.color = &st::activeButtonFg,
+						.opacity = 0.6,
+					});
+				}
+			}
+		}, box->lifetime());
 	}
 
 	box->addTopButton(st::boxTitleClose, [=] { box->closeBox(); });

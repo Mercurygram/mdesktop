@@ -9,6 +9,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/binary_guard.h"
 #include "boxes/language_box.h"
+#include "boxes/username_box.h"
+#include "data/data_user.h"
+#include "ui/boxes/peer_qr_box.h"
+#include "ui/layers/generic_box.h"
 #include "main/main_session.h"
 #include "settings/settings_active_sessions.h"
 #include "settings/settings_advanced.h"
@@ -48,6 +52,37 @@ Result ShowSavedMessages(const Context &ctx) {
 Result ShowFaq(const Context &ctx) {
 	::Settings::OpenFaq(
 		ctx.controller ? base::make_weak(ctx.controller) : nullptr);
+	return Result::Handled;
+}
+
+void ShowQrBox(not_null<Window::SessionController*> controller) {
+	const auto user = controller->session().user();
+	controller->uiShow()->show(Box(
+		Ui::FillPeerQrBox,
+		user.get(),
+		std::nullopt,
+		rpl::single(QString())));
+}
+
+Result HandleQrCode(const Context &ctx, bool highlightCopy) {
+	if (!ctx.controller) {
+		return Result::NeedsAuth;
+	}
+
+	if (highlightCopy) {
+		ctx.controller->setHighlightControlId(u"self-qr-code/copy"_q);
+	}
+
+	const auto user = ctx.controller->session().user();
+	if (!user->username().isEmpty()) {
+		ShowQrBox(ctx.controller);
+	} else {
+		const auto controller = ctx.controller;
+		controller->uiShow()->show(Box(
+			UsernamesBoxWithCallback,
+			user,
+			[=] { ShowQrBox(controller); }));
+	}
 	return Result::Handled;
 }
 
@@ -174,6 +209,20 @@ void RegisterSettingsHandlers(Router &router) {
 		.path = u"faq"_q,
 		.action = CodeBlock{ ShowFaq },
 		.requiresAuth = false,
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"qr-code"_q,
+		.action = CodeBlock{ [](const Context &ctx) {
+			return HandleQrCode(ctx, false);
+		}},
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"qr-code/share"_q,
+		.action = CodeBlock{ [](const Context &ctx) {
+			return HandleQrCode(ctx, true);
+		}},
 	});
 }
 
