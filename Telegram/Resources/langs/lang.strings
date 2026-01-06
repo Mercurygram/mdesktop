@@ -787,6 +787,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_username_add" = "Add username";
 "lng_settings_username_about" = "Username lets people contact you on Telegram without needing your phone number.";
 "lng_settings_birthday_label" = "Date of Birth";
+"lng_settings_birthday_title" = "Set your Birthday";
 "lng_settings_birthday_add" = "Add";
 "lng_settings_birthday_about" = "Choose who can see your birthday in {link}.";
 "lng_settings_birthday_about_link" = "Settings";
