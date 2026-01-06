@@ -56,6 +56,25 @@ namespace Settings {
 
 using Button = Ui::SettingsButton;
 
+enum class HighlightShape {
+	Rect,
+	Ellipse,
+};
+
+struct HighlightArgs {
+	style::margins margin;
+	HighlightShape shape = HighlightShape::Rect;
+	int radius = 0;
+	const style::color *color = nullptr;
+	float64 opacity = 0.15;
+	bool below = false;
+	crl::time showDuration = 600;
+	crl::time shownDuration = 800;
+	crl::time hideDuration = 600;
+};
+
+void HighlightWidget(not_null<QWidget*> target, HighlightArgs args = {});
+
 class AbstractSection : public Ui::RpWidget {
 public:
 	using RpWidget::RpWidget;

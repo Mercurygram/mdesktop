@@ -7,7 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_common.h"
 
+#include "base/timer.h"
 #include "lottie/lottie_icon.h"
+#include "ui/effects/animations.h"
 #include "ui/effects/premium_graphics.h"
 #include "ui/effects/premium_top_bar.h"
 #include "ui/painter.h"
@@ -16,12 +18,199 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/continuous_sliders.h"
 #include "ui/widgets/labels.h"
 #include "ui/wrap/vertical_layout.h"
+#include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
+#include "styles/style_widgets.h"
 
 #include <QAction>
 
 namespace Settings {
+namespace {
+
+class HighlightOverlay final : public Ui::RpWidget {
+public:
+	HighlightOverlay(not_null<QWidget*> target, HighlightArgs args);
+
+protected:
+	bool eventFilter(QObject *o, QEvent *e) override;
+
+private:
+	enum class Phase {
+		FadeIn,
+		Shown,
+		FadeOut,
+	};
+
+	void updateGeometryFromTarget();
+	void updateZOrder();
+	void startFadeIn();
+	void startShownTimer();
+	void startFadeOut();
+	void finish();
+
+	const QPointer<QWidget> _target;
+	const HighlightArgs _args;
+	const style::color &_color;
+
+	Ui::Animations::Simple _animation;
+	base::Timer _shownTimer;
+	Phase _phase = Phase::FadeIn;
+	bool _finishing = false;
+
+};
+
+HighlightOverlay::HighlightOverlay(
+	not_null<QWidget*> target,
+	HighlightArgs args)
+: RpWidget(target->parentWidget())
+, _target(target.get())
+, _args(args)
+, _color(args.color ? *args.color : st::windowBgActive)
+, _shownTimer([=] { startFadeOut(); }) {
+	setAttribute(Qt::WA_TransparentForMouseEvents);
+
+	target->installEventFilter(this);
+
+	QObject::connect(
+		target.get(),
+		&QObject::destroyed,
+		this,
+		[this] { finish(); });
+
+	updateGeometryFromTarget();
+	updateZOrder();
+
+	paintRequest() | rpl::on_next([=](QRect clip) {
+		auto p = QPainter(this);
+
+		const auto progress = _animation.value(
+			(_phase == Phase::FadeOut) ? 0. : 1.);
+		const auto alpha = _args.opacity * progress;
+
+		auto color = _color->c;
+		color.setAlphaF(color.alphaF() * alpha);
+
+		p.setPen(Qt::NoPen);
+		p.setBrush(color);
+
+		const auto r = rect();
+		switch (_args.shape) {
+		case HighlightShape::Rect:
+			if (_args.radius > 0) {
+				PainterHighQualityEnabler hq(p);
+				p.drawRoundedRect(r, _args.radius, _args.radius);
+			} else {
+				p.drawRect(r);
+			}
+			break;
+		case HighlightShape::Ellipse:
+			PainterHighQualityEnabler hq(p);
+			p.drawEllipse(r);
+			break;
+		}
+	}, lifetime());
+
+	show();
+	startFadeIn();
+}
+
+bool HighlightOverlay::eventFilter(QObject *o, QEvent *e) {
+	if (o != _target.data()) {
+		return false;
+	}
+	switch (e->type()) {
+	case QEvent::Move:
+	case QEvent::Resize:
+		updateGeometryFromTarget();
+		break;
+	case QEvent::ZOrderChange:
+		updateZOrder();
+		break;
+	case QEvent::Show:
+	case QEvent::Hide:
+		setVisible(!_target->isHidden());
+		break;
+	default:
+		break;
+	}
+	return false;
+}
+
+void HighlightOverlay::updateGeometryFromTarget() {
+	if (!_target) {
+		return;
+	}
+	auto r = _target->geometry();
+	r = r.marginsAdded(QMargins(
+		_args.margin.left(),
+		_args.margin.top(),
+		_args.margin.right(),
+		_args.margin.bottom()));
+	setGeometry(r);
+}
+
+void HighlightOverlay::updateZOrder() {
+	if (!_target) {
+		return;
+	}
+	if (_args.below) {
+		stackUnder(_target);
+	} else {
+		const auto parent = _target->parentWidget();
+		const auto siblings = parent ? parent->children() : QObjectList();
+		const auto it = ranges::find(siblings, _target.data());
+		const auto next = (it != siblings.end()) ? (it + 1) : it;
+		if (next != siblings.end()) {
+			if (const auto widget = qobject_cast<QWidget*>(*next)) {
+				stackUnder(widget);
+				return;
+			}
+		}
+		raise();
+	}
+}
+
+void HighlightOverlay::startFadeIn() {
+	_phase = Phase::FadeIn;
+	_animation.start([=] {
+		update();
+		if (!_animation.animating()) {
+			startShownTimer();
+		}
+	}, 0., 1., _args.showDuration, anim::easeOutCubic);
+}
+
+void HighlightOverlay::startShownTimer() {
+	_phase = Phase::Shown;
+	_shownTimer.callOnce(_args.shownDuration);
+}
+
+void HighlightOverlay::startFadeOut() {
+	_phase = Phase::FadeOut;
+	_animation.start([=] {
+		update();
+		if (!_animation.animating()) {
+			finish();
+		}
+	}, 1., 0., _args.hideDuration, anim::easeInCubic);
+}
+
+void HighlightOverlay::finish() {
+	if (_finishing) {
+		return;
+	}
+	_finishing = true;
+	_shownTimer.cancel();
+	_animation.stop();
+	deleteLater();
+}
+
+} // namespace
+
+void HighlightWidget(not_null<QWidget*> target, HighlightArgs args) {
+	new HighlightOverlay(target, args);
+}
 
 Icon::Icon(IconDescriptor descriptor) : _icon(descriptor.icon) {
 	const auto background = [&]() -> const style::color* {
