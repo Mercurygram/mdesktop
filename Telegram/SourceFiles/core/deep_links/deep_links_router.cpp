@@ -156,6 +156,9 @@ Result Router::executeAction(const Action &action, const Context &ctx) {
 		if (!ctx.controller) {
 			return Result::NeedsAuth;
 		}
+		if (!s.controlId.isEmpty()) {
+			ctx.controller->setHighlightControlId(s.controlId);
+		}
 		ctx.controller->showSettings(s.sectionId);
 		return Result::Handled;
 	}, [&](const CodeBlock &c) {

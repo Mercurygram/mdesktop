@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_type.h"
 
 #include <variant>
+#include <vector>
 
 namespace Ui {
 class RpWidget;
@@ -40,11 +41,19 @@ struct SearchEntry {
 	QStringList keywords;
 };
 
+struct HighlightEntry {
+	QPointer<QWidget> widget;
+	HighlightArgs args;
+};
+
+using HighlightRegistry = std::vector<std::pair<QString, HighlightEntry>>;
+
 struct WidgetContext {
 	not_null<Ui::VerticalLayout*> container;
 	not_null<Window::SessionController*> controller;
 	Fn<void(Type)> showOther;
 	Fn<bool()> isPaused;
+	HighlightRegistry *highlights = nullptr;
 };
 
 struct SearchContext {
@@ -74,6 +83,7 @@ public:
 		rpl::producer<QString> label;
 		Fn<void()> onClick;
 		QStringList keywords;
+		HighlightDescriptor highlight;
 	};
 	Ui::SettingsButton *addSettingsButton(ButtonArgs &&args);
 	Ui::SettingsButton *addLabeledButton(ButtonArgs &&args);
@@ -128,6 +138,7 @@ public:
 		IconDescriptor icon;
 		rpl::producer<bool> toggled;
 		QStringList keywords;
+		HighlightDescriptor highlight;
 	};
 	Ui::SettingsButton *addToggle(ToggleArgs &&args);
 
@@ -153,7 +164,13 @@ public:
 	[[nodiscard]] Fn<void(Type)> showOther() const;
 
 private:
+	void registerHighlight(
+		QString id,
+		QWidget *widget,
+		HighlightArgs &&args);
+
 	BuildContext _context;
+
 };
 
 } // namespace Settings::Builder

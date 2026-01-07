@@ -797,22 +797,17 @@ Notifications::Notifications(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
 : Section(parent) {
-	setupContent(controller);
+	setController(controller);
+	setupContent();
 }
 
 rpl::producer<QString> Notifications::title() {
 	return tr::lng_settings_section_notify();
 }
 
-void Notifications::setupContent(
-		not_null<Window::SessionController*> controller) {
+void Notifications::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
-
-	Builder::BuildNotificationsSection(
-		content,
-		controller,
-		showOtherMethod());
-
+	build(content, Builder::NotificationsSection);
 	Ui::ResizeFitChild(this, content);
 }
 

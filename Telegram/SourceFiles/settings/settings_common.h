@@ -69,17 +69,23 @@ struct HighlightArgs {
 	float64 opacity = 0.15;
 	bool below = false;
 	bool rippleShape = false;
+	bool scroll = true;
 	crl::time showDuration = 600;
 	crl::time shownDuration = 800;
 	crl::time hideDuration = 600;
 };
 
-void HighlightWidget(not_null<QWidget*> target, HighlightArgs &&args = {});
-void ScrollToWidget(not_null<QWidget*> target);
+struct HighlightDescriptor {
+	QString id;
+	HighlightArgs args;
 
-void ScrollAndHighlightWidget(
-	not_null<QWidget*> target,
-	HighlightArgs &&args = {});
+	explicit operator bool() const {
+		return !id.isEmpty();
+	}
+};
+
+void HighlightWidget(QWidget *target, HighlightArgs &&args = {});
+void ScrollToWidget(not_null<QWidget*> target);
 
 class AbstractSection : public Ui::RpWidget {
 public:

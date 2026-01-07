@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/business/settings_location.h"
 #include "settings/business/settings_quick_replies.h"
 #include "settings/business/settings_working_hours.h"
+#include "settings/settings_common.h"
 #include "settings/settings_common_session.h"
 #include "settings/settings_premium.h"
 #include "ui/effects/gradient.h"
@@ -366,6 +367,8 @@ private:
 
 	PremiumFeature _waitingToShow = PremiumFeature::Business;
 
+	QPointer<Ui::SettingsButton> _sponsoredButton;
+
 };
 
 Business::Business(
@@ -563,6 +566,7 @@ void Business::setupContent() {
 		const auto button = inner->add(object_ptr<Ui::SettingsButton>(
 			inner,
 			tr::lng_business_button_sponsored()));
+		_sponsoredButton = button;
 		Ui::AddSkip(inner);
 
 		const auto session = &_controller->session();
@@ -716,6 +720,7 @@ base::weak_qptr<Ui::RpWidget> Business::createPinnedToTop(
 
 void Business::showFinished() {
 	_showFinished.fire({});
+	_controller->checkHighlightControl(u"business/sponsored"_q, _sponsoredButton);
 }
 
 base::weak_qptr<Ui::RpWidget> Business::createPinnedToBottom(

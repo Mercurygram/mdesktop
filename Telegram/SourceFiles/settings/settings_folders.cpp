@@ -48,6 +48,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_chat_helpers.h"
 
 namespace Settings {
+
+struct FoldersHighlightTargets {
+	QPointer<Ui::RpWidget> createButton;
+	QPointer<Ui::RpWidget> tagsButton;
+	QPointer<Ui::RpWidget> viewSection;
+};
 namespace {
 
 using Flag = Data::ChatFilter::Flag;
@@ -350,7 +356,8 @@ void FilterRowButton::paintEvent(QPaintEvent *e) {
 [[nodiscard]] Fn<void()> SetupFoldersContent(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
-		not_null<rpl::event_stream<bool>*> tagsButtonEnabled) {
+		not_null<rpl::event_stream<bool>*> tagsButtonEnabled,
+		FoldersHighlightTargets *targets) {
 	auto &lifetime = container->lifetime();
 
 	const auto weak = base::make_weak(container);
@@ -557,12 +564,15 @@ void FilterRowButton::paintEvent(QPaintEvent *e) {
 		j->button->updateCount(j->filter);
 	}, container->lifetime());
 
-	AddButtonWithIcon(
+	const auto createButton = AddButtonWithIcon(
 		container,
 		tr::lng_filters_create(),
 		st::settingsButtonActive,
-		{ &st::settingsIconAdd, IconType::Round, &st::windowBgActive }
-	)->setClickedCallback([=] {
+		{ &st::settingsIconAdd, IconType::Round, &st::windowBgActive });
+	if (targets) {
+		targets->createButton = createButton;
+	}
+	createButton->setClickedCallback([=] {
 		if (showLimitReached()) {
 			return;
 		}
@@ -879,7 +889,8 @@ void SetupTopContent(
 void SetupTagContent(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> content,
-		not_null<rpl::event_stream<bool>*> tagsButtonEnabled) {
+		not_null<rpl::event_stream<bool>*> tagsButtonEnabled,
+		FoldersHighlightTargets *targets) {
 	Ui::AddDivider(content);
 	Ui::AddSkip(content);
 
@@ -897,6 +908,9 @@ void SetupTagContent(
 			content,
 			tr::lng_filters_enable_tags(),
 			st::settingsButtonNoIconLocked));
+	if (targets) {
+		targets->tagsButton = tagsButton;
+	}
 	const auto state = tagsButton->lifetime().make_state<State>();
 	tagsButton->toggleOn(rpl::merge(
 		rpl::combine(
@@ -970,12 +984,16 @@ void SetupTagContent(
 void SetupView(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> content,
-		bool dividerNeeded) {
+		bool dividerNeeded,
+		FoldersHighlightTargets *targets) {
 	const auto wrap = content->add(
 		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 			content,
 			object_ptr<Ui::VerticalLayout>(content)));
 	wrap->toggleOn(controller->enoughSpaceForFiltersValue());
+	if (targets) {
+		targets->viewSection = wrap->entity();
+	}
 	content = wrap->entity();
 
 	if (dividerNeeded) {
@@ -1012,7 +1030,8 @@ void SetupView(
 Folders::Folders(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent) {
+: Section(parent)
+, _controller(controller) {
 	setupContent(controller);
 }
 
@@ -1035,21 +1054,29 @@ void Folders::setupContent(not_null<Window::SessionController*> controller) {
 
 	SetupTopContent(content, _showFinished.events());
 
-	_save = SetupFoldersContent(controller, content, tagsButtonEnabled);
+	auto targets = FoldersHighlightTargets();
+	_save = SetupFoldersContent(controller, content, tagsButtonEnabled, &targets);
+	_createButton = targets.createButton;
 
 	auto dividerNeeded = true;
 	if (controller->session().premiumPossible()) {
-		SetupTagContent(controller, content, tagsButtonEnabled);
+		SetupTagContent(controller, content, tagsButtonEnabled, &targets);
+		_tagsButton = targets.tagsButton;
 		dividerNeeded = false;
 	}
 
-	SetupView(controller, content, dividerNeeded);
+	SetupView(controller, content, dividerNeeded, &targets);
+	_viewSection = targets.viewSection;
 
 	Ui::ResizeFitChild(this, content);
 }
 
 void Folders::showFinished() {
 	_showFinished.fire({});
+
+	_controller->checkHighlightControl(u"folders/create"_q, _createButton);
+	_controller->checkHighlightControl(u"folders/show-tags"_q, _tagsButton);
+	_controller->checkHighlightControl(u"folders/tab-view"_q, _viewSection);
 }
 
 } // namespace Settings

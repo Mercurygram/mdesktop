@@ -607,6 +607,8 @@ public:
 		not_null<Window::SessionController*> controller);
 
 	void setupContent();
+	[[nodiscard]] Ui::RpWidget *terminateAllButton() const;
+	[[nodiscard]] Ui::RpWidget *autoTerminateButton() const;
 
 protected:
 	void resizeEvent(QResizeEvent *e) override;
@@ -685,6 +687,8 @@ public:
 	[[nodiscard]] rpl::producer<EntryData> showRequests() const;
 	[[nodiscard]] rpl::producer<uint64> terminateOne() const;
 	[[nodiscard]] rpl::producer<> terminateAll() const;
+	[[nodiscard]] Ui::RpWidget *terminateAllButton() const;
+	[[nodiscard]] Ui::RpWidget *autoTerminateButton() const;
 
 private:
 	void setupContent();
@@ -692,6 +696,7 @@ private:
 	const not_null<Window::SessionController*> _controller;
 	std::unique_ptr<ListController> _current;
 	QPointer<Ui::SettingsButton> _terminateAll;
+	QPointer<Ui::SettingsButton> _autoTerminate;
 	std::unique_ptr<ListController> _incomplete;
 	std::unique_ptr<ListController> _list;
 	rpl::variable<int> _ttlDays;
@@ -874,6 +879,14 @@ void SessionsContent::terminateAll() {
 	terminate(std::move(callback), tr::lng_settings_reset_sure(tr::now));
 }
 
+Ui::RpWidget *SessionsContent::terminateAllButton() const {
+	return _inner ? _inner->terminateAllButton() : nullptr;
+}
+
+Ui::RpWidget *SessionsContent::autoTerminateButton() const {
+	return _inner ? _inner->autoTerminateButton() : nullptr;
+}
+
 SessionsContent::Inner::Inner(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller,
@@ -961,12 +974,12 @@ void SessionsContent::Inner::setupContent() {
 	AddSkip(ttlInner, st::sessionSubtitleSkip);
 	AddSubsectionTitle(ttlInner, tr::lng_settings_terminate_title());
 
-	AddButtonWithLabel(
+	_autoTerminate = AddButtonWithLabel(
 		ttlInner,
 		tr::lng_settings_terminate_if(),
 		_ttlDays.value() | rpl::map(SelfDestructionBox::DaysLabel),
-		st::settingsButtonNoIcon
-	)->addClickHandler([=] {
+		st::settingsButtonNoIcon);
+	_autoTerminate->addClickHandler([=] {
 		_controller->show(Box<SelfDestructionBox>(
 			&_controller->session(),
 			SelfDestructionBox::Type::Sessions,
@@ -1005,6 +1018,14 @@ void SessionsContent::Inner::showData(const Full &data) {
 
 rpl::producer<> SessionsContent::Inner::terminateAll() const {
 	return _terminateAll->clicks() | rpl::to_empty;
+}
+
+Ui::RpWidget *SessionsContent::Inner::terminateAllButton() const {
+	return _terminateAll.data();
+}
+
+Ui::RpWidget *SessionsContent::Inner::autoTerminateButton() const {
+	return _autoTerminate.data();
 }
 
 rpl::producer<uint64> SessionsContent::Inner::terminateOne() const {
@@ -1124,12 +1145,18 @@ namespace Settings {
 Sessions::Sessions(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent) {
+: Section(parent)
+, _controller(controller) {
 	setupContent(controller);
 }
 
 rpl::producer<QString> Sessions::title() {
 	return tr::lng_settings_sessions_title();
+}
+
+void Sessions::showFinished() {
+	_controller->checkHighlightControl(u"devices/terminate-sessions"_q, _terminateAll);
+	_controller->checkHighlightControl(u"devices/auto-terminate"_q, _autoTerminate);
 }
 
 void Sessions::setupContent(not_null<Window::SessionController*> controller) {
@@ -1138,6 +1165,9 @@ void Sessions::setupContent(not_null<Window::SessionController*> controller) {
 	const auto content = container->add(
 		object_ptr<SessionsContent>(container, controller));
 	content->setupContent();
+
+	_terminateAll = content->terminateAllButton();
+	_autoTerminate = content->autoTerminateButton();
 
 	Ui::ResizeFitChild(this, container);
 }

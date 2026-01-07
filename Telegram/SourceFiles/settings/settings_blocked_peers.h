@@ -48,6 +48,8 @@ private:
 	rpl::event_stream<> _showFinished;
 	rpl::event_stream<bool> _emptinessChanges;
 
+	QPointer<Ui::RpWidget> _blockUserButton;
+
 };
 
 } // namespace Settings

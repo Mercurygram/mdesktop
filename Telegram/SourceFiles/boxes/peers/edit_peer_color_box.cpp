@@ -2716,7 +2716,7 @@ void SetupPeerColorSample(
 	emojiStatusWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
 }
 
-void AddPeerColorButton(
+not_null<Ui::SettingsButton*> AddPeerColorButton(
 		not_null<Ui::VerticalLayout*> container,
 		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<PeerData*> peer,
@@ -2769,6 +2769,7 @@ void AddPeerColorButton(
 	button->setClickedCallback([=] {
 		show->show(Box(EditPeerColorBox, show, peer, style, theme));
 	});
+	return button;
 }
 
 void CheckBoostLevel(

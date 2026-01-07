@@ -3692,6 +3692,19 @@ bool SessionController::takeHighlightControlId(const QString &id) {
 	return _window->takeHighlightControlId(id);
 }
 
+void SessionController::checkHighlightControl(
+		const QString &id,
+		QWidget *widget,
+		Settings::HighlightArgs &&args) {
+	_window->checkHighlightControl(id, widget, std::move(args));
+}
+
+void SessionController::checkHighlightControl(
+		const QString &id,
+		QWidget *widget) {
+	_window->checkHighlightControl(id, widget);
+}
+
 SessionController::~SessionController() {
 	resetFakeUnreadWhileOpened();
 	dropSubsectionTabs();

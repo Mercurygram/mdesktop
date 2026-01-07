@@ -58,6 +58,8 @@ Ui::RpWidget *SectionBuilder::addControl(ControlArgs &&args) {
 
 Ui::SettingsButton *SectionBuilder::addSettingsButton(ButtonArgs &&args) {
 	const auto &st = args.st ? *args.st : st::settingsButton;
+	auto highlight = std::move(args.highlight);
+	const auto id = args.id;
 	const auto button = v::match(_context, [&](const WidgetContext &ctx) -> Ui::SettingsButton* {
 		if (args.label) {
 			return AddButtonWithLabel(
@@ -85,6 +87,10 @@ Ui::SettingsButton *SectionBuilder::addSettingsButton(ButtonArgs &&args) {
 	});
 	if (button && args.onClick) {
 		button->addClickHandler(std::move(args.onClick));
+	}
+	if (button && !id.isEmpty()) {
+		const auto highlightId = highlight.id.isEmpty() ? id : highlight.id;
+		registerHighlight(highlightId, button, std::move(highlight.args));
 	}
 	return button;
 }
@@ -251,7 +257,9 @@ Ui::SettingsButton *SectionBuilder::addPremiumButton(PremiumButtonArgs &&args) {
 }
 
 Ui::SettingsButton *SectionBuilder::addToggle(ToggleArgs &&args) {
-	return v::match(_context, [&](const WidgetContext &ctx)
+	auto highlight = std::move(args.highlight);
+	const auto id = args.id;
+	const auto button = v::match(_context, [&](const WidgetContext &ctx)
 			-> Ui::SettingsButton* {
 		const auto &st = args.st ? *args.st : st::settingsButton;
 		const auto button = ctx.container->add(CreateButtonWithIcon(
@@ -271,6 +279,11 @@ Ui::SettingsButton *SectionBuilder::addToggle(ToggleArgs &&args) {
 		}
 		return nullptr;
 	});
+	if (button && !id.isEmpty()) {
+		const auto highlightId = highlight.id.isEmpty() ? id : highlight.id;
+		registerHighlight(highlightId, button, std::move(highlight.args));
+	}
+	return button;
 }
 
 Ui::SlideWrap<Ui::SettingsButton> *SectionBuilder::addSlideToggle(
@@ -332,6 +345,21 @@ Fn<void(Type)> SectionBuilder::showOther() const {
 		return ctx.showOther;
 	}, [](const SearchContext &) -> Fn<void(Type)> {
 		return nullptr;
+	});
+}
+
+void SectionBuilder::registerHighlight(
+		QString id,
+		QWidget *widget,
+		HighlightArgs &&args) {
+	v::match(_context, [&](const WidgetContext &ctx) {
+		if (ctx.highlights && widget) {
+			ctx.highlights->push_back({
+				std::move(id),
+				{ widget, std::move(args) },
+			});
+		}
+	}, [](const SearchContext &) {
 	});
 }
 

@@ -25,9 +25,13 @@ public:
 private:
 	void setupContent(not_null<Window::SessionController*> controller);
 
+	const not_null<Window::SessionController*> _controller;
 	Fn<void()> _save;
 
 	rpl::event_stream<> _showFinished;
+	QPointer<Ui::RpWidget> _createButton;
+	QPointer<Ui::RpWidget> _tagsButton;
+	QPointer<Ui::RpWidget> _viewSection;
 
 };
 

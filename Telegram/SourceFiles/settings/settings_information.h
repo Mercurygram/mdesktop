@@ -29,13 +29,21 @@ public:
 
 	[[nodiscard]] rpl::producer<QString> title() override;
 
+	void showFinished() override;
+
 private:
 	void setupContent(not_null<Window::SessionController*> controller);
+
+	const not_null<Window::SessionController*> _controller;
+	QPointer<Ui::RpWidget> _bio;
+	QPointer<Ui::RpWidget> _colorButton;
+	QPointer<Ui::RpWidget> _addAccount;
 
 };
 
 struct AccountsEvents {
 	rpl::producer<> closeRequests;
+	QPointer<Ui::RpWidget> addAccountButton;
 };
 AccountsEvents SetupAccounts(
 	not_null<Ui::VerticalLayout*> container,

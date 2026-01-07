@@ -226,7 +226,13 @@ void HighlightOverlay::finish() {
 
 } // namespace
 
-void HighlightWidget(not_null<QWidget*> target, HighlightArgs &&args) {
+void HighlightWidget(QWidget *target, HighlightArgs &&args) {
+	if (!target) {
+		return;
+	}
+	if (args.scroll) {
+		ScrollToWidget(target);
+	}
 	new HighlightOverlay(target, std::move(args));
 }
 
@@ -255,13 +261,6 @@ void ScrollToWidget(not_null<QWidget*> target) {
 			return;
 		}
 	}
-}
-
-void ScrollAndHighlightWidget(
-		not_null<QWidget*> target,
-		HighlightArgs &&args) {
-	ScrollToWidget(target);
-	HighlightWidget(target, std::move(args));
 }
 
 Icon::Icon(IconDescriptor descriptor) : _icon(descriptor.icon) {

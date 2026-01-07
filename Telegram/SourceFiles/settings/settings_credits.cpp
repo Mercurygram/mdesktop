@@ -33,6 +33,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/statistics/info_statistics_list_controllers.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
+#include "settings/settings_common.h"
 #include "settings/settings_common_session.h"
 #include "settings/settings_credits_graphics.h"
 #include "statistics/widgets/chart_header_widget.h"
@@ -114,6 +115,10 @@ private:
 	rpl::event_stream<> _showBack;
 	rpl::event_stream<> _showFinished;
 	rpl::variable<QString> _buttonText;
+
+	QPointer<Ui::SettingsButton> _statsButton;
+	QPointer<Ui::SettingsButton> _giftButton;
+	QPointer<Ui::SettingsButton> _earnButton;
 
 };
 
@@ -611,6 +616,7 @@ void Credits::setupContent() {
 					tr::lng_credits_stats_button(),
 					st::settingsCreditsButton,
 					{ &st::menuIconStats })));
+		_statsButton = static_cast<Button*>(wrap->entity());
 		wrap->entity()->setClickedCallback([=] {
 			controller->showSection(Info::BotEarn::Make(self));
 		});
@@ -620,21 +626,23 @@ void Credits::setupContent() {
 		}));
 	}
 	if (!isCurrency) {
-		AddButtonWithIcon(
+		_giftButton = AddButtonWithIcon(
 			content,
 			tr::lng_credits_gift_button(),
 			st::settingsCreditsButton,
-			{ &st::settingsButtonIconGift })->setClickedCallback([=] {
+			{ &st::settingsButtonIconGift });
+		_giftButton->setClickedCallback([=] {
 			Ui::ShowGiftCreditsBox(controller, paid);
 		});
 	}
 
 	if (!isCurrency && Info::BotStarRef::Join::Allowed(self)) {
-		AddButtonWithIcon(
+		_earnButton = AddButtonWithIcon(
 			content,
 			tr::lng_credits_earn_button(),
 			st::settingsCreditsButton,
-			{ &st::settingsButtonIconEarn })->setClickedCallback([=] {
+			{ &st::settingsButtonIconEarn });
+		_earnButton->setClickedCallback([=] {
 			controller->showSection(Info::BotStarRef::Join::Make(self));
 		});
 	}
@@ -904,6 +912,9 @@ base::weak_qptr<Ui::RpWidget> Credits::createPinnedToTop(
 
 void Credits::showFinished() {
 	_showFinished.fire({});
+	_controller->checkHighlightControl(u"stars/stats"_q, _statsButton);
+	_controller->checkHighlightControl(u"stars/gift"_q, _giftButton);
+	_controller->checkHighlightControl(u"stars/earn"_q, _earnButton);
 }
 
 class Currency {

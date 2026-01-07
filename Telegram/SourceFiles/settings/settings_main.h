@@ -15,6 +15,7 @@ class SessionController;
 } // namespace Window
 
 namespace Ui {
+class SettingsButton;
 class VerticalLayout;
 } // namespace Ui
 
@@ -53,9 +54,7 @@ protected:
 	void keyPressEvent(QKeyEvent *e) override;
 
 private:
-	void setupContentWithBuilder(not_null<Window::SessionController*> controller);
-
-	const not_null<Window::SessionController*> _controller;
+	void setupContent();
 
 };
 

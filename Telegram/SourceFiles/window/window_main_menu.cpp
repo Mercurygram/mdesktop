@@ -637,13 +637,11 @@ void MainMenu::parentResized() {
 void MainMenu::showFinished() {
 	_showFinished = true;
 
-	if (_controller->takeHighlightControlId(u"main-menu/emoji-status"_q)) {
-		const auto radius = st::roundRadiusSmall;
-		Settings::HighlightWidget(_setEmojiStatus, {
-			.margin = { radius, 0, radius, 0 },
-			.radius = radius,
-		});
-	}
+	const auto radius = st::roundRadiusSmall;
+	_controller->checkHighlightControl(
+		u"main-menu/emoji-status"_q,
+		_setEmojiStatus,
+		{ .margin = { -radius, 0, -radius, 0 }, .radius = radius });
 }
 
 void MainMenu::setupMenu() {

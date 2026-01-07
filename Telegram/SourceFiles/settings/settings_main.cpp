@@ -671,10 +671,10 @@ void SetupInterfaceScale(
 Main::Main(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller) {
-	setupContentWithBuilder(controller);
-	_controller->session().api().premium().reload();
+: Section(parent) {
+	setController(controller);
+	setupContent();
+	controller->session().api().premium().reload();
 }
 
 rpl::producer<QString> Main::title() {
@@ -688,13 +688,13 @@ void Main::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
 			Core::App().domain().addActivated(MTP::Environment{});
 		}, &st::menuIconAddAccount);
 	}
-	if (!_controller->session().supportMode()) {
+	if (!controller()->session().supportMode()) {
 		addAction(
 			tr::lng_settings_information(tr::now),
 			[=] { showOther(Information::Id()); },
 			&st::menuIconEdit);
 	}
-	const auto window = &_controller->window();
+	const auto window = &controller()->window();
 	addAction({
 		.text = tr::lng_settings_logout(tr::now),
 		.handler = [=] { window->showLogoutConfirmation(); },
@@ -705,29 +705,28 @@ void Main::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
 
 void Main::keyPressEvent(QKeyEvent *e) {
 	crl::on_main(this, [=, text = e->text()]{
-		CodesFeedString(_controller, text);
+		CodesFeedString(controller(), text);
 	});
 	return Section::keyPressEvent(e);
 }
 
-void Main::setupContentWithBuilder(
-		not_null<Window::SessionController*> controller) {
+void Main::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
 	content->add(object_ptr<Cover>(
 		content,
-		controller,
-		controller->session().user()));
+		controller(),
+		controller()->session().user()));
 
-	Builder::BuildMainSection(content, controller, showOtherMethod());
+	build(content, Builder::MainSection);
 
 	Ui::ResizeFitChild(this, content);
 
-	controller->session().api().cloudPassword().reload();
-	controller->session().api().reloadContactSignupSilent();
-	controller->session().api().sensitiveContent().reload();
-	controller->session().api().globalPrivacy().reload();
-	controller->session().data().cloudThemes().refresh();
+	controller()->session().api().cloudPassword().reload();
+	controller()->session().api().reloadContactSignupSilent();
+	controller()->session().api().sensitiveContent().reload();
+	controller()->session().api().globalPrivacy().reload();
+	controller()->session().data().cloudThemes().refresh();
 }
 
 void OpenFaq(base::weak_ptr<Window::SessionController> weak) {

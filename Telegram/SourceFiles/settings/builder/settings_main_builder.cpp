@@ -279,7 +279,7 @@ void BuildPremiumSection(
 
 	if (!controller || controller->session().premiumCanBuy()) {
 		builder.addSettingsButton({
-			.id = u"main/gift"_q,
+			.id = u"main/send-gift"_q,
 			.title = tr::lng_settings_gift_premium(),
 			.icon = { .icon = &st::menuIconGiftPremium, .newBadge = true },
 			.onClick = controller
@@ -299,14 +299,14 @@ void BuildHelpSection(
 	builder.addSkip();
 
 	const auto faqClick = controller
-		? Fn<void()>([=] {
+		? [=] {
 			UrlClickHandler::Open(
 				tr::lng_settings_faq_link(tr::now),
 				QVariant::fromValue(ClickHandlerContext{
 					.sessionWindow = base::make_weak(controller),
 				}));
-		})
-		: Fn<void()>(nullptr);
+		}
+		: Fn<void()>();
 	builder.addSettingsButton({
 		.id = u"main/faq"_q,
 		.title = tr::lng_settings_faq(),
@@ -326,9 +326,12 @@ void BuildHelpSection(
 	});
 
 	builder.addSettingsButton({
-		.id = u"main/ask"_q,
+		.id = u"main/ask-question"_q,
 		.title = tr::lng_settings_ask_question(),
 		.icon = { &st::menuIconDiscussion },
+		.onClick = [] {
+			UrlClickHandler::Open(tr::lng_telegram_features_url(tr::now));
+		},
 		.keywords = { u"contact"_q, u"feedback"_q },
 	});
 
@@ -380,10 +383,13 @@ void BuildMainSectionContent(
 
 } // namespace
 
-void BuildMainSection(
+void MainSection(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> controller,
-		Fn<void(Type)> showOther) {
+		Fn<void(Type)> showOther,
+		rpl::producer<> showFinished) {
+	auto &lifetime = container->lifetime();
+	const auto highlights = lifetime.make_state<HighlightRegistry>();
 	const auto isPaused = Window::PausedIn(
 		controller,
 		Window::GifPauseReason::Layer);
@@ -392,11 +398,23 @@ void BuildMainSection(
 		.controller = controller,
 		.showOther = std::move(showOther),
 		.isPaused = isPaused,
+		.highlights = highlights,
 	});
 	BuildMainSectionContent(builder, controller);
+
+	std::move(showFinished) | rpl::on_next([=] {
+		for (const auto &[id, entry] : *highlights) {
+			if (const auto widget = entry.widget.data()) {
+				controller->checkHighlightControl(
+					id,
+					widget,
+					base::duplicate(entry.args));
+			}
+		}
+	}, lifetime);
 }
 
-std::vector<SearchEntry> BuildMainSectionForSearch() {
+std::vector<SearchEntry> MainSectionForSearch() {
 	auto entries = std::vector<SearchEntry>();
 	auto builder = SectionBuilder(SearchContext{
 		.entries = &entries,

@@ -27,10 +27,18 @@ public:
 		return Id(_type);
 	}
 
+	void showFinished() override;
+
 private:
 	void setupContent(not_null<Window::SessionController*> controller);
 
+	const not_null<Window::SessionController*> _controller;
 	const Data::DefaultNotify _type;
+
+	QPointer<Ui::RpWidget> _showToggle;
+	QPointer<Ui::RpWidget> _soundToggle;
+	QPointer<Ui::RpWidget> _addException;
+	QPointer<Ui::RpWidget> _deleteExceptions;
 
 };
 

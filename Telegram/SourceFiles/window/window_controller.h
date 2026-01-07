@@ -32,6 +32,10 @@ namespace Media::Player {
 class FloatDelegate;
 } // namespace Media::Player
 
+namespace Settings {
+struct HighlightArgs;
+} // namespace Settings
+
 namespace Window {
 
 class Controller final : public base::has_weak_ptr {
@@ -145,6 +149,11 @@ public:
 	void setHighlightControlId(const QString &id);
 	[[nodiscard]] QString highlightControlId() const;
 	[[nodiscard]] bool takeHighlightControlId(const QString &id);
+	void checkHighlightControl(
+		const QString &id,
+		QWidget *widget,
+		Settings::HighlightArgs &&args);
+	void checkHighlightControl(const QString &id, QWidget *widget);
 
 	[[nodiscard]] rpl::lifetime &lifetime();
 

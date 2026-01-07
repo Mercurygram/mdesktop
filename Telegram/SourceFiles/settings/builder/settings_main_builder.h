@@ -12,6 +12,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <vector>
 
 namespace Ui {
+class RpWidget;
+class SettingsButton;
 class VerticalLayout;
 } // namespace Ui
 
@@ -23,11 +25,12 @@ namespace Settings::Builder {
 
 struct SearchEntry;
 
-void BuildMainSection(
+void MainSection(
 	not_null<Ui::VerticalLayout*> container,
 	not_null<Window::SessionController*> controller,
-	Fn<void(Type)> showOther);
+	Fn<void(Type)> showOther,
+	rpl::producer<> showFinished);
 
-[[nodiscard]] std::vector<SearchEntry> BuildMainSectionForSearch();
+[[nodiscard]] std::vector<SearchEntry> MainSectionForSearch();
 
 } // namespace Settings::Builder

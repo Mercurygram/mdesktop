@@ -74,7 +74,7 @@ void BuildMultiAccountSection(
 	}
 
 	const auto fromAll = builder.addToggle({
-		.id = u"notifications/multi_account"_q,
+		.id = u"notifications/accounts"_q,
 		.title = tr::lng_settings_notify_all(),
 		.st = &st::settingsButtonNoIcon,
 		.toggled = rpl::single(Core::App().settings().notifyFromAll()),
@@ -468,7 +468,7 @@ void BuildBadgeCounterSection(
 	const auto &settings = Core::App().settings();
 
 	const auto muted = builder.addToggle({
-		.id = u"notifications/badge/muted"_q,
+		.id = u"notifications/include-muted-chats"_q,
 		.title = tr::lng_settings_include_muted(),
 		.st = &st::settingsButtonNoIcon,
 		.toggled = rpl::single(settings.includeMutedCounter()),
@@ -486,7 +486,7 @@ void BuildBadgeCounterSection(
 	}) : nullptr;
 
 	const auto count = builder.addToggle({
-		.id = u"notifications/badge/count"_q,
+		.id = u"notifications/count-unread-messages"_q,
 		.title = tr::lng_settings_count_unread(),
 		.st = &st::settingsButtonNoIcon,
 		.toggled = rpl::single(settings.countUnreadMessages()),
@@ -742,10 +742,13 @@ void BuildNotificationsSectionContent(
 
 } // namespace
 
-void BuildNotificationsSection(
+void NotificationsSection(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> controller,
-		Fn<void(Type)> showOther) {
+		Fn<void(Type)> showOther,
+		rpl::producer<> showFinished) {
+	auto &lifetime = container->lifetime();
+	const auto highlights = lifetime.make_state<HighlightRegistry>();
 	const auto isPaused = Window::PausedIn(
 		controller,
 		Window::GifPauseReason::Layer);
@@ -754,11 +757,21 @@ void BuildNotificationsSection(
 		.controller = controller,
 		.showOther = std::move(showOther),
 		.isPaused = isPaused,
+		.highlights = highlights,
 	});
 	BuildNotificationsSectionContent(builder, controller);
+
+	std::move(showFinished) | rpl::on_next([=] {
+		for (const auto &[id, entry] : *highlights) {
+			if (entry.widget) {
+				auto args = entry.args;
+				controller->checkHighlightControl(id, entry.widget, std::move(args));
+			}
+		}
+	}, lifetime);
 }
 
-std::vector<SearchEntry> BuildNotificationsSectionForSearch() {
+std::vector<SearchEntry> NotificationsSectionForSearch() {
 	auto entries = std::vector<SearchEntry>();
 	auto builder = SectionBuilder(SearchContext{
 		.entries = &entries,

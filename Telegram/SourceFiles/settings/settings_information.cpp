@@ -68,6 +68,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtCore/QBuffer>
 
 namespace Settings {
+
+struct InformationHighlightTargets {
+	QPointer<Ui::RpWidget> bio;
+	QPointer<Ui::RpWidget> colorButton;
+	QPointer<Ui::RpWidget> addAccount;
+};
+
 namespace {
 
 constexpr auto kSaveBioTimeout = 1000;
@@ -191,6 +198,7 @@ public:
 		not_null<Window::SessionController*> controller);
 
 	[[nodiscard]] rpl::producer<> closeRequests() const;
+	[[nodiscard]] Ui::RpWidget *addAccountButton() const;
 
 private:
 	void setup();
@@ -418,7 +426,8 @@ void SetupBirthday(
 void SetupPersonalChannel(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> controller,
-		not_null<UserData*> self) {
+		not_null<UserData*> self,
+		InformationHighlightTargets *targets) {
 	Ui::AddSkip(container);
 
 	auto value = rpl::combine(
@@ -442,11 +451,14 @@ void SetupPersonalChannel(
 		edit,
 		{ &st::menuIconChannel });
 
-	AddPeerColorButton(
+	const auto colorButton = AddPeerColorButton(
 		container,
 		controller->uiShow(),
 		self,
 		st::settingsColorButton);
+	if (targets) {
+		targets->colorButton = colorButton;
+	}
 
 	Ui::AddSkip(container);
 	Ui::AddDivider(container);
@@ -539,7 +551,8 @@ void SetupRows(
 
 void SetupBio(
 		not_null<Ui::VerticalLayout*> container,
-		not_null<UserData*> self) {
+		not_null<UserData*> self,
+		InformationHighlightTargets *targets) {
 	const auto limits = Data::PremiumLimits(&self->session());
 	const auto defaultLimit = limits.aboutLengthDefault();
 	const auto premiumLimit = limits.aboutLengthPremium();
@@ -561,6 +574,9 @@ void SetupBio(
 			tr::lng_bio_placeholder(),
 			*current),
 		st::settingsBioMargins);
+	if (targets) {
+		targets->bio = bio;
+	}
 
 	const auto countdown = Ui::CreateChild<Ui::FlatLabel>(
 		container.get(),
@@ -659,10 +675,14 @@ void SetupBio(
 
 void SetupAccountsWrap(
 		not_null<Ui::VerticalLayout*> container,
-		not_null<Window::SessionController*> controller) {
+		not_null<Window::SessionController*> controller,
+		InformationHighlightTargets *targets) {
 	Ui::AddSkip(container);
 
-	SetupAccounts(container, controller);
+	auto events = SetupAccounts(container, controller);
+	if (targets) {
+		targets->addAccount = events.addAccountButton;
+	}
 }
 
 [[nodiscard]] bool IsAltShift(Qt::KeyboardModifiers modifiers) {
@@ -837,6 +857,10 @@ AccountsList::AccountsList(
 
 rpl::producer<> AccountsList::closeRequests() const {
 	return _closeRequests.events();
+}
+
+Ui::RpWidget *AccountsList::addAccountButton() const {
+	return _addAccount ? _addAccount->entity() : nullptr;
 }
 
 void AccountsList::setup() {
@@ -1052,7 +1076,8 @@ void AccountsList::rebuild() {
 Information::Information(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent) {
+: Section(parent)
+, _controller(controller) {
 	setupContent(controller);
 }
 
@@ -1060,17 +1085,29 @@ rpl::producer<QString> Information::title() {
 	return tr::lng_settings_section_info();
 }
 
+void Information::showFinished() {
+	_controller->checkHighlightControl(u"edit/bio"_q, _bio);
+	_controller->checkHighlightControl(u"edit/your-color"_q, _colorButton);
+	_controller->checkHighlightControl(u"edit/add-account"_q, _addAccount);
+}
+
 void Information::setupContent(
 		not_null<Window::SessionController*> controller) {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
 	const auto self = controller->session().user();
+	auto targets = InformationHighlightTargets();
+
 	SetupPhoto(content, controller, self);
-	SetupBio(content, self);
+	SetupBio(content, self, &targets);
 	SetupRows(content, controller, self);
-	SetupPersonalChannel(content, controller, self);
+	SetupPersonalChannel(content, controller, self, &targets);
 	SetupBirthday(content, controller, self);
-	SetupAccountsWrap(content, controller);
+	SetupAccountsWrap(content, controller, &targets);
+
+	_bio = targets.bio;
+	_colorButton = targets.colorButton;
+	_addAccount = targets.addAccount;
 
 	Ui::ResizeFitChild(this, content);
 }
@@ -1083,6 +1120,7 @@ AccountsEvents SetupAccounts(
 		controller);
 	return {
 		.closeRequests = list->closeRequests(),
+		.addAccountButton = list->addAccountButton(),
 	};
 }
 

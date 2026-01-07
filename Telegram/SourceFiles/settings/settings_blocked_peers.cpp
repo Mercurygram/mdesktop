@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
 #include "main/main_session.h"
+#include "settings/settings_common.h"
 #include "settings/settings_privacy_controllers.h"
 #include "ui/widgets/buttons.h"
 #include "ui/wrap/padding_wrap.h"
@@ -76,12 +77,13 @@ base::weak_qptr<Ui::RpWidget> Blocked::createPinnedToTop(not_null<QWidget*> pare
 
 	Ui::AddSkip(content);
 
-	AddButtonWithIcon(
+	const auto blockButton = AddButtonWithIcon(
 		content,
 		tr::lng_blocked_list_add(),
 		st::settingsButtonActive,
-		{ &st::menuIconBlockSettings }
-	)->addClickHandler([=] {
+		{ &st::menuIconBlockSettings });
+	_blockUserButton = blockButton;
+	blockButton->addClickHandler([=] {
 		BlockedBoxController::BlockNewPeer(_controller);
 	});
 
@@ -236,6 +238,7 @@ void Blocked::visibleTopBottomUpdated(int visibleTop, int visibleBottom) {
 
 void Blocked::showFinished() {
 	_showFinished.fire({});
+	_controller->checkHighlightControl(u"privacy/blocked/block-user"_q, _blockUserButton);
 }
 
 } // namespace Settings

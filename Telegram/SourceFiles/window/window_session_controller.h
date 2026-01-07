@@ -90,6 +90,10 @@ namespace HistoryView::Reactions {
 class CachedIconFactory;
 } // namespace HistoryView::Reactions
 
+namespace Settings {
+struct HighlightArgs;
+} // namespace Settings
+
 namespace Window {
 
 using GifPauseReason = ChatHelpers::PauseReason;
@@ -703,6 +707,11 @@ public:
 	void setHighlightControlId(const QString &id);
 	[[nodiscard]] QString highlightControlId() const;
 	[[nodiscard]] bool takeHighlightControlId(const QString &id);
+	void checkHighlightControl(
+		const QString &id,
+		QWidget *widget,
+		Settings::HighlightArgs &&args);
+	void checkHighlightControl(const QString &id, QWidget *widget);
 
 	[[nodiscard]] rpl::lifetime &lifetime() {
 		return _lifetime;

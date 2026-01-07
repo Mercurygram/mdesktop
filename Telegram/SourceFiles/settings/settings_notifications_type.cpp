@@ -31,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/vertical_layout.h"
 #include "ui/vertical_list.h"
 #include "window/window_session_controller.h"
+#include "settings/settings_common.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
@@ -39,6 +40,13 @@ namespace Settings {
 namespace {
 
 using Notify = Data::DefaultNotify;
+
+struct NotificationsTypeHighlightTargets {
+	QPointer<Ui::RpWidget> showToggle;
+	QPointer<Ui::RpWidget> soundToggle;
+	QPointer<Ui::RpWidget> addException;
+	QPointer<Ui::RpWidget> deleteExceptions;
+};
 
 struct Factory : AbstractSectionFactory {
 	explicit Factory(Notify type) : type(type) {
@@ -394,7 +402,8 @@ void ExceptionsController::sort() {
 void SetupChecks(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> controller,
-		Notify type) {
+		Notify type,
+		NotificationsTypeHighlightTargets *targets) {
 	Ui::AddSubsectionTitle(container, Title(type));
 
 	const auto session = &controller->session();
@@ -409,6 +418,9 @@ void SetupChecks(
 	enabled->toggleOn(
 		NotificationsEnabledForTypeValue(session, type),
 		true);
+	if (targets) {
+		targets->showToggle = enabled;
+	}
 
 	enabled->setAcceptBoth();
 	MuteMenu::SetupMuteMenu(
@@ -450,6 +462,9 @@ void SetupChecks(
 	) | rpl::then(settings->defaultUpdates(
 		type
 	) | rpl::map([=] { return soundValue(); })));
+	if (targets) {
+		targets->soundToggle = sound;
+	}
 
 	const auto toneWrap = soundInner->add(
 		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
@@ -538,12 +553,16 @@ void SetupChecks(
 void SetupExceptions(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> window,
-		Notify type) {
+		Notify type,
+		NotificationsTypeHighlightTargets *targets) {
 	const auto add = AddButtonWithIcon(
 		container,
 		tr::lng_notification_exceptions_add(),
 		st::settingsButtonActive,
 		{ &st::menuIconInviteSettings });
+	if (targets) {
+		targets->addException = add;
+	}
 
 	auto controller = std::make_unique<ExceptionsController>(window, type);
 	controller->setStyleOverrides(&st::settingsBlockedList);
@@ -588,6 +607,9 @@ void SetupExceptions(
 				tr::lng_notification_exceptions_clear(),
 				st::settingsAttentionButtonWithIcon,
 				{ &st::menuIconDeleteAttention })));
+	if (targets) {
+		targets->deleteExceptions = wrap->entity();
+	}
 	wrap->entity()->setClickedCallback([=] {
 		const auto clear = [=](Fn<void()> close) {
 			window->session().data().notifySettings().clearExceptions(type);
@@ -613,6 +635,7 @@ NotificationsType::NotificationsType(
 	not_null<Window::SessionController*> controller,
 	Notify type)
 : AbstractSection(parent)
+, _controller(controller)
 , _type(type) {
 	setupContent(controller);
 }
@@ -626,6 +649,13 @@ rpl::producer<QString> NotificationsType::title() {
 	Unexpected("Type in NotificationsType.");
 }
 
+void NotificationsType::showFinished() {
+	_controller->checkHighlightControl(u"notifications/type/show"_q, _showToggle);
+	_controller->checkHighlightControl(u"notifications/type/sound"_q, _soundToggle);
+	_controller->checkHighlightControl(u"notifications/type/add-exception"_q, _addException);
+	_controller->checkHighlightControl(u"notifications/type/delete-exceptions"_q, _deleteExceptions);
+}
+
 Type NotificationsType::Id(Notify type) {
 	return std::make_shared<Factory>(type);
 }
@@ -634,14 +664,21 @@ void NotificationsType::setupContent(
 		not_null<Window::SessionController*> controller) {
 	const auto container = Ui::CreateChild<Ui::VerticalLayout>(this);
 
+	auto targets = NotificationsTypeHighlightTargets();
+
 	Ui::AddSkip(container, st::settingsPrivacySkip);
-	SetupChecks(container, controller, _type);
+	SetupChecks(container, controller, _type, &targets);
 
 	Ui::AddSkip(container);
 	Ui::AddDivider(container);
 	Ui::AddSkip(container);
 
-	SetupExceptions(container, controller, _type);
+	SetupExceptions(container, controller, _type, &targets);
+
+	_showToggle = targets.showToggle;
+	_soundToggle = targets.soundToggle;
+	_addException = targets.addException;
+	_deleteExceptions = targets.deleteExceptions;
 
 	Ui::ResizeFitChild(this, container);
 }

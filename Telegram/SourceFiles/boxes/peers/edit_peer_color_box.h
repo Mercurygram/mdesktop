@@ -45,7 +45,7 @@ void EditPeerColorBox(
 	std::shared_ptr<Ui::ChatStyle> style = nullptr,
 	std::shared_ptr<Ui::ChatTheme> theme = nullptr);
 
-void AddPeerColorButton(
+not_null<Ui::SettingsButton*> AddPeerColorButton(
 	not_null<Ui::VerticalLayout*> container,
 	std::shared_ptr<ChatHelpers::Show> show,
 	not_null<PeerData*> peer,

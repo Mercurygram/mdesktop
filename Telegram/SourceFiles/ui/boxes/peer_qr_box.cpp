@@ -986,13 +986,15 @@ void FillPeerQrBox(
 		box->showFinishes(
 		) | rpl::take(1) | rpl::on_next([=] {
 			if (const auto window = Core::App().findWindow(box)) {
-				if (window->takeHighlightControlId(u"self-qr-code/copy"_q)) {
-					Settings::HighlightWidget(saveButton, {
-						.radius = st::boxRadius,
+				window->checkHighlightControl(
+					u"self-qr-code/copy"_q,
+					saveButton,
+					{
+						.radius = st::buttonRadius,
 						.color = &st::activeButtonFg,
 						.opacity = 0.6,
+						.scroll = false,
 					});
-				}
 			}
 		}, box->lifetime());
 	}
