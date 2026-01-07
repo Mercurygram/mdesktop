@@ -70,6 +70,7 @@ struct HighlightArgs {
 	bool below = false;
 	bool rippleShape = false;
 	bool scroll = true;
+	crl::time showDelay = 400;
 	crl::time showDuration = 600;
 	crl::time shownDuration = 800;
 	crl::time hideDuration = 600;

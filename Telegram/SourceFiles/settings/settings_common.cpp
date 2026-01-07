@@ -62,6 +62,7 @@ protected:
 
 private:
 	enum class Phase {
+		Wait,
 		FadeIn,
 		Shown,
 		FadeOut,
@@ -70,8 +71,9 @@ private:
 	void updateGeometryFromTarget();
 	void updateZOrder();
 	void startFadeIn();
-	void startShownTimer();
 	void startFadeOut();
+	void nextPhase();
+	void nextPhaseIn(crl::time delay);
 	void finish();
 
 	const QPointer<QWidget> _target;
@@ -79,8 +81,8 @@ private:
 	const style::color &_color;
 
 	Ui::Animations::Simple _animation;
-	base::Timer _shownTimer;
-	Phase _phase = Phase::FadeIn;
+	base::Timer _phaseTimer;
+	Phase _phase = Phase::Wait;
 	bool _finishing = false;
 
 };
@@ -92,7 +94,7 @@ HighlightOverlay::HighlightOverlay(
 , _target(target.get())
 , _args(MaybeFillFromRipple(target, std::move(args)))
 , _color(_args.color ? *_args.color : st::windowBgActive)
-, _shownTimer([=] { startFadeOut(); }) {
+, _phaseTimer([=] { nextPhase(); }) {
 	setAttribute(Qt::WA_TransparentForMouseEvents);
 
 	target->installEventFilter(this);
@@ -110,7 +112,7 @@ HighlightOverlay::HighlightOverlay(
 		auto p = QPainter(this);
 
 		const auto progress = _animation.value(
-			(_phase == Phase::FadeOut) ? 0. : 1.);
+			(_phase == Phase::Wait || _phase == Phase::FadeOut) ? 0. : 1.);
 		const auto alpha = _args.opacity * progress;
 
 		auto color = _color->c;
@@ -136,8 +138,8 @@ HighlightOverlay::HighlightOverlay(
 		}
 	}, lifetime());
 
-	show();
-	startFadeIn();
+	hide();
+	nextPhaseIn(_args.showDelay);
 }
 
 bool HighlightOverlay::eventFilter(QObject *o, QEvent *e) {
@@ -190,18 +192,16 @@ void HighlightOverlay::updateZOrder() {
 }
 
 void HighlightOverlay::startFadeIn() {
+	show();
+
 	_phase = Phase::FadeIn;
 	_animation.start([=] {
 		update();
 		if (!_animation.animating()) {
-			startShownTimer();
+			_phase = Phase::Shown;
+			nextPhaseIn(_args.shownDuration);
 		}
 	}, 0., 1., _args.showDuration, anim::easeOutCubic);
-}
-
-void HighlightOverlay::startShownTimer() {
-	_phase = Phase::Shown;
-	_shownTimer.callOnce(_args.shownDuration);
 }
 
 void HighlightOverlay::startFadeOut() {
@@ -214,12 +214,34 @@ void HighlightOverlay::startFadeOut() {
 	}, 1., 0., _args.hideDuration, anim::easeInCubic);
 }
 
+void HighlightOverlay::nextPhase() {
+	switch (_phase) {
+	case Phase::Wait:
+		startFadeIn();
+		break;
+	case Phase::Shown:
+		startFadeOut();
+		break;
+	default:
+		Unexpected("Next phase called during Fade phase.");
+	}
+}
+
+void HighlightOverlay::nextPhaseIn(crl::time delay) {
+	if (!delay) {
+		_phaseTimer.cancel();
+		nextPhase();
+	} else {
+		_phaseTimer.callOnce(delay);
+	}
+}
+
 void HighlightOverlay::finish() {
 	if (_finishing) {
 		return;
 	}
 	_finishing = true;
-	_shownTimer.cancel();
+	_phaseTimer.cancel();
 	_animation.stop();
 	deleteLater();
 }
