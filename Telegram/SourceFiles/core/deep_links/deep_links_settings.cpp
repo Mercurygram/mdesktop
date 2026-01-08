@@ -7,15 +7,25 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "core/deep_links/deep_links_router.h"
 
+#include "apiwrap.h"
 #include "base/binary_guard.h"
 #include "boxes/add_contact_box.h"
 #include "boxes/language_box.h"
+#include "boxes/edit_privacy_box.h"
+#include "boxes/peers/edit_peer_color_box.h"
+#include "settings/settings_privacy_controllers.h"
+#include "ui/chat/chat_style.h"
 #include "boxes/star_gift_box.h"
+#include "ui/boxes/confirm_box.h"
+#include "ui/widgets/buttons.h"
 #include "boxes/username_box.h"
 #include "core/application.h"
 #include "core/click_handler_types.h"
 #include "data/data_user.h"
 #include "data/notify/data_notify_settings.h"
+#include "info/info_memento.h"
+#include "info/stories/info_stories_widget.h"
+#include "lang/lang_keys.h"
 #include "ui/boxes/peer_qr_box.h"
 #include "ui/layers/generic_box.h"
 #include "main/main_session.h"
@@ -70,6 +80,26 @@ void ShowQrBox(not_null<Window::SessionController*> controller) {
 		rpl::single(QString())));
 }
 
+Result ShowPeerColorBox(
+		const Context &ctx,
+		PeerColorTab tab,
+		const QString &highlightId = QString()) {
+	if (!ctx.controller) {
+		return Result::NeedsAuth;
+	}
+	if (!highlightId.isEmpty()) {
+		ctx.controller->setHighlightControlId(highlightId);
+	}
+	ctx.controller->show(Box(
+		EditPeerColorBox,
+		ctx.controller,
+		ctx.controller->session().user(),
+		std::shared_ptr<Ui::ChatStyle>(),
+		std::shared_ptr<Ui::ChatTheme>(),
+		tab));
+	return Result::Handled;
+}
+
 Result HandleQrCode(const Context &ctx, bool highlightCopy) {
 	if (!ctx.controller) {
 		return Result::NeedsAuth;
@@ -92,14 +122,18 @@ Result HandleQrCode(const Context &ctx, bool highlightCopy) {
 	return Result::Handled;
 }
 
-Result ShowEditName(const Context &ctx) {
+Result ShowEditName(
+		const Context &ctx,
+		EditNameBox::Focus focus = EditNameBox::Focus::FirstName) {
 	if (!ctx.controller) {
 		return Result::NeedsAuth;
 	}
 	if (ctx.controller->showFrozenError()) {
 		return Result::Handled;
 	}
-	ctx.controller->show(Box<EditNameBox>(ctx.controller->session().user()));
+	ctx.controller->show(Box<EditNameBox>(
+		ctx.controller->session().user(),
+		focus));
 	return Result::Handled;
 }
 
@@ -126,6 +160,24 @@ Result OpenInternalUrl(const Context &ctx, const QString &url) {
 	return Result::Handled;
 }
 
+Result ShowMyProfile(const Context &ctx) {
+	if (!ctx.controller) {
+		return Result::NeedsAuth;
+	}
+	ctx.controller->showSection(
+		Info::Stories::Make(ctx.controller->session().user()));
+	return Result::Handled;
+}
+
+Result ShowLogOutMenu(const Context &ctx) {
+	if (!ctx.controller) {
+		return Result::NeedsAuth;
+	}
+	ctx.controller->setHighlightControlId(u"settings/log-out"_q);
+	ctx.controller->showSettings(::Settings::Main::Id());
+	return Result::Handled;
+}
+
 Result ShowNotificationType(
 		const Context &ctx,
 		Data::DefaultNotify type,
@@ -137,6 +189,38 @@ Result ShowNotificationType(
 		ctx.controller->setHighlightControlId(highlightId);
 	}
 	ctx.controller->showSettings(::Settings::NotificationsType::Id(type));
+	return Result::Handled;
+}
+
+using PrivacyKey = Api::UserPrivacy::Key;
+
+template <typename ControllerFactory>
+Result ShowPrivacyBox(
+		const Context &ctx,
+		PrivacyKey key,
+		ControllerFactory controllerFactory,
+		const QString &highlightControl = QString()) {
+	if (!ctx.controller) {
+		return Result::NeedsAuth;
+	}
+	const auto controller = ctx.controller;
+	const auto session = &controller->session();
+	if (!highlightControl.isEmpty()) {
+		controller->setHighlightControlId(highlightControl);
+	}
+	const auto shower = std::make_shared<rpl::lifetime>();
+	*shower = session->api().userPrivacy().value(
+		key
+	) | rpl::take(
+		1
+	) | rpl::on_next(crl::guard(controller, [=, shower = shower](
+			const Api::UserPrivacy::Rule &value) {
+		controller->show(Box<EditPrivacyBox>(
+			controller,
+			controllerFactory(),
+			value));
+	}));
+	session->api().userPrivacy().reload(key);
 	return Result::Handled;
 }
 
@@ -155,7 +239,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"my-profile"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ ShowMyProfile },
 	});
 
 	router.add(u"settings"_q, {
@@ -165,72 +249,110 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"my-profile/posts"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ ShowMyProfile },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"my-profile/posts/add-album"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ ShowMyProfile },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"my-profile/gifts"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ ShowMyProfile },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"my-profile/archived-posts"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ ShowMyProfile },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"emoji-status"_q,
-		.action = SettingsSection{ ::Settings::Main::Id() },
+		.action = AliasTo{ u"chats"_q, u"emoji-status"_q },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"profile-color"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = AliasTo{ u"settings"_q, u"edit/your-color"_q },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"profile-color/profile"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = AliasTo{ u"settings"_q, u"edit/your-color"_q },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"profile-color/profile/add-icons"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPeerColorBox(
+				ctx,
+				PeerColorTab::Profile,
+				u"profile-color/add-icons"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"profile-color/profile/use-gift"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPeerColorBox(
+				ctx,
+				PeerColorTab::Profile,
+				u"profile-color/use-gift"_q);
+		}},
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"profile-color/profile/reset"_q,
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPeerColorBox(
+				ctx,
+				PeerColorTab::Profile,
+				u"profile-color/reset"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"profile-color/name"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPeerColorBox(ctx, PeerColorTab::Name);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"profile-color/name/add-icons"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPeerColorBox(
+				ctx,
+				PeerColorTab::Name,
+				u"profile-color/add-icons"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"profile-color/name/use-gift"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPeerColorBox(
+				ctx,
+				PeerColorTab::Name,
+				u"profile-color/use-gift"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"profile-photo"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = SettingsControl{
+			::Settings::Main::Id(),
+			u"profile-photo"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"profile-photo/use-emoji"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = SettingsControl{
+			::Settings::Main::Id(),
+			u"profile-photo/use-emoji"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
@@ -348,202 +470,457 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/phone-number"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::PhoneNumber,
+				[=] { return std::make_unique<::Settings::PhoneNumberPrivacyController>(ctx.controller); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/phone-number/never"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::PhoneNumber,
+				[=] { return std::make_unique<::Settings::PhoneNumberPrivacyController>(ctx.controller); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/phone-number/always"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::PhoneNumber,
+				[=] { return std::make_unique<::Settings::PhoneNumberPrivacyController>(ctx.controller); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/last-seen"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::LastSeen,
+				[=] { return std::make_unique<::Settings::LastSeenPrivacyController>(&ctx.controller->session()); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/last-seen/never"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::LastSeen,
+				[=] { return std::make_unique<::Settings::LastSeenPrivacyController>(&ctx.controller->session()); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/last-seen/always"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::LastSeen,
+				[=] { return std::make_unique<::Settings::LastSeenPrivacyController>(&ctx.controller->session()); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/last-seen/hide-read-time"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::LastSeen,
+				[=] { return std::make_unique<::Settings::LastSeenPrivacyController>(&ctx.controller->session()); },
+				u"privacy/hide-read-time"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/profile-photos"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::ProfilePhoto,
+				[=] { return std::make_unique<::Settings::ProfilePhotoPrivacyController>(); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/profile-photos/never"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::ProfilePhoto,
+				[=] { return std::make_unique<::Settings::ProfilePhotoPrivacyController>(); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/profile-photos/always"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::ProfilePhoto,
+				[=] { return std::make_unique<::Settings::ProfilePhotoPrivacyController>(); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/profile-photos/set-public"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::ProfilePhoto,
+				[=] { return std::make_unique<::Settings::ProfilePhotoPrivacyController>(); },
+				u"privacy/set-public"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/profile-photos/update-public"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::ProfilePhoto,
+				[=] { return std::make_unique<::Settings::ProfilePhotoPrivacyController>(); },
+				u"privacy/update-public"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/profile-photos/remove-public"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::ProfilePhoto,
+				[=] { return std::make_unique<::Settings::ProfilePhotoPrivacyController>(); },
+				u"privacy/remove-public"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/bio"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::About,
+				[=] { return std::make_unique<::Settings::AboutPrivacyController>(); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/bio/never-share"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::About,
+				[=] { return std::make_unique<::Settings::AboutPrivacyController>(); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/bio/always-share"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::About,
+				[=] { return std::make_unique<::Settings::AboutPrivacyController>(); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/gifts"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::GiftsAutoSave,
+				[=] { return std::make_unique<::Settings::GiftsAutoSavePrivacyController>(); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/gifts/show-icon"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::GiftsAutoSave,
+				[=] { return std::make_unique<::Settings::GiftsAutoSavePrivacyController>(); },
+				u"privacy/show-icon"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/gifts/never-share"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::GiftsAutoSave,
+				[=] { return std::make_unique<::Settings::GiftsAutoSavePrivacyController>(); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/gifts/always-share"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::GiftsAutoSave,
+				[=] { return std::make_unique<::Settings::GiftsAutoSavePrivacyController>(); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/gifts/accepted-types"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::GiftsAutoSave,
+				[=] { return std::make_unique<::Settings::GiftsAutoSavePrivacyController>(); },
+				u"privacy/accepted-types"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/birthday"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Birthday,
+				[=] { return std::make_unique<::Settings::BirthdayPrivacyController>(); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/birthday/add"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return OpenInternalUrl(ctx, u"internal:edit_birthday"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/birthday/never"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Birthday,
+				[=] { return std::make_unique<::Settings::BirthdayPrivacyController>(); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/birthday/always"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Birthday,
+				[=] { return std::make_unique<::Settings::BirthdayPrivacyController>(); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/saved-music"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::SavedMusic,
+				[=] { return std::make_unique<::Settings::SavedMusicPrivacyController>(); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/saved-music/never"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::SavedMusic,
+				[=] { return std::make_unique<::Settings::SavedMusicPrivacyController>(); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/saved-music/always"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::SavedMusic,
+				[=] { return std::make_unique<::Settings::SavedMusicPrivacyController>(); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/forwards"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Forwards,
+				[=] { return std::make_unique<::Settings::ForwardsPrivacyController>(ctx.controller); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/forwards/never"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Forwards,
+				[=] { return std::make_unique<::Settings::ForwardsPrivacyController>(ctx.controller); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/forwards/always"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Forwards,
+				[=] { return std::make_unique<::Settings::ForwardsPrivacyController>(ctx.controller); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/calls"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Calls,
+				[=] { return std::make_unique<::Settings::CallsPrivacyController>(); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/calls/never"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Calls,
+				[=] { return std::make_unique<::Settings::CallsPrivacyController>(); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/calls/always"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Calls,
+				[=] { return std::make_unique<::Settings::CallsPrivacyController>(); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/calls/p2p"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::CallsPeer2Peer,
+				[=] { return std::make_unique<::Settings::CallsPeer2PeerPrivacyController>(); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/calls/p2p/never"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::CallsPeer2Peer,
+				[=] { return std::make_unique<::Settings::CallsPeer2PeerPrivacyController>(); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/calls/p2p/always"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::CallsPeer2Peer,
+				[=] { return std::make_unique<::Settings::CallsPeer2PeerPrivacyController>(); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/voice"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Voices,
+				[=] { return std::make_unique<::Settings::VoicesPrivacyController>(&ctx.controller->session()); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/voice/never"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Voices,
+				[=] { return std::make_unique<::Settings::VoicesPrivacyController>(&ctx.controller->session()); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/voice/always"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Voices,
+				[=] { return std::make_unique<::Settings::VoicesPrivacyController>(&ctx.controller->session()); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
@@ -563,17 +940,34 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/invites"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Invites,
+				[=] { return std::make_unique<::Settings::GroupsInvitePrivacyController>(); });
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/invites/never"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Invites,
+				[=] { return std::make_unique<::Settings::GroupsInvitePrivacyController>(); },
+				u"privacy/never"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/invites/always"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPrivacyBox(
+				ctx,
+				PrivacyKey::Invites,
+				[=] { return std::make_unique<::Settings::GroupsInvitePrivacyController>(); },
+				u"privacy/always"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
@@ -687,38 +1081,43 @@ void RegisterSettingsHandlers(Router &router) {
 	});
 
 	router.add(u"settings"_q, {
+		.path = u"appearance/your-color"_q,
+		.action = AliasTo{ u"settings"_q, u"profile-color"_q },
+	});
+
+	router.add(u"settings"_q, {
 		.path = u"appearance/your-color/profile"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = AliasTo{ u"settings"_q, u"profile-color/profile"_q },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/your-color/profile/add-icons"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = AliasTo{ u"settings"_q, u"profile-color/profile/add-icons"_q },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/your-color/profile/use-gift"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = AliasTo{ u"settings"_q, u"profile-color/profile/use-gift"_q },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/your-color/profile/reset"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = AliasTo{ u"settings"_q, u"profile-color/profile/reset"_q },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/your-color/name"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = AliasTo{ u"settings"_q, u"profile-color/name"_q },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/your-color/name/add-icons"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = AliasTo{ u"settings"_q, u"profile-color/name/add-icons"_q },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/your-color/name/use-gift"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = AliasTo{ u"settings"_q, u"profile-color/name/use-gift"_q },
 	});
 
 	router.add(u"settings"_q, {
@@ -950,11 +1349,15 @@ void RegisterSettingsHandlers(Router &router) {
 	// Edit profile deep links.
 	router.add(u"settings"_q, {
 		.path = u"edit/first-name"_q,
-		.action = CodeBlock{ ShowEditName },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowEditName(ctx, EditNameBox::Focus::FirstName);
+		}},
 	});
 	router.add(u"settings"_q, {
 		.path = u"edit/last-name"_q,
-		.action = CodeBlock{ ShowEditName },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowEditName(ctx, EditNameBox::Focus::LastName);
+		}},
 	});
 	router.add(u"settings"_q, {
 		.path = u"edit/bio"_q,
@@ -971,7 +1374,14 @@ void RegisterSettingsHandlers(Router &router) {
 	});
 	router.add(u"settings"_q, {
 		.path = u"edit/change-number"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->show(
+				Ui::MakeInformBox(tr::lng_change_phone_error()));
+			return Result::Handled;
+		}},
 	});
 	router.add(u"settings"_q, {
 		.path = u"edit/username"_q,
@@ -979,16 +1389,16 @@ void RegisterSettingsHandlers(Router &router) {
 	});
 	router.add(u"settings"_q, {
 		.path = u"edit/your-color"_q,
-		.action = SettingsControl{
-			::Settings::Information::Id(),
-			u"edit/your-color"_q,
-		},
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPeerColorBox(ctx, PeerColorTab::Profile);
+		}},
 	});
 	router.add(u"settings"_q, {
 		.path = u"edit/channel"_q,
-		.action = CodeBlock{ [](const Context &ctx) {
-			return OpenInternalUrl(ctx, u"internal:edit_personal_channel"_q);
-		}},
+		.action = SettingsControl{
+			::Settings::Information::Id(),
+			u"edit/channel"_q,
+		},
 	});
 	router.add(u"settings"_q, {
 		.path = u"edit/add-account"_q,
@@ -999,7 +1409,7 @@ void RegisterSettingsHandlers(Router &router) {
 	});
 	router.add(u"settings"_q, {
 		.path = u"edit/log-out"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = CodeBlock{ ShowLogOutMenu },
 	});
 
 	// Calls deep links.

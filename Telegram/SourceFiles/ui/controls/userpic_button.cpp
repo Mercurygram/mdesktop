@@ -481,6 +481,11 @@ auto UserpicButton::makeResetToOriginalAction()
 	return item;
 }
 
+PopupMenu *UserpicButton::showChangePhotoMenu() {
+	choosePhotoLocally();
+	return _menu.get();
+}
+
 void UserpicButton::openPeerPhoto() {
 	Expects(_peer != nullptr);
 	Expects(_controller != nullptr);

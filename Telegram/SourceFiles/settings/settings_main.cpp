@@ -42,13 +42,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/boxes/confirm_box.h"
 #include "ui/boxes/peer_qr_box.h"
 #include "ui/controls/userpic_button.h"
-#include "ui/widgets/buttons.h"
 #include "ui/rect.h"
 #include "ui/text/format_values.h"
 #include "ui/text/text_utilities.h"
 #include "ui/vertical_list.h"
-#include "ui/widgets/continuous_sliders.h"
 #include "ui/widgets/menu/menu_add_action_callback.h"
+#include "ui/widgets/menu/menu_item_base.h"
+#include "ui/widgets/buttons.h"
+#include "ui/widgets/continuous_sliders.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/wrap/slide_wrap.h"
 #include "window/window_controller.h"
@@ -74,6 +75,10 @@ public:
 		not_null<Window::SessionController*> controller,
 		not_null<UserData*> user);
 	~Cover();
+
+	[[nodiscard]] not_null<Ui::UserpicButton*> userpic() const {
+		return _userpic.data();
+	}
 
 private:
 	void setupChildGeometry();
@@ -674,7 +679,6 @@ Main::Main(
 : Section(parent) {
 	setController(controller);
 	setupContent();
-	controller->session().api().premium().reload();
 }
 
 rpl::producer<QString> Main::title() {
@@ -695,12 +699,13 @@ void Main::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
 			&st::menuIconEdit);
 	}
 	const auto window = &controller()->window();
-	addAction({
+	const auto logout = addAction({
 		.text = tr::lng_settings_logout(tr::now),
 		.handler = [=] { window->showLogoutConfirmation(); },
 		.icon = &st::menuIconLeaveAttention,
 		.isAttention = true,
 	});
+	logout->setProperty("highlight-control-id", u"settings/log-out"_q);
 }
 
 void Main::keyPressEvent(QKeyEvent *e) {
@@ -713,20 +718,47 @@ void Main::keyPressEvent(QKeyEvent *e) {
 void Main::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	content->add(object_ptr<Cover>(
+	const auto window = controller();
+	const auto session = &window->session();
+	const auto cover = content->add(object_ptr<Cover>(
 		content,
-		controller(),
-		controller()->session().user()));
+		window,
+		session->user()));
+	_userpic = cover->userpic();
 
 	build(content, Builder::MainSection);
 
 	Ui::ResizeFitChild(this, content);
 
-	controller()->session().api().cloudPassword().reload();
-	controller()->session().api().reloadContactSignupSilent();
-	controller()->session().api().sensitiveContent().reload();
-	controller()->session().api().globalPrivacy().reload();
-	controller()->session().data().cloudThemes().refresh();
+	session->api().cloudPassword().reload();
+	session->api().reloadContactSignupSilent();
+	session->api().sensitiveContent().reload();
+	session->api().globalPrivacy().reload();
+	session->api().premium().reload();
+	session->data().cloudThemes().refresh();
+}
+
+void Main::showFinished() {
+	controller()->checkHighlightControl(u"profile-photo"_q, _userpic.data(), {
+		.margin = st::settingsPhotoHighlightMargin,
+		.shape = HighlightShape::Ellipse,
+	});
+	const auto emojiId = u"profile-photo/use-emoji"_q;
+	if (controller()->takeHighlightControlId(emojiId)) {
+		if (const auto popupMenu = _userpic->showChangePhotoMenu()) {
+			const auto menu = popupMenu->menu();
+			for (const auto action : menu->actions()) {
+				const auto controlId = "highlight-control-id";
+				if (action->property(controlId).toString() == emojiId) {
+					if (const auto item = menu->itemForAction(action)) {
+						HighlightWidget(item);
+					}
+					break;
+				}
+			}
+		}
+	}
+	Section<Main>::showFinished();
 }
 
 void OpenFaq(base::weak_ptr<Window::SessionController> weak) {

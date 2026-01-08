@@ -237,126 +237,6 @@ rpl::producer<QString> PrivacyString(
 	});
 }
 
-#if 0 // Dead code.
-void AddPremiumPrivacyButton(
-		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container,
-		rpl::producer<QString> label,
-		Privacy::Key key,
-		Fn<std::unique_ptr<EditPrivacyController>()> controllerFactory) {
-	const auto shower = Ui::CreateChild<rpl::lifetime>(container.get());
-	const auto session = &controller->session();
-	const auto &st = st::settingsButtonNoIcon;
-	const auto button = container->add(object_ptr<Button>(
-		container,
-		rpl::duplicate(label),
-		st));
-
-	AddPremiumStar(button, session, rpl::duplicate(label), st.padding);
-
-	struct State {
-		State(QWidget *parent) : widget(parent) {
-			widget.setAttribute(Qt::WA_TransparentForMouseEvents);
-		}
-		Ui::RpWidget widget;
-	};
-	const auto state = button->lifetime().make_state<State>(button);
-	using WeakToast = base::weak_ptr<Ui::Toast::Instance>;
-	const auto toast = std::make_shared<WeakToast>();
-
-	{
-		const auto rightLabel = Ui::CreateChild<Ui::FlatLabel>(
-			button,
-			st.rightLabel);
-
-		state->widget.resize(st::settingsPremiumLock.size());
-		state->widget.paintRequest(
-		) | rpl::filter([=]() -> bool {
-			return state->widget.x();
-		}) | rpl::on_next([=] {
-			auto p = QPainter(&state->widget);
-			st::settingsPremiumLock.paint(p, 0, 0, state->widget.width());
-		}, state->widget.lifetime());
-
-		rpl::combine(
-			button->sizeValue(),
-			std::move(label),
-			PrivacyString(session, key),
-			Data::AmPremiumValue(session)
-		) | rpl::on_next([=, &st](
-				const QSize &buttonSize,
-				const QString &button,
-				const QString &text,
-				bool premium) {
-			const auto locked = !premium;
-			const auto rightSkip = st::settingsButtonRightSkip;
-			const auto lockSkip = st::settingsPremiumLockSkip;
-			const auto available = buttonSize.width()
-				- st.padding.left()
-				- st.padding.right()
-				- st.style.font->width(button)
-				- rightSkip
-				- (locked ? state->widget.width() + lockSkip : 0);
-			rightLabel->setText(text);
-			rightLabel->resizeToNaturalWidth(available);
-			rightLabel->moveToRight(
-				rightSkip,
-				st.padding.top());
-			state->widget.moveToRight(
-				rightSkip + rightLabel->width() + lockSkip,
-				(buttonSize.height() - state->widget.height()) / 2);
-			state->widget.setVisible(locked);
-		}, rightLabel->lifetime());
-		rightLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
-	}
-
-	const auto showToast = [=] {
-		auto link = tr::link(
-			tr::semibold(
-				tr::lng_settings_privacy_premium_link(tr::now)));
-		(*toast) = controller->showToast({
-			.text = tr::lng_settings_privacy_premium(
-				tr::now,
-				lt_link,
-				link,
-				tr::marked),
-			.duration = Ui::Toast::kDefaultDuration * 2,
-			.filter = crl::guard(&controller->session(), [=](
-					const ClickHandlerPtr &,
-					Qt::MouseButton button) {
-				if (button == Qt::LeftButton) {
-					if (const auto strong = toast->get()) {
-						strong->hideAnimated();
-						(*toast) = nullptr;
-						Settings::ShowPremium(controller, QString());
-						return true;
-					}
-				}
-				return false;
-			}),
-		});
-	};
-	button->addClickHandler([=] {
-		if (!session->premium()) {
-			if (toast->empty()) {
-				showToast();
-			}
-			return;
-		}
-		*shower = session->api().userPrivacy().value(
-			key
-		) | rpl::take(
-			1
-		) | rpl::on_next([=](const Privacy::Rule &value) {
-			controller->show(Box<EditPrivacyBox>(
-				controller,
-				controllerFactory(),
-				value));
-		});
-	});
-}
-#endif
-
 void AddMessagesPrivacyButton(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container) {
@@ -1173,12 +1053,13 @@ not_null<Ui::SettingsButton*> AddPrivacyButton(
 			key
 		) | rpl::take(
 			1
-		) | rpl::on_next([=](const Privacy::Rule &value) {
+		) | rpl::on_next(crl::guard(controller, [=](
+				const Privacy::Rule &value) {
 			controller->show(Box<EditPrivacyBox>(
 				controller,
 				controllerFactory(),
 				value));
-		});
+		}));
 	});
 	return button;
 }

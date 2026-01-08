@@ -70,8 +70,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Settings {
 
 struct InformationHighlightTargets {
+	QPointer<Ui::RpWidget> photo;
+	QPointer<Ui::RpWidget> uploadPhoto;
 	QPointer<Ui::RpWidget> bio;
 	QPointer<Ui::RpWidget> colorButton;
+	QPointer<Ui::RpWidget> channelButton;
 	QPointer<Ui::RpWidget> addAccount;
 };
 
@@ -249,7 +252,8 @@ private:
 void SetupPhoto(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> controller,
-		not_null<UserData*> self) {
+		not_null<UserData*> self,
+		InformationHighlightTargets *targets) {
 	const auto wrap = container->add(object_ptr<Ui::FixedHeightWidget>(
 		container,
 		st::settingsInfoPhotoHeight));
@@ -261,6 +265,10 @@ void SetupPhoto(
 		Ui::UserpicButton::Source::PeerPhoto,
 		st::settingsInfoPhoto);
 	const auto upload = CreateUploadSubButton(wrap, controller);
+	if (targets) {
+		targets->photo = photo;
+		targets->uploadPhoto = upload;
+	}
 
 	upload->chosenImages(
 	) | rpl::on_next([=](Ui::UserpicButton::ChosenImage &&chosen) {
@@ -327,7 +335,7 @@ void ShowMenu(
 	menu->popup(QCursor::pos());
 }
 
-void AddRow(
+not_null<Ui::SettingsButton*> AddRow(
 		not_null<Ui::VerticalLayout*> container,
 		rpl::producer<QString> label,
 		rpl::producer<TextWithEntities> value,
@@ -365,6 +373,7 @@ void AddRow(
 	}) | rpl::on_next([=](const TextWithEntities &text) {
 		*forcopy = text.text;
 	}, wrap->lifetime());
+	return wrap;
 }
 
 void SetupBirthday(
@@ -443,7 +452,7 @@ void SetupPersonalChannel(
 				.sessionWindow = base::make_weak(controller),
 			}));
 	};
-	AddRow(
+	const auto channelButton = AddRow(
 		container,
 		tr::lng_settings_channel_label(),
 		std::move(value),
@@ -457,6 +466,7 @@ void SetupPersonalChannel(
 		self,
 		st::settingsColorButton);
 	if (targets) {
+		targets->channelButton = channelButton;
 		targets->colorButton = colorButton;
 	}
 
@@ -1086,8 +1096,17 @@ rpl::producer<QString> Information::title() {
 }
 
 void Information::showFinished() {
-	_controller->checkHighlightControl(u"edit/bio"_q, _bio);
+	_controller->checkHighlightControl(u"profile-photo"_q, _photo, {
+		.shape = HighlightShape::Ellipse,
+	});
+	_controller->checkHighlightControl(u"profile-photo/use-emoji"_q, _uploadPhoto, {
+		.shape = HighlightShape::Ellipse,
+	});
+	_controller->checkHighlightControl(u"edit/bio"_q, _bio, {
+		.margin = st::settingsBioHighlightMargin,
+	});
 	_controller->checkHighlightControl(u"edit/your-color"_q, _colorButton);
+	_controller->checkHighlightControl(u"edit/channel"_q, _channelButton);
 	_controller->checkHighlightControl(u"edit/add-account"_q, _addAccount);
 }
 
@@ -1098,15 +1117,18 @@ void Information::setupContent(
 	const auto self = controller->session().user();
 	auto targets = InformationHighlightTargets();
 
-	SetupPhoto(content, controller, self);
+	SetupPhoto(content, controller, self, &targets);
 	SetupBio(content, self, &targets);
 	SetupRows(content, controller, self);
 	SetupPersonalChannel(content, controller, self, &targets);
 	SetupBirthday(content, controller, self);
 	SetupAccountsWrap(content, controller, &targets);
 
+	_photo = targets.photo;
+	_uploadPhoto = targets.uploadPhoto;
 	_bio = targets.bio;
 	_colorButton = targets.colorButton;
+	_channelButton = targets.channelButton;
 	_addAccount = targets.addAccount;
 
 	Ui::ResizeFitChild(this, content);

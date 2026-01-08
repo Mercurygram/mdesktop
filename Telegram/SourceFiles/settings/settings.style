@@ -233,6 +233,7 @@ settingsBio: InputField(defaultInputField) {
 }
 
 settingsBioMargins: margins(22px, 6px, 22px, 4px);
+settingsBioHighlightMargin: margins(-22px, 0px, -22px, 0px);
 settingsBioCountdown: FlatLabel(defaultFlatLabel) {
 	style: boxTextStyle;
 	textFg: windowSubTextFg;
@@ -427,6 +428,7 @@ websiteBigUserpic: UserpicButton(defaultUserpicButton) {
 settingsPhotoLeft: 22px;
 settingsPhotoTop: 8px;
 settingsPhotoBottom: 16px;
+settingsPhotoHighlightMargin: margins(-4px, -4px, -4px, -4px);
 settingsNameLeft: 112px;
 settingsNameTop: 12px;
 settingsPhoneLeft: settingsNameLeft;

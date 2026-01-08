@@ -104,6 +104,10 @@ public:
 		return nullptr;
 	}
 
+	virtual void checkHighlightControls(
+			not_null<Window::SessionController*> controller) {
+	}
+
 	virtual ~EditPrivacyController() = default;
 
 protected:
@@ -143,6 +147,7 @@ public:
 
 protected:
 	void prepare() override;
+	void showFinished() override;
 
 private:
 	bool showExceptionLink(Exception exception) const;
@@ -163,6 +168,8 @@ private:
 	const not_null<Window::SessionController*> _window;
 	std::unique_ptr<EditPrivacyController> _controller;
 	Value _value;
+	QPointer<QWidget> _always;
+	QPointer<QWidget> _never;
 
 };
 

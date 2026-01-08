@@ -44,7 +44,16 @@ struct CodeBlock {
 	Handler handler;
 };
 
-using Action = std::variant<SettingsSection, SettingsControl, CodeBlock>;
+struct AliasTo {
+	QString section;
+	QString path;
+};
+
+using Action = std::variant<
+	SettingsSection,
+	SettingsControl,
+	CodeBlock,
+	AliasTo>;
 
 struct Entry {
 	QString path;

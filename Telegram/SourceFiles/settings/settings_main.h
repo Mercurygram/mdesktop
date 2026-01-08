@@ -16,6 +16,7 @@ class SessionController;
 
 namespace Ui {
 class SettingsButton;
+class UserpicButton;
 class VerticalLayout;
 } // namespace Ui
 
@@ -50,11 +51,15 @@ public:
 	void fillTopBarMenu(
 		const Ui::Menu::MenuCallback &addAction) override;
 
+	void showFinished() override;
+
 protected:
 	void keyPressEvent(QKeyEvent *e) override;
 
 private:
 	void setupContent();
+
+	QPointer<Ui::UserpicButton> _userpic;
 
 };
 

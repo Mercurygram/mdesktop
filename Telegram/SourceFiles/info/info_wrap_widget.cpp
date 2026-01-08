@@ -22,11 +22,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_premium.h"
 #include "ui/effects/ripple_animation.h" // MaskByDrawer.
 #include "ui/widgets/menu/menu_add_action_callback.h"
+#include "ui/widgets/menu/menu_add_action_callback_factory.h"
+#include "ui/widgets/menu/menu_item_base.h"
 #include "ui/widgets/discrete_sliders.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/shadow.h"
 #include "ui/widgets/popup_menu.h"
-#include "ui/widgets/menu/menu_add_action_callback_factory.h"
 #include "ui/wrap/fade_wrap.h"
 #include "ui/search_field_controller.h"
 #include "ui/ui_utility.h"
@@ -783,6 +784,28 @@ void WrapWidget::showFinishedHook() {
 	_bottomShadow->toggle(_bottomShadow->toggled(), anim::type::instant);
 	_topBarSurrogate.destroy();
 	_content->showFinished();
+
+	if (_topBarMenuToggle
+		&& _controller->section().type() == Section::Type::Settings
+		&& _controller->section().settingsType() == ::Settings::Main::Id()) {
+		const auto controller = _controller->parentController();
+		const auto logoutId = u"settings/log-out"_q;
+		if (controller->takeHighlightControlId(logoutId)) {
+			showTopBarMenu(false);
+			if (_topBarMenu) {
+				const auto menu = _topBarMenu->menu();
+				for (const auto action : menu->actions()) {
+					const auto controlId = "highlight-control-id";
+					if (action->property(controlId).toString() == logoutId) {
+						if (const auto item = menu->itemForAction(action)) {
+							::Settings::HighlightWidget(item);
+						}
+						break;
+					}
+				}
+			}
+		}
+	}
 }
 
 bool WrapWidget::showInternal(

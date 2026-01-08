@@ -990,9 +990,9 @@ void FillPeerQrBox(
 					u"self-qr-code/copy"_q,
 					saveButton,
 					{
-						.radius = st::buttonRadius,
 						.color = &st::activeButtonFg,
 						.opacity = 0.6,
+						.rippleShape = true,
 						.scroll = false,
 					});
 			}

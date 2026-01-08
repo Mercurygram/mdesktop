@@ -905,6 +905,8 @@ void EditPrivacyBox::setupContent() {
 		{ 0, st::settingsPrivacySkipTop, 0, 0 });
 	const auto always = addExceptionLink(Exception::Always);
 	const auto never = addExceptionLink(Exception::Never);
+	_always = always->entity();
+	_never = never->entity();
 	addLabel(
 		content,
 		_controller->exceptionsDescription() | rpl::map(tr::marked),
@@ -950,6 +952,12 @@ void EditPrivacyBox::setupContent() {
 	) | rpl::on_next([=](int height) {
 		setDimensions(st::boxWideWidth, height);
 	}, content->lifetime());
+}
+
+void EditPrivacyBox::showFinished() {
+	_window->checkHighlightControl(u"privacy/always"_q, _always.data());
+	_window->checkHighlightControl(u"privacy/never"_q, _never.data());
+	_controller->checkHighlightControls(_window);
 }
 
 void EditMessagesPrivacyBox(

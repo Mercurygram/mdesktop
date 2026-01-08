@@ -66,13 +66,13 @@ struct HighlightArgs {
 	HighlightShape shape = HighlightShape::Rect;
 	int radius = 0;
 	const style::color *color = nullptr;
-	float64 opacity = 0.15;
+	float64 opacity = 0.4;
 	bool below = false;
 	bool rippleShape = false;
 	bool scroll = true;
 	crl::time showDelay = 400;
 	crl::time showDuration = 600;
-	crl::time shownDuration = 800;
+	crl::time shownDuration = 400;
 	crl::time hideDuration = 600;
 };
 

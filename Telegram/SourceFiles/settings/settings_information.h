@@ -35,8 +35,11 @@ private:
 	void setupContent(not_null<Window::SessionController*> controller);
 
 	const not_null<Window::SessionController*> _controller;
+	QPointer<Ui::RpWidget> _photo;
+	QPointer<Ui::RpWidget> _uploadPhoto;
 	QPointer<Ui::RpWidget> _bio;
 	QPointer<Ui::RpWidget> _colorButton;
+	QPointer<Ui::RpWidget> _channelButton;
 	QPointer<Ui::RpWidget> _addAccount;
 
 };

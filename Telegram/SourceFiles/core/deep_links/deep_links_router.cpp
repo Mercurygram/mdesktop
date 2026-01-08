@@ -163,6 +163,11 @@ Result Router::executeAction(const Action &action, const Context &ctx) {
 		return Result::Handled;
 	}, [&](const CodeBlock &c) {
 		return c.handler(ctx);
+	}, [&](const AliasTo &a) {
+		auto aliasCtx = ctx;
+		aliasCtx.section = a.section;
+		aliasCtx.path = a.path;
+		return handleSection(a.section, aliasCtx).result;
 	});
 }
 
