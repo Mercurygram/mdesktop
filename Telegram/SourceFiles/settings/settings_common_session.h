@@ -65,12 +65,6 @@ struct SectionFactory : AbstractSectionFactory {
 
 };
 
-using SectionBuilder = void(*)(
-	not_null<Ui::VerticalLayout*> container,
-	not_null<Window::SessionController*> controller,
-	Fn<void(Type)> showOther,
-	rpl::producer<> showFinished);
-
 template <typename SectionType>
 class Section : public AbstractSection {
 public:
@@ -82,45 +76,6 @@ public:
 	[[nodiscard]] Type id() const final override {
 		return Id();
 	}
-
-	[[nodiscard]] rpl::producer<Type> sectionShowOther() final override {
-		return _showOtherRequests.events();
-	}
-	void showOther(Type type) {
-		_showOtherRequests.fire_copy(type);
-	}
-	[[nodiscard]] Fn<void(Type)> showOtherMethod() {
-		return crl::guard(this, [=](Type type) {
-			showOther(type);
-		});
-	}
-
-	void showFinished() override {
-		_showFinished.fire({});
-	}
-
-protected:
-	void setController(not_null<Window::SessionController*> controller) {
-		_controller = controller;
-	}
-	[[nodiscard]] Window::SessionController *controller() const {
-		return _controller;
-	}
-
-	void build(
-			not_null<Ui::VerticalLayout*> container,
-			SectionBuilder builder) {
-		builder(
-			container,
-			_controller,
-			showOtherMethod(),
-			_showFinished.events());
-	}
-
-private:
-	rpl::event_stream<Type> _showOtherRequests;
-	rpl::event_stream<> _showFinished;
-	Window::SessionController *_controller = nullptr;
 
 };
 

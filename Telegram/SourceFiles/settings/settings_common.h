@@ -88,13 +88,19 @@ struct HighlightDescriptor {
 void HighlightWidget(QWidget *target, HighlightArgs &&args = {});
 void ScrollToWidget(not_null<QWidget*> target);
 
+using SectionBuilder = void(*)(
+	not_null<Ui::VerticalLayout*> container,
+	not_null<Window::SessionController*> controller,
+	Fn<void(Type)> showOther,
+	rpl::producer<> showFinished);
+
 class AbstractSection : public Ui::RpWidget {
 public:
 	using RpWidget::RpWidget;
 
 	[[nodiscard]] virtual Type id() const = 0;
 	[[nodiscard]] virtual rpl::producer<Type> sectionShowOther() {
-		return nullptr;
+		return _showOtherRequests.events();
 	}
 	[[nodiscard]] virtual rpl::producer<> sectionShowBack() {
 		return nullptr;
@@ -113,6 +119,7 @@ public:
 		done();
 	}
 	virtual void showFinished() {
+		_showFinished.fire({});
 	}
 	virtual void setInnerFocus() {
 		setFocus();
@@ -150,6 +157,33 @@ public:
 			QRect clip) {
 		return false;
 	}
+
+	void showOther(Type type) {
+		_showOtherRequests.fire_copy(type);
+	}
+	[[nodiscard]] Fn<void(Type)> showOtherMethod() {
+		return crl::guard(this, [=](Type type) {
+			showOther(type);
+		});
+	}
+
+protected:
+	void setController(not_null<Window::SessionController*> controller) {
+		_controller = controller;
+	}
+	[[nodiscard]] Window::SessionController *controller() const {
+		return _controller;
+	}
+
+	void build(
+		not_null<Ui::VerticalLayout*> container,
+		SectionBuilder builder);
+
+private:
+	rpl::event_stream<Type> _showOtherRequests;
+	rpl::event_stream<> _showFinished;
+	Window::SessionController *_controller = nullptr;
+
 };
 
 enum class IconType {

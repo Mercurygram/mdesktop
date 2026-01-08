@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_privacy_security.h"
 
+#include "settings/builder/settings_privacy_security_builder.h"
 #include "api/api_authorizations.h"
 #include "api/api_cloud_password.h"
 #include "api/api_self_destruct.h"
@@ -272,6 +273,52 @@ rpl::producer<int> BlockedPeersCount(not_null<::Main::Session*> session) {
 	) | rpl::map([](const Api::BlockedPeers::Slice &data) {
 		return data.total;
 	});
+}
+
+} // namespace
+
+void AddPrivacyPremiumStar(
+		not_null<Ui::SettingsButton*> button,
+		not_null<Main::Session*> session,
+		rpl::producer<QString> label,
+		const QMargins &padding) {
+	const auto badge = Ui::CreateChild<Ui::RpWidget>(button.get());
+	badge->showOn(Data::AmPremiumValue(session));
+	const auto sampleLeft = st::settingsColorSamplePadding.left();
+	const auto badgeLeft = padding.left() + sampleLeft;
+
+	const auto factor = style::DevicePixelRatio();
+	const auto size = Size(st::settingsButtonNoIcon.style.font->ascent);
+	auto starImage = QImage(
+		size * factor,
+		QImage::Format_ARGB32_Premultiplied);
+	starImage.setDevicePixelRatio(factor);
+	starImage.fill(Qt::transparent);
+	{
+		auto p = QPainter(&starImage);
+		auto star = QSvgRenderer(
+			Ui::Premium::ColorizedSvg(Ui::Premium::ButtonGradientStops()));
+		star.render(&p, Rect(size));
+	}
+
+	badge->resize(starImage.size() / style::DevicePixelRatio());
+	badge->paintRequest(
+	) | rpl::on_next([=, star = std::move(starImage)] {
+		auto p = QPainter(badge);
+		p.drawImage(0, 0, star);
+	}, badge->lifetime());
+
+	rpl::combine(
+		button->sizeValue(),
+		std::move(label)
+	) | rpl::on_next([=](const QSize &s, const QString &) {
+		if (s.isNull()) {
+			return;
+		}
+		badge->moveToLeft(
+			button->fullTextWidth() + badgeLeft,
+			(s.height() - badge->height()) / 2);
+	}, badge->lifetime());
 }
 
 void SetupPrivacy(
@@ -894,8 +941,6 @@ void SetupSecurity(
 		showOther);
 }
 
-} // namespace
-
 void SetupSensitiveContent(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
@@ -1128,19 +1173,8 @@ void PrivacySecurity::setupContent(
 		not_null<Window::SessionController*> controller) {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	auto updateOnTick = rpl::single(
-	) | rpl::then(base::timer_each(kUpdateTimeout));
-	const auto trigger = [=] {
-		return rpl::duplicate(updateOnTick);
-	};
-
-	SetupSecurity(controller, content, trigger(), showOtherMethod());
-	SetupPrivacy(controller, content, trigger());
-	SetupArchiveAndMute(controller, content);
-	SetupBotsAndWebsites(controller, content);
-	SetupConfirmationExtensions(controller, content);
-	SetupTopPeers(controller, content);
-	SetupSelfDestruction(controller, content, trigger());
+	setController(controller);
+	build(content, Builder::PrivacySecuritySection);
 
 	Ui::ResizeFitChild(this, content);
 }

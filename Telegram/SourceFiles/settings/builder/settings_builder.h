@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "api/api_user_privacy.h"
 #include "base/object_ptr.h"
 #include "settings/settings_common.h"
 #include "settings/settings_type.h"
@@ -14,10 +15,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <variant>
 #include <vector>
 
+class EditPrivacyController;
+
 namespace Ui {
 class RpWidget;
 class VerticalLayout;
 class SettingsButton;
+class Checkbox;
 } // namespace Ui
 
 namespace Window {
@@ -80,6 +84,7 @@ public:
 		rpl::producer<QString> title;
 		const style::SettingsButton *st = nullptr;
 		IconDescriptor icon;
+		Ui::VerticalLayout *container = nullptr;
 		rpl::producer<QString> label;
 		Fn<void()> onClick;
 		QStringList keywords;
@@ -131,11 +136,22 @@ public:
 	};
 	Ui::SettingsButton *addPremiumButton(PremiumButtonArgs &&args);
 
+	struct PrivacyButtonArgs {
+		QString id;
+		rpl::producer<QString> title;
+		Api::UserPrivacy::Key key;
+		Fn<std::unique_ptr<EditPrivacyController>()> controllerFactory;
+		bool premium = false;
+		QStringList keywords;
+	};
+	Ui::SettingsButton *addPrivacyButton(PrivacyButtonArgs &&args);
+
 	struct ToggleArgs {
 		QString id;
 		rpl::producer<QString> title;
 		const style::SettingsButton *st = nullptr;
 		IconDescriptor icon;
+		Ui::VerticalLayout *container = nullptr;
 		rpl::producer<bool> toggled;
 		QStringList keywords;
 		HighlightDescriptor highlight;
@@ -152,6 +168,29 @@ public:
 		QStringList keywords;
 	};
 	Ui::SlideWrap<Ui::SettingsButton> *addSlideToggle(SlideToggleArgs &&args);
+
+	struct CheckboxArgs {
+		QString id;
+		rpl::producer<QString> title;
+		bool checked = false;
+		QStringList keywords;
+	};
+	Ui::Checkbox *addCheckbox(CheckboxArgs &&args);
+
+	struct SlideCheckboxArgs {
+		QString id;
+		rpl::producer<QString> title;
+		bool checked = false;
+		rpl::producer<bool> shown;
+		QStringList keywords;
+	};
+	Ui::SlideWrap<Ui::Checkbox> *addSlideCheckbox(SlideCheckboxArgs &&args);
+
+	struct SlideSectionArgs {
+		rpl::producer<bool> shown;
+		Fn<void(not_null<Ui::VerticalLayout*>)> fill;
+	};
+	Ui::SlideWrap<Ui::VerticalLayout> *addSlideSection(SlideSectionArgs &&args);
 
 	void addSubsectionTitle(rpl::producer<QString> text);
 	void addDivider();

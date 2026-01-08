@@ -38,6 +38,44 @@ void PaintRoundColorButton(
 	QBrush brush,
 	float64 selected);
 
+void SetupThemeOptions(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container);
+
+void SetupThemeSettings(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container);
+
+void SetupCloudThemes(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container);
+
+void SetupChatBackground(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container);
+
+void SetupChatListQuickAction(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container);
+
+void SetupStickersEmoji(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container);
+
+void SetupMessages(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container);
+
+void SetupArchive(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container,
+	Fn<void(Type)> showOther);
+
+void SetupSensitiveContent(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container,
+	rpl::producer<> updateTrigger);
+
 class Chat : public Section<Chat> {
 public:
 	Chat(QWidget *parent, not_null<Window::SessionController*> controller);

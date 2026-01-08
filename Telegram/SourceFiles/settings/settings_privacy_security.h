@@ -40,9 +40,43 @@ not_null<Ui::SettingsButton*> AddPrivacyButton(
 	Fn<std::unique_ptr<EditPrivacyController>()> controllerFactory,
 	const style::SettingsButton *stOverride = nullptr);
 
+void AddPrivacyPremiumStar(
+	not_null<Ui::SettingsButton*> button,
+	not_null<::Main::Session*> session,
+	rpl::producer<QString> label,
+	const QMargins &padding);
+
 void SetupArchiveAndMute(
 	not_null<Window::SessionController*> controller,
 	not_null<Ui::VerticalLayout*> container);
+
+void SetupSecurity(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container,
+	rpl::producer<> updateTrigger,
+	Fn<void(Type)> showOther);
+
+void SetupPrivacy(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container,
+	rpl::producer<> updateTrigger);
+
+void SetupBotsAndWebsites(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container);
+
+void SetupConfirmationExtensions(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container);
+
+void SetupTopPeers(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container);
+
+void SetupSelfDestruction(
+	not_null<Window::SessionController*> controller,
+	not_null<Ui::VerticalLayout*> container,
+	rpl::producer<> updateTrigger);
 
 class PrivacySecurity : public Section<PrivacySecurity> {
 public:

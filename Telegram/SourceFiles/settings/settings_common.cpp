@@ -285,6 +285,19 @@ void ScrollToWidget(not_null<QWidget*> target) {
 	}
 }
 
+void AbstractSection::build(
+		not_null<Ui::VerticalLayout*> container,
+		SectionBuilder builder) {
+	builder(
+		static_cast<Ui::VerticalLayout*>(container->add(
+			object_ptr<Ui::OverrideMargins>(
+				container,
+				object_ptr<Ui::VerticalLayout>(container)))->entity()),
+		_controller,
+		showOtherMethod(),
+		_showFinished.events());
+}
+
 Icon::Icon(IconDescriptor descriptor) : _icon(descriptor.icon) {
 	const auto background = [&]() -> const style::color* {
 		if (descriptor.type == IconType::Simple) {

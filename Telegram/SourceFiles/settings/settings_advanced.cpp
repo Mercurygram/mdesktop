@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_advanced.h"
 
+#include "settings/builder/settings_advanced_builder.h"
 #include "api/api_global_privacy.h"
 #include "apiwrap.h"
 #include "settings/settings_chat.h"
@@ -1044,56 +1045,8 @@ rpl::producer<QString> Advanced::title() {
 void Advanced::setupContent(not_null<Window::SessionController*> controller) {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	auto empty = true;
-	const auto addDivider = [&] {
-		if (empty) {
-			empty = false;
-		} else {
-			AddDivider(content);
-		}
-	};
-	const auto addUpdate = [&] {
-		if (HasUpdate()) {
-			addDivider();
-			AddSkip(content);
-			AddSubsectionTitle(content, tr::lng_settings_version_info());
-			SetupUpdate(content);
-			AddSkip(content);
-		}
-	};
-	if (!cAutoUpdate()) {
-		addUpdate();
-	}
-	addDivider();
-	SetupDataStorage(controller, content);
-	SetupAutoDownload(controller, content);
-	SetupWindowTitle(controller, content);
-	SetupWindowCloseBehavior(controller, content);
-	SetupSystemIntegration(controller, content);
-	empty = false;
-
-	AddDivider(content);
-	AddSkip(content);
-	AddSubsectionTitle(content, tr::lng_settings_performance());
-	SetupPerformance(controller, content);
-	AddSkip(content);
-
-	if (HasSystemSpellchecker()) {
-		AddDivider(content);
-		AddSkip(content);
-		AddSubsectionTitle(content, tr::lng_settings_spellchecker());
-		SetupSpellchecker(controller, content);
-		AddSkip(content);
-	}
-
-	if (cAutoUpdate()) {
-		addUpdate();
-	}
-
-	AddSkip(content);
-	AddDivider(content);
-	AddSkip(content);
-	SetupExport(controller, content, showOtherMethod());
+	setController(controller);
+	build(content, Builder::AdvancedSection);
 
 	Ui::ResizeFitChild(this, content);
 }

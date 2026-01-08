@@ -1578,12 +1578,18 @@ PRIVATE
     settings/settings_local_passcode.h
     settings/settings_main.cpp
     settings/settings_main.h
+    settings/builder/settings_advanced_builder.cpp
+    settings/builder/settings_advanced_builder.h
     settings/builder/settings_builder.cpp
     settings/builder/settings_builder.h
+    settings/builder/settings_chat_builder.cpp
+    settings/builder/settings_chat_builder.h
     settings/builder/settings_main_builder.cpp
     settings/builder/settings_main_builder.h
     settings/builder/settings_notifications_builder.cpp
     settings/builder/settings_notifications_builder.h
+    settings/builder/settings_privacy_security_builder.cpp
+    settings/builder/settings_privacy_security_builder.h
     settings/settings_notifications.cpp
     settings/settings_notifications.h
     settings/settings_notifications_type.cpp

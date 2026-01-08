@@ -7,9 +7,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/builder/settings_builder.h"
 
+#include "boxes/edit_privacy_box.h"
+#include "main/main_session.h"
 #include "settings/settings_common.h"
+#include "settings/settings_privacy_security.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/buttons.h"
+#include "ui/widgets/checkbox.h"
 #include "ui/wrap/slide_wrap.h"
 #include "ui/wrap/vertical_layout.h"
 #include "window/window_session_controller.h"
@@ -61,16 +65,17 @@ Ui::SettingsButton *SectionBuilder::addSettingsButton(ButtonArgs &&args) {
 	auto highlight = std::move(args.highlight);
 	const auto id = args.id;
 	const auto button = v::match(_context, [&](const WidgetContext &ctx) -> Ui::SettingsButton* {
+		const auto target = args.container ? args.container : ctx.container.get();
 		if (args.label) {
 			return AddButtonWithLabel(
-				ctx.container,
+				target,
 				rpl::duplicate(args.title),
 				std::move(args.label),
 				st,
 				std::move(args.icon));
 		} else {
-			return ctx.container->add(CreateButtonWithIcon(
-				ctx.container,
+			return target->add(CreateButtonWithIcon(
+				target,
 				rpl::duplicate(args.title),
 				st,
 				std::move(args.icon)));
@@ -256,14 +261,51 @@ Ui::SettingsButton *SectionBuilder::addPremiumButton(PremiumButtonArgs &&args) {
 	});
 }
 
+Ui::SettingsButton *SectionBuilder::addPrivacyButton(PrivacyButtonArgs &&args) {
+	const auto id = args.id;
+	const auto premium = args.premium;
+	auto title = std::move(args.title);
+	return v::match(_context, [&](const WidgetContext &ctx)
+			-> Ui::SettingsButton* {
+		const auto button = AddPrivacyButton(
+			ctx.controller,
+			ctx.container,
+			rpl::duplicate(title),
+			{},
+			args.key,
+			std::move(args.controllerFactory));
+		if (premium) {
+			AddPrivacyPremiumStar(
+				button,
+				&ctx.controller->session(),
+				rpl::duplicate(title),
+				st::settingsButtonNoIcon.padding);
+		}
+		if (!id.isEmpty()) {
+			registerHighlight(id, button, {});
+		}
+		return button;
+	}, [&](const SearchContext &ctx) -> Ui::SettingsButton* {
+		if (!args.id.isEmpty()) {
+			ctx.entries->push_back({
+				.id = std::move(args.id),
+				.title = ResolveTitle(std::move(title)),
+				.keywords = std::move(args.keywords),
+			});
+		}
+		return nullptr;
+	});
+}
+
 Ui::SettingsButton *SectionBuilder::addToggle(ToggleArgs &&args) {
 	auto highlight = std::move(args.highlight);
 	const auto id = args.id;
 	const auto button = v::match(_context, [&](const WidgetContext &ctx)
 			-> Ui::SettingsButton* {
 		const auto &st = args.st ? *args.st : st::settingsButton;
-		const auto button = ctx.container->add(CreateButtonWithIcon(
-			ctx.container,
+		const auto target = args.container ? args.container : ctx.container.get();
+		const auto button = target->add(CreateButtonWithIcon(
+			target,
 			rpl::duplicate(args.title),
 			st,
 			std::move(args.icon)));
@@ -313,6 +355,77 @@ Ui::SlideWrap<Ui::SettingsButton> *SectionBuilder::addSlideToggle(
 				.keywords = std::move(args.keywords),
 			});
 		}
+		return nullptr;
+	});
+}
+
+Ui::Checkbox *SectionBuilder::addCheckbox(CheckboxArgs &&args) {
+	return v::match(_context, [&](const WidgetContext &ctx) -> Ui::Checkbox* {
+		const auto checkbox = ctx.container->add(
+			object_ptr<Ui::Checkbox>(
+				ctx.container,
+				ResolveTitle(rpl::duplicate(args.title)),
+				args.checked,
+				st::settingsCheckbox),
+			st::settingsCheckboxPadding);
+		return checkbox;
+	}, [&](const SearchContext &ctx) -> Ui::Checkbox* {
+		if (!args.id.isEmpty()) {
+			ctx.entries->push_back({
+				.id = std::move(args.id),
+				.title = ResolveTitle(std::move(args.title)),
+				.keywords = std::move(args.keywords),
+			});
+		}
+		return nullptr;
+	});
+}
+
+Ui::SlideWrap<Ui::Checkbox> *SectionBuilder::addSlideCheckbox(
+		SlideCheckboxArgs &&args) {
+	return v::match(_context, [&](const WidgetContext &ctx)
+			-> Ui::SlideWrap<Ui::Checkbox>* {
+		const auto wrap = ctx.container->add(
+			object_ptr<Ui::SlideWrap<Ui::Checkbox>>(
+				ctx.container,
+				object_ptr<Ui::Checkbox>(
+					ctx.container,
+					ResolveTitle(rpl::duplicate(args.title)),
+					args.checked,
+					st::settingsCheckbox),
+				st::settingsCheckboxPadding));
+		if (args.shown) {
+			wrap->toggleOn(std::move(args.shown));
+		}
+		return wrap;
+	}, [&](const SearchContext &ctx) -> Ui::SlideWrap<Ui::Checkbox>* {
+		if (!args.id.isEmpty()) {
+			ctx.entries->push_back({
+				.id = std::move(args.id),
+				.title = ResolveTitle(std::move(args.title)),
+				.keywords = std::move(args.keywords),
+			});
+		}
+		return nullptr;
+	});
+}
+
+Ui::SlideWrap<Ui::VerticalLayout> *SectionBuilder::addSlideSection(
+		SlideSectionArgs &&args) {
+	return v::match(_context, [&](const WidgetContext &ctx)
+			-> Ui::SlideWrap<Ui::VerticalLayout>* {
+		const auto wrap = ctx.container->add(
+			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+				ctx.container,
+				object_ptr<Ui::VerticalLayout>(ctx.container)));
+		if (args.shown) {
+			wrap->toggleOn(std::move(args.shown));
+		}
+		if (args.fill) {
+			args.fill(wrap->entity());
+		}
+		return wrap;
+	}, [](const SearchContext &) -> Ui::SlideWrap<Ui::VerticalLayout>* {
 		return nullptr;
 	});
 }

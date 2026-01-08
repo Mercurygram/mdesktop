@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_chat.h"
 
 #include "base/timer_rpl.h"
+#include "settings/builder/settings_chat_builder.h"
 #include "settings/settings_advanced.h"
 #include "settings/settings_privacy_security.h"
 #include "settings/settings_experimental.h"
@@ -2039,19 +2040,8 @@ void Chat::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
 void Chat::setupContent(not_null<Window::SessionController*> controller) {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	auto updateOnTick = rpl::single(
-	) | rpl::then(base::timer_each(60 * crl::time(1000)));
-
-	SetupThemeOptions(controller, content);
-	SetupThemeSettings(controller, content);
-	SetupCloudThemes(controller, content);
-	SetupChatBackground(controller, content);
-	SetupChatListQuickAction(controller, content);
-	SetupStickersEmoji(controller, content);
-	SetupMessages(controller, content);
-	Ui::AddDivider(content);
-	SetupSensitiveContent(controller, content, std::move(updateOnTick));
-	SetupArchive(controller, content, showOtherMethod());
+	setController(controller);
+	build(content, Builder::ChatSection);
 
 	Ui::ResizeFitChild(this, content);
 }
