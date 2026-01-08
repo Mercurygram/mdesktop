@@ -69,18 +69,28 @@ Ensure the repository is in `D:\Telegram\tdesktop`. The build system requires `.
 On Windows, use the correct Visual Studio Native Tools Command Prompt matching your target (x64/x86/ARM64).
 
 ### Build fails with PDB or EXE access errors
-If the build fails with errors like:
-- `cannot open program database '...vc143.pdb'`
+
+**⚠️ CRITICAL: DO NOT RETRY THE BUILD. STOP AND WAIT FOR USER.**
+
+If the build fails with ANY of these errors:
+- `fatal error C1041: cannot open program database`
 - `cannot open output file 'Telegram.exe'`
+- `LNK1104: cannot open file`
+- Any "access denied" or "file in use" error
 
-**Do NOT retry the build repeatedly.** First check if `out/Debug/Telegram.exe` can be deleted:
-```bash
-rm out/Debug/Telegram.exe
-```
-If deletion fails, the user is likely running Telegram.exe for testing. Inform the user:
-> "Build failed due to file lock. Please close Telegram.exe so I can complete the build."
+**STOP IMMEDIATELY.** These errors mean files are locked by a running process (Telegram.exe or debugger).
 
-Do not attempt to fix this automatically - wait for user confirmation.
+**What to do:**
+1. Do NOT attempt another build - it will fail the same way
+2. Do NOT try to delete files - they are locked
+3. Do NOT try any workarounds or fixes
+4. IMMEDIATELY inform the user:
+
+> "Build failed - files are locked. Please close Telegram.exe (and any debugger) so I can rebuild."
+
+**Then WAIT for user confirmation before attempting any build.**
+
+Retrying builds wastes time and context. The ONLY fix is for the user to close the running process.
 
 ## Best Practices
 
