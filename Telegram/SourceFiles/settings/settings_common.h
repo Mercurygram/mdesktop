@@ -88,6 +88,8 @@ struct HighlightDescriptor {
 void HighlightWidget(QWidget *target, HighlightArgs &&args = {});
 void ScrollToWidget(not_null<QWidget*> target);
 
+[[nodiscard]] HighlightArgs SubsectionTitleHighlight();
+
 using SectionBuilder = void(*)(
 	not_null<Ui::VerticalLayout*> container,
 	not_null<Window::SessionController*> controller,

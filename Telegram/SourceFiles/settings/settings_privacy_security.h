@@ -12,6 +12,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 class EditPrivacyController;
 
+namespace Settings::Builder {
+struct HighlightEntry;
+using HighlightRegistry = std::vector<std::pair<QString, HighlightEntry>>;
+} // namespace Settings::Builder
+
 namespace Ui {
 class BoxContent;
 } // namespace Ui
@@ -48,7 +53,8 @@ void AddPrivacyPremiumStar(
 
 void SetupArchiveAndMute(
 	not_null<Window::SessionController*> controller,
-	not_null<Ui::VerticalLayout*> container);
+	not_null<Ui::VerticalLayout*> container,
+	Builder::HighlightRegistry *highlights = nullptr);
 
 void SetupSecurity(
 	not_null<Window::SessionController*> controller,
@@ -63,7 +69,8 @@ void SetupPrivacy(
 
 void SetupBotsAndWebsites(
 	not_null<Window::SessionController*> controller,
-	not_null<Ui::VerticalLayout*> container);
+	not_null<Ui::VerticalLayout*> container,
+	Builder::HighlightRegistry *highlights = nullptr);
 
 void SetupConfirmationExtensions(
 	not_null<Window::SessionController*> controller,

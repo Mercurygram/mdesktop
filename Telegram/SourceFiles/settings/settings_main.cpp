@@ -769,4 +769,39 @@ void OpenFaq(base::weak_ptr<Window::SessionController> weak) {
 		}));
 }
 
+void OpenAskQuestionConfirm(not_null<Window::SessionController*> window) {
+	const auto requestId = std::make_shared<mtpRequestId>();
+	const auto sure = [=](Fn<void()> close) {
+		if (*requestId) {
+			return;
+		}
+		*requestId = window->session().api().request(
+			MTPhelp_GetSupport()
+		).done(crl::guard(window, [=](const MTPhelp_Support &result) {
+			*requestId = 0;
+			result.match([&](const MTPDhelp_support &data) {
+				auto &owner = window->session().data();
+				if (const auto user = owner.processUser(data.vuser())) {
+					window->showPeerHistory(user);
+				}
+			});
+			close();
+		})).fail([=] {
+			*requestId = 0;
+			close();
+		}).send();
+	};
+	window->show(Ui::MakeConfirmBox({
+		.text = tr::lng_settings_ask_sure(),
+		.confirmed = sure,
+		.cancelled = [=](Fn<void()> close) {
+			OpenFaq(window);
+			close();
+		},
+		.confirmText = tr::lng_settings_ask_ok(),
+		.cancelText = tr::lng_settings_faq_button(),
+		.strictCancel = true,
+	}));
+}
+
 } // namespace Settings

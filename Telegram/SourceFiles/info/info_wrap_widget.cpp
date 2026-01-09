@@ -786,17 +786,25 @@ void WrapWidget::showFinishedHook() {
 	_content->showFinished();
 
 	if (_topBarMenuToggle
-		&& _controller->section().type() == Section::Type::Settings
-		&& _controller->section().settingsType() == ::Settings::Main::Id()) {
+		&& _controller->section().type() == Section::Type::Settings) {
 		const auto controller = _controller->parentController();
-		const auto logoutId = u"settings/log-out"_q;
-		if (controller->takeHighlightControlId(logoutId)) {
+		const auto settingsType = _controller->section().settingsType();
+		const auto highlightId = [&]() -> QString {
+			if (settingsType == ::Settings::Main::Id()) {
+				return u"settings/log-out"_q;
+			} else if (settingsType == ::Settings::Chat::Id()) {
+				return u"chat/themes-create"_q;
+			}
+			return QString();
+		}();
+		if (!highlightId.isEmpty()
+			&& controller->takeHighlightControlId(highlightId)) {
 			showTopBarMenu(false);
 			if (_topBarMenu) {
 				const auto menu = _topBarMenu->menu();
 				for (const auto action : menu->actions()) {
 					const auto controlId = "highlight-control-id";
-					if (action->property(controlId).toString() == logoutId) {
+					if (action->property(controlId).toString() == highlightId) {
 						if (const auto item = menu->itemForAction(action)) {
 							::Settings::HighlightWidget(item);
 						}

@@ -34,6 +34,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_chat.h"
 #include "settings/settings_experimental.h"
 #include "settings/settings_power_saving.h"
+#include "ui/power_saving.h"
 #include "storage/localstorage.h"
 #include "storage/storage_domain.h"
 #include "tray.h"
@@ -746,7 +747,7 @@ void BuildPerformanceSection(
 		.st = &st::settingsButtonNoIcon,
 		.onClick = [=] {
 			if (controller) {
-				controller->window().show(Box(PowerSavingBox));
+				controller->window().show(Box(PowerSavingBox, PowerSaving::Flags()));
 			}
 		},
 		.keywords = { u"power"_q, u"saving"_q, u"battery"_q, u"animation"_q },

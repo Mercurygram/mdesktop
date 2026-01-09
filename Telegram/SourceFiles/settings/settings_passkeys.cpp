@@ -7,10 +7,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_passkeys.h"
 
+#include "core/application.h"
 #include "settings/cloud_password/settings_cloud_password_common.h"
+#include "settings/settings_common.h"
 #include "settings/settings_common_session.h"
 #include "data/components/passkeys.h"
 #include "data/data_session.h"
+#include "window/window_controller.h"
 #include "window/window_session_controller.h"
 #include "main/main_session.h"
 #include "platform/platform_webauthn.h"
@@ -58,12 +61,12 @@ public:
 	}
 
 private:
-	void showFinished() override {
-		_showFinished.fire({});
-	}
+	void showFinished() override;
 
 	void setupContent(not_null<Window::SessionController*> controller);
 
+	const not_null<Window::SessionController*> _controller;
+	QPointer<Ui::SettingsButton> _addButton;
 	Ui::RoundRect _bottomSkipRounding;
 
 	rpl::event_stream<> _showFinished;
@@ -181,6 +184,7 @@ void PasskeysNoneBox(
 				? tr::lng_settings_passkeys_none_button()
 				: tr::lng_settings_passkeys_none_button_unsupported(),
 			st::defaultActiveButton);
+		const auto createButton = button.data();
 		button->setTextTransform(Ui::RoundButton::TextTransform::NoTransform);
 		button->resizeToWidth(box->width()
 			- st.buttonPadding.left()
@@ -211,6 +215,21 @@ void PasskeysNoneBox(
 				anim::with_alpha(button->st().textFg->c, 0.5));
 		}
 		box->addButton(std::move(button));
+
+		box->showFinishes(
+		) | rpl::take(1) | rpl::on_next([=] {
+			if (const auto window = Core::App().findWindow(box)) {
+				window->checkHighlightControl(
+					u"passkeys/create"_q,
+					createButton,
+					{
+						.color = &st::activeButtonFg,
+						.opacity = 0.6,
+						.rippleShape = true,
+						.scroll = false,
+					});
+			}
+		}, box->lifetime());
 	}
 }
 
@@ -218,8 +237,19 @@ Passkeys::Passkeys(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
 : Section(parent)
+, _controller(controller)
 , _bottomSkipRounding(st::boxRadius, st::boxDividerBg) {
 	setupContent(controller);
+}
+
+void Passkeys::showFinished() {
+	_showFinished.fire({});
+	if (_addButton) {
+		_controller->checkHighlightControl(
+			u"passkeys/create"_q,
+			_addButton,
+			{ .rippleShape = true });
+	}
 }
 
 rpl::producer<QString> Passkeys::title() {
@@ -376,7 +406,8 @@ void Passkeys::setupContent(
 				tr::lng_settings_passkeys_button(),
 				st::settingsButtonActive,
 				{ &st::settingsIconPasskeys })));
-	buttonWrap->entity()->setClickedCallback([=] {
+	_addButton = buttonWrap->entity();
+	_addButton->setClickedCallback([=] {
 		controller->show(Box(PasskeysNoneBox, session));
 	});
 	buttonWrap->toggleOn(session->passkeys().requestList(

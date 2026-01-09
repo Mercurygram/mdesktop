@@ -9,6 +9,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "settings/settings_common_session.h"
 
+namespace Ui {
+class RpWidget;
+} // namespace Ui
+
 namespace Settings {
 
 class Websites : public Section<Websites> {
@@ -18,9 +22,13 @@ public:
 		not_null<Window::SessionController*> controller);
 
 	[[nodiscard]] rpl::producer<QString> title() override;
+	void showFinished() override;
 
 private:
 	void setupContent(not_null<Window::SessionController*> controller);
+
+	const not_null<Window::SessionController*> _controller;
+	QPointer<Ui::RpWidget> _terminateAll;
 
 };
 

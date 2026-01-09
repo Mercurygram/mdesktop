@@ -1810,11 +1810,10 @@ void GiftsAutoSavePrivacyController::checkHighlightControls(
 	controller->checkHighlightControl(
 		u"privacy/show-icon"_q,
 		_showIconButton.data());
-	const auto radius = st::roundRadiusSmall;
 	controller->checkHighlightControl(
 		u"privacy/accepted-types"_q,
 		_acceptedTypesTitle.data(),
-		{ .margin = { -radius, 0, -radius, 0 }, .radius = radius });
+		SubsectionTitleHighlight());
 }
 
 UserPrivacy::Key SavedMusicPrivacyController::key() const {

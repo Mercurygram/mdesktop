@@ -449,7 +449,10 @@ void UserpicButton::choosePhotoLocally() {
 			}, &st::menuIconProfile);
 		}
 	}
-	_menu->popup(QCursor::pos());
+	const auto position = rect().contains(mapFromGlobal(QCursor::pos()))
+		? QCursor::pos()
+		: mapToGlobal(rect().center());
+	_menu->popup(position);
 }
 
 auto UserpicButton::makeResetToOriginalAction()

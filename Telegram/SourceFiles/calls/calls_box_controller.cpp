@@ -43,6 +43,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "info/profile/info_profile_icon.h"
 #include "settings/settings_calls.h"
+#include "settings/settings_common.h"
 #include "styles/style_info.h" // infoTopBarMenu
 #include "styles/style_layers.h" // st::boxLabel.
 #include "styles/style_calls.h"
@@ -803,7 +804,9 @@ void ClearCallsBox(
 	return result;
 }
 
-void ShowCallsBox(not_null<::Window::SessionController*> window) {
+void ShowCallsBox(
+		not_null<::Window::SessionController*> window,
+		bool highlightStartCall) {
 	struct State {
 		State(not_null<::Window::SessionController*> window)
 		: callsController(window)
@@ -893,6 +896,13 @@ void ShowCallsBox(not_null<::Window::SessionController*> window) {
 			state->menu->popup(QCursor::pos());
 			return true;
 		});
+
+		if (highlightStartCall) {
+			box->showFinishes(
+			) | rpl::take(1) | rpl::on_next([=] {
+				Settings::HighlightWidget(button);
+			}, box->lifetime());
+		}
 	}));
 }
 

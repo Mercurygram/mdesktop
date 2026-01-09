@@ -10,9 +10,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "base/binary_guard.h"
 #include "boxes/add_contact_box.h"
+#include "boxes/gift_credits_box.h"
 #include "boxes/language_box.h"
+#include "boxes/stickers_box.h"
+#include "chat_helpers/emoji_sets_manager.h"
 #include "boxes/edit_privacy_box.h"
 #include "boxes/peers/edit_peer_color_box.h"
+#include "info/bot/earn/info_bot_earn_widget.h"
+#include "info/bot/starref/info_bot_starref_common.h"
+#include "info/bot/starref/info_bot_starref_join_widget.h"
 #include "settings/settings_privacy_controllers.h"
 #include "ui/chat/chat_style.h"
 #include "boxes/star_gift_box.h"
@@ -24,36 +30,77 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_user.h"
 #include "data/notify/data_notify_settings.h"
 #include "info/info_memento.h"
+#include "info/peer_gifts/info_peer_gifts_widget.h"
 #include "info/stories/info_stories_widget.h"
 #include "lang/lang_keys.h"
 #include "ui/boxes/peer_qr_box.h"
 #include "ui/layers/generic_box.h"
+#include "main/main_domain.h"
 #include "main/main_session.h"
+#include "storage/storage_domain.h"
 #include "settings/settings_active_sessions.h"
 #include "settings/settings_advanced.h"
 #include "settings/settings_blocked_peers.h"
 #include "settings/settings_business.h"
 #include "settings/settings_calls.h"
 #include "settings/settings_chat.h"
+#include "settings/settings_passkeys.h"
+#include "data/components/passkeys.h"
+#include "calls/calls_box_controller.h"
 #include "settings/settings_credits.h"
 #include "settings/settings_folders.h"
 #include "settings/settings_global_ttl.h"
 #include "settings/settings_information.h"
 #include "settings/settings_local_passcode.h"
 #include "settings/settings_main.h"
+#include "settings/cloud_password/settings_cloud_password_email_confirm.h"
+#include "settings/cloud_password/settings_cloud_password_input.h"
+#include "settings/cloud_password/settings_cloud_password_start.h"
+#include "api/api_cloud_password.h"
+#include "core/core_cloud_password.h"
 #include "settings/settings_notifications.h"
 #include "settings/settings_notifications_type.h"
+#include "settings/settings_power_saving.h"
 #include "settings/settings_premium.h"
+#include "ui/power_saving.h"
 #include "settings/settings_privacy_security.h"
 #include "settings/settings_websites.h"
+#include "boxes/connection_box.h"
+#include "boxes/local_storage_box.h"
+#include "mainwindow.h"
 #include "window/window_session_controller.h"
 
 namespace Core::DeepLinks {
 namespace {
 
-Result ShowLanguageBox(const Context &ctx) {
+Result ShowLanguageBox(const Context &ctx, const QString &highlightId = QString()) {
 	static auto Guard = base::binary_guard();
-	Guard = LanguageBox::Show(ctx.controller);
+	if (!highlightId.isEmpty() && ctx.controller) {
+		ctx.controller->setHighlightControlId(highlightId);
+	}
+	Guard = LanguageBox::Show(ctx.controller, highlightId);
+	return Result::Handled;
+}
+
+Result ShowPowerSavingBox(
+		const Context &ctx,
+		PowerSaving::Flags highlightFlags = PowerSaving::Flags()) {
+	if (!ctx.controller) {
+		return Result::NeedsAuth;
+	}
+	ctx.controller->show(
+		Box(::Settings::PowerSavingBox, highlightFlags),
+		Ui::LayerOption::KeepOther,
+		anim::type::normal);
+	return Result::Handled;
+}
+
+Result ShowMainMenuWithHighlight(const Context &ctx, const QString &highlightId) {
+	if (!ctx.controller) {
+		return Result::NeedsAuth;
+	}
+	ctx.controller->setHighlightControlId(highlightId);
+	ctx.controller->widget()->showMainMenu();
 	return Result::Handled;
 }
 
@@ -61,7 +108,9 @@ Result ShowSavedMessages(const Context &ctx) {
 	if (!ctx.controller) {
 		return Result::NeedsAuth;
 	}
-	ctx.controller->showPeerHistory(ctx.controller->session().userPeerId());
+	ctx.controller->showPeerHistory(
+		ctx.controller->session().userPeerId(),
+		Window::SectionShow::Way::Forward);
 	return Result::Handled;
 }
 
@@ -178,6 +227,49 @@ Result ShowLogOutMenu(const Context &ctx) {
 	return Result::Handled;
 }
 
+Result ShowPasskeys(const Context &ctx, bool highlightCreate) {
+	if (!ctx.controller) {
+		return Result::NeedsAuth;
+	}
+	const auto controller = ctx.controller;
+	const auto session = &controller->session();
+	const auto showBox = [=] {
+		if (highlightCreate) {
+			controller->setHighlightControlId(u"passkeys/create"_q);
+		}
+		if (session->passkeys().list().empty()) {
+			controller->show(Box([=](not_null<Ui::GenericBox*> box) {
+				::Settings::PasskeysNoneBox(box, session);
+				box->boxClosing() | rpl::on_next([=] {
+					if (!session->passkeys().list().empty()) {
+						controller->showSettings(::Settings::PasskeysId());
+					}
+				}, box->lifetime());
+			}));
+		} else {
+			controller->showSettings(::Settings::PasskeysId());
+		}
+	};
+	if (session->passkeys().listKnown()) {
+		showBox();
+	} else {
+		session->passkeys().requestList(
+		) | rpl::take(1) | rpl::on_next([=] {
+			showBox();
+		}, controller->lifetime());
+	}
+	return Result::Handled;
+}
+
+Result ShowAutoDeleteSetCustom(const Context &ctx) {
+	if (!ctx.controller) {
+		return Result::NeedsAuth;
+	}
+	ctx.controller->setHighlightControlId(u"auto-delete/set-custom"_q);
+	ctx.controller->showSettings(::Settings::GlobalTTLId());
+	return Result::Handled;
+}
+
 Result ShowNotificationType(
 		const Context &ctx,
 		Data::DefaultNotify type,
@@ -249,22 +341,49 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"my-profile/posts"_q,
-		.action = CodeBlock{ ShowMyProfile },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->setHighlightControlId(u"my-profile/posts"_q);
+			return ShowMyProfile(ctx);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"my-profile/posts/add-album"_q,
-		.action = CodeBlock{ ShowMyProfile },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->setHighlightControlId(u"my-profile/posts/add-album"_q);
+			return ShowMyProfile(ctx);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"my-profile/gifts"_q,
-		.action = CodeBlock{ ShowMyProfile },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->showSection(
+				Info::PeerGifts::Make(ctx.controller->session().user()));
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"my-profile/archived-posts"_q,
-		.action = CodeBlock{ ShowMyProfile },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->showSection(Info::Stories::Make(
+				ctx.controller->session().user(),
+				Info::Stories::ArchiveId()));
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
@@ -395,12 +514,60 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/active-websites/disconnect-all"_q,
-		.action = SettingsSection{ ::Settings::Websites::Id() },
+		.action = SettingsControl{
+			::Settings::Websites::Id(),
+			u"websites/disconnect-all"_q,
+		},
 	});
 
+	const auto openPasscode = [](const Context &ctx, const QString &highlight) {
+		if (!ctx.controller) {
+			return Result::NeedsAuth;
+		}
+		if (!highlight.isEmpty()) {
+			ctx.controller->setHighlightControlId(highlight);
+		}
+		const auto &local = ctx.controller->session().domain().local();
+		if (local.hasLocalPasscode()) {
+			ctx.controller->showSettings(::Settings::LocalPasscodeCheckId());
+		} else {
+			ctx.controller->showSettings(::Settings::LocalPasscodeCreateId());
+		}
+		return Result::Handled;
+	};
 	router.add(u"settings"_q, {
 		.path = u"privacy/passcode"_q,
-		.action = SettingsSection{ ::Settings::LocalPasscodeManageId() },
+		.action = CodeBlock{ [=](const Context &ctx) {
+			return openPasscode(ctx, QString());
+		}},
+	});
+	router.add(u"settings"_q, {
+		.path = u"privacy/passcode/disable"_q,
+		.action = CodeBlock{ [=](const Context &ctx) {
+			return openPasscode(ctx, u"passcode/disable"_q);
+		}},
+	});
+	router.add(u"settings"_q, {
+		.path = u"privacy/passcode/change"_q,
+		.action = CodeBlock{ [=](const Context &ctx) {
+			return openPasscode(ctx, u"passcode/change"_q);
+		}},
+	});
+	router.add(u"settings"_q, {
+		.path = u"privacy/passcode/auto-lock"_q,
+		.action = CodeBlock{ [=](const Context &ctx) {
+			return openPasscode(ctx, u"passcode/auto-lock"_q);
+		}},
+	});
+	router.add(u"settings"_q, {
+		.path = u"privacy/passcode/face-id"_q,
+		.action = CodeBlock{ [=](const Context &ctx) {
+			return openPasscode(ctx, u"passcode/biometrics"_q);
+		}},
+	});
+	router.add(u"settings"_q, {
+		.path = u"privacy/passcode/fingerprint"_q,
+		.action = AliasTo{ u"settings"_q, u"privacy/passcode/face-id"_q },
 	});
 
 	router.add(u"settings"_q, {
@@ -408,64 +575,67 @@ void RegisterSettingsHandlers(Router &router) {
 		.action = SettingsSection{ ::Settings::GlobalTTLId() },
 	});
 
+	const auto openCloudPassword = [](const Context &ctx, const QString &highlight) {
+		if (!ctx.controller) {
+			return Result::NeedsAuth;
+		}
+		if (!highlight.isEmpty()) {
+			ctx.controller->setHighlightControlId(highlight);
+		}
+		const auto state = ctx.controller->session().api().cloudPassword().stateCurrent();
+		if (!state) {
+			ctx.controller->showSettings(::Settings::CloudPasswordStartId());
+		} else if (!state->unconfirmedPattern.isEmpty()) {
+			ctx.controller->showSettings(::Settings::CloudPasswordEmailConfirmId());
+		} else if (state->hasPassword) {
+			ctx.controller->showSettings(::Settings::CloudPasswordInputId());
+		} else {
+			ctx.controller->showSettings(::Settings::CloudPasswordStartId());
+		}
+		return Result::Handled;
+	};
 	router.add(u"settings"_q, {
 		.path = u"privacy/2sv"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [=](const Context &ctx) {
+			return openCloudPassword(ctx, QString());
+		}},
+	});
+	router.add(u"settings"_q, {
+		.path = u"privacy/2sv/change"_q,
+		.action = CodeBlock{ [=](const Context &ctx) {
+			return openCloudPassword(ctx, u"2sv/change"_q);
+		}},
+	});
+	router.add(u"settings"_q, {
+		.path = u"privacy/2sv/disable"_q,
+		.action = CodeBlock{ [=](const Context &ctx) {
+			return openCloudPassword(ctx, u"2sv/disable"_q);
+		}},
+	});
+	router.add(u"settings"_q, {
+		.path = u"privacy/2sv/change-email"_q,
+		.action = CodeBlock{ [=](const Context &ctx) {
+			return openCloudPassword(ctx, u"2sv/change-email"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/passkey"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPasskeys(ctx, false);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/passkey/create"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
-	});
-
-	router.add(u"settings"_q, {
-		.path = u"privacy/passcode/disable"_q,
-		.action = SettingsSection{ ::Settings::LocalPasscodeManageId() },
-	});
-
-	router.add(u"settings"_q, {
-		.path = u"privacy/passcode/change"_q,
-		.action = SettingsSection{ ::Settings::LocalPasscodeManageId() },
-	});
-
-	router.add(u"settings"_q, {
-		.path = u"privacy/passcode/auto-lock"_q,
-		.action = SettingsSection{ ::Settings::LocalPasscodeManageId() },
-	});
-
-	router.add(u"settings"_q, {
-		.path = u"privacy/passcode/face-id"_q,
-		.action = SettingsSection{ ::Settings::LocalPasscodeManageId() },
-	});
-
-	router.add(u"settings"_q, {
-		.path = u"privacy/passcode/fingerprint"_q,
-		.action = SettingsSection{ ::Settings::LocalPasscodeManageId() },
-	});
-
-	router.add(u"settings"_q, {
-		.path = u"privacy/2sv/change"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
-	});
-
-	router.add(u"settings"_q, {
-		.path = u"privacy/2sv/disable"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
-	});
-
-	router.add(u"settings"_q, {
-		.path = u"privacy/2sv/change-email"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPasskeys(ctx, true);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/auto-delete/set-custom"_q,
-		.action = SettingsSection{ ::Settings::GlobalTTLId() },
+		.action = CodeBlock{ ShowAutoDeleteSetCustom },
 	});
 
 	router.add(u"settings"_q, {
@@ -925,17 +1095,41 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/messages"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->show(Box(EditMessagesPrivacyBox, ctx.controller, QString()));
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/messages/set-price"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->show(Box(
+				EditMessagesPrivacyBox,
+				ctx.controller,
+				u"privacy/set-price"_q));
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/messages/remove-fee"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->show(Box(
+				EditMessagesPrivacyBox,
+				ctx.controller,
+				u"privacy/remove-fee"_q));
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
@@ -972,57 +1166,104 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/self-destruct"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = SettingsControl{
+			::Settings::PrivacySecurity::Id(),
+			u"privacy/self_destruct"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/data-settings/suggest-contacts"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = SettingsControl{
+			::Settings::PrivacySecurity::Id(),
+			u"privacy/top_peers"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/data-settings/clear-payment-info"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = SettingsControl{
+			::Settings::PrivacySecurity::Id(),
+			u"privacy/bots_payment"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/archive-and-mute"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = SettingsControl{
+			::Settings::PrivacySecurity::Id(),
+			u"privacy/archive_and_mute"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"data/storage"_q,
-		.action = SettingsSection{ ::Settings::Advanced::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			LocalStorageBox::Show(ctx.controller);
+			return Result::Handled;
+		}},
 	});
-
-	router.add(u"settings"_q, {
-		.path = u"data/proxy"_q,
-		.action = SettingsSection{ ::Settings::Advanced::Id() },
-	});
-
 	router.add(u"settings"_q, {
 		.path = u"data/storage/clear-cache"_q,
-		.action = SettingsSection{ ::Settings::Advanced::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			LocalStorageBox::Show(ctx.controller, u"storage/clear-cache"_q);
+			return Result::Handled;
+		}},
 	});
-
 	router.add(u"settings"_q, {
 		.path = u"data/max-cache"_q,
-		.action = SettingsSection{ ::Settings::Advanced::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			LocalStorageBox::Show(ctx.controller, u"storage/max-cache"_q);
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"data/show-18-content"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/show-18-content"_q,
+		},
 	});
 
+	router.add(u"settings"_q, {
+		.path = u"data/proxy"_q,
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ProxiesBoxController::Show(ctx.controller);
+			return Result::Handled;
+		}},
+	});
 	router.add(u"settings"_q, {
 		.path = u"data/proxy/add-proxy"_q,
-		.action = SettingsSection{ ::Settings::Advanced::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ProxiesBoxController::Show(ctx.controller, u"proxy/add-proxy"_q);
+			return Result::Handled;
+		}},
 	});
-
 	router.add(u"settings"_q, {
 		.path = u"data/proxy/share-list"_q,
-		.action = SettingsSection{ ::Settings::Advanced::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ProxiesBoxController::Show(ctx.controller, u"proxy/share-list"_q);
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
@@ -1032,52 +1273,78 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"power-saving"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPowerSavingBox(ctx);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"power-saving/stickers"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPowerSavingBox(ctx, PowerSaving::kStickersPanel);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"power-saving/emoji"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPowerSavingBox(ctx, PowerSaving::kEmojiPanel);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"power-saving/effects"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowPowerSavingBox(ctx, PowerSaving::kChatBackground);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/themes"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/themes"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/themes/edit"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/themes-edit"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/themes/create"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/themes-create"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/wallpapers"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/wallpapers"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/wallpapers/set"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/wallpapers-set"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/wallpapers/choose-photo"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/wallpapers-choose-photo"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
@@ -1122,95 +1389,160 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/night-mode"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowMainMenuWithHighlight(ctx, u"main-menu/night-mode"_q);
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/auto-night-mode"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/auto-night-mode"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/text-size"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Main::Id(),
+			u"main/scale"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/animations"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = AliasTo{ u"settings"_q, u"power-saving"_q },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/stickers-emoji"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/edit"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->show(Box<StickersBox>(
+				ctx.controller->uiShow(),
+				StickersBox::Section::Installed));
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/trending"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->show(Box<StickersBox>(
+				ctx.controller->uiShow(),
+				StickersBox::Section::Featured));
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/archived"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->show(Box<StickersBox>(
+				ctx.controller->uiShow(),
+				StickersBox::Section::Archived));
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/emoji"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			ctx.controller->show(
+				Box<Ui::Emoji::ManageSetsBox>(&ctx.controller->session()));
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/emoji/suggest"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/suggest-animated-emoji"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/emoji/quick-reaction"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/quick-reaction"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/emoji/quick-reaction/choose"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/quick-reaction-choose"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/suggest-by-emoji"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/suggest-by-emoji"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/emoji/large"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsControl{
+			::Settings::Chat::Id(),
+			u"chat/large-emoji"_q,
+		},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"language"_q,
-		.action = CodeBlock{ ShowLanguageBox },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowLanguageBox(ctx);
+		}},
 		.requiresAuth = false,
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"language/show-button"_q,
-		.action = CodeBlock{ ShowLanguageBox },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowLanguageBox(ctx, u"language/show-button"_q);
+		}},
 		.requiresAuth = false,
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"language/translate-chats"_q,
-		.action = CodeBlock{ ShowLanguageBox },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowLanguageBox(ctx, u"language/translate-chats"_q);
+		}},
 		.requiresAuth = false,
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"language/do-not-translate"_q,
-		.action = CodeBlock{ ShowLanguageBox },
+		.action = CodeBlock{ [](const Context &ctx) {
+			return ShowLanguageBox(ctx, u"language/do-not-translate"_q);
+		}},
 		.requiresAuth = false,
 	});
 
@@ -1226,31 +1558,51 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"stars/top-up"_q,
-		.action = SettingsSection{ ::Settings::CreditsId() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			static auto handler = ::Settings::BuyStarsHandler();
+			handler.handler(ctx.controller->uiShow())();
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"stars/stats"_q,
-		.action = SettingsControl{
-			::Settings::CreditsId(),
-			u"stars/stats"_q,
-		},
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			const auto self = ctx.controller->session().user();
+			ctx.controller->showSection(Info::BotEarn::Make(self));
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"stars/gift"_q,
-		.action = SettingsControl{
-			::Settings::CreditsId(),
-			u"stars/gift"_q,
-		},
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			Ui::ShowGiftCreditsBox(ctx.controller, nullptr);
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"stars/earn"_q,
-		.action = SettingsControl{
-			::Settings::CreditsId(),
-			u"stars/earn"_q,
-		},
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			const auto self = ctx.controller->session().user();
+			if (Info::BotStarRef::Join::Allowed(self)) {
+				ctx.controller->showSection(Info::BotStarRef::Join::Make(self));
+			}
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
@@ -1273,10 +1625,13 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"send-gift"_q,
-		.action = SettingsControl{
-			::Settings::Main::Id(),
-			u"main/send-gift"_q,
-		},
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			Ui::ChooseStarGiftRecipient(ctx.controller);
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
@@ -1302,7 +1657,13 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"calls/all"_q,
-		.action = SettingsSection{ ::Settings::Calls::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			Calls::ShowCallsBox(ctx.controller);
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
@@ -1313,18 +1674,22 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"ask-question"_q,
-		.action = SettingsControl{
-			::Settings::Main::Id(),
-			u"main/ask-question"_q,
-		},
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			::Settings::OpenAskQuestionConfirm(ctx.controller);
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"features"_q,
-		.action = SettingsControl{
-			::Settings::Main::Id(),
-			u"main/features"_q,
-		},
+		.action = CodeBlock{ [](const Context &ctx) {
+			UrlClickHandler::Open(tr::lng_telegram_features_url(tr::now));
+			return Result::Handled;
+		}},
+		.requiresAuth = false,
 	});
 
 	router.add(u"settings"_q, {
@@ -1415,7 +1780,13 @@ void RegisterSettingsHandlers(Router &router) {
 	// Calls deep links.
 	router.add(u"settings"_q, {
 		.path = u"calls/start-call"_q,
-		.action = SettingsSection{ ::Settings::Calls::Id() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			Calls::ShowCallsBox(ctx.controller, true);
+			return Result::Handled;
+		}},
 	});
 
 	// Devices (sessions) deep links.

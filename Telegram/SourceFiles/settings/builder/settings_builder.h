@@ -201,6 +201,7 @@ public:
 	[[nodiscard]] Ui::VerticalLayout *container() const;
 	[[nodiscard]] Window::SessionController *controller() const;
 	[[nodiscard]] Fn<void(Type)> showOther() const;
+	[[nodiscard]] HighlightRegistry *highlights() const;
 
 private:
 	void registerHighlight(

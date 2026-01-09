@@ -395,7 +395,7 @@ void BuildPrivacySection(
 		.st = &st::settingsButtonNoIcon,
 		.label = rpl::duplicate(messagesLabel),
 		.onClick = [=] {
-			controller->show(Box(EditMessagesPrivacyBox, controller));
+			controller->show(Box(EditMessagesPrivacyBox, controller, QString()));
 		},
 		.keywords = { u"messages"_q, u"new"_q, u"unknown"_q },
 	});
@@ -466,13 +466,13 @@ void BuildPrivacySection(
 void BuildArchiveAndMuteSection(
 		SectionBuilder &builder,
 		not_null<Window::SessionController*> controller) {
-	SetupArchiveAndMute(controller, builder.container());
+	SetupArchiveAndMute(controller, builder.container(), builder.highlights());
 }
 
 void BuildBotsAndWebsitesSection(
 		SectionBuilder &builder,
 		not_null<Window::SessionController*> controller) {
-	SetupBotsAndWebsites(controller, builder.container());
+	SetupBotsAndWebsites(controller, builder.container(), builder.highlights());
 }
 
 void BuildTopPeersSection(

@@ -368,7 +368,7 @@ void EditAdminBox::prepare() {
 		.anyoneCanAddMembers = anyoneCanAddMembers,
 	};
 	Ui::AddSubsectionTitle(inner, tr::lng_rights_edit_admin_header());
-	auto [checkboxes, getChecked, changes] = CreateEditAdminRights(
+	auto [checkboxes, getChecked, changes, highlightWidget] = CreateEditAdminRights(
 		inner,
 		prepareFlags,
 		disabledMessages,
@@ -799,7 +799,7 @@ void EditRestrictedBox::prepare() {
 	Ui::AddSubsectionTitle(
 		verticalLayout(),
 		tr::lng_rights_user_restrictions_header());
-	auto [checkboxes, getRestrictions, changes] = CreateEditRestrictions(
+	auto [checkboxes, getRestrictions, changes, highlightWidget] = CreateEditRestrictions(
 		this,
 		prepareFlags,
 		disabledMessages,

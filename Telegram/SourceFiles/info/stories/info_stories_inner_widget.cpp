@@ -545,6 +545,29 @@ void InnerWidget::enableBackButton() {
 
 void InnerWidget::showFinished() {
 	_showFinished.fire({});
+
+	const auto window = _controller->parentController();
+	const auto id = window->highlightControlId();
+	if (id.isEmpty()) {
+		return;
+	}
+	if (id == u"my-profile/posts"_q) {
+		window->setHighlightControlId(QString());
+		if (_albumsWrap) {
+			::Settings::HighlightWidget(_albumsWrap);
+		}
+	} else if (id == u"my-profile/posts/add-album"_q) {
+		window->setHighlightControlId(QString());
+		if (_albumsWrap) {
+			::Settings::HighlightWidget(_albumsWrap);
+		}
+		_controller->uiShow()->show(Box(
+			NewAlbumBox,
+			_controller,
+			_peer,
+			StoryId(),
+			[=](Data::StoryAlbum album) { albumAdded(album); }));
+	}
 }
 
 void InnerWidget::finalizeTop() {

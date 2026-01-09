@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_business.h"
 
+#include "base/call_delayed.h"
+
 #include "api/api_chat_links.h"
 #include "boxes/premium_preview_box.h"
 #include "core/click_handler_types.h"
@@ -720,7 +722,11 @@ base::weak_qptr<Ui::RpWidget> Business::createPinnedToTop(
 
 void Business::showFinished() {
 	_showFinished.fire({});
-	_controller->checkHighlightControl(u"business/sponsored"_q, _sponsoredButton);
+	crl::on_main(this, [=] {
+		_controller->checkHighlightControl(
+			u"business/sponsored"_q,
+			_sponsoredButton);
+	});
 }
 
 base::weak_qptr<Ui::RpWidget> Business::createPinnedToBottom(

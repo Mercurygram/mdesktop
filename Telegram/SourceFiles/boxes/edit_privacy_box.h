@@ -175,7 +175,8 @@ private:
 
 void EditMessagesPrivacyBox(
 	not_null<Ui::GenericBox*> box,
-	not_null<Window::SessionController*> controller);
+	not_null<Window::SessionController*> controller,
+	const QString &highlightControlId = QString());
 
 [[nodiscard]] rpl::producer<int> SetupChargeSlider(
 	not_null<Ui::VerticalLayout*> container,

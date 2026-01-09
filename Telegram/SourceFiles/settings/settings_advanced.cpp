@@ -719,7 +719,7 @@ void SetupAnimations(
 		container,
 		tr::lng_settings_power_menu(),
 		st::settingsButtonNoIcon
-	))->setClickedCallback([=] { window->show(Box(PowerSavingBox)); });
+	))->setClickedCallback([=] { window->show(Box(PowerSavingBox, PowerSaving::Flags())); });
 }
 
 void ArchiveSettingsBox(

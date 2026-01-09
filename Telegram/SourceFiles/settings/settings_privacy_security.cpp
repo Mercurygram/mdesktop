@@ -261,7 +261,7 @@ void AddMessagesPrivacyButton(
 		st,
 		{});
 	button->addClickHandler([=] {
-		controller->show(Box(EditMessagesPrivacyBox, controller));
+		controller->show(Box(EditMessagesPrivacyBox, controller, QString()));
 	});
 	if (!session->appConfig().newRequirePremiumFree()) {
 		AddPremiumStar(button, session, rpl::duplicate(label), st.padding);
@@ -743,18 +743,27 @@ auto ClearPaymentInfoBox(not_null<Main::Session*> session) {
 
 void SetupBotsAndWebsites(
 		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container) {
+		not_null<Ui::VerticalLayout*> container,
+		Builder::HighlightRegistry *highlights) {
 	Ui::AddSkip(container);
 	Ui::AddSubsectionTitle(container, tr::lng_settings_security_bots());
 
 	const auto session = &controller->session();
-	container->add(object_ptr<Button>(
+	const auto button = container->add(object_ptr<Button>(
 		container,
 		tr::lng_settings_clear_payment_info(),
 		st::settingsButtonNoIcon
-	))->addClickHandler([=] {
+	));
+	button->addClickHandler([=] {
 		controller->show(ClearPaymentInfoBox(session));
 	});
+
+	if (highlights) {
+		highlights->push_back({
+			u"privacy/bots_payment"_q,
+			Builder::HighlightEntry{ button },
+		});
+	}
 
 	Ui::AddSkip(container);
 	Ui::AddDivider(container);
@@ -944,7 +953,8 @@ void SetupSecurity(
 void SetupSensitiveContent(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
-		rpl::producer<> updateTrigger) {
+		rpl::producer<> updateTrigger,
+		Builder::HighlightRegistry *highlights) {
 	using namespace rpl::mappers;
 
 	const auto wrap = container->add(
@@ -965,11 +975,11 @@ void SetupSensitiveContent(
 	) | rpl::on_next([=] {
 		session->api().sensitiveContent().reload();
 	}, container->lifetime());
-	inner->add(object_ptr<Button>(
+	const auto button = inner->add(object_ptr<Button>(
 		inner,
 		tr::lng_settings_sensitive_disable_filtering(),
-		st::settingsButtonNoIcon
-	))->toggleOn(rpl::merge(
+		st::settingsButtonNoIcon));
+	button->toggleOn(rpl::merge(
 		session->api().sensitiveContent().enabled(),
 		disable->events() | rpl::map_to(false)
 	))->toggledChanges(
@@ -987,6 +997,13 @@ void SetupSensitiveContent(
 			session->api().sensitiveContent().update(toggled);
 		}
 	}, container->lifetime());
+
+	if (highlights) {
+		highlights->push_back({
+			u"chat/show-18-content"_q,
+			Builder::HighlightEntry{ button },
+		});
+	}
 
 	Ui::AddSkip(inner);
 	Ui::AddDividerText(inner, tr::lng_settings_sensitive_about());
@@ -1111,7 +1128,8 @@ not_null<Ui::SettingsButton*> AddPrivacyButton(
 
 void SetupArchiveAndMute(
 		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container) {
+		not_null<Ui::VerticalLayout*> container,
+		Builder::HighlightRegistry *highlights) {
 	using namespace rpl::mappers;
 
 	const auto wrap = container->add(
@@ -1127,11 +1145,12 @@ void SetupArchiveAndMute(
 
 	const auto privacy = &session->api().globalPrivacy();
 	privacy->reload();
-	inner->add(object_ptr<Button>(
+	const auto button = inner->add(object_ptr<Button>(
 		inner,
 		tr::lng_settings_auto_archive(),
 		st::settingsButtonNoIcon
-	))->toggleOn(
+	));
+	button->toggleOn(
 		privacy->archiveAndMute()
 	)->toggledChanges(
 	) | rpl::filter([=](bool toggled) {
@@ -1139,6 +1158,13 @@ void SetupArchiveAndMute(
 	}) | rpl::on_next([=](bool toggled) {
 		privacy->updateArchiveAndMute(toggled);
 	}, container->lifetime());
+
+	if (highlights) {
+		highlights->push_back({
+			u"privacy/archive_and_mute"_q,
+			Builder::HighlightEntry{ button },
+		});
+	}
 
 	Ui::AddSkip(inner);
 	Ui::AddDividerText(inner, tr::lng_settings_auto_archive_about());

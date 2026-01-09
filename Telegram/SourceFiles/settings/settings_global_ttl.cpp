@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_global_ttl.h"
 
+#include "settings/settings_common.h"
 #include "api/api_self_destruct.h"
 #include "apiwrap.h"
 #include "boxes/peer_list_controllers.h"
@@ -210,6 +211,7 @@ private:
 	const std::shared_ptr<Main::SessionShow> _show;
 
 	not_null<Ui::VerticalLayout*> _buttons;
+	QPointer<Ui::SettingsButton> _customButton;
 
 	rpl::event_stream<> _showFinished;
 	rpl::lifetime _requestLifetime;
@@ -348,10 +350,11 @@ void GlobalTTL::setupContent() {
 	}
 
 	const auto show = _controller->uiShow();
-	content->add(object_ptr<Ui::SettingsButton>(
+	_customButton = content->add(object_ptr<Ui::SettingsButton>(
 		content,
 		tr::lng_settings_ttl_after_custom(),
-		st::settingsButtonNoIcon))->setClickedCallback([=] {
+		st::settingsButtonNoIcon));
+	_customButton->setClickedCallback([=] {
 		struct Args {
 			std::shared_ptr<Ui::Show> show;
 			TimeId startTtl;
@@ -427,6 +430,12 @@ void GlobalTTL::setupContent() {
 
 void GlobalTTL::showFinished() {
 	_showFinished.fire({});
+	if (_customButton) {
+		_controller->checkHighlightControl(
+			u"auto-delete/set-custom"_q,
+			_customButton,
+			{ .rippleShape = true });
+	}
 }
 
 Type GlobalTTLId() {

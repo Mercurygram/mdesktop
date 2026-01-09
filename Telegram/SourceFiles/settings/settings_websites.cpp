@@ -291,6 +291,7 @@ public:
 		not_null<Window::SessionController*> controller);
 
 	void setupContent();
+	[[nodiscard]] Ui::RpWidget *terminateAllButton() const;
 
 protected:
 	void resizeEvent(QResizeEvent *e) override;
@@ -367,6 +368,7 @@ public:
 	[[nodiscard]] rpl::producer<EntryData> showRequests() const;
 	[[nodiscard]] rpl::producer<uint64> terminateOne() const;
 	[[nodiscard]] rpl::producer<> terminateAll() const;
+	[[nodiscard]] Ui::RpWidget *terminateAllButton() const;
 
 private:
 	void setupContent();
@@ -553,6 +555,10 @@ void Content::terminateAll() {
 		tr::lng_settings_disconnect_all_sure());
 }
 
+Ui::RpWidget *Content::terminateAllButton() const {
+	return _inner ? _inner->terminateAllButton() : nullptr;
+}
+
 Content::Inner::Inner(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
@@ -627,6 +633,10 @@ rpl::producer<uint64> Content::Inner::terminateOne() const {
 
 rpl::producer<EntryData> Content::Inner::showRequests() const {
 	return _list->showRequests();
+}
+
+Ui::RpWidget *Content::Inner::terminateAllButton() const {
+	return _terminateAll.data();
 }
 
 Content::ListController::ListController(
@@ -733,12 +743,19 @@ namespace Settings {
 Websites::Websites(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent) {
+: Section(parent)
+, _controller(controller) {
 	setupContent(controller);
 }
 
 rpl::producer<QString> Websites::title() {
 	return tr::lng_settings_connected_title();
+}
+
+void Websites::showFinished() {
+	_controller->checkHighlightControl(
+		u"websites/disconnect-all"_q,
+		_terminateAll.data());
 }
 
 void Websites::setupContent(not_null<Window::SessionController*> controller) {
@@ -747,6 +764,8 @@ void Websites::setupContent(not_null<Window::SessionController*> controller) {
 	const auto content = container->add(
 		object_ptr<Content>(container, controller));
 	content->setupContent();
+
+	_terminateAll = content->terminateAllButton();
 
 	Ui::ResizeFitChild(this, container);
 }

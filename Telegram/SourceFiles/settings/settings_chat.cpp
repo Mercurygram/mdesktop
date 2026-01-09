@@ -30,9 +30,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/vertical_layout.h"
 #include "ui/wrap/slide_wrap.h"
 #include "ui/widgets/fields/input_field.h"
+#include "ui/widgets/buttons.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/color_editor.h"
-#include "ui/widgets/buttons.h"
+#include "ui/widgets/labels.h"
 #include "ui/chat/attach/attach_extensions.h"
 #include "ui/chat/chat_style.h"
 #include "ui/chat/chat_theme.h"
@@ -83,6 +84,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_window.h"
 #include "styles/style_dialogs.h"
 
+#include <QAction>
+
 namespace Settings {
 namespace {
 
@@ -98,6 +101,7 @@ public:
 
 	void show(Type type);
 
+	[[nodiscard]] Ui::RpWidget *editButton() const;
 	rpl::producer<QColor> selected() const;
 
 private:
@@ -113,6 +117,7 @@ private:
 		rpl::producer<> clicks() const;
 		bool selected() const;
 		QColor color() const;
+		Ui::RpWidget *widget() const;
 
 	private:
 		void paint();
@@ -217,6 +222,10 @@ QColor ColorsPalette::Button::color() const {
 	return _colors.front();
 }
 
+Ui::RpWidget *ColorsPalette::Button::widget() const {
+	return const_cast<Ui::AbstractButton*>(&_widget);
+}
+
 void ColorsPalette::Button::paint() {
 	auto p = QPainter(&_widget);
 	PainterHighQualityEnabler hq(p);
@@ -244,6 +253,10 @@ ColorsPalette::ColorsPalette(not_null<Ui::VerticalLayout*> container)
 	) | rpl::on_next([=] {
 		updateInnerGeometry();
 	}, inner->lifetime());
+}
+
+Ui::RpWidget *ColorsPalette::editButton() const {
+	return _buttons.empty() ? nullptr : _buttons.back()->widget();
 }
 
 void ColorsPalette::show(Type type) {
@@ -384,7 +397,7 @@ void ColorsPalette::updateInnerGeometry() {
 		button->moveToLeft(int(base::SafeRound(x)), y);
 		x += size + skip;
 	}
-	inner->resize(inner->width(), y + size);
+	inner->resize(inner->width(), y + size + st::defaultVerticalListSkip);
 }
 
 } // namespace
@@ -418,6 +431,9 @@ public:
 	BackgroundRow(
 		QWidget *parent,
 		not_null<Window::SessionController*> controller);
+
+	[[nodiscard]] Ui::LinkButton *chooseFromGallery() const;
+	[[nodiscard]] Ui::LinkButton *chooseFromFile() const;
 
 protected:
 	void paintEvent(QPaintEvent *e) override;
@@ -543,6 +559,14 @@ int BackgroundRow::resizeGetHeight(int newWidth) {
 	linkTop += _chooseFromGallery->height() + st::settingsFromFileTop;
 	_chooseFromFile->moveToLeft(linkLeft, linkTop, newWidth);
 	return st::settingsBackgroundThumb;
+}
+
+Ui::LinkButton *BackgroundRow::chooseFromGallery() const {
+	return _chooseFromGallery.data();
+}
+
+Ui::LinkButton *BackgroundRow::chooseFromFile() const {
+	return _chooseFromFile.data();
 }
 
 float64 BackgroundRow::radialProgress() const {
@@ -714,10 +738,21 @@ void ChooseFromFile(
 
 void SetupStickersEmoji(
 		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container) {
+		not_null<Ui::VerticalLayout*> container,
+		Builder::HighlightRegistry *highlights) {
 	Ui::AddSkip(container);
 
-	Ui::AddSubsectionTitle(container, tr::lng_settings_stickers_emoji());
+	const auto title = Ui::AddSubsectionTitle(
+		container,
+		tr::lng_settings_stickers_emoji());
+	if (highlights) {
+		highlights->push_back({
+			u"chat/stickers-emoji"_q,
+			Builder::HighlightEntry{
+				title.get(),
+				SubsectionTitleHighlight() },
+		});
+	}
 
 	const auto session = &controller->session();
 
@@ -736,7 +771,7 @@ void SetupStickersEmoji(
 			st::settingsCheckbox);
 	};
 	const auto add = [&](const QString &label, bool checked, auto &&handle) {
-		inner->add(
+		return inner->add(
 			checkbox(label, checked),
 			st::settingsCheckboxPadding
 		)->checkedChanges(
@@ -744,29 +779,49 @@ void SetupStickersEmoji(
 			std::move(handle),
 			inner->lifetime());
 	};
+	const auto addWithReturn = [&](
+			const QString &label,
+			bool checked,
+			auto &&handle) {
+		const auto result = inner->add(
+			checkbox(label, checked),
+			st::settingsCheckboxPadding);
+		result->checkedChanges(
+		) | rpl::on_next(
+			std::move(handle),
+			inner->lifetime());
+		return result;
+	};
 	const auto addSliding = [&](
 			const QString &label,
 			bool checked,
 			auto &&handle,
 			rpl::producer<bool> shown) {
-		inner->add(
+		const auto wrap = inner->add(
 			object_ptr<Ui::SlideWrap<Ui::Checkbox>>(
 				inner,
 				checkbox(label, checked),
-				st::settingsCheckboxPadding)
-		)->setDuration(0)->toggleOn(std::move(shown))->entity()->checkedChanges(
+				st::settingsCheckboxPadding));
+		wrap->setDuration(0)->toggleOn(std::move(shown))->entity()->checkedChanges(
 		) | rpl::on_next(
 			std::move(handle),
 			inner->lifetime());
+		return wrap->entity();
 	};
 
-	add(
+	const auto largeEmoji = addWithReturn(
 		tr::lng_settings_large_emoji(tr::now),
 		Core::App().settings().largeEmoji(),
 		[=](bool checked) {
 			Core::App().settings().setLargeEmoji(checked);
 			Core::App().saveSettingsDelayed();
 		});
+	if (highlights) {
+		highlights->push_back({
+			u"chat/large-emoji"_q,
+			Builder::HighlightEntry{ largeEmoji, { .radius = st::boxRadius } },
+		});
+	}
 
 	add(
 		tr::lng_settings_replace_emojis(tr::now),
@@ -789,7 +844,7 @@ void SetupStickersEmoji(
 		});
 
 	using namespace rpl::mappers;
-	addSliding(
+	const auto suggestAnimated = addSliding(
 		tr::lng_settings_suggest_animated_emoji(tr::now),
 		Core::App().settings().suggestAnimatedEmoji(),
 		[=](bool checked) {
@@ -800,14 +855,26 @@ void SetupStickersEmoji(
 			Data::AmPremiumValue(session),
 			suggestEmoji->value(),
 			_1 && _2));
+	if (highlights) {
+		highlights->push_back({
+			u"chat/suggest-animated-emoji"_q,
+			Builder::HighlightEntry{ suggestAnimated, { .radius = st::boxRadius } },
+		});
+	}
 
-	add(
+	const auto suggestByEmoji = addWithReturn(
 		tr::lng_settings_suggest_by_emoji(tr::now),
 		Core::App().settings().suggestStickersByEmoji(),
 		[=](bool checked) {
 			Core::App().settings().setSuggestStickersByEmoji(checked);
 			Core::App().saveSettingsDelayed();
 		});
+	if (highlights) {
+		highlights->push_back({
+			u"chat/suggest-by-emoji"_q,
+			Builder::HighlightEntry{ suggestByEmoji, { .radius = st::boxRadius } },
+		});
+	}
 
 	add(
 		tr::lng_settings_loop_stickers(tr::now),
@@ -842,7 +909,8 @@ void SetupStickersEmoji(
 
 void SetupMessages(
 		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container) {
+		not_null<Ui::VerticalLayout*> container,
+		Builder::HighlightRegistry *highlights) {
 	Ui::AddDivider(container);
 	Ui::AddSkip(container);
 
@@ -904,6 +972,12 @@ void SetupMessages(
 	const auto react = addQuick(
 		Quick::React,
 		tr::lng_settings_chat_quick_action_react(tr::now));
+	if (highlights) {
+		highlights->push_back({
+			u"chat/quick-reaction"_q,
+			Builder::HighlightEntry{ react, { .radius = st::boxRadius } },
+		});
+	}
 
 	const auto buttonRight = Ui::CreateSimpleCircleButton(
 		inner,
@@ -996,6 +1070,14 @@ void SetupMessages(
 	buttonRight->setClickedCallback([=, show = controller->uiShow()] {
 		show->showBox(Box(ReactionsSettingsBox, controller));
 	});
+	if (highlights) {
+		highlights->push_back({
+			u"chat/quick-reaction-choose"_q,
+			Builder::HighlightEntry{
+				buttonRight.get(),
+				{ .shape = HighlightShape::Ellipse } },
+		});
+	}
 
 	Ui::AddSkip(inner, st::settingsSendTypeSkip);
 
@@ -1206,15 +1288,42 @@ void SetupAutoDownload(
 
 void SetupChatBackground(
 		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container) {
+		not_null<Ui::VerticalLayout*> container,
+		Builder::HighlightRegistry *highlights) {
 	Ui::AddDivider(container);
 	Ui::AddSkip(container);
 
-	Ui::AddSubsectionTitle(container, tr::lng_settings_section_background());
+	const auto title = Ui::AddSubsectionTitle(
+		container,
+		tr::lng_settings_section_background());
 
-	container->add(
+	const auto row = container->add(
 		object_ptr<BackgroundRow>(container, controller),
 		st::settingsBackgroundPadding);
+
+	if (highlights) {
+		highlights->push_back({
+			u"chat/wallpapers"_q,
+			Builder::HighlightEntry{
+				title.get(),
+				SubsectionTitleHighlight(),
+			},
+		});
+		highlights->push_back({
+			u"chat/wallpapers-set"_q,
+			Builder::HighlightEntry{
+				row->chooseFromGallery(),
+				SubsectionTitleHighlight(),
+			},
+		});
+		highlights->push_back({
+			u"chat/wallpapers-choose-photo"_q,
+			Builder::HighlightEntry{
+				row->chooseFromFile(),
+				SubsectionTitleHighlight(),
+			},
+		});
+	}
 
 	const auto skipTop = st::settingsCheckbox.margin.top();
 	const auto skipBottom = st::settingsCheckbox.margin.bottom();
@@ -1511,7 +1620,8 @@ void SetupChatListQuickAction(
 
 void SetupDefaultThemes(
 		not_null<Window::Controller*> window,
-		not_null<Ui::VerticalLayout*> container) {
+		not_null<Ui::VerticalLayout*> container,
+		Builder::HighlightRegistry *highlights) {
 	using Type = Window::Theme::EmbeddedType;
 	using Scheme = Window::Theme::EmbeddedScheme;
 	using Check = Window::Theme::CloudListCheck;
@@ -1627,6 +1737,17 @@ void SetupDefaultThemes(
 		refreshColorizer(scheme.type);
 	}
 
+	if (highlights) {
+		const auto add = st::roundRadiusSmall;
+		highlights->push_back({ u"chat/themes-edit"_q, {
+			palette->editButton(),
+			{
+				.margin = { -add, -add, -add, -add },
+				.shape = HighlightShape::Ellipse,
+			},
+		}});
+	}
+
 	Background()->updates(
 	) | rpl::filter([](const BackgroundUpdate &update) {
 		return (update.type == BackgroundUpdate::Type::ApplyingTheme);
@@ -1700,21 +1821,34 @@ void SetupDefaultThemes(
 
 void SetupThemeOptions(
 		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container) {
+		not_null<Ui::VerticalLayout*> container,
+		Builder::HighlightRegistry *highlights) {
 	using namespace Window::Theme;
 
 	Ui::AddSkip(container, st::settingsPrivacySkip);
 
-	Ui::AddSubsectionTitle(container, tr::lng_settings_themes());
+	const auto title = Ui::AddSubsectionTitle(
+		container,
+		tr::lng_settings_themes());
+	if (highlights) {
+		highlights->push_back({
+			u"chat/themes"_q,
+			Builder::HighlightEntry{
+				title.get(),
+				SubsectionTitleHighlight(),
+			},
+		});
+	}
 
 	Ui::AddSkip(container, st::settingsThemesTopSkip);
-	SetupDefaultThemes(&controller->window(), container);
+	SetupDefaultThemes(&controller->window(), container, highlights);
 	Ui::AddSkip(container);
 }
 
 void SetupCloudThemes(
 		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container) {
+		not_null<Ui::VerticalLayout*> container,
+		Builder::HighlightRegistry *highlights) {
 	using namespace Window::Theme;
 	using namespace rpl::mappers;
 
@@ -1806,7 +1940,8 @@ void SetupCloudThemes(
 
 void SetupThemeSettings(
 		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container) {
+		not_null<Ui::VerticalLayout*> container,
+		Builder::HighlightRegistry *highlights) {
 	Ui::AddDivider(container);
 	Ui::AddSkip(container, st::settingsPrivacySkip);
 
@@ -1826,13 +1961,13 @@ void SetupThemeSettings(
 				? tr::lng_settings_auto_night_mode_on()
 				: tr::lng_settings_auto_night_mode_off();
 		}) | rpl::flatten_latest();
-		AddButtonWithLabel(
+		const auto button = AddButtonWithLabel(
 			container,
 			tr::lng_settings_auto_night_mode(),
 			std::move(label),
 			st::settingsButton,
-			{ &st::menuIconNightMode }
-		)->setClickedCallback([=] {
+			{ &st::menuIconNightMode });
+		button->setClickedCallback([=] {
 			const auto now = !settings->systemDarkModeEnabled();
 			if (now && Window::Theme::Background()->editingTheme()) {
 				controller->show(Ui::MakeInformBox(
@@ -1842,6 +1977,12 @@ void SetupThemeSettings(
 				Core::App().saveSettingsDelayed();
 			}
 		});
+		if (highlights) {
+			highlights->push_back({
+				u"chat/auto-night-mode"_q,
+				Builder::HighlightEntry{ button.get(), {} },
+			});
+		}
 	}
 
 	const auto family = container->lifetime().make_state<
@@ -2031,10 +2172,13 @@ rpl::producer<QString> Chat::title() {
 
 void Chat::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
 	const auto window = &_controller->window();
-	addAction(
+	const auto createTheme = addAction(
 		tr::lng_settings_bg_theme_create(tr::now),
 		[=] { window->show(Box(Window::Theme::CreateBox, window)); },
 		&st::menuIconChangeColors);
+	createTheme->setProperty(
+		"highlight-control-id",
+		u"chat/themes-create"_q);
 }
 
 void Chat::setupContent(not_null<Window::SessionController*> controller) {

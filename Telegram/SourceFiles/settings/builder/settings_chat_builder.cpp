@@ -30,7 +30,8 @@ namespace {
 void BuildChatSectionContent(
 		SectionBuilder &builder,
 		Window::SessionController *controller,
-		Fn<void(Type)> showOther) {
+		Fn<void(Type)> showOther,
+		HighlightRegistry *highlights) {
 	if (!controller) {
 		builder.addSettingsButton({
 			.id = u"appearance/theme"_q,
@@ -116,15 +117,15 @@ void BuildChatSectionContent(
 	auto updateOnTick = rpl::single(
 	) | rpl::then(base::timer_each(60 * crl::time(1000)));
 
-	SetupThemeOptions(controller, container);
-	SetupThemeSettings(controller, container);
-	SetupCloudThemes(controller, container);
-	SetupChatBackground(controller, container);
+	SetupThemeOptions(controller, container, highlights);
+	SetupThemeSettings(controller, container, highlights);
+	SetupCloudThemes(controller, container, highlights);
+	SetupChatBackground(controller, container, highlights);
 	SetupChatListQuickAction(controller, container);
-	SetupStickersEmoji(controller, container);
-	SetupMessages(controller, container);
+	SetupStickersEmoji(controller, container, highlights);
+	SetupMessages(controller, container, highlights);
 	Ui::AddDivider(container);
-	SetupSensitiveContent(controller, container, std::move(updateOnTick));
+	SetupSensitiveContent(controller, container, std::move(updateOnTick), highlights);
 	SetupArchive(controller, container, showOther);
 }
 
@@ -146,7 +147,7 @@ void ChatSection(
 		.highlights = highlights,
 	});
 
-	BuildChatSectionContent(builder, controller, showOther);
+	BuildChatSectionContent(builder, controller, showOther, highlights);
 
 	std::move(showFinished) | rpl::on_next([=] {
 		for (const auto &[id, entry] : *highlights) {
@@ -163,7 +164,7 @@ void ChatSection(
 std::vector<SearchEntry> ChatSectionForSearch() {
 	std::vector<SearchEntry> entries;
 	SectionBuilder builder(SearchContext{ .entries = &entries });
-	BuildChatSectionContent(builder, nullptr, nullptr);
+	BuildChatSectionContent(builder, nullptr, nullptr, nullptr);
 	return entries;
 }
 

@@ -31,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_main.h"
 #include "settings/settings_notifications.h"
 #include "settings/settings_power_saving.h"
+#include "ui/power_saving.h"
 #include "settings/settings_premium.h"
 #include "settings/settings_privacy_security.h"
 #include "ui/basic_click_handlers.h"
@@ -149,7 +150,7 @@ void BuildSectionButtons(
 		.title = tr::lng_settings_power_menu(),
 		.icon = { &st::menuIconPowerUsage },
 		.onClick = window
-			? Fn<void()>([=] { window->show(Box(PowerSavingBox)); })
+			? Fn<void()>([=] { window->show(Box(PowerSavingBox, PowerSaving::Flags())); })
 			: Fn<void()>(nullptr),
 		.keywords = { u"battery"_q, u"animations"_q, u"power"_q, u"saving"_q },
 	});
@@ -298,20 +299,11 @@ void BuildHelpSection(
 	builder.addDivider();
 	builder.addSkip();
 
-	const auto faqClick = controller
-		? [=] {
-			UrlClickHandler::Open(
-				tr::lng_settings_faq_link(tr::now),
-				QVariant::fromValue(ClickHandlerContext{
-					.sessionWindow = base::make_weak(controller),
-				}));
-		}
-		: Fn<void()>();
 	builder.addSettingsButton({
 		.id = u"main/faq"_q,
 		.title = tr::lng_settings_faq(),
 		.icon = { &st::menuIconFaq },
-		.onClick = faqClick,
+		.onClick = [=] { OpenFaq(controller); },
 		.keywords = { u"help"_q, u"support"_q, u"questions"_q },
 	});
 
@@ -329,9 +321,7 @@ void BuildHelpSection(
 		.id = u"main/ask-question"_q,
 		.title = tr::lng_settings_ask_question(),
 		.icon = { &st::menuIconDiscussion },
-		.onClick = [] {
-			UrlClickHandler::Open(tr::lng_telegram_features_url(tr::now));
-		},
+		.onClick = [=] { OpenAskQuestionConfirm(controller); },
 		.keywords = { u"contact"_q, u"feedback"_q },
 	});
 

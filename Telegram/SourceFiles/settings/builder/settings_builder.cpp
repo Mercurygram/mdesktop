@@ -40,7 +40,8 @@ SectionBuilder::SectionBuilder(BuildContext context)
 }
 
 Ui::RpWidget *SectionBuilder::addControl(ControlArgs &&args) {
-	return v::match(_context, [&](const WidgetContext &ctx) {
+	const auto id = args.id;
+	const auto raw = v::match(_context, [&](const WidgetContext &ctx) {
 		if (!args.factory) {
 			return static_cast<Ui::RpWidget*>(nullptr);
 		}
@@ -58,6 +59,10 @@ Ui::RpWidget *SectionBuilder::addControl(ControlArgs &&args) {
 		}
 		return static_cast<Ui::RpWidget*>(nullptr);
 	});
+	if (raw && !id.isEmpty()) {
+		registerHighlight(id, raw, {});
+	}
+	return raw;
 }
 
 Ui::SettingsButton *SectionBuilder::addSettingsButton(ButtonArgs &&args) {
@@ -457,6 +462,14 @@ Fn<void(Type)> SectionBuilder::showOther() const {
 	return v::match(_context, [](const WidgetContext &ctx) {
 		return ctx.showOther;
 	}, [](const SearchContext &) -> Fn<void(Type)> {
+		return nullptr;
+	});
+}
+
+HighlightRegistry *SectionBuilder::highlights() const {
+	return v::match(_context, [](const WidgetContext &ctx) {
+		return ctx.highlights;
+	}, [](const SearchContext &) -> HighlightRegistry* {
 		return nullptr;
 	});
 }

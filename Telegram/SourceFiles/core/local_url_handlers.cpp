@@ -1280,7 +1280,7 @@ bool EditPaidMessagesFee(
 			ShowEditChatPermissions(controller, channel);
 		}
 	} else {
-		controller->show(Box(EditMessagesPrivacyBox, controller));
+		controller->show(Box(EditMessagesPrivacyBox, controller, QString()));
 	}
 	return true;
 }

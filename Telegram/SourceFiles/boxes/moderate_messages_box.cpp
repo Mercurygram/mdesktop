@@ -824,7 +824,7 @@ void CreateModerateMessagesBox(
 					tr::lng_restrict_users_part_header(
 						lt_count,
 						rpl::single(participants.size()) | tr::to_count())));
-			auto [checkboxes, getRestrictions, changes] = CreateEditRestrictions(
+			auto [checkboxes, getRestrictions, changes, highlightWidget] = CreateEditRestrictions(
 				box,
 				prepareFlags,
 				disabledMessages,

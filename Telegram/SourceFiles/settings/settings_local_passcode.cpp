@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "settings/cloud_password/settings_cloud_password_common.h"
 #include "settings/cloud_password/settings_cloud_password_step.h"
+#include "settings/settings_common.h"
 #include "storage/storage_domain.h"
 #include "ui/vertical_list.h"
 #include "ui/boxes/confirm_box.h"
@@ -411,6 +412,11 @@ private:
 	rpl::event_stream<> _showFinished;
 	rpl::event_stream<> _showBack;
 
+	QPointer<Ui::RpWidget> _changeButton;
+	QPointer<Ui::RpWidget> _autoLockButton;
+	QPointer<Ui::RpWidget> _biometricsButton;
+	QPointer<Ui::RpWidget> _disableButton;
+
 };
 
 LocalPasscodeManage::LocalPasscodeManage(
@@ -449,12 +455,13 @@ void LocalPasscodeManage::setupContent() {
 
 	Ui::AddSkip(content);
 
-	AddButtonWithIcon(
+	const auto changeButton = AddButtonWithIcon(
 		content,
 		tr::lng_passcode_change(),
 		st::settingsButton,
-		{ &st::menuIconLock }
-	)->addClickHandler([=] {
+		{ &st::menuIconLock });
+	_changeButton = changeButton;
+	changeButton->addClickHandler([=] {
 		showOther(LocalPasscodeChange::Id());
 	});
 
@@ -477,15 +484,16 @@ void LocalPasscodeManage::setupContent() {
 			: tr::lng_hours(tr::now, lt_count, hours);
 	});
 
-	AddButtonWithLabel(
+	const auto autoLockButton = AddButtonWithLabel(
 		content,
 		(base::Platform::LastUserInputTimeSupported()
 			? tr::lng_passcode_autolock_away
 			: tr::lng_passcode_autolock_inactive)(),
 		std::move(autolockLabel),
 		st::settingsButton,
-		{ &st::menuIconTimer }
-	)->addClickHandler([=] {
+		{ &st::menuIconTimer });
+	_autoLockButton = autoLockButton;
+	autoLockButton->addClickHandler([=] {
 		const auto box = _controller->show(Box<AutoLockBox>());
 		box->boxClosing(
 		) | rpl::start_to_stream(state->autoLockBoxClosing, box->lifetime());
@@ -553,7 +561,7 @@ void LocalPasscodeManage::setupContent() {
 
 		Ui::AddSkip(systemUnlockContent);
 
-		AddButtonWithIcon(
+		const auto biometricsButton = AddButtonWithIcon(
 			systemUnlockContent,
 			(Platform::IsWindows()
 				? tr::lng_settings_use_winhello()
@@ -569,8 +577,9 @@ void LocalPasscodeManage::setupContent() {
 				? &st::menuIconTouchID
 				: (type == UnlockType::Companion)
 				? &st::menuIconAppleWatch
-				: &st::menuIconSystemPwd }
-		)->toggleOn(
+				: &st::menuIconSystemPwd });
+		_biometricsButton = biometricsButton;
+		biometricsButton->toggleOn(
 			rpl::single(Core::App().settings().systemUnlockEnabled())
 		)->toggledChanges(
 		) | rpl::filter([=](bool value) {
@@ -625,12 +634,39 @@ base::weak_qptr<Ui::RpWidget> LocalPasscodeManage::createPinnedToBottom(
 		std::move(callback));
 
 	_isBottomFillerShown = base::take(bottomButton.isBottomFillerShown);
+	_disableButton = bottomButton.button.get();
 
 	return bottomButton.content;
 }
 
 void LocalPasscodeManage::showFinished() {
 	_showFinished.fire({});
+
+	const auto id = _controller->highlightControlId();
+	if (id.isEmpty()) {
+		return;
+	}
+	if (id == u"passcode/change"_q) {
+		_controller->setHighlightControlId(QString());
+		if (_changeButton) {
+			HighlightWidget(_changeButton);
+		}
+	} else if (id == u"passcode/auto-lock"_q) {
+		_controller->setHighlightControlId(QString());
+		if (_autoLockButton) {
+			HighlightWidget(_autoLockButton);
+		}
+	} else if (id == u"passcode/biometrics"_q) {
+		_controller->setHighlightControlId(QString());
+		if (_biometricsButton) {
+			HighlightWidget(_biometricsButton);
+		}
+	} else if (id == u"passcode/disable"_q) {
+		_controller->setHighlightControlId(QString());
+		if (_disableButton) {
+			HighlightWidget(_disableButton);
+		}
+	}
 }
 
 rpl::producer<> LocalPasscodeManage::sectionShowBack() {
