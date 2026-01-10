@@ -206,7 +206,6 @@ private:
 
 	void request(TimeId ttl) const;
 
-	const not_null<Window::SessionController*> _controller;
 	const std::shared_ptr<Ui::RadiobuttonGroup> _group;
 	const std::shared_ptr<Main::SessionShow> _show;
 
@@ -221,8 +220,7 @@ private:
 GlobalTTL::GlobalTTL(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller)
+: Section(parent, controller)
 , _group(std::make_shared<Ui::RadiobuttonGroup>(0))
 , _show(controller->uiShow())
 , _buttons(Ui::CreateChild<Ui::VerticalLayout>(this)) {
@@ -234,7 +232,7 @@ rpl::producer<QString> GlobalTTL::title() {
 }
 
 void GlobalTTL::request(TimeId ttl) const {
-	_controller->session().api().selfDestruct().updateDefaultHistoryTTL(ttl);
+	controller()->session().api().selfDestruct().updateDefaultHistoryTTL(ttl);
 }
 
 void GlobalTTL::showSure(TimeId ttl, bool rebuild) const {
@@ -339,7 +337,7 @@ void GlobalTTL::setupContent() {
 	content->add(object_ptr<Ui::VerticalLayout>::fromRaw(_buttons));
 
 	{
-		const auto &apiTTL = _controller->session().api().selfDestruct();
+		const auto &apiTTL = controller()->session().api().selfDestruct();
 		const auto rebuild = [=](TimeId period) {
 			rebuildButtons(period);
 			_group->setValue(period);
@@ -349,7 +347,7 @@ void GlobalTTL::setupContent() {
 		) | rpl::on_next(rebuild, content->lifetime());
 	}
 
-	const auto show = _controller->uiShow();
+	const auto show = controller()->uiShow();
 	_customButton = content->add(object_ptr<Ui::SettingsButton>(
 		content,
 		tr::lng_settings_ttl_after_custom(),
@@ -381,7 +379,8 @@ void GlobalTTL::setupContent() {
 			tr::marked),
 		st::boxDividerLabel);
 	footer->setLink(1, std::make_shared<LambdaClickHandler>([=] {
-		const auto session = &_controller->session();
+		const auto window = controller();
+		const auto session = &window->session();
 		auto controller = std::make_unique<TTLChatsBoxController>(session);
 		auto initBox = [=, controller = controller.get()](
 				not_null<PeerListBox*> box) {
@@ -417,7 +416,7 @@ void GlobalTTL::setupContent() {
 			}));
 			box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
 		};
-		_controller->show(
+		window->show(
 			Box<PeerListBox>(std::move(controller), std::move(initBox)));
 	}));
 	content->add(object_ptr<Ui::DividerLabel>(
@@ -431,7 +430,7 @@ void GlobalTTL::setupContent() {
 void GlobalTTL::showFinished() {
 	_showFinished.fire({});
 	if (_customButton) {
-		_controller->checkHighlightControl(
+		controller()->checkHighlightControl(
 			u"auto-delete/set-custom"_q,
 			_customButton,
 			{ .rippleShape = true });

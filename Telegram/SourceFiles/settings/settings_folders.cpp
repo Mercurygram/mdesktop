@@ -53,6 +53,7 @@ struct FoldersHighlightTargets {
 	QPointer<Ui::RpWidget> createButton;
 	QPointer<Ui::RpWidget> tagsButton;
 	QPointer<Ui::RpWidget> viewSection;
+	QPointer<Ui::RpWidget> recommendedTitle;
 };
 namespace {
 
@@ -607,7 +608,12 @@ void FilterRowButton::paintEvent(QPaintEvent *e) {
 	const auto aboutRows = nonEmptyAbout->entity();
 	Ui::AddDivider(aboutRows);
 	Ui::AddSkip(aboutRows);
-	Ui::AddSubsectionTitle(aboutRows, tr::lng_filters_recommended());
+	const auto recommendedTitle = Ui::AddSubsectionTitle(
+		aboutRows,
+		tr::lng_filters_recommended());
+	if (targets) {
+		targets->recommendedTitle = recommendedTitle;
+	}
 
 	const auto setTagsProgress = [=](float64 value) {
 		for (const auto &row : state->rows) {
@@ -1030,9 +1036,8 @@ void SetupView(
 Folders::Folders(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller) {
-	setupContent(controller);
+: Section(parent, controller) {
+	setupContent();
 }
 
 Folders::~Folders() {
@@ -1045,8 +1050,8 @@ rpl::producer<QString> Folders::title() {
 	return tr::lng_filters_title();
 }
 
-void Folders::setupContent(not_null<Window::SessionController*> controller) {
-	controller->session().data().chatsFilters().requestSuggested();
+void Folders::setupContent() {
+	controller()->session().data().chatsFilters().requestSuggested();
 
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 	const auto tagsButtonEnabled
@@ -1055,17 +1060,22 @@ void Folders::setupContent(not_null<Window::SessionController*> controller) {
 	SetupTopContent(content, _showFinished.events());
 
 	auto targets = FoldersHighlightTargets();
-	_save = SetupFoldersContent(controller, content, tagsButtonEnabled, &targets);
+	_save = SetupFoldersContent(
+		controller(),
+		content,
+		tagsButtonEnabled,
+		&targets);
 	_createButton = targets.createButton;
+	_recommendedTitle = targets.recommendedTitle;
 
 	auto dividerNeeded = true;
-	if (controller->session().premiumPossible()) {
-		SetupTagContent(controller, content, tagsButtonEnabled, &targets);
+	if (controller()->session().premiumPossible()) {
+		SetupTagContent(controller(), content, tagsButtonEnabled, &targets);
 		_tagsButton = targets.tagsButton;
 		dividerNeeded = false;
 	}
 
-	SetupView(controller, content, dividerNeeded, &targets);
+	SetupView(controller(), content, dividerNeeded, &targets);
 	_viewSection = targets.viewSection;
 
 	Ui::ResizeFitChild(this, content);
@@ -1074,9 +1084,13 @@ void Folders::setupContent(not_null<Window::SessionController*> controller) {
 void Folders::showFinished() {
 	_showFinished.fire({});
 
-	_controller->checkHighlightControl(u"folders/create"_q, _createButton);
-	_controller->checkHighlightControl(u"folders/show-tags"_q, _tagsButton);
-	_controller->checkHighlightControl(u"folders/tab-view"_q, _viewSection);
+	controller()->checkHighlightControl(u"folders/create"_q, _createButton);
+	controller()->checkHighlightControl(u"folders/show-tags"_q, _tagsButton);
+	controller()->checkHighlightControl(u"folders/tab-view"_q, _viewSection);
+	controller()->checkHighlightControl(
+		u"folders/add-recommended"_q,
+		_recommendedTitle,
+		SubsectionTitleHighlight());
 }
 
 } // namespace Settings

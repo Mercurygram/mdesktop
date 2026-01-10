@@ -32,9 +32,8 @@ public:
 	void showFinished() override;
 
 private:
-	void setupContent(not_null<Window::SessionController*> controller);
+	void setupContent();
 
-	const not_null<Window::SessionController*> _controller;
 	QPointer<Ui::RpWidget> _photo;
 	QPointer<Ui::RpWidget> _uploadPhoto;
 	QPointer<Ui::RpWidget> _bio;

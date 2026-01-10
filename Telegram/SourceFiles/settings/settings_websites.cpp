@@ -743,9 +743,8 @@ namespace Settings {
 Websites::Websites(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller) {
-	setupContent(controller);
+: Section(parent, controller) {
+	setupContent();
 }
 
 rpl::producer<QString> Websites::title() {
@@ -753,16 +752,16 @@ rpl::producer<QString> Websites::title() {
 }
 
 void Websites::showFinished() {
-	_controller->checkHighlightControl(
+	controller()->checkHighlightControl(
 		u"websites/disconnect-all"_q,
 		_terminateAll.data());
 }
 
-void Websites::setupContent(not_null<Window::SessionController*> controller) {
+void Websites::setupContent() {
 	const auto container = Ui::CreateChild<Ui::VerticalLayout>(this);
 	Ui::AddSkip(container);
 	const auto content = container->add(
-		object_ptr<Content>(container, controller));
+		object_ptr<Content>(container, controller()));
 	content->setupContent();
 
 	_terminateAll = content->terminateAllButton();

@@ -32,7 +32,6 @@ public:
 private:
 	void setupContent(not_null<Window::SessionController*> controller);
 
-	const not_null<Window::SessionController*> _controller;
 	const Data::DefaultNotify _type;
 
 	QPointer<Ui::RpWidget> _showToggle;

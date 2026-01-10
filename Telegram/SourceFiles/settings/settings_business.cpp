@@ -353,8 +353,6 @@ private:
 	void setupContent();
 	void setupSwipeBack();
 
-	const not_null<Window::SessionController*> _controller;
-
 	QPointer<Ui::GradientButton> _subscribe;
 	base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> _back;
 	base::unique_qptr<Ui::IconButton> _close;
@@ -376,12 +374,11 @@ private:
 Business::Business(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller)
+: Section(parent, controller)
 , _radioGroup(std::make_shared<Ui::RadiobuttonGroup>()) {
 	setupContent();
 	setupSwipeBack();
-	_controller->session().api().premium().reload();
+	controller->session().api().premium().reload();
 }
 
 rpl::producer<QString> Business::title() {
@@ -450,7 +447,7 @@ void Business::setupSwipeBack() {
 void Business::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	const auto owner = &_controller->session().data();
+	const auto owner = &controller()->session().data();
 	owner->chatbots().preload();
 	owner->businessInfo().preload();
 	owner->shortcutMessages().preloadShortcuts();
@@ -460,7 +457,7 @@ void Business::setupContent() {
 
 	const auto showFeature = [=](PremiumFeature feature) {
 		if (feature == PremiumFeature::FilterTags) {
-			ShowPremiumPreviewToBuy(_controller, feature);
+			ShowPremiumPreviewToBuy(controller(), feature);
 			return;
 		}
 		showOther([&] {
@@ -523,12 +520,12 @@ void Business::setupContent() {
 		owner->session().api().chatLinks().loadedUpdates()
 	) | rpl::on_next(check, content->lifetime());
 
-	AddBusinessSummary(content, _controller, [=](PremiumFeature feature) {
-		if (!_controller->session().premium()) {
+	AddBusinessSummary(content, controller(), [=](PremiumFeature feature) {
+		if (!controller()->session().premium()) {
 			_setPaused(true);
 			const auto hidden = crl::guard(this, [=] { _setPaused(false); });
 
-			ShowPremiumPreviewToBuy(_controller, feature, hidden);
+			ShowPremiumPreviewToBuy(controller(), feature, hidden);
 			return;
 		} else if (!isReady(feature)) {
 			_waitingToShow = feature;
@@ -571,7 +568,7 @@ void Business::setupContent() {
 		_sponsoredButton = button;
 		Ui::AddSkip(inner);
 
-		const auto session = &_controller->session();
+		const auto session = &controller()->session();
 		{
 			inner->add(object_ptr<Ui::DividerLabel>(
 				inner,
@@ -608,7 +605,7 @@ void Business::setupContent() {
 				api->setToggled(
 					toggled
 				) | rpl::on_error_done([=](const QString &error) {
-					_controller->showToast(error);
+					controller()->showToast(error);
 				}, [] {
 				}, button->lifetime());
 			}, button->lifetime());
@@ -618,7 +615,7 @@ void Business::setupContent() {
 		sponsoredWrap->entity()->resizeToWidth(content->width());
 	};
 	Data::AmPremiumValue(
-		&_controller->session()
+		&controller()->session()
 	) | rpl::on_next([=](bool isPremium) {
 		sponsoredWrap->toggle(isPremium, anim::type::normal);
 		if (isPremium) {
@@ -634,13 +631,13 @@ base::weak_qptr<Ui::RpWidget> Business::createPinnedToTop(
 	auto title = tr::lng_business_title();
 	auto about = [&]() -> rpl::producer<TextWithEntities> {
 		return rpl::conditional(
-			Data::AmPremiumValue(&_controller->session()),
+			Data::AmPremiumValue(&controller()->session()),
 			tr::lng_business_unlocked(tr::marked),
 			tr::lng_business_about(tr::marked));
 	}();
 
 	const auto content = [&]() -> Ui::Premium::TopBarAbstract* {
-		const auto weak = base::make_weak(_controller);
+		const auto weak = base::make_weak(controller());
 		const auto clickContextOther = [=] {
 			return QVariant::fromValue(ClickHandlerContext{
 				.sessionWindow = weak,
@@ -707,8 +704,8 @@ base::weak_qptr<Ui::RpWidget> Business::createPinnedToTop(
 				content,
 				st::settingsPremiumTopBarClose);
 			_close->addClickHandler([=] {
-				_controller->parentController()->hideLayer();
-				_controller->parentController()->hideSpecialLayer();
+				controller()->parentController()->hideLayer();
+				controller()->parentController()->hideSpecialLayer();
 			});
 			content->widthValue(
 			) | rpl::on_next([=] {
@@ -723,7 +720,7 @@ base::weak_qptr<Ui::RpWidget> Business::createPinnedToTop(
 void Business::showFinished() {
 	_showFinished.fire({});
 	crl::on_main(this, [=] {
-		_controller->checkHighlightControl(
+		controller()->checkHighlightControl(
 			u"business/sponsored"_q,
 			_sponsoredButton);
 	});
@@ -733,12 +730,12 @@ base::weak_qptr<Ui::RpWidget> Business::createPinnedToBottom(
 		not_null<Ui::RpWidget*> parent) {
 	const auto content = Ui::CreateChild<Ui::RpWidget>(parent.get());
 
-	const auto session = &_controller->session();
+	const auto session = &controller()->session();
 
 	auto buttonText = _buttonText.value();
 
 	_subscribe = CreateSubscribeButton({
-		_controller,
+		controller(),
 		content,
 		[] { return u"business"_q; },
 		std::move(buttonText),
@@ -752,7 +749,7 @@ base::weak_qptr<Ui::RpWidget> Business::createPinnedToBottom(
 	});
 	{
 		const auto callback = [=](int value) {
-			auto &api = _controller->session().api();
+			auto &api = controller()->session().api();
 			const auto options = api.premium().subscriptionOptions();
 			if (options.empty()) {
 				return;

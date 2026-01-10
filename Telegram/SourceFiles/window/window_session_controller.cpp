@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/window_session_controller.h"
 
+#include "apiwrap.h"
+#include "api/api_cloud_password.h"
 #include "api/api_text_entities.h"
 #include "boxes/peers/add_bot_to_chat_box.h"
 #include "boxes/peers/edit_peer_info_box.h"
@@ -105,6 +107,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/themes/window_theme.h"
 #include "window/window_peer_menu.h"
 #include "window/window_session_controller_link_info.h"
+#include "settings/cloud_password/settings_cloud_password_input.h"
+#include "settings/cloud_password/settings_cloud_password_start.h"
+#include "settings/cloud_password/settings_cloud_password_email_confirm.h"
 #include "settings/settings_main.h"
 #include "settings/settings_premium.h"
 #include "settings/settings_privacy_security.h"
@@ -3678,6 +3683,40 @@ void SessionController::showStarGiftAuction(uint64 giftId) {
 		giftId,
 		[] {},
 		[=] { _starGiftAuctionLifetime.destroy(); });
+}
+
+void SessionController::showCloudPassword(const QString &highlight) {
+	if (!highlight.isEmpty()) {
+		setHighlightControlId(highlight);
+	}
+	session().api().cloudPassword().reload();
+
+	enum class PasswordState {
+		Loading,
+		On,
+		Off,
+		Unconfirmed,
+	};
+	_showCloudPasswordLifetime = rpl::single(
+		PasswordState::Loading
+	) | rpl::then(session().api().cloudPassword().state(
+	) | rpl::map([](const Core::CloudPasswordState &state) {
+		return (!state.unconfirmedPattern.isEmpty())
+			? PasswordState::Unconfirmed
+			: state.hasPassword
+			? PasswordState::On
+			: PasswordState::Off;
+	})) | rpl::distinct_until_changed() | rpl::filter(
+		rpl::mappers::_1 != PasswordState::Loading
+	) | rpl::take(1) | rpl::on_next([=](PasswordState state) {
+		if (state == PasswordState::On) {
+			showSettings(Settings::CloudPasswordInputId());
+		} else if (state == PasswordState::Off) {
+			showSettings(Settings::CloudPasswordStartId());
+		} else if (state == PasswordState::Unconfirmed) {
+			showSettings(Settings::CloudPasswordEmailConfirmId());
+		}
+	});
 }
 
 void SessionController::setHighlightControlId(const QString &id) {

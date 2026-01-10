@@ -483,8 +483,8 @@ struct Labeled {
 Shortcuts::Shortcuts(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent) {
-	setupContent(controller);
+: Section(parent, controller) {
+	setupContent();
 }
 
 Shortcuts::~Shortcuts() {
@@ -497,11 +497,10 @@ rpl::producer<QString> Shortcuts::title() {
 	return tr::lng_settings_shortcuts();
 }
 
-void Shortcuts::setupContent(
-		not_null<Window::SessionController*> controller) {
+void Shortcuts::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	_save = SetupShortcutsContent(controller, content);
+	_save = SetupShortcutsContent(controller(), content);
 
 	Ui::ResizeFitChild(this, content);
 }

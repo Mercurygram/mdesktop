@@ -1086,9 +1086,8 @@ void AccountsList::rebuild() {
 Information::Information(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller) {
-	setupContent(controller);
+: Section(parent, controller) {
+	setupContent();
 }
 
 rpl::producer<QString> Information::title() {
@@ -1096,33 +1095,32 @@ rpl::producer<QString> Information::title() {
 }
 
 void Information::showFinished() {
-	_controller->checkHighlightControl(u"profile-photo"_q, _photo, {
+	controller()->checkHighlightControl(u"profile-photo"_q, _photo, {
 		.shape = HighlightShape::Ellipse,
 	});
-	_controller->checkHighlightControl(u"profile-photo/use-emoji"_q, _uploadPhoto, {
+	controller()->checkHighlightControl(u"profile-photo/use-emoji"_q, _uploadPhoto, {
 		.shape = HighlightShape::Ellipse,
 	});
-	_controller->checkHighlightControl(u"edit/bio"_q, _bio, {
+	controller()->checkHighlightControl(u"edit/bio"_q, _bio, {
 		.margin = st::settingsBioHighlightMargin,
 	});
-	_controller->checkHighlightControl(u"edit/your-color"_q, _colorButton);
-	_controller->checkHighlightControl(u"edit/channel"_q, _channelButton);
-	_controller->checkHighlightControl(u"edit/add-account"_q, _addAccount);
+	controller()->checkHighlightControl(u"edit/your-color"_q, _colorButton);
+	controller()->checkHighlightControl(u"edit/channel"_q, _channelButton);
+	controller()->checkHighlightControl(u"edit/add-account"_q, _addAccount);
 }
 
-void Information::setupContent(
-		not_null<Window::SessionController*> controller) {
+void Information::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	const auto self = controller->session().user();
+	const auto self = controller()->session().user();
 	auto targets = InformationHighlightTargets();
 
-	SetupPhoto(content, controller, self, &targets);
+	SetupPhoto(content, controller(), self, &targets);
 	SetupBio(content, self, &targets);
-	SetupRows(content, controller, self);
-	SetupPersonalChannel(content, controller, self, &targets);
-	SetupBirthday(content, controller, self);
-	SetupAccountsWrap(content, controller, &targets);
+	SetupRows(content, controller(), self);
+	SetupPersonalChannel(content, controller(), self, &targets);
+	SetupBirthday(content, controller(), self);
+	SetupAccountsWrap(content, controller(), &targets);
 
 	_photo = targets.photo;
 	_uploadPhoto = targets.uploadPhoto;

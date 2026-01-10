@@ -98,7 +98,6 @@ private:
 	void setupSwipeBack();
 	void setupHistory(not_null<Ui::VerticalLayout*> container);
 	void setupSubscriptions(not_null<Ui::VerticalLayout*> container);
-	const not_null<Window::SessionController*> _controller;
 	const CreditsType _creditsType;
 
 	QWidget *_parent = nullptr;
@@ -126,8 +125,7 @@ Credits::Credits(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller,
 	CreditsType type)
-: Section(parent)
-, _controller(controller)
+: Section(parent, controller)
 , _creditsType(type)
 , _star(Ui::GenerateStars(st::creditsTopupButton.height, 1))
 , _balanceStar((_creditsType == CreditsType::Ton)
@@ -135,11 +133,11 @@ Credits::Credits(
 			st::tonFieldIconSize,
 			st::currencyFg->c)
 		: Ui::GenerateStars(st::creditsBalanceStarHeight, 1)) {
-	_controller->session().giftBoxStickersPacks().tonLoad();
+	controller->session().giftBoxStickersPacks().tonLoad();
 	setupContent();
 	setupSwipeBack();
 
-	_controller->session().premiumPossibleValue(
+	controller->session().premiumPossibleValue(
 	) | rpl::on_next([=](bool premiumPossible) {
 		if (!premiumPossible) {
 			_showBack.fire({});
@@ -179,7 +177,7 @@ void Credits::setupSubscriptions(not_null<Ui::VerticalLayout*> container) {
 			container,
 			object_ptr<Ui::VerticalLayout>(container)));
 	const auto content = history->entity();
-	const auto self = _controller->session().user();
+	const auto self = controller()->session().user();
 
 	const auto fill = [=](const Data::CreditsStatusSlice &fullSlice) {
 		const auto inner = content;
@@ -197,16 +195,16 @@ void Credits::setupSubscriptions(not_null<Ui::VerticalLayout*> container) {
 				inner,
 				object_ptr<Ui::VerticalLayout>(inner)));
 
-		const auto controller = _controller->parentController();
+		const auto window = controller()->parentController();
 		const auto entryClicked = [=](
 				const Data::CreditsHistoryEntry &e,
 				const Data::SubscriptionEntry &s) {
-			controller->uiShow()->show(
-				Box(ReceiptCreditsBox, controller, e, s));
+			window->uiShow()->show(
+				Box(ReceiptCreditsBox, window, e, s));
 		};
 
 		Info::Statistics::AddCreditsHistoryList(
-			controller->uiShow(),
+			window->uiShow(),
 			fullSlice,
 			fullWrap->entity(),
 			entryClicked,
@@ -251,7 +249,7 @@ void Credits::setupHistory(not_null<Ui::VerticalLayout*> container) {
 			container,
 			object_ptr<Ui::VerticalLayout>(container)));
 	const auto content = history->entity();
-	const auto self = _controller->session().user();
+	const auto self = controller()->session().user();
 
 	Ui::AddSkip(content, st::lineWidth * 6);
 
@@ -354,19 +352,19 @@ void Credits::setupHistory(not_null<Ui::VerticalLayout*> container) {
 			}
 		}, inner->lifetime());
 
-		const auto controller = _controller->parentController();
+		const auto window = controller()->parentController();
 		const auto entryClicked = [=](
 				const Data::CreditsHistoryEntry &e,
 				const Data::SubscriptionEntry &s) {
-			controller->uiShow()->show(Box(
+			window->uiShow()->show(Box(
 				ReceiptCreditsBox,
-				controller,
+				window,
 				e,
 				s));
 		};
 
 		Info::Statistics::AddCreditsHistoryList(
-			controller->uiShow(),
+			window->uiShow(),
 			fullSlice,
 			fullWrap->entity(),
 			entryClicked,
@@ -374,7 +372,7 @@ void Credits::setupHistory(not_null<Ui::VerticalLayout*> container) {
 			true,
 			true);
 		Info::Statistics::AddCreditsHistoryList(
-			controller->uiShow(),
+			window->uiShow(),
 			inSlice,
 			inWrap->entity(),
 			entryClicked,
@@ -382,7 +380,7 @@ void Credits::setupHistory(not_null<Ui::VerticalLayout*> container) {
 			true,
 			false);
 		Info::Statistics::AddCreditsHistoryList(
-			controller->uiShow(),
+			window->uiShow(),
 			outSlice,
 			outWrap->entity(),
 			std::move(entryClicked),
@@ -407,7 +405,7 @@ void Credits::setupHistory(not_null<Ui::VerticalLayout*> container) {
 			apiIn->request({}, [=](Data::CreditsStatusSlice inSlice) {
 				apiOut->request({}, [=](Data::CreditsStatusSlice outSlice) {
 					::Api::PremiumPeerBot(
-						&_controller->session()
+						&controller()->session()
 					) | rpl::on_next([=](not_null<PeerData*> bot) {
 						fill(bot, fullSlice, inSlice, outSlice);
 						apiLifetime->destroy();
@@ -420,9 +418,9 @@ void Credits::setupHistory(not_null<Ui::VerticalLayout*> container) {
 
 void Credits::setupSwipeBack() {
 	using namespace Ui::Controls;
-	
+
 	auto swipeBackData = lifetime().make_state<SwipeBackResult>();
-	
+
 	auto update = [=](SwipeContextData data) {
 		if (data.translation > 0) {
 			if (!swipeBackData->callback) {
@@ -441,7 +439,7 @@ void Credits::setupSwipeBack() {
 			(*swipeBackData) = {};
 		}
 	};
-	
+
 	auto init = [=](int, Qt::LayoutDirection direction) {
 		return (direction == Qt::RightToLeft)
 			? DefaultSwipeBackHandlerFinishData([=] {
@@ -449,7 +447,7 @@ void Credits::setupSwipeBack() {
 			})
 			: SwipeHandlerFinishData();
 	};
-	
+
 	SetupSwipeHandler({
 		.widget = this,
 		.scroll = v::null,
@@ -516,7 +514,7 @@ void Credits::setupContent() {
 						rpl::single(Ui::Text::SingleCustomEmoji(u"+"_q)),
 						tr::marked)));
 		button->setTextTransform(Ui::RoundButton::TextTransform::NoTransform);
-		const auto show = _controller->uiShow();
+		const auto show = controller()->uiShow();
 		if (isCurrency) {
 			const auto url = tr::lng_suggest_low_ton_fragment_url(tr::now);
 			button->setClickedCallback([=] { UrlClickHandler::Open(url); });
@@ -563,8 +561,8 @@ void Credits::setupContent() {
 				rpl::single(Ui::MakeCreditsIconEntity()),
 				lt_amount,
 				(isCurrency
-					? _controller->session().credits().tonBalanceValue()
-					: _controller->session().credits().balanceValue()
+					? controller()->session().credits().tonBalanceValue()
+					: controller()->session().credits().balanceValue()
 				) | rpl::map(
 					Lang::FormatCreditsAmountDecimal
 				) | rpl::map(tr::bold),
@@ -574,20 +572,20 @@ void Credits::setupContent() {
 			std::move(context)),
 		style::al_top);
 	if (isCurrency) {
-		const auto rate = _controller->session().credits().usdRate();
+		const auto rate = controller()->session().credits().usdRate();
 		const auto wrap = content->add(
 			object_ptr<Ui::SlideWrap<>>(
 				content,
 				object_ptr<Ui::FlatLabel>(
 					content,
-					_controller->session().credits().tonBalanceValue(
+					controller()->session().credits().tonBalanceValue(
 					) | rpl::map([=](CreditsAmount value) {
 						using namespace Info::ChannelEarn;
 						return value ? ToUsd(value, rate, 3) : QString();
 					}),
 					st::channelEarnOverviewSubMinorLabel)),
 			style::al_top);
-		wrap->toggleOn(_controller->session().credits().tonBalanceValue(
+		wrap->toggleOn(controller()->session().credits().tonBalanceValue(
 			) | rpl::map(rpl::mappers::_1 > CreditsAmount(0)));
 		wrap->finishAnimating();
 	}
@@ -605,8 +603,8 @@ void Credits::setupContent() {
 	}
 	Ui::AddSkip(content, st::lineWidth * 4);
 
-	const auto controller = _controller->parentController();
-	const auto self = _controller->session().user();
+	const auto window = controller()->parentController();
+	const auto self = window->session().user();
 	if (!isCurrency) {
 		const auto wrap = content->add(
 			object_ptr<Ui::SlideWrap<Ui::AbstractButton>>(
@@ -618,11 +616,11 @@ void Credits::setupContent() {
 					{ &st::menuIconStats })));
 		_statsButton = static_cast<Button*>(wrap->entity());
 		wrap->entity()->setClickedCallback([=] {
-			controller->showSection(Info::BotEarn::Make(self));
+			window->showSection(Info::BotEarn::Make(self));
 		});
-		wrap->toggleOn(_controller->session().credits().loadedValue(
+		wrap->toggleOn(window->session().credits().loadedValue(
 		) | rpl::map([=] {
-			return _controller->session().credits().statsEnabled();
+			return window->session().credits().statsEnabled();
 		}));
 	}
 	if (!isCurrency) {
@@ -632,7 +630,7 @@ void Credits::setupContent() {
 			st::settingsCreditsButton,
 			{ &st::settingsButtonIconGift });
 		_giftButton->setClickedCallback([=] {
-			Ui::ShowGiftCreditsBox(controller, paid);
+			Ui::ShowGiftCreditsBox(window, paid);
 		});
 	}
 
@@ -643,7 +641,7 @@ void Credits::setupContent() {
 			st::settingsCreditsButton,
 			{ &st::settingsButtonIconEarn });
 		_earnButton->setClickedCallback([=] {
-			controller->showSection(Info::BotStarRef::Join::Make(self));
+			window->showSection(Info::BotStarRef::Join::Make(self));
 		});
 	}
 	if (isCurrency) {
@@ -744,7 +742,7 @@ void Credits::setupContent() {
 			Api::HandleWithdrawalButton(
 				{ .currencyReceiver = self },
 				button,
-				_controller->uiShow());
+				controller()->uiShow());
 			Ui::ToggleChildrenVisibility(button, true);
 
 			Ui::AddSkip(container);
@@ -756,7 +754,7 @@ void Credits::setupContent() {
 			Ui::AddSkip(container);
 		};
 
-		const auto self = _controller->session().user();
+		const auto self = controller()->session().user();
 		const auto wrap = content->add(
 			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 				content,
@@ -794,7 +792,7 @@ base::weak_qptr<Ui::RpWidget> Credits::createPinnedToTop(
 	const auto isCurrency = _creditsType == CreditsType::Ton;
 
 	const auto content = [&]() -> Ui::Premium::TopBarAbstract* {
-		const auto weak = base::make_weak(_controller);
+		const auto weak = base::make_weak(controller());
 		const auto clickContextOther = [=] {
 			return QVariant::fromValue(ClickHandlerContext{
 				.sessionWindow = weak,
@@ -842,17 +840,17 @@ base::weak_qptr<Ui::RpWidget> Credits::createPinnedToTop(
 	{
 		const auto balance = AddBalanceWidget(
 			content,
-			&_controller->session(),
+			&controller()->session(),
 			isCurrency
-				? _controller->session().credits().tonBalanceValue()
-				: _controller->session().credits().balanceValue(),
+				? controller()->session().credits().tonBalanceValue()
+				: controller()->session().credits().balanceValue(),
 			true,
 			content->heightValue() | rpl::map([=](int height) {
 				const auto ratio = float64(height - content->minimumHeight())
 					/ (content->maximumHeight() - content->minimumHeight());
 				return (1. - ratio / 0.35);
 			}));
-		_controller->session().credits().load(true);
+		controller()->session().credits().load(true);
 		rpl::combine(
 			balance->sizeValue(),
 			content->sizeValue()
@@ -897,8 +895,8 @@ base::weak_qptr<Ui::RpWidget> Credits::createPinnedToTop(
 				content,
 				st::infoTopBarClose);
 			_close->addClickHandler([=] {
-				_controller->parentController()->hideLayer();
-				_controller->parentController()->hideSpecialLayer();
+				controller()->parentController()->hideLayer();
+				controller()->parentController()->hideSpecialLayer();
 			});
 			content->widthValue(
 			) | rpl::on_next([=] {
@@ -912,9 +910,9 @@ base::weak_qptr<Ui::RpWidget> Credits::createPinnedToTop(
 
 void Credits::showFinished() {
 	_showFinished.fire({});
-	_controller->checkHighlightControl(u"stars/stats"_q, _statsButton);
-	_controller->checkHighlightControl(u"stars/gift"_q, _giftButton);
-	_controller->checkHighlightControl(u"stars/earn"_q, _earnButton);
+	controller()->checkHighlightControl(u"stars/stats"_q, _statsButton);
+	controller()->checkHighlightControl(u"stars/gift"_q, _giftButton);
+	controller()->checkHighlightControl(u"stars/earn"_q, _earnButton);
 }
 
 class Currency {

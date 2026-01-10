@@ -61,8 +61,7 @@ using namespace Webrtc;
 Calls::Calls(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller) {
+: Section(parent, controller) {
 	// Request valid value of calls disabled flag.
 	controller->session().api().authorizations().reload();
 
@@ -283,7 +282,7 @@ void Calls::setupContent() {
 			Webrtc::DeviceType::Camera).isEmpty()) {
 		Ui::AddSkip(content);
 		Ui::AddSubsectionTitle(content, tr::lng_settings_call_camera());
-		AddCameraSubsection(_controller->uiShow(), content, true);
+		AddCameraSubsection(controller()->uiShow(), content, true);
 		Ui::AddSkip(content);
 		Ui::AddDivider(content);
 	}
@@ -291,7 +290,7 @@ void Calls::setupContent() {
 	Ui::AddSkip(content);
 	Ui::AddSubsectionTitle(content, tr::lng_settings_call_section_other());
 
-	const auto api = &_controller->session().api();
+	const auto api = &controller()->session().api();
 	content->add(object_ptr<Ui::SettingsButton>(
 		content,
 		tr::lng_settings_call_accept_calls(),
@@ -314,7 +313,7 @@ void Calls::setupContent() {
 		using namespace ::Platform;
 		const auto opened = OpenSystemSettings(SystemSettingsType::Audio);
 		if (!opened) {
-			_controller->show(
+			controller()->show(
 				Ui::MakeInformBox(tr::lng_linux_no_audio_prefs()));
 		}
 	});
@@ -335,7 +334,7 @@ void Calls::initPlaybackButton(
 		PlaybackDeviceNameValue(rpl::duplicate(resolvedId)),
 		st::settingsButtonNoIcon
 	)->addClickHandler([=] {
-		_controller->show(ChoosePlaybackDeviceBox(
+		controller()->show(ChoosePlaybackDeviceBox(
 			rpl::duplicate(resolvedId),
 			[=](const QString &id) {
 				set(id);
@@ -356,7 +355,7 @@ void Calls::initCaptureButton(
 		CaptureDeviceNameValue(rpl::duplicate(resolvedId)),
 		st::settingsButtonNoIcon
 	)->addClickHandler([=] {
-		_controller->show(ChooseCaptureDeviceBox(
+		controller()->show(ChooseCaptureDeviceBox(
 			rpl::duplicate(resolvedId),
 			[=](const QString &id) {
 				set(id);
@@ -424,12 +423,12 @@ void Calls::requestPermissionAndStartTestingMicrophone() {
 			PermissionType::Microphone,
 			startTestingChecked);
 	} else {
-		const auto showSystemSettings = [controller = _controller] {
+		const auto showSystemSettings = [controller = controller()] {
 			OpenSystemSettingsForPermission(
 				PermissionType::Microphone);
 			controller->hideLayer();
 		};
-		_controller->show(Ui::MakeConfirmBox({
+		controller()->show(Ui::MakeConfirmBox({
 			.text = tr::lng_no_mic_permission(),
 			.confirmed = showSystemSettings,
 			.confirmText = tr::lng_menu_settings(),

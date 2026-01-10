@@ -98,7 +98,13 @@ using SectionBuilder = void(*)(
 
 class AbstractSection : public Ui::RpWidget {
 public:
-	using RpWidget::RpWidget;
+	AbstractSection(
+		QWidget *parent,
+		not_null<Window::SessionController*> controller);
+
+	[[nodiscard]] not_null<Window::SessionController*> controller() const {
+		return _controller;
+	}
 
 	[[nodiscard]] virtual Type id() const = 0;
 	[[nodiscard]] virtual rpl::producer<Type> sectionShowOther() {
@@ -170,21 +176,14 @@ public:
 	}
 
 protected:
-	void setController(not_null<Window::SessionController*> controller) {
-		_controller = controller;
-	}
-	[[nodiscard]] Window::SessionController *controller() const {
-		return _controller;
-	}
-
 	void build(
 		not_null<Ui::VerticalLayout*> container,
 		SectionBuilder builder);
 
 private:
+	const not_null<Window::SessionController*> _controller;
 	rpl::event_stream<Type> _showOtherRequests;
 	rpl::event_stream<> _showFinished;
-	Window::SessionController *_controller = nullptr;
 
 };
 

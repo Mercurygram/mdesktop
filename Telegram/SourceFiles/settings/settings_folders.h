@@ -23,15 +23,15 @@ public:
 	[[nodiscard]] rpl::producer<QString> title() override;
 
 private:
-	void setupContent(not_null<Window::SessionController*> controller);
+	void setupContent();
 
-	const not_null<Window::SessionController*> _controller;
 	Fn<void()> _save;
 
 	rpl::event_stream<> _showFinished;
 	QPointer<Ui::RpWidget> _createButton;
 	QPointer<Ui::RpWidget> _tagsButton;
 	QPointer<Ui::RpWidget> _viewSection;
+	QPointer<Ui::RpWidget> _recommendedTitle;
 
 };
 

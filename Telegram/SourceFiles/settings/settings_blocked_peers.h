@@ -38,7 +38,6 @@ private:
 
 	void visibleTopBottomUpdated(int visibleTop, int visibleBottom) override;
 
-	const not_null<Window::SessionController*> _controller;
 	const not_null<Ui::VerticalLayout*> _container;
 
 	base::unique_qptr<Ui::RpWidget> _loading;

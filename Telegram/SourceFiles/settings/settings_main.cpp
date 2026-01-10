@@ -83,7 +83,6 @@ public:
 private:
 	void setupChildGeometry();
 	void initViewers();
-	void refreshStatusText();
 	void refreshNameGeometry(int newWidth);
 	void refreshPhoneGeometry(int newWidth);
 	void refreshUsernameGeometry(int newWidth);
@@ -676,8 +675,7 @@ void SetupInterfaceScale(
 Main::Main(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent) {
-	setController(controller);
+: Section(parent, controller) {
 	setupContent();
 }
 

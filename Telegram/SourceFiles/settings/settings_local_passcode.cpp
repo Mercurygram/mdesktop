@@ -75,9 +75,6 @@ protected:
 	[[nodiscard]] virtual EnterType enterType() const = 0;
 
 private:
-
-	const not_null<Window::SessionController*> _controller;
-
 	rpl::event_stream<> _showFinished;
 	rpl::event_stream<> _setInnerFocus;
 	rpl::event_stream<Type> _showOther;
@@ -89,8 +86,7 @@ private:
 LocalPasscodeEnter::LocalPasscodeEnter(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: AbstractSection(parent)
-, _controller(controller) {
+: AbstractSection(parent, controller) {
 }
 
 rpl::producer<QString> LocalPasscodeEnter::title() {
@@ -235,7 +231,7 @@ void LocalPasscodeEnter::setupContent() {
 				error->setText(tr::lng_passcode_differ(tr::now));
 			} else {
 				if (isChange) {
-					const auto &domain = _controller->session().domain();
+					const auto &domain = controller()->session().domain();
 					if (domain.local().checkPasscode(newText.toUtf8())) {
 						newPasscode->setFocus();
 						newPasscode->showError();
@@ -245,7 +241,7 @@ void LocalPasscodeEnter::setupContent() {
 						return;
 					}
 				}
-				SetPasscode(_controller, newText);
+				SetPasscode(controller(), newText);
 				if (isCreate) {
 					if (Platform::IsWindows() || _systemUnlockWithBiometric) {
 						Core::App().settings().setSystemUnlockEnabled(true);
@@ -264,7 +260,7 @@ void LocalPasscodeEnter::setupContent() {
 				error->setText(tr::lng_flood_error(tr::now));
 				return;
 			}
-			const auto &domain = _controller->session().domain();
+			const auto &domain = controller()->session().domain();
 			if (domain.local().checkPasscode(newText.toUtf8())) {
 				cSetPasscodeBadTries(0);
 				_showOther.fire(LocalPasscodeManageId());
@@ -405,8 +401,6 @@ public:
 private:
 	void setupContent();
 
-	const not_null<Window::SessionController*> _controller;
-
 	rpl::variable<bool> _isBottomFillerShown;
 
 	rpl::event_stream<> _showFinished;
@@ -422,8 +416,7 @@ private:
 LocalPasscodeManage::LocalPasscodeManage(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller) {
+: Section(parent, controller) {
 	setupContent();
 }
 
@@ -494,7 +487,7 @@ void LocalPasscodeManage::setupContent() {
 		{ &st::menuIconTimer });
 	_autoLockButton = autoLockButton;
 	autoLockButton->addClickHandler([=] {
-		const auto box = _controller->show(Box<AutoLockBox>());
+		const auto box = controller()->show(Box<AutoLockBox>());
 		box->boxClosing(
 		) | rpl::start_to_stream(state->autoLockBoxClosing, box->lifetime());
 	});
@@ -612,11 +605,11 @@ void LocalPasscodeManage::setupContent() {
 base::weak_qptr<Ui::RpWidget> LocalPasscodeManage::createPinnedToBottom(
 		not_null<Ui::RpWidget*> parent) {
 	auto callback = [=] {
-		_controller->show(
+		controller()->show(
 			Ui::MakeConfirmBox({
 				.text = tr::lng_settings_passcode_disable_sure(),
 				.confirmed = [=](Fn<void()> &&close) {
-					SetPasscode(_controller, QString());
+					SetPasscode(controller(), QString());
 					Core::App().settings().setSystemUnlockEnabled(false);
 					Core::App().saveSettingsDelayed();
 
@@ -642,31 +635,16 @@ base::weak_qptr<Ui::RpWidget> LocalPasscodeManage::createPinnedToBottom(
 void LocalPasscodeManage::showFinished() {
 	_showFinished.fire({});
 
-	const auto id = _controller->highlightControlId();
-	if (id.isEmpty()) {
-		return;
-	}
-	if (id == u"passcode/change"_q) {
-		_controller->setHighlightControlId(QString());
-		if (_changeButton) {
-			HighlightWidget(_changeButton);
-		}
-	} else if (id == u"passcode/auto-lock"_q) {
-		_controller->setHighlightControlId(QString());
-		if (_autoLockButton) {
-			HighlightWidget(_autoLockButton);
-		}
-	} else if (id == u"passcode/biometrics"_q) {
-		_controller->setHighlightControlId(QString());
-		if (_biometricsButton) {
-			HighlightWidget(_biometricsButton);
-		}
-	} else if (id == u"passcode/disable"_q) {
-		_controller->setHighlightControlId(QString());
-		if (_disableButton) {
-			HighlightWidget(_disableButton);
-		}
-	}
+	controller()->checkHighlightControl(u"passcode/change"_q, _changeButton);
+	controller()->checkHighlightControl(
+		u"passcode/auto-lock"_q,
+		_autoLockButton);
+	controller()->checkHighlightControl(
+		u"passcode/biometrics"_q,
+		_biometricsButton);
+	controller()->checkHighlightControl(
+		u"passcode/disable"_q,
+		_disableButton);
 }
 
 rpl::producer<> LocalPasscodeManage::sectionShowBack() {

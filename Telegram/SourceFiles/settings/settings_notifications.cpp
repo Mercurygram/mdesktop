@@ -796,8 +796,7 @@ NotifyViewCheckboxes SetupNotifyViewOptions(
 Notifications::Notifications(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent) {
-	setController(controller);
+: Section(parent, controller) {
 	setupContent();
 }
 

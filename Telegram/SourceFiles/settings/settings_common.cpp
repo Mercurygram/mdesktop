@@ -290,6 +290,12 @@ HighlightArgs SubsectionTitleHighlight() {
 	return { .margin = { -radius, 0, -radius, 0 }, .radius = radius };
 }
 
+AbstractSection::AbstractSection(
+	QWidget *parent,
+	not_null<Window::SessionController*> controller)
+: _controller(controller) {
+}
+
 void AbstractSection::build(
 		not_null<Ui::VerticalLayout*> container,
 		SectionBuilder builder) {

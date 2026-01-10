@@ -634,8 +634,7 @@ NotificationsType::NotificationsType(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller,
 	Notify type)
-: AbstractSection(parent)
-, _controller(controller)
+: AbstractSection(parent, controller)
 , _type(type) {
 	setupContent(controller);
 }
@@ -650,10 +649,18 @@ rpl::producer<QString> NotificationsType::title() {
 }
 
 void NotificationsType::showFinished() {
-	_controller->checkHighlightControl(u"notifications/type/show"_q, _showToggle);
-	_controller->checkHighlightControl(u"notifications/type/sound"_q, _soundToggle);
-	_controller->checkHighlightControl(u"notifications/type/add-exception"_q, _addException);
-	_controller->checkHighlightControl(u"notifications/type/delete-exceptions"_q, _deleteExceptions);
+	controller()->checkHighlightControl(
+		u"notifications/type/show"_q,
+		_showToggle);
+	controller()->checkHighlightControl(
+		u"notifications/type/sound"_q,
+		_soundToggle);
+	controller()->checkHighlightControl(
+		u"notifications/type/add-exception"_q,
+		_addException);
+	controller()->checkHighlightControl(
+		u"notifications/type/delete-exceptions"_q,
+		_deleteExceptions);
 }
 
 Type NotificationsType::Id(Notify type) {

@@ -63,9 +63,8 @@ public:
 private:
 	void showFinished() override;
 
-	void setupContent(not_null<Window::SessionController*> controller);
+	void setupContent();
 
-	const not_null<Window::SessionController*> _controller;
 	QPointer<Ui::SettingsButton> _addButton;
 	Ui::RoundRect _bottomSkipRounding;
 
@@ -236,16 +235,15 @@ void PasskeysNoneBox(
 Passkeys::Passkeys(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller)
+: Section(parent, controller)
 , _bottomSkipRounding(st::boxRadius, st::boxDividerBg) {
-	setupContent(controller);
+	setupContent();
 }
 
 void Passkeys::showFinished() {
 	_showFinished.fire({});
 	if (_addButton) {
-		_controller->checkHighlightControl(
+		controller()->checkHighlightControl(
 			u"passkeys/create"_q,
 			_addButton,
 			{ .rippleShape = true });
@@ -256,10 +254,9 @@ rpl::producer<QString> Passkeys::title() {
 	return tr::lng_settings_passkeys_title();
 }
 
-void Passkeys::setupContent(
-		not_null<Window::SessionController*> controller) {
+void Passkeys::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
-	const auto session = &controller->session();
+	const auto session = &controller()->session();
 
 	CloudPassword::SetupHeader(
 		content,
@@ -291,7 +288,7 @@ void Passkeys::setupContent(
 					menu,
 					st::popupMenuWithIcons);
 				const auto handler = [=, id = passkey.id] {
-					controller->show(Ui::MakeConfirmBox({
+					controller()->show(Ui::MakeConfirmBox({
 						.text = rpl::combine(
 							tr::lng_settings_passkeys_delete_sure_about(),
 							tr::lng_settings_passkeys_delete_sure_about2()
@@ -408,7 +405,7 @@ void Passkeys::setupContent(
 				{ &st::settingsIconPasskeys })));
 	_addButton = buttonWrap->entity();
 	_addButton->setClickedCallback([=] {
-		controller->show(Box(PasskeysNoneBox, session));
+		controller()->show(Box(PasskeysNoneBox, session));
 	});
 	buttonWrap->toggleOn(session->passkeys().requestList(
 	) | rpl::map([=] { return session->passkeys().canRegister(); }));
@@ -433,7 +430,7 @@ void Passkeys::setupContent(
 			tr::rich
 		));
 	label->setClickHandlerFilter([=](const auto &...) {
-		controller->show(Box(PasskeysNoneBox, session));
+		controller()->show(Box(PasskeysNoneBox, session));
 		return false;
 	});
 	Ui::ResizeFitChild(this, content);

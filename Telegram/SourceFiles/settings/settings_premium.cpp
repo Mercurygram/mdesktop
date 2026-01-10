@@ -989,7 +989,6 @@ private:
 	void setupSwipeBack();
 	void setupSubscriptionOptions(not_null<Ui::VerticalLayout*> container);
 
-	const not_null<Window::SessionController*> _controller;
 	const QString _ref;
 
 	QPointer<Ui::GradientButton> _subscribe;
@@ -1010,13 +1009,12 @@ private:
 Premium::Premium(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller)
+: Section(parent, controller)
 , _ref(ResolveRef(controller->premiumRef()))
 , _radioGroup(std::make_shared<Ui::RadiobuttonGroup>()) {
 	setupContent();
 	setupSwipeBack();
-	_controller->session().api().premium().reload();
+	controller->session().api().premium().reload();
 }
 
 rpl::producer<QString> Premium::title() {
@@ -1058,7 +1056,7 @@ void Premium::setupSubscriptionOptions(
 
 	Ui::AddSkip(content, st::settingsPremiumOptionsPadding.top());
 
-	const auto apiPremium = &_controller->session().api().premium();
+	const auto apiPremium = &controller()->session().api().premium();
 	Ui::Premium::AddGiftOptions(
 		content,
 		_radioGroup,
@@ -1080,7 +1078,7 @@ void Premium::setupSubscriptionOptions(
 		return;
 	}
 	auto toggleOn = rpl::combine(
-		Data::AmPremiumValue(&_controller->session()),
+		Data::AmPremiumValue(&controller()->session()),
 		apiPremium->statusTextValue(
 		) | rpl::map([=] {
 			return apiPremium->subscriptionOptions().size() < 2;
@@ -1143,9 +1141,9 @@ void Premium::setupContent() {
 		_setPaused(true);
 		const auto hidden = crl::guard(this, [=] { _setPaused(false); });
 
-		ShowPremiumPreviewToBuy(_controller, section, hidden);
+		ShowPremiumPreviewToBuy(controller(), section, hidden);
 	};
-	AddSummaryPremium(content, _controller, _ref, std::move(buttonCallback));
+	AddSummaryPremium(content, controller(), _ref, std::move(buttonCallback));
 #if 0
 	Ui::AddSkip(content);
 	Ui::AddDivider(content);
@@ -1174,16 +1172,16 @@ void Premium::setupContent() {
 
 base::weak_qptr<Ui::RpWidget> Premium::createPinnedToTop(
 		not_null<QWidget*> parent) {
-	auto title = _controller->session().premium()
+	auto title = controller()->session().premium()
 		? tr::lng_premium_summary_title()
 		: rpl::conditional(
-			Data::AmPremiumValue(&_controller->session()),
+			Data::AmPremiumValue(&controller()->session()),
 			tr::lng_premium_summary_title_subscribed(),
 			tr::lng_premium_summary_title());
 	auto about = [&]() -> rpl::producer<TextWithEntities> {
 		const auto gift = Ref::Gift::Parse(_ref);
 		if (gift) {
-			auto &data = _controller->session().data();
+			auto &data = controller()->session().data();
 			if (const auto peer = data.peer(gift.peerId)) {
 				const auto months = gift.days / 30;
 				return (gift.me
@@ -1201,8 +1199,8 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToTop(
 			}
 		}
 		return rpl::conditional(
-			Data::AmPremiumValue(&_controller->session()),
-			_controller->session().api().premium().statusTextValue(),
+			Data::AmPremiumValue(&controller()->session()),
+			controller()->session().api().premium().statusTextValue(),
 			tr::lng_premium_summary_top_about(tr::rich));
 	}();
 
@@ -1213,7 +1211,7 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToTop(
 
 	auto peerWithPremium = [&]() -> PeerData* {
 		if (isEmojiStatus) {
-			auto &data = _controller->session().data();
+			auto &data = controller()->session().data();
 			if (const auto peer = data.peer(emojiStatusData.peerId)) {
 				return peer;
 			}
@@ -1222,7 +1220,7 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToTop(
 	}();
 	auto premiumGift = [&]() -> DocumentData* {
 		if (isPremiumGift) {
-			auto &data = _controller->session().data();
+			auto &data = controller()->session().data();
 			return data.document(premiumGiftData.documentId);
 		}
 		return nullptr;
@@ -1232,13 +1230,13 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToTop(
 		if (peerWithPremium) {
 			return Ui::CreateChild<TopBarWithSticker>(
 				parent.get(),
-				_controller,
+				controller(),
 				peerWithPremium,
 				_showFinished.events());
 		} else if (premiumGift) {
 			return Ui::CreateChild<TopBarWithSticker>(
 				parent.get(),
-				_controller,
+				controller(),
 				TopBarWithStickerArgs{
 					.stickerValue = rpl::single(premiumGift),
 					.nameValue = tr::lng_gift_premium_title(),
@@ -1250,7 +1248,7 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToTop(
 				},
 				_showFinished.events());
 		}
-		const auto weak = base::make_weak(_controller);
+		const auto weak = base::make_weak(controller());
 		const auto clickContextOther = [=] {
 			return QVariant::fromValue(ClickHandlerContext{
 				.sessionWindow = weak,
@@ -1335,8 +1333,8 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToTop(
 					? st::infoTopBarClose
 					: st::settingsPremiumTopBarClose);
 			_close->addClickHandler([=] {
-				_controller->parentController()->hideLayer();
-				_controller->parentController()->hideSpecialLayer();
+				controller()->parentController()->hideLayer();
+				controller()->parentController()->hideSpecialLayer();
 			});
 			content->widthValue(
 			) | rpl::on_next([=] {
@@ -1361,7 +1359,7 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToBottom(
 	}
 
 	const auto emojiStatusData = Ref::EmojiStatus::Parse(_ref);
-	const auto session = &_controller->session();
+	const auto session = &controller()->session();
 
 	auto buttonText = [&]() -> std::optional<rpl::producer<QString>> {
 		if (emojiStatusData) {
@@ -1381,7 +1379,7 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToBottom(
 	}();
 
 	_subscribe = CreateSubscribeButton({
-		_controller,
+		controller(),
 		content,
 		[ref = _ref] { return ref; },
 		std::move(buttonText),
@@ -1401,15 +1399,15 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToBottom(
 		// we should replace the ref explicitly.
 		_subscribe->setClickedCallback([=] {
 			const auto ref = _ref;
-			const auto controller = _controller;
-			ShowPremium(controller, QString());
-			controller->setPremiumRef(ref);
+			const auto window = controller();
+			ShowPremium(window, QString());
+			window->setPremiumRef(ref);
 		});
 	} else {
 #endif
 	{
 		const auto callback = [=](int value) {
-			auto &api = _controller->session().api();
+			auto &api = controller()->session().api();
 			const auto options = api.premium().subscriptionOptions();
 			if (options.empty()) {
 				return;

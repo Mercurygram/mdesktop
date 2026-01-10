@@ -1034,18 +1034,17 @@ void SetupSystemIntegration(
 Advanced::Advanced(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent) {
-	setupContent(controller);
+: Section(parent, controller) {
+	setupContent();
 }
 
 rpl::producer<QString> Advanced::title() {
 	return tr::lng_settings_advanced();
 }
 
-void Advanced::setupContent(not_null<Window::SessionController*> controller) {
+void Advanced::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	setController(controller);
 	build(content, Builder::AdvancedSection);
 
 	Ui::ResizeFitChild(this, content);

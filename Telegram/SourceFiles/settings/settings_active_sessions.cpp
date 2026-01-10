@@ -1145,9 +1145,8 @@ namespace Settings {
 Sessions::Sessions(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller) {
-	setupContent(controller);
+: Section(parent, controller) {
+	setupContent();
 }
 
 rpl::producer<QString> Sessions::title() {
@@ -1155,15 +1154,15 @@ rpl::producer<QString> Sessions::title() {
 }
 
 void Sessions::showFinished() {
-	_controller->checkHighlightControl(u"devices/terminate-sessions"_q, _terminateAll);
-	_controller->checkHighlightControl(u"devices/auto-terminate"_q, _autoTerminate);
+	controller()->checkHighlightControl(u"devices/terminate-sessions"_q, _terminateAll);
+	controller()->checkHighlightControl(u"devices/auto-terminate"_q, _autoTerminate);
 }
 
-void Sessions::setupContent(not_null<Window::SessionController*> controller) {
+void Sessions::setupContent() {
 	const auto container = Ui::CreateChild<Ui::VerticalLayout>(this);
 	AddSkip(container, st::settingsPrivacySkip);
 	const auto content = container->add(
-		object_ptr<SessionsContent>(container, controller));
+		object_ptr<SessionsContent>(container, controller()));
 	content->setupContent();
 
 	_terminateAll = content->terminateAllButton();

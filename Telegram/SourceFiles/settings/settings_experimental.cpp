@@ -184,19 +184,18 @@ void SetupExperimental(
 Experimental::Experimental(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent) {
-	setupContent(controller);
+: Section(parent, controller) {
+	setupContent();
 }
 
 rpl::producer<QString> Experimental::title() {
 	return tr::lng_settings_experimental();
 }
 
-void Experimental::setupContent(
-		not_null<Window::SessionController*> controller) {
+void Experimental::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	SetupExperimental(&controller->window(), content);
+	SetupExperimental(&controller()->window(), content);
 
 	Ui::ResizeFitChild(this, content);
 }

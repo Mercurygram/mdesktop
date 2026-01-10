@@ -718,7 +718,7 @@ void AboutView::make(Data::ChatIntro data, bool preview) {
 			| MessageFlag::FakeHistoryItem
 			| MessageFlag::Local),
 		.from = _history->peer->id,
-	}, PreparedServiceText{ { text }});
+	}, PreparedServiceText{ { text } });
 
 	if (data.sticker) {
 		_helloChosen = nullptr;
@@ -887,7 +887,7 @@ AdminLog::OwnedItem AboutView::makeNewPeerInfo(not_null<UserData*> user) {
 			| MessageFlag::FakeHistoryItem
 			| MessageFlag::Local),
 		.from = _history->peer->id,
-	}, PreparedServiceText{ { text }});
+	}, PreparedServiceText{ { text } });
 
 	auto owned = AdminLog::OwnedItem(_delegate, item);
 	owned->overrideMedia(std::make_unique<HistoryView::MediaGeneric>(

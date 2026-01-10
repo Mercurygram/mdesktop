@@ -58,7 +58,7 @@ public:
 	[[nodiscard]] rpl::producer<QString> title() override;
 
 private:
-	void setupContent(not_null<Window::SessionController*> controller);
+	void setupContent();
 
 };
 

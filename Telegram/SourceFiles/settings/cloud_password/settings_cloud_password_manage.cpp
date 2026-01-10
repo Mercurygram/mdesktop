@@ -166,26 +166,13 @@ void Manage::setupContent() {
 	Ui::AddSkip(content);
 
 	showFinishes() | rpl::take(1) | rpl::on_next([=] {
-		const auto id = controller()->highlightControlId();
-		if (id.isEmpty()) {
-			return;
-		}
-		if (id == u"2sv/change"_q) {
-			controller()->setHighlightControlId(QString());
-			if (_changePasswordButton) {
-				HighlightWidget(_changePasswordButton);
-			}
-		} else if (id == u"2sv/change-email"_q) {
-			controller()->setHighlightControlId(QString());
-			if (_changeEmailButton) {
-				HighlightWidget(_changeEmailButton);
-			}
-		} else if (id == u"2sv/disable"_q) {
-			controller()->setHighlightControlId(QString());
-			if (_disableButton) {
-				HighlightWidget(_disableButton);
-			}
-		}
+		controller()->checkHighlightControl(
+			u"2sv/change"_q,
+			_changePasswordButton);
+		controller()->checkHighlightControl(
+			u"2sv/change-email"_q,
+			_changeEmailButton);
+		controller()->checkHighlightControl("2sv/disable"_q, _disableButton);
 	}, lifetime());
 
 	using Divider = CloudPassword::OneEdgeBoxContentDivider;

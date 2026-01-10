@@ -32,8 +32,7 @@ namespace Settings {
 Blocked::Blocked(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller)
+: Section(parent, controller)
 , _container(Ui::CreateChild<Ui::VerticalLayout>(this)) {
 
 	setupContent();
@@ -54,12 +53,12 @@ Blocked::Blocked(
 			st::settingsBlockedHeightMin);
 	}
 
-	_controller->session().api().blockedPeers().slice(
+	controller->session().api().blockedPeers().slice(
 	) | rpl::on_next([=](const Api::BlockedPeers::Slice &slice) {
 		checkTotal(slice.total);
 	}, lifetime());
 
-	_controller->session().changes().peerUpdates(
+	controller->session().changes().peerUpdates(
 		Data::PeerUpdate::Flag::IsBlocked
 	) | rpl::on_next([=](const Data::PeerUpdate &update) {
 		if (update.peer->isBlocked()) {
@@ -72,7 +71,8 @@ rpl::producer<QString> Blocked::title() {
 	return tr::lng_settings_blocked_users();
 }
 
-base::weak_qptr<Ui::RpWidget> Blocked::createPinnedToTop(not_null<QWidget*> parent) {
+base::weak_qptr<Ui::RpWidget> Blocked::createPinnedToTop(
+		not_null<QWidget*> parent) {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(parent.get());
 
 	Ui::AddSkip(content);
@@ -84,7 +84,7 @@ base::weak_qptr<Ui::RpWidget> Blocked::createPinnedToTop(not_null<QWidget*> pare
 		{ &st::menuIconBlockSettings });
 	_blockUserButton = blockButton;
 	blockButton->addClickHandler([=] {
-		BlockedBoxController::BlockNewPeer(_controller);
+		BlockedBoxController::BlockNewPeer(controller());
 	});
 
 	Ui::AddSkip(content);
@@ -138,7 +138,8 @@ void Blocked::setupContent() {
 			std::unique_ptr<PeerListContentDelegateSimple> delegate;
 		};
 
-		auto controller = std::make_unique<BlockedBoxController>(_controller);
+		auto controller = std::make_unique<BlockedBoxController>(
+			this->controller());
 		controller->setStyleOverrides(&st::settingsBlockedList);
 		const auto content = listWrap->entity()->add(
 			object_ptr<PeerListContent>(this, controller.get()));
@@ -238,7 +239,9 @@ void Blocked::visibleTopBottomUpdated(int visibleTop, int visibleBottom) {
 
 void Blocked::showFinished() {
 	_showFinished.fire({});
-	_controller->checkHighlightControl(u"privacy/blocked/block-user"_q, _blockUserButton);
+	controller()->checkHighlightControl(
+		u"privacy/blocked/block-user"_q,
+		_blockUserButton);
 }
 
 } // namespace Settings

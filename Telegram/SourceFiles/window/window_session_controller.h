@@ -704,6 +704,8 @@ public:
 	void showStarGiftAuction(const QString &slug);
 	void showStarGiftAuction(uint64 giftId);
 
+	void showCloudPassword(const QString &highlightId = QString());
+
 	void setHighlightControlId(const QString &id);
 	[[nodiscard]] QString highlightControlId() const;
 	[[nodiscard]] bool takeHighlightControlId(const QString &id);
@@ -833,6 +835,7 @@ private:
 	rpl::lifetime _savedSubsectionTabsLifetime;
 
 	rpl::lifetime _starGiftAuctionLifetime;
+	rpl::lifetime _showCloudPasswordLifetime;
 
 	rpl::lifetime _lifetime;
 

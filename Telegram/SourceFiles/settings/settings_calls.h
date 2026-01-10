@@ -62,7 +62,6 @@ private:
 		rpl::producer<QString> resolvedId,
 		Fn<void(QString)> set);
 
-	const not_null<Window::SessionController*> _controller;
 	rpl::event_stream<QString> _cameraNameStream;
 	rpl::variable<bool> _testingMicrophone;
 

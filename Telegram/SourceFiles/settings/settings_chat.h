@@ -99,9 +99,7 @@ public:
 		const Ui::Menu::MenuCallback &addAction) override;
 
 private:
-	void setupContent(not_null<Window::SessionController*> controller);
-
-	const not_null<Window::SessionController*> _controller;
+	void setupContent();
 
 };
 

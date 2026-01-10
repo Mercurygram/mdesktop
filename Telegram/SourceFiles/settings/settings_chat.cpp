@@ -746,12 +746,10 @@ void SetupStickersEmoji(
 		container,
 		tr::lng_settings_stickers_emoji());
 	if (highlights) {
-		highlights->push_back({
-			u"chat/stickers-emoji"_q,
-			Builder::HighlightEntry{
-				title.get(),
-				SubsectionTitleHighlight() },
-		});
+		highlights->push_back({ u"chat/stickers-emoji"_q, {
+			title.get(),
+			SubsectionTitleHighlight(),
+		} });
 	}
 
 	const auto session = &controller->session();
@@ -817,10 +815,10 @@ void SetupStickersEmoji(
 			Core::App().saveSettingsDelayed();
 		});
 	if (highlights) {
-		highlights->push_back({
-			u"chat/large-emoji"_q,
-			Builder::HighlightEntry{ largeEmoji, { .radius = st::boxRadius } },
-		});
+		highlights->push_back({ u"chat/large-emoji"_q, {
+			largeEmoji,
+			{ .radius = st::boxRadius }
+		} });
 	}
 
 	add(
@@ -856,10 +854,10 @@ void SetupStickersEmoji(
 			suggestEmoji->value(),
 			_1 && _2));
 	if (highlights) {
-		highlights->push_back({
-			u"chat/suggest-animated-emoji"_q,
-			Builder::HighlightEntry{ suggestAnimated, { .radius = st::boxRadius } },
-		});
+		highlights->push_back({ u"chat/suggest-animated-emoji"_q, {
+			suggestAnimated,
+			{ .radius = st::boxRadius }
+		} });
 	}
 
 	const auto suggestByEmoji = addWithReturn(
@@ -870,10 +868,10 @@ void SetupStickersEmoji(
 			Core::App().saveSettingsDelayed();
 		});
 	if (highlights) {
-		highlights->push_back({
-			u"chat/suggest-by-emoji"_q,
-			Builder::HighlightEntry{ suggestByEmoji, { .radius = st::boxRadius } },
-		});
+		highlights->push_back({ u"chat/suggest-by-emoji"_q, {
+			suggestByEmoji,
+			{ .radius = st::boxRadius },
+		} });
 	}
 
 	add(
@@ -973,10 +971,10 @@ void SetupMessages(
 		Quick::React,
 		tr::lng_settings_chat_quick_action_react(tr::now));
 	if (highlights) {
-		highlights->push_back({
-			u"chat/quick-reaction"_q,
-			Builder::HighlightEntry{ react, { .radius = st::boxRadius } },
-		});
+		highlights->push_back({ u"chat/quick-reaction"_q, {
+			react,
+			{ .radius = st::boxRadius },
+		} });
 	}
 
 	const auto buttonRight = Ui::CreateSimpleCircleButton(
@@ -1071,12 +1069,10 @@ void SetupMessages(
 		show->showBox(Box(ReactionsSettingsBox, controller));
 	});
 	if (highlights) {
-		highlights->push_back({
-			u"chat/quick-reaction-choose"_q,
-			Builder::HighlightEntry{
-				buttonRight.get(),
-				{ .shape = HighlightShape::Ellipse } },
-		});
+		highlights->push_back({ u"chat/quick-reaction-choose"_q, {
+			buttonRight.get(),
+			{ .shape = HighlightShape::Ellipse },
+		} });
 	}
 
 	Ui::AddSkip(inner, st::settingsSendTypeSkip);
@@ -1302,27 +1298,18 @@ void SetupChatBackground(
 		st::settingsBackgroundPadding);
 
 	if (highlights) {
-		highlights->push_back({
-			u"chat/wallpapers"_q,
-			Builder::HighlightEntry{
-				title.get(),
-				SubsectionTitleHighlight(),
-			},
-		});
-		highlights->push_back({
-			u"chat/wallpapers-set"_q,
-			Builder::HighlightEntry{
-				row->chooseFromGallery(),
-				SubsectionTitleHighlight(),
-			},
-		});
-		highlights->push_back({
-			u"chat/wallpapers-choose-photo"_q,
-			Builder::HighlightEntry{
-				row->chooseFromFile(),
-				SubsectionTitleHighlight(),
-			},
-		});
+		highlights->push_back({ u"chat/wallpapers"_q, {
+			title.get(),
+			SubsectionTitleHighlight(),
+		} });
+		highlights->push_back({ u"chat/wallpapers-set"_q, {
+			row->chooseFromGallery(),
+			SubsectionTitleHighlight(),
+		} });
+		highlights->push_back({ u"chat/wallpapers-choose-photo"_q, {
+			row->chooseFromFile(),
+			SubsectionTitleHighlight(),
+		} });
 	}
 
 	const auto skipTop = st::settingsCheckbox.margin.top();
@@ -1745,7 +1732,7 @@ void SetupDefaultThemes(
 				.margin = { -add, -add, -add, -add },
 				.shape = HighlightShape::Ellipse,
 			},
-		}});
+		} });
 	}
 
 	Background()->updates(
@@ -1831,13 +1818,10 @@ void SetupThemeOptions(
 		container,
 		tr::lng_settings_themes());
 	if (highlights) {
-		highlights->push_back({
-			u"chat/themes"_q,
-			Builder::HighlightEntry{
-				title.get(),
-				SubsectionTitleHighlight(),
-			},
-		});
+		highlights->push_back({ u"chat/themes"_q, {
+			title.get(),
+			SubsectionTitleHighlight(),
+		} });
 	}
 
 	Ui::AddSkip(container, st::settingsThemesTopSkip);
@@ -1978,10 +1962,9 @@ void SetupThemeSettings(
 			}
 		});
 		if (highlights) {
-			highlights->push_back({
-				u"chat/auto-night-mode"_q,
-				Builder::HighlightEntry{ button.get(), {} },
-			});
+			highlights->push_back({ u"chat/auto-night-mode"_q, {
+				button.get()
+			} });
 		}
 	}
 
@@ -2161,9 +2144,8 @@ void SetupSupport(
 }
 
 Chat::Chat(QWidget *parent, not_null<Window::SessionController*> controller)
-: Section(parent)
-, _controller(controller) {
-	setupContent(controller);
+: Section(parent, controller) {
+	setupContent();
 }
 
 rpl::producer<QString> Chat::title() {
@@ -2171,7 +2153,7 @@ rpl::producer<QString> Chat::title() {
 }
 
 void Chat::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
-	const auto window = &_controller->window();
+	const auto window = &controller()->window();
 	const auto createTheme = addAction(
 		tr::lng_settings_bg_theme_create(tr::now),
 		[=] { window->show(Box(Window::Theme::CreateBox, window)); },
@@ -2181,10 +2163,9 @@ void Chat::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
 		u"chat/themes-create"_q);
 }
 
-void Chat::setupContent(not_null<Window::SessionController*> controller) {
+void Chat::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	setController(controller);
 	build(content, Builder::ChatSection);
 
 	Ui::ResizeFitChild(this, content);

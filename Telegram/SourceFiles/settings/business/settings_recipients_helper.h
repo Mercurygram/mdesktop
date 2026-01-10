@@ -29,13 +29,9 @@ public:
 	BusinessSection(
 		QWidget *parent,
 		not_null<Window::SessionController*> controller)
-	: Section<SectionType>(parent)
-	, _controller(controller) {
+	: Section<SectionType>(parent, controller) {
 	}
 
-	[[nodiscard]] not_null<Window::SessionController*> controller() const {
-		return _controller;
-	}
 	[[nodiscard]] rpl::producer<> showFinishes() const {
 		return _showFinished.events();
 	}
@@ -45,7 +41,6 @@ private:
 		_showFinished.fire({});
 	}
 
-	const not_null<Window::SessionController*> _controller;
 	rpl::event_stream<> _showFinished;
 
 };

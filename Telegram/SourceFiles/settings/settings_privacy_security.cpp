@@ -759,10 +759,7 @@ void SetupBotsAndWebsites(
 	});
 
 	if (highlights) {
-		highlights->push_back({
-			u"privacy/bots_payment"_q,
-			Builder::HighlightEntry{ button },
-		});
+		highlights->push_back({ u"privacy/bots_payment"_q, { button } });
 	}
 
 	Ui::AddSkip(container);
@@ -999,10 +996,7 @@ void SetupSensitiveContent(
 	}, container->lifetime());
 
 	if (highlights) {
-		highlights->push_back({
-			u"chat/show-18-content"_q,
-			Builder::HighlightEntry{ button },
-		});
+		highlights->push_back({ u"chat/show-18-content"_q, { button } });
 	}
 
 	Ui::AddSkip(inner);
@@ -1160,10 +1154,7 @@ void SetupArchiveAndMute(
 	}, container->lifetime());
 
 	if (highlights) {
-		highlights->push_back({
-			u"privacy/archive_and_mute"_q,
-			Builder::HighlightEntry{ button },
-		});
+		highlights->push_back({ u"privacy/archive_and_mute"_q, { button } });
 	}
 
 	Ui::AddSkip(inner);
@@ -1185,9 +1176,8 @@ void SetupArchiveAndMute(
 PrivacySecurity::PrivacySecurity(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent) {
-	setupContent(controller);
-
+: Section(parent, controller) {
+	setupContent();
 	[[maybe_unused]] auto preload = base::SystemUnlockStatus();
 }
 
@@ -1195,11 +1185,9 @@ rpl::producer<QString> PrivacySecurity::title() {
 	return tr::lng_settings_section_privacy();
 }
 
-void PrivacySecurity::setupContent(
-		not_null<Window::SessionController*> controller) {
+void PrivacySecurity::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	setController(controller);
 	build(content, Builder::PrivacySecuritySection);
 
 	Ui::ResizeFitChild(this, content);

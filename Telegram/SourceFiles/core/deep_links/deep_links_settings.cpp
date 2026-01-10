@@ -460,10 +460,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"profile-photo"_q,
-		.action = SettingsControl{
-			::Settings::Main::Id(),
-			u"profile-photo"_q,
-		},
+		.action = AliasTo{ u"edit"_q, u"set-photo"_q },
 	});
 
 	router.add(u"settings"_q, {
@@ -579,19 +576,7 @@ void RegisterSettingsHandlers(Router &router) {
 		if (!ctx.controller) {
 			return Result::NeedsAuth;
 		}
-		if (!highlight.isEmpty()) {
-			ctx.controller->setHighlightControlId(highlight);
-		}
-		const auto state = ctx.controller->session().api().cloudPassword().stateCurrent();
-		if (!state) {
-			ctx.controller->showSettings(::Settings::CloudPasswordStartId());
-		} else if (!state->unconfirmedPattern.isEmpty()) {
-			ctx.controller->showSettings(::Settings::CloudPasswordEmailConfirmId());
-		} else if (state->hasPassword) {
-			ctx.controller->showSettings(::Settings::CloudPasswordInputId());
-		} else {
-			ctx.controller->showSettings(::Settings::CloudPasswordStartId());
-		}
+		ctx.controller->showCloudPassword(highlight);
 		return Result::Handled;
 	};
 	router.add(u"settings"_q, {
@@ -801,7 +786,7 @@ void RegisterSettingsHandlers(Router &router) {
 	});
 
 	router.add(u"settings"_q, {
-		.path = u"privacy/bio/never-share"_q,
+		.path = u"privacy/bio/never"_q,
 		.action = CodeBlock{ [](const Context &ctx) {
 			return ShowPrivacyBox(
 				ctx,
@@ -812,7 +797,7 @@ void RegisterSettingsHandlers(Router &router) {
 	});
 
 	router.add(u"settings"_q, {
-		.path = u"privacy/bio/always-share"_q,
+		.path = u"privacy/bio/always"_q,
 		.action = CodeBlock{ [](const Context &ctx) {
 			return ShowPrivacyBox(
 				ctx,
@@ -844,7 +829,7 @@ void RegisterSettingsHandlers(Router &router) {
 	});
 
 	router.add(u"settings"_q, {
-		.path = u"privacy/gifts/never-share"_q,
+		.path = u"privacy/gifts/never"_q,
 		.action = CodeBlock{ [](const Context &ctx) {
 			return ShowPrivacyBox(
 				ctx,
@@ -855,7 +840,7 @@ void RegisterSettingsHandlers(Router &router) {
 	});
 
 	router.add(u"settings"_q, {
-		.path = u"privacy/gifts/always-share"_q,
+		.path = u"privacy/gifts/always"_q,
 		.action = CodeBlock{ [](const Context &ctx) {
 			return ShowPrivacyBox(
 				ctx,
@@ -1713,6 +1698,13 @@ void RegisterSettingsHandlers(Router &router) {
 
 	// Edit profile deep links.
 	router.add(u"settings"_q, {
+		.path = u"edit/set-photo"_q,
+		.action = SettingsControl{
+			::Settings::Main::Id(),
+			u"profile-photo"_q,
+		},
+	});
+	router.add(u"settings"_q, {
 		.path = u"edit/first-name"_q,
 		.action = CodeBlock{ [](const Context &ctx) {
 			return ShowEditName(ctx, EditNameBox::Focus::FirstName);
@@ -1815,7 +1807,10 @@ void RegisterSettingsHandlers(Router &router) {
 	});
 	router.add(u"settings"_q, {
 		.path = u"folders/add-recommended"_q,
-		.action = SettingsSection{ ::Settings::Folders::Id() },
+		.action = SettingsControl{
+			::Settings::Folders::Id(),
+			u"folders/add-recommended"_q,
+		},
 	});
 	router.add(u"settings"_q, {
 		.path = u"folders/show-tags"_q,
