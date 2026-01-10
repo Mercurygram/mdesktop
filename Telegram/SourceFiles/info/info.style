@@ -169,6 +169,7 @@ infoTopBarMenu: IconButton(infoTopBarBack) {
 	iconPosition: point(18px, -1px);
 	rippleAreaPosition: point(1px, 6px);
 }
+infoTopBarMenuActive: icon {{ "title_menu_dots", windowActiveTextFg, point(0px, 0px) }};
 infoTopBarCall: IconButton(infoTopBarMenu) {
 	width: 42px;
 	icon: icon {{ "top_bar_call", boxTitleCloseFg }};
