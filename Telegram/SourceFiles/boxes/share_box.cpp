@@ -1313,6 +1313,12 @@ void ShareBox::Inner::updateUpon(const QPoint &pos) {
 	auto x = pos.x(), y = pos.y();
 	auto row = (y - _rowsTop) / _rowHeight;
 	auto column = qFloor((x - _rowsLeft) / _rowWidthReal);
+
+	if (column < 0 || column >= _columnCount) {
+		_upon = -1;
+		return;
+	}
+
 	auto left = _rowsLeft + qFloor(column * _rowWidthReal) + st::shareColumnSkip / 2;
 	auto top = _rowsTop + row * _rowHeight + st::sharePhotoTop;
 	auto xupon = (x >= left) && (x < left + (_rowWidth - st::shareColumnSkip));
