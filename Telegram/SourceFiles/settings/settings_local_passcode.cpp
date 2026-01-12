@@ -604,6 +604,7 @@ void LocalPasscodeManage::setupContent() {
 
 base::weak_qptr<Ui::RpWidget> LocalPasscodeManage::createPinnedToBottom(
 		not_null<Ui::RpWidget*> parent) {
+	const auto weak = base::make_weak(this);
 	auto callback = [=] {
 		controller()->show(
 			Ui::MakeConfirmBox({
@@ -614,7 +615,12 @@ base::weak_qptr<Ui::RpWidget> LocalPasscodeManage::createPinnedToBottom(
 					Core::App().saveSettingsDelayed();
 
 					close();
-					_showBack.fire({});
+					if (weak) {
+						_showBack.fire({});
+					}
+					if (weak) {
+						controller()->hideSpecialLayer();
+					}
 				},
 				.confirmText = tr::lng_settings_auto_night_disable(),
 				.confirmStyle = &st::attentionBoxButton,
