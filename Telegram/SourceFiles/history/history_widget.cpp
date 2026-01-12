@@ -4698,7 +4698,7 @@ Api::SendAction HistoryWidget::prepareSendAction(
 	result.replyTo = replyTo();
 
 	if (const auto forum = _history->asForum()) {
-		if (_history->peer->isBot()) {
+		if (Data::IsBotCanManageTopics(_history->peer)) {
 			if (!_creatingBotTopic) {
 				const auto &colors = Data::ForumTopicColorIds();
 				const auto colorId = colors[base::RandomIndex(colors.size())];
@@ -6260,6 +6260,13 @@ void HistoryWidget::updateFieldPlaceholder() {
 			} else {
 				return tr::lng_message_ph();
 			}
+		} else if (const auto user = peer->asUser()) {
+			if (const auto &info = user->botInfo) {
+				if (info->forum() && !info->canManageTopics) {
+					return tr::lng_bot_off_thread_ph();
+				}
+			}
+			return tr::lng_message_ph();
 		} else {
 			return tr::lng_message_ph();
 		}

@@ -2731,6 +2731,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_bot_new_thread_title" = "New Thread";
 "lng_bot_new_thread_about" = "Type any message to create a new thread.";
 "lng_bot_show_threads_list" = "Show Threads List";
+"lng_bot_off_thread_ph" = "Off-thread message";
 
 "lng_attach_failed" = "Failed";
 "lng_attach_file" = "File";

@@ -690,6 +690,7 @@ bool AboutView::refresh() {
 		_version = 0;
 		return false;
 	} else if (_history->peer->isForum()
+			&& info->canManageTopics
 			&& info->startToken.isEmpty()
 			&& (!_history->isEmpty() || _history->lastMessage())) {
 		if (_item) {

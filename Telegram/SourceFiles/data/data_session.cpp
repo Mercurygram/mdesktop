@@ -756,6 +756,8 @@ not_null<UserData*> Session::processUser(const MTPUser &data) {
 				result->botInfo->canEditInformation = data.is_bot_can_edit();
 				result->botInfo->activeUsers = data.vbot_active_users().value_or_empty();
 				result->botInfo->hasMainApp = data.is_bot_has_main_app();
+				result->botInfo->canManageTopics
+					= data.is_bot_forum_can_manage_topics();
 			} else {
 				result->setBotInfoVersion(-1);
 			}
