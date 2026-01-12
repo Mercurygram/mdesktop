@@ -2605,6 +2605,7 @@ void HistoryWidget::showHistory(
 	updateReplaceMediaButton();
 	_fieldBarCancel->hide();
 
+	_mediaEditManager.cancel();
 	_membersDropdownShowTimer.cancel();
 	_scroll->takeWidget<HistoryInner>().destroy();
 
@@ -8793,6 +8794,19 @@ void HistoryWidget::setReplyFieldsFromProcessing() {
 	} else {
 		_replyEditMsg = item;
 		_replyTo = id;
+		if (_replyTo) {
+			if (const auto i = session().data().message(_replyTo.messageId)) {
+				if (const auto media = i->media()) {
+					using namespace SendMenu;
+					const auto type = media->hasSpoiler()
+						? Action{ .type = Action::Type::SpoilerOn }
+						: Action{ .type = Action::Type::SpoilerOff };
+					_mediaEditManager.apply(type);
+				}
+			}
+		} else {
+			_mediaEditManager.cancel();
+		}
 		cancelSuggestPost();
 		updateReplyEditText(_replyEditMsg);
 		updateCanSendMessage();
