@@ -1497,8 +1497,7 @@ void OverlayWidget::updateControls() {
 			height() - st::mediaviewTextTop,
 			qMin(_fromNameLabel.maxWidth(), width() / 3),
 			st::mediaviewFont->height);
-		const auto separatorText = QString::fromUtf8("\xE2\x80\xA2");
-		const auto separatorWidth = st::mediaviewFont->width(separatorText);
+		const auto separatorWidth = st::mediaviewFont->width(Ui::kQBullet);
 		_separatorNav = QRect(
 			st::mediaviewTextLeft
 				+ _nameNav.width()
@@ -5636,7 +5635,7 @@ void OverlayWidget::paintFooterContent(
 			p.drawText(
 				separator.left(),
 				separator.top() + st::mediaviewFont->ascent,
-				QString::fromUtf8("\xE2\x80\xA2"));
+				Ui::kQBullet);
 		}
 	}
 

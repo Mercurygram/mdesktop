@@ -162,7 +162,7 @@ struct FilterRow {
 		: tr::lng_filters_no_chats(tr::now);
 	return filter.chatlist()
 		? (result
-			+ QString::fromUtf8(" \xE2\x80\xA2 ")
+			+ (' ' + Ui::kQBullet + ' ')
 			+ tr::lng_filters_shareable_status(tr::now))
 		: result;
 }
