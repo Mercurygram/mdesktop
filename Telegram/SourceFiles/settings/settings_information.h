@@ -52,7 +52,8 @@ struct UnreadBadge {
 	bool muted = false;
 };
 [[nodiscard]] not_null<Ui::RpWidget*> AddRight(
-	not_null<Ui::SettingsButton*> button);
+	not_null<Ui::SettingsButton*> button,
+	int rightPadding = 0);
 [[nodiscard]] not_null<Ui::RpWidget*> CreateUnread(
 	not_null<Ui::RpWidget*> container,
 	rpl::producer<UnreadBadge> value);

@@ -693,7 +693,7 @@ void SetupAccountsWrap(
 	const auto raw = result.data();
 
 	{
-		const auto container = Badge::AddRight(raw);
+		const auto container = Badge::AddRight(raw, st::mainMenuAccountLine);
 		const auto composedBadge = Ui::CreateChild<ComposedBadge>(
 			container.get(),
 			raw,
@@ -1110,7 +1110,8 @@ Ui::UnreadBadgeStyle Style() {
 }
 
 not_null<Ui::RpWidget*> AddRight(
-		not_null<Ui::SettingsButton*> button) {
+		not_null<Ui::SettingsButton*> button,
+		int rightPadding) {
 	const auto widget = Ui::CreateChild<Ui::RpWidget>(button.get());
 
 	rpl::combine(
@@ -1121,10 +1122,10 @@ not_null<Ui::RpWidget*> AddRight(
 		auto padding = button->st().padding;
 		if (shown) {
 			widget->moveToRight(
-				padding.right(),
+				padding.right() + rightPadding,
 				(outer.height() - inner.height()) / 2,
 				outer.width());
-			padding.setRight(padding.right() + inner.width());
+			padding.setRight(padding.right() + inner.width() + rightPadding);
 		}
 		button->setPaddingOverride(padding);
 		button->update();
