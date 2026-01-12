@@ -215,6 +215,7 @@ mediaviewTextStyle: defaultTextStyle;
 
 mediaviewTextLeft: 14px;
 mediaviewTextSkip: 10px;
+mediaviewTextSkipHalf: 5px;
 mediaviewHeaderTop: 47px;
 mediaviewTextTop: 26px;
 
