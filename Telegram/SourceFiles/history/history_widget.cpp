@@ -7736,9 +7736,10 @@ bool HistoryWidget::replyToPreviousMessage() {
 		|| (_replyTo && _replyTo.messageId.peer != _history->peer->id)) {
 		return false;
 	}
+	const auto isFieldVisible = _field->isVisible();
 	const auto fullId = FullMsgId(
 		_history->peer->id,
-		(_field->isVisible()
+		((isFieldVisible && _replyTo.messageId.msg)
 			? _replyTo.messageId.msg
 			: _highlighter.latestSingleHighlightedMsgId()));
 	if (const auto item = session().data().message(fullId)) {
@@ -7746,8 +7747,12 @@ bool HistoryWidget::replyToPreviousMessage() {
 			if (const auto previousView = view->previousDisplayedInBlocks()) {
 				const auto previous = previousView->data();
 				controller()->showMessage(previous);
-				if (_field->isVisible()) {
-					replyToMessage(previous);
+				if (isFieldVisible) {
+					if (previous->isLocal()) {
+						cancelReply();
+					} else {
+						replyToMessage(previous);
+					}
 				}
 				return true;
 			}
@@ -7755,8 +7760,12 @@ bool HistoryWidget::replyToPreviousMessage() {
 	} else if (const auto previousView = _history->findLastDisplayed()) {
 		const auto previous = previousView->data();
 		controller()->showMessage(previous);
-		if (_field->isVisible()) {
-			replyToMessage(previous);
+		if (isFieldVisible) {
+			if (previous->isLocal()) {
+				cancelReply();
+			} else {
+				replyToMessage(previous);
+			}
 		}
 		return true;
 	}
@@ -7770,9 +7779,10 @@ bool HistoryWidget::replyToNextMessage() {
 		|| (_replyTo && _replyTo.messageId.peer != _history->peer->id)) {
 		return false;
 	}
+	const auto isFieldVisible = _field->isVisible();
 	const auto fullId = FullMsgId(
 		_history->peer->id,
-		(_field->isVisible()
+		((isFieldVisible && _replyTo.messageId.msg)
 			? _replyTo.messageId.msg
 			: _highlighter.latestSingleHighlightedMsgId()));
 	if (const auto item = session().data().message(fullId)) {
@@ -7780,8 +7790,12 @@ bool HistoryWidget::replyToNextMessage() {
 			if (const auto nextView = view->nextDisplayedInBlocks()) {
 				const auto next = nextView->data();
 				controller()->showMessage(next);
-				if (_field->isVisible()) {
-					replyToMessage(next);
+				if (isFieldVisible) {
+					if (next->isLocal()) {
+						cancelReply();
+					} else {
+						replyToMessage(next);
+					}
 				}
 			} else {
 				_highlighter.clear();
