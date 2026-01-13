@@ -550,122 +550,6 @@ void BuildPrivacySecuritySectionContent(
 		Window::SessionController *controller,
 		Fn<void(Type)> showOther) {
 	if (!controller) {
-		builder.addSettingsButton({
-			.id = u"security/cloud_password"_q,
-			.title = tr::lng_settings_cloud_password_start_title(),
-			.keywords = { u"password"_q, u"2fa"_q, u"two-factor"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"security/ttl"_q,
-			.title = tr::lng_settings_ttl_title(),
-			.keywords = { u"ttl"_q, u"auto-delete"_q, u"timer"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"security/passcode"_q,
-			.title = tr::lng_settings_passcode_title(),
-			.keywords = { u"passcode"_q, u"lock"_q, u"pin"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"security/passkeys"_q,
-			.title = tr::lng_settings_passkeys_title(),
-			.keywords = { u"passkeys"_q, u"biometric"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"security/blocked"_q,
-			.title = tr::lng_settings_blocked_users(),
-			.keywords = { u"blocked"_q, u"ban"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"security/websites"_q,
-			.title = tr::lng_settings_logged_in(),
-			.keywords = { u"websites"_q, u"bots"_q, u"logged"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"security/sessions"_q,
-			.title = tr::lng_settings_show_sessions(),
-			.keywords = { u"sessions"_q, u"devices"_q, u"active"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/phone_number"_q,
-			.title = tr::lng_settings_phone_number_privacy(),
-			.keywords = { u"phone"_q, u"number"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/last_seen"_q,
-			.title = tr::lng_settings_last_seen(),
-			.keywords = { u"last seen"_q, u"online"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/profile_photo"_q,
-			.title = tr::lng_settings_profile_photo_privacy(),
-			.keywords = { u"photo"_q, u"avatar"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/forwards"_q,
-			.title = tr::lng_settings_forwards_privacy(),
-			.keywords = { u"forwards"_q, u"link"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/calls"_q,
-			.title = tr::lng_settings_calls(),
-			.keywords = { u"calls"_q, u"voice"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/voices"_q,
-			.title = tr::lng_settings_voices_privacy(),
-			.keywords = { u"voice"_q, u"messages"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/messages"_q,
-			.title = tr::lng_settings_messages_privacy(),
-			.keywords = { u"messages"_q, u"new"_q, u"unknown"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/birthday"_q,
-			.title = tr::lng_settings_birthday_privacy(),
-			.keywords = { u"birthday"_q, u"age"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/gifts"_q,
-			.title = tr::lng_settings_gifts_privacy(),
-			.keywords = { u"gifts"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/bio"_q,
-			.title = tr::lng_settings_bio_privacy(),
-			.keywords = { u"bio"_q, u"about"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/saved_music"_q,
-			.title = tr::lng_settings_saved_music_privacy(),
-			.keywords = { u"music"_q, u"saved"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/groups"_q,
-			.title = tr::lng_settings_groups_invite(),
-			.keywords = { u"groups"_q, u"invite"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/archive_and_mute"_q,
-			.title = tr::lng_settings_auto_archive(),
-			.keywords = { u"archive"_q, u"mute"_q, u"new"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/bots_payment"_q,
-			.title = tr::lng_settings_clear_payment_info(),
-			.keywords = { u"bots"_q, u"payment"_q, u"clear"_q },
-		});
-		builder.addToggle({
-			.id = u"privacy/top_peers"_q,
-			.title = tr::lng_settings_top_peers_suggest(),
-			.toggled = rpl::single(true),
-			.keywords = { u"suggest"_q, u"contacts"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"privacy/self_destruct"_q,
-			.title = tr::lng_settings_destroy_if(),
-			.keywords = { u"delete"_q, u"destroy"_q, u"inactive"_q },
-		});
 		return;
 	}
 
@@ -684,6 +568,12 @@ void BuildPrivacySecuritySectionContent(
 	BuildSelfDestructionSection(builder, controller, trigger());
 }
 
+const auto kHelper = BuildHelper(PrivacySecurity::Id(), [](SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	const auto showOther = builder.showOther();
+	BuildPrivacySecuritySectionContent(builder, controller, showOther);
+});
+
 } // namespace
 
 void PrivacySecuritySection(
@@ -691,36 +581,7 @@ void PrivacySecuritySection(
 		not_null<Window::SessionController*> controller,
 		Fn<void(Type)> showOther,
 		rpl::producer<> showFinished) {
-	auto &lifetime = container->lifetime();
-	const auto highlights = lifetime.make_state<HighlightRegistry>();
-
-	SectionBuilder builder(WidgetContext{
-		.container = container,
-		.controller = controller,
-		.showOther = showOther,
-		.isPaused = [] { return false; },
-		.highlights = highlights,
-	});
-
-	BuildPrivacySecuritySectionContent(builder, controller, showOther);
-
-	std::move(showFinished) | rpl::on_next([=] {
-		for (const auto &[id, entry] : *highlights) {
-			if (entry.widget) {
-				controller->checkHighlightControl(
-					id,
-					entry.widget,
-					base::duplicate(entry.args));
-			}
-		}
-	}, lifetime);
-}
-
-std::vector<SearchEntry> PrivacySecuritySectionForSearch() {
-	std::vector<SearchEntry> entries;
-	SectionBuilder builder(SearchContext{ .entries = &entries });
-	BuildPrivacySecuritySectionContent(builder, nullptr, nullptr);
-	return entries;
+	kHelper.build(container, controller, std::move(showOther), std::move(showFinished));
 }
 
 } // namespace Settings::Builder

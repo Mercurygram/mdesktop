@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "platform/platform_notifications_manager.h"
 #include "platform/platform_specific.h"
 #include "settings/builder/settings_builder.h"
+#include "settings/settings_notifications.h"
 #include "settings/settings_notifications_common.h"
 #include "settings/settings_notifications_type.h"
 #include "ui/vertical_list.h"
@@ -354,20 +355,6 @@ void BuildEventNotificationsSection(
 	builder.addSubsectionTitle(tr::lng_settings_events_title());
 
 	if (!controller) {
-		builder.addToggle({
-			.id = u"notifications/events/joined"_q,
-			.title = tr::lng_settings_events_joined(),
-			.icon = { &st::menuIconInvite },
-			.toggled = rpl::single(false),
-			.keywords = { u"joined"_q, u"contacts"_q, u"signup"_q },
-		});
-		builder.addToggle({
-			.id = u"notifications/events/pinned"_q,
-			.title = tr::lng_settings_events_pinned(),
-			.icon = { &st::menuIconPin },
-			.toggled = rpl::single(Core::App().settings().notifyAboutPinned()),
-			.keywords = { u"pinned"_q, u"message"_q },
-		});
 		return;
 	}
 
@@ -424,13 +411,6 @@ void BuildCallNotificationsSection(
 	builder.addSubsectionTitle(tr::lng_settings_notifications_calls_title());
 
 	if (!controller) {
-		builder.addToggle({
-			.id = u"notifications/calls/accept"_q,
-			.title = tr::lng_settings_call_accept_calls(),
-			.icon = { &st::menuIconCallsReceive },
-			.toggled = rpl::single(true),
-			.keywords = { u"calls"_q, u"receive"_q, u"incoming"_q },
-		});
 		return;
 	}
 
@@ -740,6 +720,11 @@ void BuildNotificationsSectionContent(
 	BuildSystemIntegrationAndAdvancedSection(builder, controller);
 }
 
+const auto kHelper = BuildHelper(Notifications::Id(), [](SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	BuildNotificationsSectionContent(builder, controller);
+});
+
 } // namespace
 
 void NotificationsSection(
@@ -747,37 +732,7 @@ void NotificationsSection(
 		not_null<Window::SessionController*> controller,
 		Fn<void(Type)> showOther,
 		rpl::producer<> showFinished) {
-	auto &lifetime = container->lifetime();
-	const auto highlights = lifetime.make_state<HighlightRegistry>();
-	const auto isPaused = Window::PausedIn(
-		controller,
-		Window::GifPauseReason::Layer);
-	auto builder = SectionBuilder(WidgetContext{
-		.container = container,
-		.controller = controller,
-		.showOther = std::move(showOther),
-		.isPaused = isPaused,
-		.highlights = highlights,
-	});
-	BuildNotificationsSectionContent(builder, controller);
-
-	std::move(showFinished) | rpl::on_next([=] {
-		for (const auto &[id, entry] : *highlights) {
-			if (entry.widget) {
-				auto args = entry.args;
-				controller->checkHighlightControl(id, entry.widget, std::move(args));
-			}
-		}
-	}, lifetime);
-}
-
-std::vector<SearchEntry> NotificationsSectionForSearch() {
-	auto entries = std::vector<SearchEntry>();
-	auto builder = SectionBuilder(SearchContext{
-		.entries = &entries,
-	});
-	BuildNotificationsSectionContent(builder, nullptr);
-	return entries;
+	kHelper.build(container, controller, std::move(showOther), std::move(showFinished));
 }
 
 } // namespace Settings::Builder

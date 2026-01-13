@@ -1136,6 +1136,12 @@ void BuildAdvancedSectionContent(
 	BuildExportSection(builder, controller, showOther);
 }
 
+const auto kHelper = BuildHelper(Advanced::Id(), [](SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	const auto showOther = builder.showOther();
+	BuildAdvancedSectionContent(builder, controller, showOther);
+});
+
 } // namespace
 
 void AdvancedSection(
@@ -1143,36 +1149,7 @@ void AdvancedSection(
 		not_null<Window::SessionController*> controller,
 		Fn<void(Type)> showOther,
 		rpl::producer<> showFinished) {
-	auto &lifetime = container->lifetime();
-	const auto highlights = lifetime.make_state<HighlightRegistry>();
-
-	SectionBuilder builder(WidgetContext{
-		.container = container,
-		.controller = controller,
-		.showOther = showOther,
-		.isPaused = [] { return false; },
-		.highlights = highlights,
-	});
-
-	BuildAdvancedSectionContent(builder, controller, showOther);
-
-	std::move(showFinished) | rpl::on_next([=] {
-		for (const auto &[id, entry] : *highlights) {
-			if (entry.widget) {
-				controller->checkHighlightControl(
-					id,
-					entry.widget,
-					base::duplicate(entry.args));
-			}
-		}
-	}, lifetime);
-}
-
-std::vector<SearchEntry> AdvancedSectionForSearch() {
-	std::vector<SearchEntry> entries;
-	SectionBuilder builder(SearchContext{ .entries = &entries });
-	BuildAdvancedSectionContent(builder, nullptr, nullptr);
-	return entries;
+	kHelper.build(container, controller, std::move(showOther), std::move(showFinished));
 }
 
 } // namespace Settings::Builder

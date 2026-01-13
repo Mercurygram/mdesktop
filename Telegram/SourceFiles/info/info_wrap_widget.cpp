@@ -20,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_information.h"
 #include "settings/settings_main.h"
 #include "settings/settings_premium.h"
+#include "settings/settings_search.h"
 #include "ui/effects/ripple_animation.h" // MaskByDrawer.
 #include "ui/widgets/menu/menu_add_action_callback.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
@@ -410,7 +411,16 @@ void WrapWidget::setupTopBarMenuToggle() {
 		addProfileCallsButton();
 	} else if (section.type() == Section::Type::Settings) {
 		addTopBarMenuButton();
-		if (section.settingsType() == ::Settings::Information::Id()) {
+		if (section.settingsType() == ::Settings::Main::Id()) {
+			const auto &st = (wrap() == Wrap::Layer)
+				? st::infoLayerTopBarSearch
+				: st::infoTopBarSearch;
+			const auto button = _topBar->addButton(
+				base::make_unique_q<Ui::IconButton>(_topBar, st));
+			button->addClickHandler([=] {
+				_controller->showSettings(::Settings::Search::Id());
+			});
+		} else if (section.settingsType() == ::Settings::Information::Id()) {
 			const auto controller = _controller->parentController();
 			const auto self = controller->session().user();
 			if (!self->username().isEmpty()) {

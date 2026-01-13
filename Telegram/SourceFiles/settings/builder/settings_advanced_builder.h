@@ -26,6 +26,4 @@ void AdvancedSection(
 	Fn<void(Type)> showOther,
 	rpl::producer<> showFinished);
 
-[[nodiscard]] std::vector<SearchEntry> AdvancedSectionForSearch();
-
 } // namespace Settings::Builder

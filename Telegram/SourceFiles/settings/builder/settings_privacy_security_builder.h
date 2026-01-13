@@ -26,6 +26,4 @@ void PrivacySecuritySection(
 	Fn<void(Type)> showOther,
 	rpl::producer<> showFinished);
 
-[[nodiscard]] std::vector<SearchEntry> PrivacySecuritySectionForSearch();
-
 } // namespace Settings::Builder

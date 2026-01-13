@@ -23,14 +23,10 @@ class SessionController;
 
 namespace Settings::Builder {
 
-struct SearchEntry;
-
 void MainSection(
 	not_null<Ui::VerticalLayout*> container,
 	not_null<Window::SessionController*> controller,
 	Fn<void(Type)> showOther,
 	rpl::producer<> showFinished);
-
-[[nodiscard]] std::vector<SearchEntry> MainSectionForSearch();
 
 } // namespace Settings::Builder

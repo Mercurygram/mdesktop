@@ -39,10 +39,59 @@ class SlideWrap;
 
 namespace Settings::Builder {
 
+class SectionBuilder;
+
 struct SearchEntry {
 	QString id;
 	QString title;
 	QStringList keywords;
+	Type section;
+
+	explicit operator bool() const {
+		return !id.isEmpty();
+	}
+};
+
+using SearchEntriesProvider = std::function<std::vector<SearchEntry>()>;
+
+struct SearchProviderEntry {
+	Type sectionType;
+	SearchEntriesProvider provider;
+};
+
+class SearchRegistry {
+public:
+	static SearchRegistry &Instance();
+
+	void add(Type sectionType, SearchEntriesProvider provider);
+	[[nodiscard]] std::vector<SearchEntry> collectAll() const;
+
+private:
+	std::vector<SearchProviderEntry> _providers;
+
+};
+
+struct SearchProviderRegistrar {
+	SearchProviderRegistrar(Type sectionType, SearchEntriesProvider provider);
+};
+
+class BuildHelper {
+public:
+	template <typename Func>
+	BuildHelper(Type sectionId, Func buildFunc);
+
+	void build(
+		not_null<Ui::VerticalLayout*> container,
+		not_null<Window::SessionController*> controller,
+		Fn<void(Type)> showOther,
+		rpl::producer<> showFinished) const;
+
+	[[nodiscard]] std::vector<SearchEntry> index() const;
+
+private:
+	Type _sectionId;
+	mutable FnMut<void(SectionBuilder &)> _buildFunc;
+
 };
 
 struct HighlightEntry {
@@ -61,6 +110,7 @@ struct WidgetContext {
 };
 
 struct SearchContext {
+	Type sectionId;
 	not_null<std::vector<SearchEntry>*> entries;
 };
 
@@ -70,12 +120,36 @@ class SectionBuilder {
 public:
 	explicit SectionBuilder(BuildContext context);
 
+	void add(FnMut<void(const BuildContext &ctx)> method);
+
+	using ToggledScopePtr = not_null<Ui::SlideWrap<Ui::VerticalLayout>*>;
+	Ui::VerticalLayout *scope(
+		FnMut<void()> method,
+		rpl::producer<bool> shown = nullptr,
+		FnMut<void(ToggledScopePtr)> hook = nullptr);
+
+	struct WidgetToAdd {
+		object_ptr<Ui::RpWidget> widget = { nullptr };
+		QMargins margin;
+		style::align align = style::al_left;
+		HighlightArgs highlight;
+
+		explicit operator bool() const {
+			return widget != nullptr;
+		}
+	};
+	Ui::RpWidget *add(
+		FnMut<WidgetToAdd(const WidgetContext &ctx)> widget,
+		FnMut<SearchEntry()> search);
+
 	struct ControlArgs {
 		Fn<object_ptr<Ui::RpWidget>(not_null<Ui::VerticalLayout*>)> factory;
 		QString id;
 		rpl::producer<QString> title;
 		QStringList keywords;
 		style::margins margin;
+		style::align align = style::al_left;
+		HighlightArgs highlight;
 	};
 	Ui::RpWidget *addControl(ControlArgs &&args);
 
@@ -88,7 +162,7 @@ public:
 		rpl::producer<QString> label;
 		Fn<void()> onClick;
 		QStringList keywords;
-		HighlightDescriptor highlight;
+		HighlightArgs highlight;
 	};
 	Ui::SettingsButton *addSettingsButton(ButtonArgs &&args);
 	Ui::SettingsButton *addLabeledButton(ButtonArgs &&args);
@@ -154,7 +228,7 @@ public:
 		Ui::VerticalLayout *container = nullptr;
 		rpl::producer<bool> toggled;
 		QStringList keywords;
-		HighlightDescriptor highlight;
+		HighlightArgs highlight;
 	};
 	Ui::SettingsButton *addToggle(ToggleArgs &&args);
 
@@ -212,5 +286,14 @@ private:
 	BuildContext _context;
 
 };
+
+template <typename Func>
+BuildHelper::BuildHelper(Type sectionId, Func buildFunc)
+: _sectionId(sectionId)
+, _buildFunc(std::move(buildFunc)) {
+	SearchRegistry::Instance().add(sectionId, [this] {
+		return index();
+	});
+}
 
 } // namespace Settings::Builder

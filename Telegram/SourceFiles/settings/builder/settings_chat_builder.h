@@ -26,6 +26,4 @@ void ChatSection(
 	Fn<void(Type)> showOther,
 	rpl::producer<> showFinished);
 
-[[nodiscard]] std::vector<SearchEntry> ChatSectionForSearch();
-
 } // namespace Settings::Builder

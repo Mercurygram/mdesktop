@@ -35,37 +35,164 @@ namespace {
 
 } // namespace
 
+SearchRegistry &SearchRegistry::Instance() {
+	static SearchRegistry instance;
+	return instance;
+}
+
+void SearchRegistry::add(Type sectionType, SearchEntriesProvider provider) {
+	_providers.push_back({ sectionType, provider });
+}
+
+std::vector<SearchEntry> SearchRegistry::collectAll() const {
+	auto result = std::vector<SearchEntry>();
+	for (const auto &entry : _providers) {
+		auto entries = entry.provider();
+		result.insert(result.end(), entries.begin(), entries.end());
+	}
+	return result;
+}
+
+SearchProviderRegistrar::SearchProviderRegistrar(
+		Type sectionType,
+		SearchEntriesProvider provider) {
+	SearchRegistry::Instance().add(sectionType, provider);
+}
+
+void BuildHelper::build(
+		not_null<Ui::VerticalLayout*> container,
+		not_null<Window::SessionController*> controller,
+		Fn<void(Type)> showOther,
+		rpl::producer<> showFinished) const {
+	auto &lifetime = container->lifetime();
+	const auto highlights = lifetime.make_state<HighlightRegistry>();
+	const auto isPaused = Window::PausedIn(
+		controller,
+		Window::GifPauseReason::Layer);
+	auto builder = SectionBuilder(WidgetContext{
+		.container = container,
+		.controller = controller,
+		.showOther = std::move(showOther),
+		.isPaused = isPaused,
+		.highlights = highlights,
+	});
+	_buildFunc(builder);
+
+	std::move(showFinished) | rpl::on_next([=] {
+		for (const auto &[id, entry] : *highlights) {
+			if (entry.widget) {
+				controller->checkHighlightControl(
+					id,
+					entry.widget,
+					base::duplicate(entry.args));
+			}
+		}
+	}, lifetime);
+}
+
+std::vector<SearchEntry> BuildHelper::index() const {
+	auto entries = std::vector<SearchEntry>();
+	auto builder = SectionBuilder(SearchContext{
+		.sectionId = _sectionId,
+		.entries = &entries,
+	});
+	_buildFunc(builder);
+	return entries;
+}
+
 SectionBuilder::SectionBuilder(BuildContext context)
 : _context(std::move(context)) {
 }
 
-Ui::RpWidget *SectionBuilder::addControl(ControlArgs &&args) {
-	const auto id = args.id;
-	const auto raw = v::match(_context, [&](const WidgetContext &ctx) {
-		if (!args.factory) {
-			return static_cast<Ui::RpWidget*>(nullptr);
+void SectionBuilder::add(FnMut<void(const BuildContext &ctx)> method) {
+	Expects(method != nullptr);
+
+	method(_context);
+}
+
+Ui::VerticalLayout *SectionBuilder::scope(
+		FnMut<void()> method,
+		rpl::producer<bool> shown,
+		FnMut<void(ToggledScopePtr)> hook) {
+	auto result = (Ui::VerticalLayout*)nullptr;
+	v::match(_context, [&](WidgetContext &wctx) {
+		const auto outer = wctx.container;
+		const auto toggled = (shown || hook);
+		const auto wrap = toggled
+			? outer->add(
+				object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+					outer,
+					object_ptr<Ui::VerticalLayout>(outer)))
+			: nullptr;
+		const auto inner = wrap
+			? wrap->entity()
+			: outer->add(object_ptr<Ui::VerticalLayout>(outer));
+		wctx.container = inner;
+		method();
+		if (shown) {
+			wrap->toggleOn(std::move(shown));
+			wrap->finishAnimating();
 		}
-		auto widget = args.factory(ctx.container);
-		const auto raw = widget.data();
-		ctx.container->add(std::move(widget), args.margin);
-		return raw;
-	}, [&](const SearchContext &ctx) {
-		if (!args.id.isEmpty()) {
-			ctx.entries->push_back({
-				.id = std::move(args.id),
-				.title = ResolveTitle(std::move(args.title)),
-				.keywords = std::move(args.keywords),
-			});
+		if (hook) {
+			hook(wrap);
 		}
-		return static_cast<Ui::RpWidget*>(nullptr);
+		wctx.container = outer;
+		result = inner;
+	}, [&](const SearchContext &sctx) {
+		method();
 	});
-	if (raw && !id.isEmpty()) {
-		registerHighlight(id, raw, {});
-	}
-	return raw;
+	return result;
+}
+
+Ui::RpWidget *SectionBuilder::add(
+		FnMut<WidgetToAdd(const WidgetContext &ctx)> widget,
+		FnMut<SearchEntry()> search) {
+	auto result = (Ui::RpWidget*)nullptr;
+	add([&](const BuildContext &ctx) {
+		v::match(ctx, [&](const WidgetContext &wctx) {
+			if (auto w = widget ? widget(wctx) : WidgetToAdd()) {
+				result = w.widget.data();
+				wctx.container->add(std::move(w.widget), w.margin, w.align);
+
+				if (auto entry = search ? search() : SearchEntry()) {
+					registerHighlight(
+						entry.id,
+						result,
+						std::move(w.highlight));
+				}
+			}
+		}, [&](const SearchContext &sctx) {
+			if (auto entry = search ? search() : SearchEntry()) {
+				entry.section = sctx.sectionId;
+				sctx.entries->push_back(std::move(entry));
+			}
+		});
+	});
+	return result;
+}
+
+Ui::RpWidget *SectionBuilder::addControl(ControlArgs &&args) {
+	return add([&](const WidgetContext &ctx) {
+		return WidgetToAdd{
+			.widget = args.factory ? args.factory(ctx.container) : nullptr,
+			.margin = args.margin,
+			.align = args.align,
+			.highlight = std::move(args.highlight),
+		};
+	}, [&] {
+		return SearchEntry{
+			.id = std::move(args.id),
+			.title = ResolveTitle(std::move(args.title)),
+			.keywords = std::move(args.keywords),
+		};
+	});
 }
 
 Ui::SettingsButton *SectionBuilder::addSettingsButton(ButtonArgs &&args) {
+
+
+
+
 	const auto &st = args.st ? *args.st : st::settingsButton;
 	auto highlight = std::move(args.highlight);
 	const auto id = args.id;
@@ -99,8 +226,7 @@ Ui::SettingsButton *SectionBuilder::addSettingsButton(ButtonArgs &&args) {
 		button->addClickHandler(std::move(args.onClick));
 	}
 	if (button && !id.isEmpty()) {
-		const auto highlightId = highlight.id.isEmpty() ? id : highlight.id;
-		registerHighlight(highlightId, button, std::move(highlight.args));
+		registerHighlight(id, button, std::move(highlight));
 	}
 	return button;
 }
@@ -327,8 +453,7 @@ Ui::SettingsButton *SectionBuilder::addToggle(ToggleArgs &&args) {
 		return nullptr;
 	});
 	if (button && !id.isEmpty()) {
-		const auto highlightId = highlight.id.isEmpty() ? id : highlight.id;
-		registerHighlight(highlightId, button, std::move(highlight.args));
+		registerHighlight(id, button, std::move(highlight));
 	}
 	return button;
 }

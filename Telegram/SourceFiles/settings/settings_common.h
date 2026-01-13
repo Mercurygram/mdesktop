@@ -76,15 +76,6 @@ struct HighlightArgs {
 	crl::time hideDuration = 600;
 };
 
-struct HighlightDescriptor {
-	QString id;
-	HighlightArgs args;
-
-	explicit operator bool() const {
-		return !id.isEmpty();
-	}
-};
-
 void HighlightWidget(QWidget *target, HighlightArgs &&args = {});
 void ScrollToWidget(not_null<QWidget*> target);
 

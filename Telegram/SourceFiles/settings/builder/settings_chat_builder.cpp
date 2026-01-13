@@ -33,82 +33,6 @@ void BuildChatSectionContent(
 		Fn<void(Type)> showOther,
 		HighlightRegistry *highlights) {
 	if (!controller) {
-		builder.addSettingsButton({
-			.id = u"appearance/theme"_q,
-			.title = tr::lng_settings_themes(),
-			.keywords = { u"theme"_q, u"color"_q, u"dark"_q, u"light"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"appearance/background"_q,
-			.title = tr::lng_settings_bg_from_gallery(),
-			.keywords = { u"background"_q, u"wallpaper"_q, u"image"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"appearance/quick_action"_q,
-			.title = tr::lng_settings_quick_dialog_action_title(),
-			.keywords = { u"swipe"_q, u"quick"_q, u"action"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"appearance/stickers"_q,
-			.title = tr::lng_stickers_you_have(),
-			.keywords = { u"stickers"_q, u"packs"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"appearance/emoji_sets"_q,
-			.title = tr::lng_emoji_manage_sets(),
-			.keywords = { u"emoji"_q, u"sets"_q, u"packs"_q },
-		});
-		builder.addCheckbox({
-			.id = u"appearance/large_emoji"_q,
-			.title = tr::lng_settings_large_emoji(),
-			.checked = true,
-			.keywords = { u"emoji"_q, u"large"_q, u"big"_q },
-		});
-		builder.addCheckbox({
-			.id = u"appearance/replace_emoji"_q,
-			.title = tr::lng_settings_replace_emojis(),
-			.checked = true,
-			.keywords = { u"emoji"_q, u"replace"_q, u"convert"_q },
-		});
-		builder.addCheckbox({
-			.id = u"appearance/suggest_emoji"_q,
-			.title = tr::lng_settings_suggest_emoji(),
-			.checked = true,
-			.keywords = { u"emoji"_q, u"suggest"_q, u"autocomplete"_q },
-		});
-		builder.addCheckbox({
-			.id = u"appearance/suggest_stickers"_q,
-			.title = tr::lng_settings_suggest_by_emoji(),
-			.checked = true,
-			.keywords = { u"stickers"_q, u"emoji"_q, u"suggest"_q },
-		});
-		builder.addCheckbox({
-			.id = u"appearance/loop_stickers"_q,
-			.title = tr::lng_settings_loop_stickers(),
-			.checked = true,
-			.keywords = { u"stickers"_q, u"loop"_q, u"animate"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"appearance/send_by_enter"_q,
-			.title = tr::lng_settings_send_enter(),
-			.keywords = { u"send"_q, u"enter"_q, u"message"_q },
-		});
-		builder.addToggle({
-			.id = u"appearance/sensitive"_q,
-			.title = tr::lng_settings_sensitive_disable_filtering(),
-			.toggled = rpl::single(false),
-			.keywords = { u"sensitive"_q, u"nsfw"_q, u"adult"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"data/shortcuts"_q,
-			.title = tr::lng_settings_shortcuts(),
-			.keywords = { u"shortcuts"_q, u"keyboard"_q, u"hotkeys"_q },
-		});
-		builder.addSettingsButton({
-			.id = u"data/archive"_q,
-			.title = tr::lng_context_archive_settings(),
-			.keywords = { u"archive"_q, u"settings"_q },
-		});
 		return;
 	}
 
@@ -129,6 +53,13 @@ void BuildChatSectionContent(
 	SetupArchive(controller, container, showOther);
 }
 
+const auto kHelper = BuildHelper(Chat::Id(), [](SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	const auto showOther = builder.showOther();
+	const auto highlights = builder.highlights();
+	BuildChatSectionContent(builder, controller, showOther, highlights);
+});
+
 } // namespace
 
 void ChatSection(
@@ -136,36 +67,7 @@ void ChatSection(
 		not_null<Window::SessionController*> controller,
 		Fn<void(Type)> showOther,
 		rpl::producer<> showFinished) {
-	auto &lifetime = container->lifetime();
-	const auto highlights = lifetime.make_state<HighlightRegistry>();
-
-	SectionBuilder builder(WidgetContext{
-		.container = container,
-		.controller = controller,
-		.showOther = showOther,
-		.isPaused = [] { return false; },
-		.highlights = highlights,
-	});
-
-	BuildChatSectionContent(builder, controller, showOther, highlights);
-
-	std::move(showFinished) | rpl::on_next([=] {
-		for (const auto &[id, entry] : *highlights) {
-			if (entry.widget) {
-				controller->checkHighlightControl(
-					id,
-					entry.widget,
-					base::duplicate(entry.args));
-			}
-		}
-	}, lifetime);
-}
-
-std::vector<SearchEntry> ChatSectionForSearch() {
-	std::vector<SearchEntry> entries;
-	SectionBuilder builder(SearchContext{ .entries = &entries });
-	BuildChatSectionContent(builder, nullptr, nullptr, nullptr);
-	return entries;
+	kHelper.build(container, controller, std::move(showOther), std::move(showFinished));
 }
 
 } // namespace Settings::Builder

@@ -1578,6 +1578,8 @@ PRIVATE
     settings/settings_local_passcode.h
     settings/settings_main.cpp
     settings/settings_main.h
+    settings/settings_search.cpp
+    settings/settings_search.h
     settings/builder/settings_advanced_builder.cpp
     settings/builder/settings_advanced_builder.h
     settings/builder/settings_builder.cpp

@@ -371,6 +371,11 @@ void BuildMainSectionContent(
 	BuildHelpSection(builder, controller);
 }
 
+const auto kHelper = BuildHelper(Main::Id(), [](SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	BuildMainSectionContent(builder, controller);
+});
+
 } // namespace
 
 void MainSection(
@@ -378,39 +383,11 @@ void MainSection(
 		not_null<Window::SessionController*> controller,
 		Fn<void(Type)> showOther,
 		rpl::producer<> showFinished) {
-	auto &lifetime = container->lifetime();
-	const auto highlights = lifetime.make_state<HighlightRegistry>();
-	const auto isPaused = Window::PausedIn(
+	kHelper.build(
+		container,
 		controller,
-		Window::GifPauseReason::Layer);
-	auto builder = SectionBuilder(WidgetContext{
-		.container = container,
-		.controller = controller,
-		.showOther = std::move(showOther),
-		.isPaused = isPaused,
-		.highlights = highlights,
-	});
-	BuildMainSectionContent(builder, controller);
-
-	std::move(showFinished) | rpl::on_next([=] {
-		for (const auto &[id, entry] : *highlights) {
-			if (const auto widget = entry.widget.data()) {
-				controller->checkHighlightControl(
-					id,
-					widget,
-					base::duplicate(entry.args));
-			}
-		}
-	}, lifetime);
-}
-
-std::vector<SearchEntry> MainSectionForSearch() {
-	auto entries = std::vector<SearchEntry>();
-	auto builder = SectionBuilder(SearchContext{
-		.entries = &entries,
-	});
-	BuildMainSectionContent(builder, nullptr);
-	return entries;
+		std::move(showOther),
+		std::move(showFinished));
 }
 
 } // namespace Settings::Builder
