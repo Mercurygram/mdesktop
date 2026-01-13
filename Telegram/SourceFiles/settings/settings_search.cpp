@@ -108,10 +108,11 @@ void SetupCheckIcon(
 	}, check->widget.lifetime());
 
 	check->widget.paintRequest(
-	) | rpl::on_next([=] {
+	) | rpl::on_next([=](QRect clip) {
 		auto p = QPainter(&check->widget);
-		p.setOpacity(0.5);
 		check->view.paint(p, 0, 0, check->widget.width());
+		p.setOpacity(0.5);
+		p.fillRect(clip, st::boxBg);
 	}, check->widget.lifetime());
 }
 
@@ -242,9 +243,9 @@ void Search::rebuildResults(const QString &query) {
 		_resultsContainer->add(
 			object_ptr<Ui::FlatLabel>(
 				_resultsContainer,
-				tr::lng_contacts_not_found(),
-				st::defaultSubsectionTitle),
-			st::defaultSubsectionTitlePadding);
+				tr::lng_search_tab_no_results(),
+				st::settingsSearchNoResults),
+			st::settingsSearchNoResultsPadding);
 	} else {
 		const auto showOther = showOtherMethod();
 		const auto &registry = Builder::SearchRegistry::Instance();

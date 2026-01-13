@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer_rpl.h"
 #include "boxes/passcode_box.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/layers/generic_box.h"
 #include "boxes/self_destruction_box.h"
 #include "core/application.h"
 #include "core/core_settings.h"
@@ -124,56 +125,6 @@ void AddPremiumStar(
 			button->fullTextWidth() + badgeLeft,
 			(s.height() - badge->height()) / 2);
 	}, badge->lifetime());
-}
-
-void OpenFileConfirmationsBox(not_null<Ui::GenericBox*> box) {
-	box->setTitle(tr::lng_settings_file_confirmations());
-
-	const auto settings = &Core::App().settings();
-	const auto &list = settings->noWarningExtensions();
-	const auto text = QStringList(begin(list), end(list)).join(' ');
-	const auto layout = box->verticalLayout();
-	const auto extensions = box->addRow(
-		object_ptr<Ui::InputField>(
-			box,
-			st::defaultInputField,
-			Ui::InputField::Mode::MultiLine,
-			tr::lng_settings_edit_extensions(),
-			TextWithTags{ text }),
-		st::boxRowPadding + QMargins(0, 0, 0, st::settingsPrivacySkip));
-	Ui::AddDividerText(layout, tr::lng_settings_edit_extensions_about());
-	Ui::AddSkip(layout);
-	const auto ip = layout->add(object_ptr<Ui::SettingsButton>(
-		box,
-		tr::lng_settings_edit_ip_confirm(),
-		st::settingsButtonNoIcon
-	))->toggleOn(rpl::single(settings->ipRevealWarning()));
-	Ui::AddSkip(layout);
-	Ui::AddDividerText(layout, tr::lng_settings_edit_ip_confirm_about());
-
-	box->setFocusCallback([=] {
-		extensions->setFocusFast();
-	});
-
-	box->addButton(tr::lng_settings_save(), [=] {
-		const auto extensionsList = extensions->getLastText()
-			.mid(0, 10240)
-			.split(' ', Qt::SkipEmptyParts)
-			.mid(0, 1024);
-		auto extensions = base::flat_set<QString>(
-			extensionsList.begin(),
-			extensionsList.end());
-		const auto ipRevealWarning = ip->toggled();
-		if (extensions != settings->noWarningExtensions()
-			|| ipRevealWarning != settings->ipRevealWarning()) {
-			settings->setNoWarningExtensions(std::move(extensions));
-			settings->setIpRevealWarning(ipRevealWarning);
-			Core::App().saveSettingsDelayed();
-		}
-		box->closeBox();
-
-	});
-	box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
 }
 
 QString PrivacyBase(Privacy::Key key, const Privacy::Rule &rule) {
@@ -743,7 +694,7 @@ void ClearPaymentInfoBoxBuilder(
 	box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
 }
 
-auto ClearPaymentInfoBox(not_null<Main::Session*> session) {
+object_ptr<Ui::BoxContent> ClearPaymentInfoBox(not_null<Main::Session*> session) {
 	return Box(ClearPaymentInfoBoxBuilder, session);
 }
 
@@ -1052,6 +1003,56 @@ object_ptr<Ui::BoxContent> EditCloudPasswordBox(not_null<Main::Session*> session
 	}, box->lifetime());
 
 	return result;
+}
+
+void OpenFileConfirmationsBox(not_null<Ui::GenericBox*> box) {
+	box->setTitle(tr::lng_settings_file_confirmations());
+
+	const auto settings = &Core::App().settings();
+	const auto &list = settings->noWarningExtensions();
+	const auto text = QStringList(begin(list), end(list)).join(' ');
+	const auto layout = box->verticalLayout();
+	const auto extensions = box->addRow(
+		object_ptr<Ui::InputField>(
+			box,
+			st::defaultInputField,
+			Ui::InputField::Mode::MultiLine,
+			tr::lng_settings_edit_extensions(),
+			TextWithTags{ text }),
+		st::boxRowPadding + QMargins(0, 0, 0, st::settingsPrivacySkip));
+	Ui::AddDividerText(layout, tr::lng_settings_edit_extensions_about());
+	Ui::AddSkip(layout);
+	const auto ip = layout->add(object_ptr<Ui::SettingsButton>(
+		box,
+		tr::lng_settings_edit_ip_confirm(),
+		st::settingsButtonNoIcon
+	))->toggleOn(rpl::single(settings->ipRevealWarning()));
+	Ui::AddSkip(layout);
+	Ui::AddDividerText(layout, tr::lng_settings_edit_ip_confirm_about());
+
+	box->setFocusCallback([=] {
+		extensions->setFocusFast();
+	});
+
+	box->addButton(tr::lng_settings_save(), [=] {
+		const auto extensionsList = extensions->getLastText()
+			.mid(0, 10240)
+			.split(' ', Qt::SkipEmptyParts)
+			.mid(0, 1024);
+		auto extensions = base::flat_set<QString>(
+			extensionsList.begin(),
+			extensionsList.end());
+		const auto ipRevealWarning = ip->toggled();
+		if (extensions != settings->noWarningExtensions()
+			|| ipRevealWarning != settings->ipRevealWarning()) {
+			settings->setNoWarningExtensions(std::move(extensions));
+			settings->setIpRevealWarning(ipRevealWarning);
+			Core::App().saveSettingsDelayed();
+		}
+		box->closeBox();
+
+	});
+	box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
 }
 
 void RemoveCloudPassword(not_null<Window::SessionController*> controller) {

@@ -404,6 +404,29 @@ Ui::Checkbox *SectionBuilder::addCheckbox(CheckboxArgs &&args) {
 	}));
 }
 
+void SectionBuilder::addSubsectionTitle(SubsectionTitleArgs &&args) {
+	v::match(_context, [&](const WidgetContext &ctx) {
+		const auto title = AddSubsectionTitle(
+			ctx.container,
+			rpl::duplicate(args.title));
+		if (!args.id.isEmpty() && ctx.highlights) {
+			ctx.highlights->push_back({
+				args.id,
+				{ title.get(), SubsectionTitleHighlight() },
+			});
+		}
+	}, [&](const SearchContext &ctx) {
+		if (!args.id.isEmpty()) {
+			ctx.entries->push_back({
+				.id = std::move(args.id),
+				.title = ResolveTitle(std::move(args.title)),
+				.keywords = std::move(args.keywords),
+				.section = ctx.sectionId,
+			});
+		}
+	});
+}
+
 void SectionBuilder::addSubsectionTitle(rpl::producer<QString> text) {
 	v::match(_context, [&](const WidgetContext &ctx) {
 		AddSubsectionTitle(ctx.container, std::move(text));

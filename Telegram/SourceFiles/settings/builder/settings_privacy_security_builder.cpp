@@ -64,13 +64,17 @@ using Privacy = Api::UserPrivacy;
 
 void BuildSecuritySection(
 		SectionBuilder &builder,
-		not_null<Window::SessionController*> controller,
-		rpl::producer<> updateTrigger,
-		Fn<void(Type)> showOther) {
-	const auto session = &controller->session();
+		rpl::producer<> updateTrigger) {
+	const auto controller = builder.controller();
+	const auto showOther = builder.showOther();
+	const auto session = builder.session();
 
 	builder.addSkip(st::settingsPrivacySkip);
-	builder.addSubsectionTitle(tr::lng_settings_security());
+	builder.addSubsectionTitle({
+		.id = u"security/section"_q,
+		.title = tr::lng_settings_security(),
+		.keywords = { u"security"_q, u"password"_q, u"passcode"_q },
+	});
 
 	using State = Core::CloudPasswordState;
 	enum class PasswordState {
@@ -141,11 +145,12 @@ void BuildSecuritySection(
 		.keywords = { u"ttl"_q, u"auto-delete"_q, u"timer"_q },
 	});
 
-	rpl::duplicate(
-		updateTrigger
-	) | rpl::on_next([=] {
-		session->api().selfDestruct().reload();
-	}, builder.container()->lifetime());
+	builder.add([session, updateTrigger = rpl::duplicate(updateTrigger)](const WidgetContext &ctx) mutable {
+		std::move(updateTrigger) | rpl::on_next([=] {
+			session->api().selfDestruct().reload();
+		}, ctx.container->lifetime());
+		return SectionBuilder::WidgetToAdd{};
+	});
 
 	auto passcodeHas = rpl::single(rpl::empty) | rpl::then(
 		session->domain().local().localPasscodeChanged()
@@ -247,11 +252,12 @@ void BuildSecuritySection(
 		.keywords = { u"blocked"_q, u"ban"_q },
 	});
 
-	rpl::duplicate(
-		updateTrigger
-	) | rpl::on_next([=] {
-		session->api().blockedPeers().reload();
-	}, builder.container()->lifetime());
+	builder.add([session, updateTrigger = rpl::duplicate(updateTrigger)](const WidgetContext &ctx) mutable {
+		std::move(updateTrigger) | rpl::on_next([=] {
+			session->api().blockedPeers().reload();
+		}, ctx.container->lifetime());
+		return SectionBuilder::WidgetToAdd{};
+	});
 
 	auto websitesCount = session->api().websites().totalValue();
 	auto websitesShown = rpl::duplicate(websitesCount) | rpl::map(
@@ -274,11 +280,12 @@ void BuildSecuritySection(
 		.shown = std::move(websitesShown),
 	});
 
-	rpl::duplicate(
-		updateTrigger
-	) | rpl::on_next([=] {
-		session->api().websites().reload();
-	}, builder.container()->lifetime());
+	builder.add([session, updateTrigger = rpl::duplicate(updateTrigger)](const WidgetContext &ctx) mutable {
+		std::move(updateTrigger) | rpl::on_next([=] {
+			session->api().websites().reload();
+		}, ctx.container->lifetime());
+		return SectionBuilder::WidgetToAdd{};
+	});
 
 	auto sessionsCount = session->api().authorizations().totalValue(
 	) | rpl::map([](int count) {
@@ -296,23 +303,27 @@ void BuildSecuritySection(
 		.keywords = { u"sessions"_q, u"devices"_q, u"active"_q },
 	});
 
-	std::move(
-		updateTrigger
-	) | rpl::on_next([=] {
-		session->api().authorizations().reload();
-	}, builder.container()->lifetime());
+	builder.add([session, updateTrigger = std::move(updateTrigger)](const WidgetContext &ctx) mutable {
+		std::move(updateTrigger) | rpl::on_next([=] {
+			session->api().authorizations().reload();
+		}, ctx.container->lifetime());
+		return SectionBuilder::WidgetToAdd{};
+	});
 
 	builder.addSkip();
 	builder.addDividerText(tr::lng_settings_sessions_about());
 }
 
-void BuildPrivacySection(
-		SectionBuilder &builder,
-		not_null<Window::SessionController*> controller) {
-	const auto session = &controller->session();
+void BuildPrivacySection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	const auto session = builder.session();
 
 	builder.addSkip(st::settingsPrivacySkip);
-	builder.addSubsectionTitle(tr::lng_settings_privacy_title());
+	builder.addSubsectionTitle({
+		.id = u"privacy/section"_q,
+		.title = tr::lng_settings_privacy_title(),
+		.keywords = { u"privacy"_q, u"visibility"_q },
+	});
 
 	using Key = Privacy::Key;
 
@@ -464,28 +475,88 @@ void BuildPrivacySection(
 	builder.addDivider();
 }
 
-void BuildArchiveAndMuteSection(
-		SectionBuilder &builder,
-		not_null<Window::SessionController*> controller) {
-	SetupArchiveAndMute(controller, builder.container(), builder.highlights());
+void BuildArchiveAndMuteSection(SectionBuilder &builder) {
+	const auto session = builder.session();
+	const auto privacy = &session->api().globalPrivacy();
+
+	privacy->reload();
+
+	auto shown = rpl::single(
+		false
+	) | rpl::then(privacy->showArchiveAndMute(
+	) | rpl::filter(rpl::mappers::_1) | rpl::take(1));
+	auto premium = Data::AmPremiumValue(session);
+
+	builder.scope([&] {
+		builder.addSkip();
+		builder.addSubsectionTitle({
+			.id = u"privacy/new_unknown"_q,
+			.title = tr::lng_settings_new_unknown(),
+			.keywords = { u"unknown"_q, u"archive"_q, u"mute"_q },
+		});
+
+		const auto toggle = builder.addButton({
+			.id = u"privacy/archive_and_mute"_q,
+			.title = tr::lng_settings_auto_archive(),
+			.st = &st::settingsButtonNoIcon,
+			.toggled = privacy->archiveAndMute(),
+			.keywords = { u"archive"_q, u"mute"_q, u"unknown"_q },
+		});
+
+		if (toggle) {
+			toggle->toggledChanges(
+			) | rpl::filter([=](bool toggled) {
+				return toggled != privacy->archiveAndMuteCurrent();
+			}) | rpl::on_next([=](bool toggled) {
+				privacy->updateArchiveAndMute(toggled);
+			}, toggle->lifetime());
+		}
+
+		builder.addSkip();
+		builder.addDividerText(tr::lng_settings_auto_archive_about());
+	}, rpl::combine(
+		std::move(shown),
+		std::move(premium),
+		rpl::mappers::_1 || rpl::mappers::_2));
 }
 
-void BuildBotsAndWebsitesSection(
-		SectionBuilder &builder,
-		not_null<Window::SessionController*> controller) {
-	SetupBotsAndWebsites(controller, builder.container(), builder.highlights());
-}
-
-void BuildTopPeersSection(
-		SectionBuilder &builder,
-		not_null<Window::SessionController*> controller) {
-	const auto session = &controller->session();
+void BuildBotsAndWebsitesSection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	const auto session = builder.session();
 
 	builder.addSkip();
-	builder.addSubsectionTitle(tr::lng_settings_top_peers_title());
+	builder.addSubsectionTitle({
+		.id = u"privacy/bots"_q,
+		.title = tr::lng_settings_security_bots(),
+		.keywords = { u"bots"_q, u"payment"_q, u"websites"_q },
+	});
+
+	builder.addButton({
+		.id = u"privacy/bots_payment"_q,
+		.title = tr::lng_settings_clear_payment_info(),
+		.st = &st::settingsButtonNoIcon,
+		.onClick = [=] {
+			controller->show(ClearPaymentInfoBox(session));
+		},
+		.keywords = { u"payment"_q, u"bots"_q, u"clear"_q },
+	});
+
+	builder.addSkip();
+	builder.addDivider();
+}
+
+void BuildTopPeersSection(SectionBuilder &builder) {
+	const auto session = builder.session();
+
+	builder.addSkip();
+	builder.addSubsectionTitle({
+		.id = u"privacy/top_peers"_q,
+		.title = tr::lng_settings_top_peers_title(),
+		.keywords = { u"suggest"_q, u"contacts"_q, u"frequent"_q },
+	});
 
 	const auto toggle = builder.addButton({
-		.id = u"privacy/top_peers"_q,
+		.id = u"privacy/top_peers_toggle"_q,
 		.title = tr::lng_settings_top_peers_suggest(),
 		.st = &st::settingsButtonNoIcon,
 		.toggled = rpl::single(
@@ -504,7 +575,7 @@ void BuildTopPeersSection(
 			return enabled == session->topPeers().disabled();
 		}) | rpl::on_next([=](bool enabled) {
 			session->topPeers().toggleDisabled(!enabled);
-		}, builder.container()->lifetime());
+		}, toggle->lifetime());
 	}
 
 	builder.addSkip();
@@ -513,24 +584,29 @@ void BuildTopPeersSection(
 
 void BuildSelfDestructionSection(
 		SectionBuilder &builder,
-		not_null<Window::SessionController*> controller,
 		rpl::producer<> updateTrigger) {
-	const auto session = &controller->session();
+	const auto controller = builder.controller();
+	const auto session = builder.session();
 
 	builder.addSkip();
-	builder.addSubsectionTitle(tr::lng_settings_destroy_title());
+	builder.addSubsectionTitle({
+		.id = u"privacy/self_destruct"_q,
+		.title = tr::lng_settings_destroy_title(),
+		.keywords = { u"delete"_q, u"destroy"_q, u"inactive"_q, u"account"_q },
+	});
 
-	std::move(
-		updateTrigger
-	) | rpl::on_next([=] {
-		session->api().selfDestruct().reload();
-	}, builder.container()->lifetime());
+	builder.add([session, updateTrigger = std::move(updateTrigger)](const WidgetContext &ctx) mutable {
+		std::move(updateTrigger) | rpl::on_next([=] {
+			session->api().selfDestruct().reload();
+		}, ctx.container->lifetime());
+		return SectionBuilder::WidgetToAdd{};
+	});
 
 	auto label = session->api().selfDestruct().daysAccountTTL(
 	) | rpl::map(SelfDestructionBox::DaysLabel);
 
 	builder.addButton({
-		.id = u"privacy/self_destruct"_q,
+		.id = u"privacy/self_destruct_button"_q,
 		.title = tr::lng_settings_destroy_if(),
 		.st = &st::settingsButtonNoIcon,
 		.label = std::move(label),
@@ -546,36 +622,57 @@ void BuildSelfDestructionSection(
 	builder.addSkip();
 }
 
-void BuildPrivacySecuritySectionContent(
-		SectionBuilder &builder,
-		Window::SessionController *controller,
-		Fn<void(Type)> showOther) {
-	if (!controller) {
+void BuildConfirmationExtensions(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	const auto hasExtensions = !Core::App().settings().noWarningExtensions().empty()
+		|| !Core::App().settings().ipRevealWarning();
+
+	if (!hasExtensions) {
 		return;
 	}
 
+	builder.addSkip();
+	builder.addSubsectionTitle({
+		.id = u"privacy/file_confirmations"_q,
+		.title = tr::lng_settings_file_confirmations(),
+		.keywords = { u"extensions"_q, u"files"_q, u"confirmations"_q },
+	});
+
+	builder.addButton({
+		.id = u"privacy/file_confirmations_button"_q,
+		.title = tr::lng_settings_edit_extensions(),
+		.st = &st::settingsButtonNoIcon,
+		.onClick = [=] {
+			controller->show(Box(OpenFileConfirmationsBox));
+		},
+		.keywords = { u"extensions"_q, u"files"_q, u"confirmations"_q },
+	});
+
+	builder.addSkip();
+	builder.addDividerText(tr::lng_settings_edit_extensions_about());
+}
+
+void BuildPrivacySecuritySectionContent(SectionBuilder &builder) {
 	auto updateOnTick = rpl::single(
 	) | rpl::then(base::timer_each(kUpdateTimeout));
 	const auto trigger = [&] {
 		return rpl::duplicate(updateOnTick);
 	};
 
-	BuildSecuritySection(builder, controller, trigger(), showOther);
-	BuildPrivacySection(builder, controller);
-	BuildArchiveAndMuteSection(builder, controller);
-	BuildBotsAndWebsitesSection(builder, controller);
-	SetupConfirmationExtensions(controller, builder.container());
-	BuildTopPeersSection(builder, controller);
-	BuildSelfDestructionSection(builder, controller, trigger());
+	BuildSecuritySection(builder, trigger());
+	BuildPrivacySection(builder);
+	BuildArchiveAndMuteSection(builder);
+	BuildBotsAndWebsitesSection(builder);
+	BuildConfirmationExtensions(builder);
+	BuildTopPeersSection(builder);
+	BuildSelfDestructionSection(builder, trigger());
 }
 
 const auto kMeta = BuildHelper(
 	PrivacySecurity::Id(),
 	tr::lng_settings_section_privacy,
 	[](SectionBuilder &builder) {
-		const auto controller = builder.controller();
-		const auto showOther = builder.showOther();
-		BuildPrivacySecuritySectionContent(builder, controller, showOther);
+		BuildPrivacySecuritySectionContent(builder);
 	},
 	Main::Id());
 

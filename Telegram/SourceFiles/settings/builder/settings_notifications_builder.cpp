@@ -52,28 +52,16 @@ constexpr auto kDefaultDisplayIndex = -1;
 using NotifyView = Core::Settings::NotifyView;
 using ChangeType = Window::Notifications::ChangeType;
 
-void BuildMultiAccountSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildMultiAccountSection(SectionBuilder &builder) {
 	if (Core::App().domain().accounts().size() < 2) {
 		return;
 	}
 
-	builder.addSubsectionTitle(tr::lng_settings_show_from());
-
-	const auto container = builder.container();
-	if (!container) {
-		builder.addButton({
-			.id = u"notifications/multi_account"_q,
-			.title = tr::lng_settings_notify_all(),
-			.toggled = rpl::single(Core::App().settings().notifyFromAll()),
-			.keywords = { u"all accounts"_q, u"multiple"_q },
-		});
-		builder.addSkip();
-		builder.addDividerText(tr::lng_settings_notify_all_about());
-		builder.addSkip();
-		return;
-	}
+	builder.addSubsectionTitle({
+		.id = u"notifications/multi-account"_q,
+		.title = tr::lng_settings_show_from(),
+		.keywords = { u"accounts"_q, u"multiple"_q },
+	});
 
 	const auto fromAll = builder.addButton({
 		.id = u"notifications/accounts"_q,
@@ -109,12 +97,15 @@ void BuildMultiAccountSection(
 	builder.addSkip();
 }
 
-void BuildGlobalNotificationsSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
-	builder.addSubsectionTitle(tr::lng_settings_notify_global());
+void BuildGlobalNotificationsSection(SectionBuilder &builder) {
+	builder.addSubsectionTitle({
+		.id = u"notifications/global"_q,
+		.title = tr::lng_settings_notify_global(),
+		.keywords = { u"global"_q, u"desktop"_q, u"sound"_q },
+	});
 
 	const auto container = builder.container();
+	const auto session = builder.session();
 	const auto &settings = Core::App().settings();
 
 	const auto desktopToggles = container
@@ -163,10 +154,9 @@ void BuildGlobalNotificationsSection(
 		.keywords = { u"sound"_q, u"audio"_q, u"mute"_q },
 	});
 
-	if (container && controller) {
-		const auto session = &controller->session();
+	builder.add([session](const WidgetContext &ctx) {
 		Ui::AddRingtonesVolumeSlider(
-			container,
+			ctx.container,
 			rpl::single(true),
 			tr::lng_settings_master_volume_notifications(),
 			Data::VolumeController{
@@ -183,7 +173,8 @@ void BuildGlobalNotificationsSection(
 					Core::App().settings().setNotificationsVolume(volume);
 					Core::App().saveSettingsDelayed();
 				}});
-	}
+		return SectionBuilder::WidgetToAdd{};
+	});
 
 	builder.addSkip();
 
@@ -235,131 +226,141 @@ void BuildGlobalNotificationsSection(
 	}
 }
 
-void BuildNotifyViewSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller,
-		rpl::lifetime &lifetime) {
-	const auto container = builder.container();
-	if (!container || !controller) {
-		return;
-	}
-
-	const auto &settings = Core::App().settings();
-	const auto checkboxes = SetupNotifyViewOptions(
-		controller,
-		container,
-		(settings.notifyView() <= NotifyView::ShowName),
-		(settings.notifyView() <= NotifyView::ShowPreview));
-	const auto name = checkboxes.name;
-	const auto preview = checkboxes.preview;
-	const auto previewWrap = checkboxes.wrap;
-
-	const auto previewDivider = container->add(
-		object_ptr<Ui::SlideWrap<Ui::BoxContentDivider>>(
-			container,
-			object_ptr<Ui::BoxContentDivider>(container)));
-	previewWrap->toggle(settings.desktopNotify(), anim::type::instant);
-	previewDivider->toggle(!settings.desktopNotify(), anim::type::instant);
-
-	const auto changed = [=](ChangeType change) {
-		Core::App().saveSettingsDelayed();
-		Core::App().notifications().notifySettingsChanged(change);
-	};
-
-	name->checkedChanges(
-	) | rpl::map([=](bool checked) {
-		if (!checked) {
-			preview->setChecked(false);
-			return NotifyView::ShowNothing;
-		} else if (!preview->checked()) {
-			return NotifyView::ShowName;
-		}
-		return NotifyView::ShowPreview;
-	}) | rpl::filter([=](NotifyView value) {
-		return (value != Core::App().settings().notifyView());
-	}) | rpl::on_next([=](NotifyView value) {
-		Core::App().settings().setNotifyView(value);
-		changed(ChangeType::ViewParams);
-	}, name->lifetime());
-
-	preview->checkedChanges(
-	) | rpl::map([=](bool checked) {
-		if (checked) {
-			name->setChecked(true);
-			return NotifyView::ShowPreview;
-		} else if (name->checked()) {
-			return NotifyView::ShowName;
-		}
-		return NotifyView::ShowNothing;
-	}) | rpl::filter([=](NotifyView value) {
-		return (value != Core::App().settings().notifyView());
-	}) | rpl::on_next([=](NotifyView value) {
-		Core::App().settings().setNotifyView(value);
-		changed(ChangeType::ViewParams);
-	}, preview->lifetime());
-
-	Core::App().notifications().settingsChanged(
-	) | rpl::on_next([=](ChangeType change) {
-		if (change == ChangeType::DesktopEnabled) {
-			previewWrap->toggle(
-				Core::App().settings().desktopNotify(),
-				anim::type::normal);
-			previewDivider->toggle(
-				!Core::App().settings().desktopNotify(),
-				anim::type::normal);
-		}
-	}, lifetime);
-}
-
-void BuildNotifyTypeSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
-	const auto container = builder.container();
-	const auto showOther = builder.showOther();
-
-	builder.addSkip(st::notifyPreviewBottomSkip);
-	builder.addSubsectionTitle(tr::lng_settings_notify_title());
-
-	if (container && controller && showOther) {
-		controller->session().data().notifySettings().loadExceptions();
-		AddTypeButton(container, controller, Data::DefaultNotify::User, showOther);
-		AddTypeButton(container, controller, Data::DefaultNotify::Group, showOther);
-		AddTypeButton(container, controller, Data::DefaultNotify::Broadcast, showOther);
-	} else {
-		builder.addButton({
-			.id = u"notifications/private"_q,
-			.title = tr::lng_notification_private_chats(),
-			.icon = { &st::menuIconProfile },
-			.keywords = { u"private"_q, u"chats"_q, u"direct"_q },
-		});
-		builder.addButton({
-			.id = u"notifications/groups"_q,
-			.title = tr::lng_notification_groups(),
-			.icon = { &st::menuIconGroups },
-			.keywords = { u"groups"_q, u"chats"_q },
-		});
-		builder.addButton({
-			.id = u"notifications/channels"_q,
-			.title = tr::lng_notification_channels(),
-			.icon = { &st::menuIconChannel },
-			.keywords = { u"channels"_q, u"broadcast"_q },
-		});
-	}
-}
-
-void BuildEventNotificationsSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
-	builder.addSkip(st::settingsCheckboxesSkip);
-	builder.addDivider();
-	builder.addSkip(st::settingsCheckboxesSkip);
-	builder.addSubsectionTitle(tr::lng_settings_events_title());
-
+void BuildNotifyViewSection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
 	if (!controller) {
 		return;
 	}
 
-	const auto session = &controller->session();
+	builder.add([controller](const WidgetContext &ctx) {
+		const auto container = ctx.container.get();
+		const auto &settings = Core::App().settings();
+		const auto checkboxes = SetupNotifyViewOptions(
+			controller,
+			container,
+			(settings.notifyView() <= NotifyView::ShowName),
+			(settings.notifyView() <= NotifyView::ShowPreview));
+		const auto name = checkboxes.name;
+		const auto preview = checkboxes.preview;
+		const auto previewWrap = checkboxes.wrap;
+
+		const auto previewDivider = container->add(
+			object_ptr<Ui::SlideWrap<Ui::BoxContentDivider>>(
+				container,
+				object_ptr<Ui::BoxContentDivider>(container)));
+		previewWrap->toggle(settings.desktopNotify(), anim::type::instant);
+		previewDivider->toggle(!settings.desktopNotify(), anim::type::instant);
+
+		const auto changed = [=](ChangeType change) {
+			Core::App().saveSettingsDelayed();
+			Core::App().notifications().notifySettingsChanged(change);
+		};
+
+		name->checkedChanges(
+		) | rpl::map([=](bool checked) {
+			if (!checked) {
+				preview->setChecked(false);
+				return NotifyView::ShowNothing;
+			} else if (!preview->checked()) {
+				return NotifyView::ShowName;
+			}
+			return NotifyView::ShowPreview;
+		}) | rpl::filter([=](NotifyView value) {
+			return (value != Core::App().settings().notifyView());
+		}) | rpl::on_next([=](NotifyView value) {
+			Core::App().settings().setNotifyView(value);
+			changed(ChangeType::ViewParams);
+		}, name->lifetime());
+
+		preview->checkedChanges(
+		) | rpl::map([=](bool checked) {
+			if (checked) {
+				name->setChecked(true);
+				return NotifyView::ShowPreview;
+			} else if (name->checked()) {
+				return NotifyView::ShowName;
+			}
+			return NotifyView::ShowNothing;
+		}) | rpl::filter([=](NotifyView value) {
+			return (value != Core::App().settings().notifyView());
+		}) | rpl::on_next([=](NotifyView value) {
+			Core::App().settings().setNotifyView(value);
+			changed(ChangeType::ViewParams);
+		}, preview->lifetime());
+
+		Core::App().notifications().settingsChanged(
+		) | rpl::on_next([=](ChangeType change) {
+			if (change == ChangeType::DesktopEnabled) {
+				previewWrap->toggle(
+					Core::App().settings().desktopNotify(),
+					anim::type::normal);
+				previewDivider->toggle(
+					!Core::App().settings().desktopNotify(),
+					anim::type::normal);
+			}
+		}, container->lifetime());
+
+		return SectionBuilder::WidgetToAdd{};
+	});
+}
+
+void BuildNotifyTypeSection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	const auto showOther = builder.showOther();
+
+	builder.addSkip(st::notifyPreviewBottomSkip);
+	builder.addSubsectionTitle({
+		.id = u"notifications/types"_q,
+		.title = tr::lng_settings_notify_title(),
+		.keywords = { u"private"_q, u"groups"_q, u"channels"_q },
+	});
+
+	if (controller) {
+		controller->session().data().notifySettings().loadExceptions();
+	}
+
+	builder.add([controller, showOther](const WidgetContext &ctx) {
+		AddTypeButton(ctx.container, controller, Data::DefaultNotify::User, showOther);
+		AddTypeButton(ctx.container, controller, Data::DefaultNotify::Group, showOther);
+		AddTypeButton(ctx.container, controller, Data::DefaultNotify::Broadcast, showOther);
+		return SectionBuilder::WidgetToAdd{};
+	}, [] {
+		return SearchEntry{
+			.id = u"notifications/private"_q,
+			.title = tr::lng_notification_private_chats(tr::now),
+			.keywords = { u"private"_q, u"chats"_q, u"direct"_q },
+			.icon = { &st::menuIconProfile },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"notifications/groups"_q,
+			.title = tr::lng_notification_groups(tr::now),
+			.keywords = { u"groups"_q, u"chats"_q },
+			.icon = { &st::menuIconGroups },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"notifications/channels"_q,
+			.title = tr::lng_notification_channels(tr::now),
+			.keywords = { u"channels"_q, u"broadcast"_q },
+			.icon = { &st::menuIconChannel },
+		};
+	});
+}
+
+void BuildEventNotificationsSection(SectionBuilder &builder) {
+	builder.addSkip(st::settingsCheckboxesSkip);
+	builder.addDivider();
+	builder.addSkip(st::settingsCheckboxesSkip);
+	builder.addSubsectionTitle({
+		.id = u"notifications/events"_q,
+		.title = tr::lng_settings_events_title(),
+		.keywords = { u"events"_q, u"joined"_q, u"pinned"_q },
+	});
+
+	const auto session = builder.session();
 	const auto &settings = Core::App().settings();
 
 	auto joinSilent = rpl::single(
@@ -403,19 +404,17 @@ void BuildEventNotificationsSection(
 	}
 }
 
-void BuildCallNotificationsSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildCallNotificationsSection(SectionBuilder &builder) {
 	builder.addSkip(st::settingsCheckboxesSkip);
 	builder.addDivider();
 	builder.addSkip(st::settingsCheckboxesSkip);
-	builder.addSubsectionTitle(tr::lng_settings_notifications_calls_title());
+	builder.addSubsectionTitle({
+		.id = u"notifications/calls"_q,
+		.title = tr::lng_settings_notifications_calls_title(),
+		.keywords = { u"calls"_q, u"incoming"_q, u"receive"_q },
+	});
 
-	if (!controller) {
-		return;
-	}
-
-	const auto session = &controller->session();
+	const auto session = builder.session();
 	const auto authorizations = &session->api().authorizations();
 	authorizations->reload();
 
@@ -428,24 +427,26 @@ void BuildCallNotificationsSection(
 		.keywords = { u"calls"_q, u"receive"_q, u"incoming"_q },
 	});
 	if (acceptCalls) {
-		const auto container = builder.container();
 		acceptCalls->toggledChanges(
 		) | rpl::filter([=](bool toggled) {
 			return (toggled == authorizations->callsDisabledHere());
 		}) | rpl::on_next([=](bool toggled) {
 			authorizations->toggleCallsDisabledHere(!toggled);
-		}, container->lifetime());
+		}, acceptCalls->lifetime());
 	}
 }
 
-void BuildBadgeCounterSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildBadgeCounterSection(SectionBuilder &builder) {
 	builder.addSkip(st::settingsCheckboxesSkip);
 	builder.addDivider();
 	builder.addSkip(st::settingsCheckboxesSkip);
-	builder.addSubsectionTitle(tr::lng_settings_badge_title());
+	builder.addSubsectionTitle({
+		.id = u"notifications/badge"_q,
+		.title = tr::lng_settings_badge_title(),
+		.keywords = { u"badge"_q, u"counter"_q, u"unread"_q },
+	});
 
+	const auto session = builder.session();
 	const auto &settings = Core::App().settings();
 
 	const auto muted = builder.addButton({
@@ -456,8 +457,7 @@ void BuildBadgeCounterSection(
 		.keywords = { u"muted"_q, u"badge"_q, u"counter"_q },
 	});
 
-	const auto hasFolders = controller
-		&& controller->session().data().chatsFilters().has();
+	const auto hasFolders = session->data().chatsFilters().has();
 	const auto mutedFolders = hasFolders ? builder.addButton({
 		.id = u"notifications/badge/muted_folders"_q,
 		.title = tr::lng_settings_include_muted_folders(),
@@ -511,10 +511,8 @@ void BuildBadgeCounterSection(
 	}
 }
 
-void BuildSystemIntegrationAndAdvancedSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
-	const auto container = builder.container();
+void BuildSystemIntegrationAndAdvancedSection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
 
 	auto nativeText = [&]() -> rpl::producer<QString> {
 		if (!Platform::Notifications::Supported()
@@ -530,7 +528,11 @@ void BuildSystemIntegrationAndAdvancedSection(
 		builder.addSkip(st::settingsCheckboxesSkip);
 		builder.addDivider();
 		builder.addSkip(st::settingsCheckboxesSkip);
-		builder.addSubsectionTitle(tr::lng_settings_native_title());
+		builder.addSubsectionTitle({
+			.id = u"notifications/native"_q,
+			.title = tr::lng_settings_native_title(),
+			.keywords = { u"native"_q, u"system"_q, u"windows"_q },
+		});
 	}
 
 	const auto &settings = Core::App().settings();
@@ -545,188 +547,184 @@ void BuildSystemIntegrationAndAdvancedSection(
 	if (Core::App().notifications().nativeEnforced()) {
 		return;
 	}
-	if (!container || !controller) {
+	if (!controller) {
 		return;
 	}
 
-	const auto advancedSlide = container->add(
-		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-			container,
-			object_ptr<Ui::VerticalLayout>(container)));
-	const auto advancedWrap = advancedSlide->entity();
+	builder.add([native, controller](const WidgetContext &ctx) {
+		const auto container = ctx.container.get();
+		const auto advancedSlide = container->add(
+			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+				container,
+				object_ptr<Ui::VerticalLayout>(container)));
+		const auto advancedWrap = advancedSlide->entity();
 
-	if (native) {
-		native->toggledChanges(
-		) | rpl::filter([](bool checked) {
-			return (checked != Core::App().settings().nativeNotifications());
-		}) | rpl::on_next([=](bool checked) {
-			Core::App().settings().setNativeNotifications(checked);
-			Core::App().saveSettingsDelayed();
-			Core::App().notifications().createManager();
-			advancedSlide->toggle(!checked, anim::type::normal);
-		}, native->lifetime());
-	}
+		if (native) {
+			native->toggledChanges(
+			) | rpl::filter([](bool checked) {
+				return (checked != Core::App().settings().nativeNotifications());
+			}) | rpl::on_next([=](bool checked) {
+				Core::App().settings().setNativeNotifications(checked);
+				Core::App().saveSettingsDelayed();
+				Core::App().notifications().createManager();
+				advancedSlide->toggle(!checked, anim::type::normal);
+			}, native->lifetime());
+		}
 
-	if (Platform::IsWindows()) {
-		const auto skipInFocus = advancedWrap->add(object_ptr<Ui::SettingsButton>(
-			advancedWrap,
-			tr::lng_settings_skip_in_focus(),
-			st::settingsButtonNoIcon
-		))->toggleOn(rpl::single(Core::App().settings().skipToastsInFocus()));
+		if (Platform::IsWindows()) {
+			const auto skipInFocus = advancedWrap->add(object_ptr<Ui::SettingsButton>(
+				advancedWrap,
+				tr::lng_settings_skip_in_focus(),
+				st::settingsButtonNoIcon
+			))->toggleOn(rpl::single(Core::App().settings().skipToastsInFocus()));
 
-		skipInFocus->toggledChanges(
-		) | rpl::filter([](bool checked) {
-			return (checked != Core::App().settings().skipToastsInFocus());
-		}) | rpl::on_next([=](bool checked) {
-			Core::App().settings().setSkipToastsInFocus(checked);
-			Core::App().saveSettingsDelayed();
-			if (checked && Platform::Notifications::SkipToastForCustom()) {
-				Core::App().notifications().notifySettingsChanged(
-					ChangeType::DesktopEnabled);
+			skipInFocus->toggledChanges(
+			) | rpl::filter([](bool checked) {
+				return (checked != Core::App().settings().skipToastsInFocus());
+			}) | rpl::on_next([=](bool checked) {
+				Core::App().settings().setSkipToastsInFocus(checked);
+				Core::App().saveSettingsDelayed();
+				if (checked && Platform::Notifications::SkipToastForCustom()) {
+					Core::App().notifications().notifySettingsChanged(
+						ChangeType::DesktopEnabled);
+				}
+			}, skipInFocus->lifetime());
+		}
+
+		const auto screens = QGuiApplication::screens();
+		if (screens.size() > 1) {
+			Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
+			Ui::AddDivider(advancedWrap);
+			Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
+			Ui::AddSubsectionTitle(
+				advancedWrap,
+				tr::lng_settings_notifications_display());
+
+			const auto currentChecksum
+				= Core::App().settings().notificationsDisplayChecksum();
+			auto currentIndex = (currentChecksum == 0)
+				? kDefaultDisplayIndex
+				: 0;
+			for (auto i = 0; i < screens.size(); ++i) {
+				if (Platform::ScreenNameChecksum(screens[i]) == currentChecksum) {
+					currentIndex = i;
+					break;
+				}
 			}
-		}, skipInFocus->lifetime());
-	}
 
-	const auto screens = QGuiApplication::screens();
-	if (screens.size() > 1) {
+			const auto group = std::make_shared<Ui::RadiobuttonGroup>(
+				currentIndex);
+
+			advancedWrap->add(
+				object_ptr<Ui::Radiobutton>(
+					advancedWrap,
+					group,
+					kDefaultDisplayIndex,
+					tr::lng_settings_notifications_display_default(tr::now),
+					st::settingsSendType),
+				st::settingsSendTypePadding);
+
+			for (auto i = 0; i < screens.size(); ++i) {
+				const auto &screen = screens[i];
+				const auto name = Platform::ScreenDisplayLabel(screen);
+				const auto geometry = screen->geometry();
+				const auto resolution = QString::number(geometry.width())
+					+ QChar(0x00D7)
+					+ QString::number(geometry.height());
+				const auto label = name.isEmpty()
+					? QString("Display (%1)").arg(resolution)
+					: QString("%1 (%2)").arg(name).arg(resolution);
+				advancedWrap->add(
+					object_ptr<Ui::Radiobutton>(
+						advancedWrap,
+						group,
+						i,
+						label,
+						st::settingsSendType),
+					st::settingsSendTypePadding);
+			}
+			group->setChangedCallback([=](int selectedIndex) {
+				if (selectedIndex == kDefaultDisplayIndex) {
+					Core::App().settings().setNotificationsDisplayChecksum(0);
+					Core::App().saveSettings();
+					Core::App().notifications().notifySettingsChanged(
+						ChangeType::Corner);
+				} else {
+					const auto screens = QGuiApplication::screens();
+					if (selectedIndex >= 0 && selectedIndex < screens.size()) {
+						const auto checksum = Platform::ScreenNameChecksum(
+							screens[selectedIndex]);
+						Core::App().settings().setNotificationsDisplayChecksum(
+							checksum);
+						Core::App().saveSettings();
+						Core::App().notifications().notifySettingsChanged(
+							ChangeType::Corner);
+					}
+				}
+			});
+		}
+
 		Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
 		Ui::AddDivider(advancedWrap);
 		Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
 		Ui::AddSubsectionTitle(
 			advancedWrap,
-			tr::lng_settings_notifications_display());
+			tr::lng_settings_notifications_position());
+		Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
 
-		const auto currentChecksum
-			= Core::App().settings().notificationsDisplayChecksum();
-		auto currentIndex = (currentChecksum == 0)
-			? kDefaultDisplayIndex
-			: 0;
-		for (auto i = 0; i < screens.size(); ++i) {
-			if (Platform::ScreenNameChecksum(screens[i]) == currentChecksum) {
-				currentIndex = i;
-				break;
+		const auto position = advancedWrap->add(
+			object_ptr<NotificationsCount>(advancedWrap, controller));
+
+		Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
+		Ui::AddSubsectionTitle(advancedWrap, tr::lng_settings_notifications_count());
+
+		const auto countSlider = advancedWrap->add(
+			object_ptr<Ui::SettingsSlider>(advancedWrap, st::settingsSlider),
+			st::settingsBigScalePadding);
+		for (int i = 0; i != kMaxNotificationsCount; ++i) {
+			countSlider->addSection(QString::number(i + 1));
+		}
+		countSlider->setActiveSectionFast(CurrentNotificationsCount() - 1);
+		countSlider->sectionActivated(
+		) | rpl::on_next([=](int section) {
+			position->setCount(section + 1);
+		}, countSlider->lifetime());
+		Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
+
+		if (Core::App().settings().nativeNotifications()) {
+			advancedSlide->hide(anim::type::instant);
+		}
+
+		Core::App().notifications().settingsChanged(
+		) | rpl::on_next([=](ChangeType change) {
+			if (change == ChangeType::DesktopEnabled) {
+				const auto native = Core::App().settings().nativeNotifications();
+				advancedSlide->toggle(!native, anim::type::normal);
 			}
-		}
+		}, advancedSlide->lifetime());
 
-		const auto group = std::make_shared<Ui::RadiobuttonGroup>(
-			currentIndex);
-
-		advancedWrap->add(
-			object_ptr<Ui::Radiobutton>(
-				advancedWrap,
-				group,
-				kDefaultDisplayIndex,
-				tr::lng_settings_notifications_display_default(tr::now),
-				st::settingsSendType),
-			st::settingsSendTypePadding);
-
-		for (auto i = 0; i < screens.size(); ++i) {
-			const auto &screen = screens[i];
-			const auto name = Platform::ScreenDisplayLabel(screen);
-			const auto geometry = screen->geometry();
-			const auto resolution = QString::number(geometry.width())
-				+ QChar(0x00D7)
-				+ QString::number(geometry.height());
-			const auto label = name.isEmpty()
-				? QString("Display (%1)").arg(resolution)
-				: QString("%1 (%2)").arg(name).arg(resolution);
-			advancedWrap->add(
-				object_ptr<Ui::Radiobutton>(
-					advancedWrap,
-					group,
-					i,
-					label,
-					st::settingsSendType),
-				st::settingsSendTypePadding);
-		}
-		group->setChangedCallback([=](int selectedIndex) {
-			if (selectedIndex == kDefaultDisplayIndex) {
-				Core::App().settings().setNotificationsDisplayChecksum(0);
-				Core::App().saveSettings();
-				Core::App().notifications().notifySettingsChanged(
-					ChangeType::Corner);
-			} else {
-				const auto screens = QGuiApplication::screens();
-				if (selectedIndex >= 0 && selectedIndex < screens.size()) {
-					const auto checksum = Platform::ScreenNameChecksum(
-						screens[selectedIndex]);
-					Core::App().settings().setNotificationsDisplayChecksum(
-						checksum);
-					Core::App().saveSettings();
-					Core::App().notifications().notifySettingsChanged(
-						ChangeType::Corner);
-				}
-			}
-		});
-	}
-
-	Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
-	Ui::AddDivider(advancedWrap);
-	Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
-	Ui::AddSubsectionTitle(
-		advancedWrap,
-		tr::lng_settings_notifications_position());
-	Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
-
-	const auto position = advancedWrap->add(
-		object_ptr<NotificationsCount>(advancedWrap, controller));
-
-	Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
-	Ui::AddSubsectionTitle(advancedWrap, tr::lng_settings_notifications_count());
-
-	const auto countSlider = advancedWrap->add(
-		object_ptr<Ui::SettingsSlider>(advancedWrap, st::settingsSlider),
-		st::settingsBigScalePadding);
-	for (int i = 0; i != kMaxNotificationsCount; ++i) {
-		countSlider->addSection(QString::number(i + 1));
-	}
-	countSlider->setActiveSectionFast(CurrentNotificationsCount() - 1);
-	countSlider->sectionActivated(
-	) | rpl::on_next([=](int section) {
-		position->setCount(section + 1);
-	}, countSlider->lifetime());
-	Ui::AddSkip(advancedWrap, st::settingsCheckboxesSkip);
-
-	if (Core::App().settings().nativeNotifications()) {
-		advancedSlide->hide(anim::type::instant);
-	}
-
-	Core::App().notifications().settingsChanged(
-	) | rpl::on_next([=](ChangeType change) {
-		if (change == ChangeType::DesktopEnabled) {
-			const auto native = Core::App().settings().nativeNotifications();
-			advancedSlide->toggle(!native, anim::type::normal);
-		}
-	}, advancedSlide->lifetime());
+		return SectionBuilder::WidgetToAdd{};
+	});
 }
 
-void BuildNotificationsSectionContent(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
-	const auto container = builder.container();
-
+void BuildNotificationsSectionContent(SectionBuilder &builder) {
 	builder.addSkip(st::settingsPrivacySkip);
 
-	BuildMultiAccountSection(builder, controller);
-	BuildGlobalNotificationsSection(builder, controller);
-
-	if (container && controller) {
-		BuildNotifyViewSection(builder, controller, container->lifetime());
-	}
-
-	BuildNotifyTypeSection(builder, controller);
-	BuildEventNotificationsSection(builder, controller);
-	BuildCallNotificationsSection(builder, controller);
-	BuildBadgeCounterSection(builder, controller);
-	BuildSystemIntegrationAndAdvancedSection(builder, controller);
+	BuildMultiAccountSection(builder);
+	BuildGlobalNotificationsSection(builder);
+	BuildNotifyViewSection(builder);
+	BuildNotifyTypeSection(builder);
+	BuildEventNotificationsSection(builder);
+	BuildCallNotificationsSection(builder);
+	BuildBadgeCounterSection(builder);
+	BuildSystemIntegrationAndAdvancedSection(builder);
 }
 
 const auto kMeta = BuildHelper(
 	Notifications::Id(),
 	tr::lng_settings_section_notify,
 	[](SectionBuilder &builder) {
-		const auto controller = builder.controller();
-		BuildNotificationsSectionContent(builder, controller);
+		BuildNotificationsSectionContent(builder);
 	},
 	Main::Id());
 

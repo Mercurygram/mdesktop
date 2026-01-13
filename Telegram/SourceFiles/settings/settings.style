@@ -544,6 +544,11 @@ settingsSearchResultNoIcon: SettingsButton(settingsSearchResult) {
 }
 settingsSearchResultDetails: FlatLabel(settingsNotificationTypeDetails) {
 }
+settingsSearchNoResults: FlatLabel(defaultFlatLabel) {
+	textFg: windowSubTextFg;
+	align: align(center);
+}
+settingsSearchNoResultsPadding: margins(22px, 32px, 22px, 32px);
 
 powerSavingButton: SettingsButton(settingsButton) {
 	style: boxTextStyle;

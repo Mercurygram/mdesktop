@@ -234,6 +234,12 @@ public:
 	};
 	Ui::Checkbox *addCheckbox(CheckboxArgs &&args);
 
+	struct SubsectionTitleArgs {
+		QString id;
+		rpl::producer<QString> title;
+		QStringList keywords;
+	};
+	void addSubsectionTitle(SubsectionTitleArgs &&args);
 	void addSubsectionTitle(rpl::producer<QString> text);
 	void addDivider();
 	void addDividerText(rpl::producer<QString> text);

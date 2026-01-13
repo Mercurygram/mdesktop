@@ -68,21 +68,20 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Settings::Builder {
 namespace {
 
-void BuildDataStorageSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildDataStorageSection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
 	const auto container = builder.container();
-	const auto account = controller
-		? &controller->session().account()
-		: nullptr;
+	const auto session = builder.session();
+	const auto account = &session->account();
 
 	builder.addSkip();
-	builder.addSubsectionTitle(tr::lng_settings_data_storage());
+	builder.addSubsectionTitle({
+		.id = u"advanced/data_storage"_q,
+		.title = tr::lng_settings_data_storage(),
+		.keywords = { u"storage"_q, u"data"_q, u"download"_q, u"connection"_q },
+	});
 
 	const auto connectionType = [=] {
-		if (!account) {
-			return QString();
-		}
 		const auto transport = account->mtp().dctransport();
 		if (!Core::App().settings().proxy().isEnabled()) {
 			return transport.isEmpty()
@@ -99,17 +98,13 @@ void BuildDataStorageSection(
 		.id = u"advanced/connection_type"_q,
 		.title = tr::lng_settings_connection_type(),
 		.icon = { &st::menuIconNetwork },
-		.label = account
-			? (rpl::merge(
-				Core::App().settings().proxy().connectionTypeChanges(),
-				tr::lng_connection_auto_connecting() | rpl::to_empty
-			) | rpl::map(connectionType))
-			: rpl::single(QString()),
+		.label = rpl::merge(
+			Core::App().settings().proxy().connectionTypeChanges(),
+			tr::lng_connection_auto_connecting() | rpl::to_empty
+		) | rpl::map(connectionType),
 		.onClick = [=] {
-			if (controller && account) {
-				controller->window().show(
-					ProxiesBoxController::CreateOwningBox(account));
-			}
+			controller->window().show(
+				ProxiesBoxController::CreateOwningBox(account));
 		},
 		.keywords = { u"connection"_q, u"proxy"_q, u"network"_q, u"vpn"_q },
 	});
@@ -192,12 +187,16 @@ void BuildDataStorageSection(
 	builder.addSkip(st::settingsCheckboxesSkip);
 }
 
-void BuildAutoDownloadSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildAutoDownloadSection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	const auto session = builder.session();
 	builder.addDivider();
 	builder.addSkip();
-	builder.addSubsectionTitle(tr::lng_media_auto_settings());
+	builder.addSubsectionTitle({
+		.id = u"advanced/auto_download"_q,
+		.title = tr::lng_media_auto_settings(),
+		.keywords = { u"auto"_q, u"download"_q, u"media"_q },
+	});
 
 	using Source = Data::AutoDownload::Source;
 
@@ -206,10 +205,7 @@ void BuildAutoDownloadSection(
 		.title = tr::lng_media_auto_in_private(),
 		.icon = { &st::menuIconProfile },
 		.onClick = [=] {
-			if (controller) {
-				controller->show(
-					Box<AutoDownloadBox>(&controller->session(), Source::User));
-			}
+			controller->show(Box<AutoDownloadBox>(session, Source::User));
 		},
 		.keywords = { u"auto"_q, u"download"_q, u"private"_q, u"media"_q },
 	});
@@ -219,10 +215,7 @@ void BuildAutoDownloadSection(
 		.title = tr::lng_media_auto_in_groups(),
 		.icon = { &st::menuIconGroups },
 		.onClick = [=] {
-			if (controller) {
-				controller->show(
-					Box<AutoDownloadBox>(&controller->session(), Source::Group));
-			}
+			controller->show(Box<AutoDownloadBox>(session, Source::Group));
 		},
 		.keywords = { u"auto"_q, u"download"_q, u"groups"_q, u"media"_q },
 	});
@@ -232,10 +225,7 @@ void BuildAutoDownloadSection(
 		.title = tr::lng_media_auto_in_channels(),
 		.icon = { &st::menuIconChannel },
 		.onClick = [=] {
-			if (controller) {
-				controller->show(
-					Box<AutoDownloadBox>(&controller->session(), Source::Channel));
-			}
+			controller->show(Box<AutoDownloadBox>(session, Source::Channel));
 		},
 		.keywords = { u"auto"_q, u"download"_q, u"channels"_q, u"media"_q },
 	});
@@ -243,14 +233,16 @@ void BuildAutoDownloadSection(
 	builder.addSkip(st::settingsCheckboxesSkip);
 }
 
-void BuildWindowTitleSection(
-		SectionBuilder &builder,
-		[[maybe_unused]] Window::SessionController *controller) {
+void BuildWindowTitleSection(SectionBuilder &builder) {
 	const auto settings = &Core::App().settings();
 
 	builder.addDivider();
 	builder.addSkip();
-	builder.addSubsectionTitle(tr::lng_settings_window_system());
+	builder.addSubsectionTitle({
+		.id = u"advanced/window_title"_q,
+		.title = tr::lng_settings_window_system(),
+		.keywords = { u"window"_q, u"title"_q, u"frame"_q },
+	});
 
 	const auto content = [=] {
 		return settings->windowTitleContent();
@@ -335,15 +327,18 @@ void BuildWindowTitleSection(
 	builder.addSkip();
 }
 
-void BuildSystemIntegrationSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildSystemIntegrationSection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
 	const auto container = builder.container();
 	const auto settings = &Core::App().settings();
 
 	builder.addDivider();
 	builder.addSkip();
-	builder.addSubsectionTitle(tr::lng_settings_system_integration());
+	builder.addSubsectionTitle({
+		.id = u"advanced/system_integration"_q,
+		.title = tr::lng_settings_system_integration(),
+		.keywords = { u"system"_q, u"tray"_q, u"startup"_q, u"autostart"_q },
+	});
 
 	using WorkMode = Core::Settings::WorkMode;
 
@@ -623,9 +618,8 @@ void BuildSystemIntegrationSection(
 }
 
 #ifdef DESKTOP_APP_USE_ANGLE
-void BuildANGLEOption(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildANGLEOption(SectionBuilder &builder) {
+	const auto controller = builder.controller();
 	using ANGLE = Ui::GL::ANGLE;
 
 	const auto options = std::vector{
@@ -654,9 +648,6 @@ void BuildANGLEOption(
 		.st = &st::settingsButtonNoIcon,
 		.label = rpl::single(options[backendIndex]),
 		.onClick = [=] {
-			if (!controller) {
-				return;
-			}
 			controller->show(Box([=](not_null<Ui::GenericBox*> box) {
 				const auto save = [=](int index) {
 					if (index == backendIndex) {
@@ -700,9 +691,8 @@ void BuildANGLEOption(
 	});
 }
 #else
-void BuildOpenGLOption(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildOpenGLOption(SectionBuilder &builder) {
+	const auto controller = builder.controller();
 	const auto opengl = builder.addButton({
 		.id = u"advanced/opengl"_q,
 		.title = tr::lng_settings_enable_opengl(),
@@ -711,7 +701,7 @@ void BuildOpenGLOption(
 		.keywords = { u"opengl"_q, u"graphics"_q, u"gpu"_q },
 	});
 
-	if (opengl && controller) {
+	if (opengl) {
 		opengl->toggledValue(
 		) | rpl::filter([](bool enabled) {
 			return (enabled == Core::App().settings().disableOpenGL());
@@ -731,21 +721,22 @@ void BuildOpenGLOption(
 }
 #endif
 
-void BuildPerformanceSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildPerformanceSection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
 	builder.addDivider();
 	builder.addSkip();
-	builder.addSubsectionTitle(tr::lng_settings_performance());
+	builder.addSubsectionTitle({
+		.id = u"advanced/performance"_q,
+		.title = tr::lng_settings_performance(),
+		.keywords = { u"performance"_q, u"power"_q, u"graphics"_q, u"hardware"_q },
+	});
 
 	builder.addButton({
 		.id = u"advanced/power_saving"_q,
 		.title = tr::lng_settings_power_menu(),
 		.st = &st::settingsButtonNoIcon,
 		.onClick = [=] {
-			if (controller) {
-				controller->window().show(Box(PowerSavingBox, PowerSaving::Flags()));
-			}
+			controller->window().show(Box(PowerSavingBox, PowerSaving::Flags()));
 		},
 		.keywords = { u"power"_q, u"saving"_q, u"battery"_q, u"animation"_q },
 	});
@@ -771,31 +762,34 @@ void BuildPerformanceSection(
 	}
 
 #ifdef DESKTOP_APP_USE_ANGLE
-	BuildANGLEOption(builder, controller);
+	BuildANGLEOption(builder);
 #else
 	if constexpr (!Platform::IsMac()) {
-		BuildOpenGLOption(builder, controller);
+		BuildOpenGLOption(builder);
 	}
 #endif
 
 	builder.addSkip();
 }
 
-void BuildSpellcheckerSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildSpellcheckerSection(SectionBuilder &builder) {
 #ifndef TDESKTOP_DISABLE_SPELLCHECK
-	const auto session = controller ? &controller->session() : nullptr;
+	const auto controller = builder.controller();
+	const auto session = builder.session();
 	const auto settings = &Core::App().settings();
 	const auto isSystem = Platform::Spellchecker::IsSystemSpellchecker();
 	const auto container = builder.container();
 
 	builder.addDivider();
 	builder.addSkip();
-	builder.addSubsectionTitle(tr::lng_settings_spellchecker());
+	builder.addSubsectionTitle({
+		.id = u"advanced/spellchecker"_q,
+		.title = tr::lng_settings_spellchecker(),
+		.keywords = { u"spellcheck"_q, u"spelling"_q, u"dictionary"_q },
+	});
 
 	const auto spellchecker = builder.addButton({
-		.id = u"advanced/spellchecker"_q,
+		.id = u"advanced/spellchecker_toggle"_q,
 		.title = isSystem
 			? tr::lng_settings_system_spellchecker()
 			: tr::lng_settings_custom_spellchecker(),
@@ -847,14 +841,9 @@ void BuildSpellcheckerSection(
 			.title = tr::lng_settings_manage_dictionaries(),
 			.st = &st::settingsButtonNoIcon,
 			.container = inner,
-			.label = session
-				? Spellchecker::ButtonManageDictsState(session)
-				: rpl::single(QString()),
+			.label = Spellchecker::ButtonManageDictsState(session),
 			.onClick = [=] {
-				if (controller) {
-					controller->show(
-						Box<Ui::ManageDictionariesBox>(&controller->session()));
-				}
+				controller->show(Box<Ui::ManageDictionariesBox>(session));
 			},
 			.keywords = { u"dictionary"_q, u"manage"_q, u"spellcheck"_q },
 		});
@@ -871,10 +860,7 @@ void BuildSpellcheckerSection(
 #endif // !TDESKTOP_DISABLE_SPELLCHECK
 }
 
-void BuildUpdateSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller,
-		bool atTop) {
+void BuildUpdateSection(SectionBuilder &builder, bool atTop) {
 	if (!HasUpdate()) {
 		return;
 	}
@@ -884,7 +870,11 @@ void BuildUpdateSection(
 		builder.addDivider();
 	}
 	builder.addSkip();
-	builder.addSubsectionTitle(tr::lng_settings_version_info());
+	builder.addSubsectionTitle({
+		.id = u"advanced/version"_q,
+		.title = tr::lng_settings_version_info(),
+		.keywords = { u"version"_q, u"update"_q, u"check"_q },
+	});
 
 	const auto version = tr::lng_settings_current_version(
 		tr::now,
@@ -1073,10 +1063,10 @@ void BuildUpdateSection(
 	}
 }
 
-void BuildExportSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller,
-		Fn<void(Type)> showOther) {
+void BuildExportSection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	const auto session = builder.session();
+	const auto showOther = builder.showOther();
 	builder.addSkip();
 	builder.addDivider();
 	builder.addSkip();
@@ -1086,10 +1076,6 @@ void BuildExportSection(
 		.title = tr::lng_settings_export_data(),
 		.icon = { &st::menuIconExport },
 		.onClick = [=] {
-			if (!controller) {
-				return;
-			}
-			const auto session = &controller->session();
 			controller->window().hideSettingsAndLayer();
 			base::call_delayed(
 				st::boxDuration,
@@ -1103,11 +1089,7 @@ void BuildExportSection(
 		.id = u"advanced/experimental"_q,
 		.title = tr::lng_settings_experimental(),
 		.icon = { &st::menuIconExperimental },
-		.onClick = [showOther] {
-			if (showOther) {
-				showOther(Experimental::Id());
-			}
-		},
+		.onClick = [showOther] { showOther(Experimental::Id()); },
 		.keywords = { u"experimental"_q, u"beta"_q, u"features"_q },
 	});
 }
@@ -1116,23 +1098,21 @@ const auto kMeta = BuildHelper(
 	Advanced::Id(),
 	tr::lng_settings_advanced,
 	[](SectionBuilder &builder) {
-		const auto controller = builder.controller();
-		const auto showOther = builder.showOther();
 		const auto autoUpdate = cAutoUpdate();
 
 		if (!autoUpdate) {
-			BuildUpdateSection(builder, controller, true);
+			BuildUpdateSection(builder, true);
 		}
-		BuildDataStorageSection(builder, controller);
-		BuildAutoDownloadSection(builder, controller);
-		BuildWindowTitleSection(builder, controller);
-		BuildSystemIntegrationSection(builder, controller);
-		BuildPerformanceSection(builder, controller);
-		BuildSpellcheckerSection(builder, controller);
+		BuildDataStorageSection(builder);
+		BuildAutoDownloadSection(builder);
+		BuildWindowTitleSection(builder);
+		BuildSystemIntegrationSection(builder);
+		BuildPerformanceSection(builder);
+		BuildSpellcheckerSection(builder);
 		if (autoUpdate) {
-			BuildUpdateSection(builder, controller, false);
+			BuildUpdateSection(builder, false);
 		}
-		BuildExportSection(builder, controller, showOther);
+		BuildExportSection(builder);
 	},
 	Main::Id());
 
