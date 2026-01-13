@@ -10,9 +10,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "settings/builder/settings_builder.h"
 #include "settings/settings_common.h"
+#include "ui/painter.h"
 #include "ui/search_field_controller.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/buttons.h"
+#include "ui/widgets/checkbox.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/labels.h"
 #include "ui/wrap/padding_wrap.h"
@@ -22,6 +24,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
+#include "styles/style_widgets.h"
 
 namespace Settings {
 namespace {
@@ -75,6 +78,70 @@ struct SearchResult {
 	return results;
 }
 
+void SetupCheckIcon(
+		not_null<Ui::SettingsButton*> button,
+		Builder::SearchEntryCheckIcon checkIcon,
+		const style::SettingsButton &st) {
+	struct CheckWidget {
+		CheckWidget(QWidget *parent, bool checked)
+		: widget(parent)
+		, view(st::defaultCheck, checked) {
+			view.finishAnimating();
+		}
+		Ui::RpWidget widget;
+		Ui::CheckView view;
+	};
+	const auto checked = (checkIcon == Builder::SearchEntryCheckIcon::Checked);
+	const auto check = button->lifetime().make_state<CheckWidget>(
+		button,
+		checked);
+	check->widget.setAttribute(Qt::WA_TransparentForMouseEvents);
+	check->widget.resize(check->view.getSize());
+	check->widget.show();
+
+	button->sizeValue(
+	) | rpl::on_next([=, left = st.iconLeft](QSize size) {
+		check->widget.moveToLeft(
+			left,
+			(size.height() - check->widget.height()) / 2,
+			size.width());
+	}, check->widget.lifetime());
+
+	check->widget.paintRequest(
+	) | rpl::on_next([=] {
+		auto p = QPainter(&check->widget);
+		p.setOpacity(0.5);
+		check->view.paint(p, 0, 0, check->widget.width());
+	}, check->widget.lifetime());
+}
+
+[[nodiscard]] not_null<Ui::SettingsButton*> CreateSearchResultButton(
+		not_null<Ui::VerticalLayout*> container,
+		const QString &title,
+		const QString &subtitle,
+		const style::SettingsButton &st,
+		IconDescriptor &&icon,
+		Builder::SearchEntryCheckIcon checkIcon) {
+	const auto button = AddButtonWithIcon(
+		container,
+		rpl::single(title),
+		st,
+		std::move(icon));
+	if (checkIcon != Builder::SearchEntryCheckIcon::None) {
+		SetupCheckIcon(button, checkIcon, st);
+	}
+	const auto details = Ui::CreateChild<Ui::FlatLabel>(
+		button.get(),
+		subtitle,
+		st::settingsSearchResultDetails);
+	details->show();
+	details->moveToLeft(
+		st.padding.left(),
+		st.padding.top() + st.height - details->height());
+	details->setAttribute(Qt::WA_TransparentForMouseEvents);
+	return button;
+}
+
 } // namespace
 
 Search::Search(
@@ -89,42 +156,71 @@ rpl::producer<QString> Search::title() {
 }
 
 void Search::setInnerFocus() {
-	_searchField->setFocus();
+	if (_searchField) {
+		_searchField->setFocus();
+	}
+}
+
+base::weak_qptr<Ui::RpWidget> Search::createPinnedToTop(
+		not_null<QWidget*> parent) {
+	_searchController = std::make_unique<Ui::SearchFieldController>("");
+	auto rowView = _searchController->createRowView(
+		parent,
+		st::infoLayerMediaSearch);
+	_searchField = rowView.field;
+
+	const auto searchContainer = Ui::CreateChild<Ui::FixedHeightWidget>(
+		parent.get(),
+		st::infoLayerMediaSearch.height);
+	const auto wrap = rowView.wrap.release();
+	wrap->setParent(searchContainer);
+	wrap->show();
+
+	searchContainer->widthValue(
+	) | rpl::on_next([=](int width) {
+		wrap->resizeToWidth(width);
+		wrap->moveToLeft(0, 0);
+	}, searchContainer->lifetime());
+
+	_searchController->queryChanges() | rpl::on_next([=](QString &&query) {
+		rebuildResults(std::move(query));
+	}, searchContainer->lifetime());
+
+	return base::make_weak(not_null<Ui::RpWidget*>{ searchContainer });
 }
 
 void Search::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	auto searchController = std::make_unique<Ui::SearchFieldController>("");
-	auto rowView = searchController->createRowView(
-		content,
-		st::infoLayerMediaSearch);
-	_searchField = rowView.field;
-
-	const auto searchContainer = content->add(
-		object_ptr<Ui::FixedHeightWidget>(
-			content,
-			st::infoLayerMediaSearch.height));
-	_searchWrap = std::move(rowView.wrap);
-	_searchWrap->setParent(searchContainer);
-	_searchWrap->show();
-
-	searchContainer->widthValue(
-	) | rpl::on_next([wrap = _searchWrap.get()](int width) {
-		wrap->resizeToWidth(width);
-		wrap->moveToLeft(0, 0);
-	}, searchContainer->lifetime());
-
 	_resultsContainer = content->add(
 		object_ptr<Ui::VerticalLayout>(content));
 
-	searchController->queryChanges() | rpl::on_next([=](QString &&query) {
-		rebuildResults(std::move(query));
-	}, content->lifetime());
-
-	_searchController = std::move(searchController);
+	setupCustomizations();
+	rebuildResults(QString());
 
 	Ui::ResizeFitChild(this, content);
+}
+
+void Search::setupCustomizations() {
+	const auto isPaused = Window::PausedIn(
+		controller(),
+		Window::GifPauseReason::Layer);
+	const auto add = [&](const QString &id, ResultCustomization value) {
+		_customizations[id] = std::move(value);
+	};
+
+	add(u"main/credits"_q, {
+		.hook = [=](not_null<Ui::SettingsButton*> b) {
+			AddPremiumStar(b, true, isPaused);
+		},
+		.st = &st::settingsSearchResult,
+	});
+	add(u"main/premium"_q, {
+		.hook = [=](not_null<Ui::SettingsButton*> b) {
+			AddPremiumStar(b, false, isPaused);
+		},
+		.st = &st::settingsSearchResult,
+	});
 }
 
 void Search::rebuildResults(const QString &query) {
@@ -132,14 +228,15 @@ void Search::rebuildResults(const QString &query) {
 		delete _resultsContainer->widgetAt(0);
 	}
 
-	if (query.trimmed().isEmpty()) {
-		_resultsContainer->resizeToWidth(_resultsContainer->width());
-		return;
-	}
-
 	const auto entries = Builder::SearchRegistry::Instance().collectAll(
 		&controller()->session());
-	const auto results = FilterAndSort(entries, query);
+	const auto results = query.trimmed().isEmpty()
+		? ranges::views::all(entries)
+			| ranges::views::transform([](const auto &e) {
+				return SearchResult{ e, 0 };
+			})
+			| ranges::to<std::vector<SearchResult>>()
+		: FilterAndSort(entries, query);
 
 	if (results.empty()) {
 		_resultsContainer->add(
@@ -150,13 +247,38 @@ void Search::rebuildResults(const QString &query) {
 			st::defaultSubsectionTitlePadding);
 	} else {
 		const auto showOther = showOtherMethod();
+		const auto &registry = Builder::SearchRegistry::Instance();
+
 		for (const auto &result : results) {
-			const auto entry = result.entry;
-			const auto button = AddButtonWithIcon(
+			const auto &entry = result.entry;
+			const auto subtitle = registry.sectionPath(entry.section);
+			const auto hasIcon = entry.icon.icon != nullptr;
+			const auto hasCheckIcon = !hasIcon
+				&& (entry.checkIcon != Builder::SearchEntryCheckIcon::None);
+
+			const auto it = _customizations.find(entry.id);
+			const auto custom = (it != _customizations.end())
+				? &it->second
+				: nullptr;
+
+			const auto &st = custom && custom->st
+				? *custom->st
+				: (hasIcon || hasCheckIcon)
+				? st::settingsSearchResult
+				: st::settingsSearchResultNoIcon;
+
+			const auto button = CreateSearchResultButton(
 				_resultsContainer,
-				rpl::single(entry.title),
-				st::settingsButton,
-				{ &st::menuIconInfo });
+				entry.title,
+				subtitle,
+				st,
+				IconDescriptor{ entry.icon.icon },
+				hasCheckIcon ? entry.checkIcon : Builder::SearchEntryCheckIcon::None);
+
+			if (custom && custom->hook) {
+				custom->hook(button);
+			}
+
 			const auto targetSection = entry.section;
 			const auto controlId = entry.id;
 			button->addClickHandler([=] {

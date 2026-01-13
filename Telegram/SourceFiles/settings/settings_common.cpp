@@ -641,7 +641,7 @@ void AddLottieIconWithCircle(
 	}, circle->lifetime());
 }
 
-not_null<Button*> AddPremiumStar(
+void AddPremiumStar(
 		not_null<Button*> button,
 		bool credits,
 		Fn<bool()> isPaused) {
@@ -716,8 +716,6 @@ not_null<Button*> AddPremiumStar(
 
 	ministarsContainer->resize(fullHeight, fullHeight);
 	ministars->setCenter(ministarsContainer->rect());
-
-	return button;
 }
 
 } // namespace Settings

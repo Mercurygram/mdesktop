@@ -168,7 +168,7 @@ void BuildDataStorageSection(
 		.keywords = { u"downloads"_q, u"files"_q },
 	});
 
-	const auto askDownloadPath = builder.addToggle({
+	const auto askDownloadPath = builder.addButton({
 		.id = u"advanced/ask_download"_q,
 		.title = tr::lng_download_path_ask(),
 		.st = &st::settingsButtonNoIcon,
@@ -375,19 +375,19 @@ void BuildSystemIntegrationSection(
 			: nullptr;
 
 		const auto monochrome = Platform::HasMonochromeSetting()
-			? builder.addSlideCheckbox({
+			? builder.addCheckbox({
 				.id = u"advanced/monochrome_icon"_q,
 				.title = tr::lng_settings_monochrome_icon(),
 				.checked = settings->trayIconMonochrome(),
+				.keywords = { u"monochrome"_q, u"icon"_q, u"tray"_q },
 				.shown = tray
 					? tray->checkedValue()
 					: rpl::single(trayEnabled()),
-				.keywords = { u"monochrome"_q, u"icon"_q, u"tray"_q },
 			})
 			: nullptr;
 
-		if (monochrome && monochrome->entity()) {
-			monochrome->entity()->checkedChanges(
+		if (monochrome) {
+			monochrome->checkedChanges(
 			) | rpl::filter([=](bool value) {
 				return (value != settings->trayIconMonochrome());
 			}) | rpl::on_next([=](bool value) {
@@ -501,17 +501,17 @@ void BuildSystemIntegrationSection(
 		}, container->lifetime());
 	}
 
-	const auto closeToTaskbar = builder.addSlideCheckbox({
+	const auto closeToTaskbar = builder.addCheckbox({
 		.id = u"advanced/close_to_taskbar"_q,
 		.title = tr::lng_settings_close_to_taskbar(),
 		.checked = settings->closeBehavior() == Behavior::CloseToTaskbar,
+		.keywords = { u"close"_q, u"taskbar"_q, u"minimize"_q },
 		.shown = closeToTaskbarShown
 			? closeToTaskbarShown->value()
 			: rpl::single(false),
-		.keywords = { u"close"_q, u"taskbar"_q, u"minimize"_q },
 	});
-	if (closeToTaskbar && closeToTaskbar->entity()) {
-		closeToTaskbar->entity()->checkedChanges(
+	if (closeToTaskbar) {
+		closeToTaskbar->checkedChanges(
 		) | rpl::map([=](bool checked) {
 			return checked ? Behavior::CloseToTaskbar : Behavior::Quit;
 		}) | rpl::filter([=](Behavior value) {
@@ -537,14 +537,14 @@ void BuildSystemIntegrationSection(
 			.keywords = { u"autostart"_q, u"startup"_q, u"boot"_q },
 		});
 
-		const auto minimized = builder.addSlideCheckbox({
+		const auto minimized = builder.addCheckbox({
 			.id = u"advanced/start_minimized"_q,
 			.title = tr::lng_settings_start_min(),
 			.checked = minimizedToggled(),
+			.keywords = { u"minimized"_q, u"startup"_q, u"hidden"_q },
 			.shown = autostart
 				? autostart->checkedValue()
 				: rpl::single(cAutoStart()),
-			.keywords = { u"minimized"_q, u"startup"_q, u"hidden"_q },
 		});
 
 		if (autostart) {
@@ -563,10 +563,10 @@ void BuildSystemIntegrationSection(
 					Ui::PostponeCall(autostart, [=] {
 						autostart->setChecked(enabled);
 					});
-					if (enabled || !minimized || !minimized->entity()->checked()) {
+					if (enabled || !minimized || !minimized->checked()) {
 						Local::writeSettings();
 					} else if (minimized) {
-						minimized->entity()->setChecked(false);
+						minimized->setChecked(false);
 					}
 				}));
 			}, autostart->lifetime());
@@ -578,13 +578,13 @@ void BuildSystemIntegrationSection(
 			}
 		}
 
-		if (minimized && minimized->entity() && controller) {
-			minimized->entity()->checkedChanges(
+		if (minimized && controller) {
+			minimized->checkedChanges(
 			) | rpl::filter([=](bool checked) {
 				return (checked != minimizedToggled());
 			}) | rpl::on_next([=](bool checked) {
 				if (controller->session().domain().local().hasLocalPasscode()) {
-					minimized->entity()->setChecked(false);
+					minimized->setChecked(false);
 					controller->show(Ui::MakeInformBox(
 						tr::lng_error_start_minimized_passcoded()));
 				} else {
@@ -595,7 +595,7 @@ void BuildSystemIntegrationSection(
 
 			controller->session().domain().local().localPasscodeChanged(
 			) | rpl::on_next([=] {
-				minimized->entity()->setChecked(minimizedToggled());
+				minimized->setChecked(minimizedToggled());
 			}, minimized->lifetime());
 		}
 	}
@@ -703,7 +703,7 @@ void BuildANGLEOption(
 void BuildOpenGLOption(
 		SectionBuilder &builder,
 		Window::SessionController *controller) {
-	const auto opengl = builder.addToggle({
+	const auto opengl = builder.addButton({
 		.id = u"advanced/opengl"_q,
 		.title = tr::lng_settings_enable_opengl(),
 		.st = &st::settingsButtonNoIcon,
@@ -750,7 +750,7 @@ void BuildPerformanceSection(
 		.keywords = { u"power"_q, u"saving"_q, u"battery"_q, u"animation"_q },
 	});
 
-	const auto hwAccel = builder.addToggle({
+	const auto hwAccel = builder.addButton({
 		.id = u"advanced/hw_accel"_q,
 		.title = tr::lng_settings_enable_hwaccel(),
 		.st = &st::settingsButtonNoIcon,
@@ -794,7 +794,7 @@ void BuildSpellcheckerSection(
 	builder.addSkip();
 	builder.addSubsectionTitle(tr::lng_settings_spellchecker());
 
-	const auto spellchecker = builder.addToggle({
+	const auto spellchecker = builder.addButton({
 		.id = u"advanced/spellchecker"_q,
 		.title = isSystem
 			? tr::lng_settings_system_spellchecker()
@@ -823,7 +823,7 @@ void BuildSpellcheckerSection(
 	const auto inner = sliding ? sliding->entity() : nullptr;
 
 	if (!isSystem) {
-		const auto autoDownload = builder.addToggle({
+		const auto autoDownload = builder.addButton({
 			.id = u"advanced/auto_download_dictionaries"_q,
 			.title = tr::lng_settings_auto_download_dictionaries(),
 			.st = &st::settingsButtonNoIcon,
@@ -898,7 +898,7 @@ void BuildUpdateSection(
 		? Ui::CreateChild<rpl::event_stream<bool>>(container)
 		: nullptr;
 
-	const auto toggle = builder.addToggle({
+	const auto toggle = builder.addButton({
 		.id = u"advanced/auto_update"_q,
 		.title = tr::lng_settings_update_automatically(),
 		.st = &st::settingsUpdateToggle,
@@ -933,7 +933,7 @@ void BuildUpdateSection(
 
 	const auto install = cAlphaVersion()
 		? nullptr
-		: builder.addToggle({
+		: builder.addButton({
 			.id = u"advanced/install_beta"_q,
 			.title = tr::lng_settings_install_beta(),
 			.st = &st::settingsButtonNoIcon,
@@ -1112,25 +1112,29 @@ void BuildExportSection(
 	});
 }
 
-const auto kMeta = BuildHelper(Advanced::Id(), [](SectionBuilder &builder) {
-	const auto controller = builder.controller();
-	const auto showOther = builder.showOther();
-	const auto autoUpdate = cAutoUpdate();
+const auto kMeta = BuildHelper(
+	Advanced::Id(),
+	tr::lng_settings_advanced,
+	[](SectionBuilder &builder) {
+		const auto controller = builder.controller();
+		const auto showOther = builder.showOther();
+		const auto autoUpdate = cAutoUpdate();
 
-	if (!autoUpdate) {
-		BuildUpdateSection(builder, controller, true);
-	}
-	BuildDataStorageSection(builder, controller);
-	BuildAutoDownloadSection(builder, controller);
-	BuildWindowTitleSection(builder, controller);
-	BuildSystemIntegrationSection(builder, controller);
-	BuildPerformanceSection(builder, controller);
-	BuildSpellcheckerSection(builder, controller);
-	if (autoUpdate) {
-		BuildUpdateSection(builder, controller, false);
-	}
-	BuildExportSection(builder, controller, showOther);
-}, Main::Id());
+		if (!autoUpdate) {
+			BuildUpdateSection(builder, controller, true);
+		}
+		BuildDataStorageSection(builder, controller);
+		BuildAutoDownloadSection(builder, controller);
+		BuildWindowTitleSection(builder, controller);
+		BuildSystemIntegrationSection(builder, controller);
+		BuildPerformanceSection(builder, controller);
+		BuildSpellcheckerSection(builder, controller);
+		if (autoUpdate) {
+			BuildUpdateSection(builder, controller, false);
+		}
+		BuildExportSection(builder, controller, showOther);
+	},
+	Main::Id());
 
 } // namespace
 

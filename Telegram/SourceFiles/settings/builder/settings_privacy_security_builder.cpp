@@ -484,7 +484,7 @@ void BuildTopPeersSection(
 	builder.addSkip();
 	builder.addSubsectionTitle(tr::lng_settings_top_peers_title());
 
-	const auto toggle = builder.addToggle({
+	const auto toggle = builder.addButton({
 		.id = u"privacy/top_peers"_q,
 		.title = tr::lng_settings_top_peers_suggest(),
 		.st = &st::settingsButtonNoIcon,
@@ -569,11 +569,15 @@ void BuildPrivacySecuritySectionContent(
 	BuildSelfDestructionSection(builder, controller, trigger());
 }
 
-const auto kMeta = BuildHelper(PrivacySecurity::Id(), [](SectionBuilder &builder) {
-	const auto controller = builder.controller();
-	const auto showOther = builder.showOther();
-	BuildPrivacySecuritySectionContent(builder, controller, showOther);
-}, Main::Id());
+const auto kMeta = BuildHelper(
+	PrivacySecurity::Id(),
+	tr::lng_settings_section_privacy,
+	[](SectionBuilder &builder) {
+		const auto controller = builder.controller();
+		const auto showOther = builder.showOther();
+		BuildPrivacySecuritySectionContent(builder, controller, showOther);
+	},
+	Main::Id());
 
 } // namespace
 

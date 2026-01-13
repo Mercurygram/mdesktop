@@ -29,15 +29,23 @@ public:
 	[[nodiscard]] rpl::producer<QString> title() override;
 
 	void setInnerFocus() override;
+	[[nodiscard]] base::weak_qptr<Ui::RpWidget> createPinnedToTop(
+		not_null<QWidget*> parent) override;
 
 private:
+	struct ResultCustomization {
+		Fn<void(not_null<Ui::SettingsButton*>)> hook;
+		const style::SettingsButton *st = nullptr;
+	};
+
 	void setupContent();
+	void setupCustomizations();
 	void rebuildResults(const QString &query);
 
 	std::unique_ptr<Ui::SearchFieldController> _searchController;
-	base::unique_qptr<Ui::RpWidget> _searchWrap;
 	Ui::InputField *_searchField = nullptr;
 	Ui::VerticalLayout *_resultsContainer = nullptr;
+	base::flat_map<QString, ResultCustomization> _customizations;
 
 };
 

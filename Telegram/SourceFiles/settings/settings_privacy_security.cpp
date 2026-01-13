@@ -277,6 +277,12 @@ rpl::producer<int> BlockedPeersCount(not_null<::Main::Session*> session) {
 
 } // namespace
 
+rpl::producer<QString> PrivacyButtonLabel(
+		not_null<::Main::Session*> session,
+		Privacy::Key key) {
+	return PrivacyString(session, key);
+}
+
 void AddPrivacyPremiumStar(
 		not_null<Ui::SettingsButton*> button,
 		not_null<Main::Session*> session,

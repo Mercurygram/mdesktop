@@ -36,20 +36,36 @@ namespace style {
 struct SettingsButton;
 } // namespace style
 
+namespace st {
+extern const int &boxRadius;
+} // namespace st
+
 namespace Ui {
 template <typename Widget>
 class SlideWrap;
 } // namespace Ui
 
+namespace tr {
+template <typename ...Tags>
+struct phrase;
+} // namespace tr
+
 namespace Settings::Builder {
 
 class SectionBuilder;
 
+enum class SearchEntryCheckIcon {
+	None,
+	Checked,
+	Unchecked,
+};
 struct SearchEntry {
 	QString id;
 	QString title;
 	QStringList keywords;
 	Type section;
+	IconDescriptor icon;
+	SearchEntryCheckIcon checkIcon = SearchEntryCheckIcon::None;
 
 	explicit operator bool() const {
 		return !id.isEmpty();
@@ -70,15 +86,20 @@ public:
 
 	void add(
 		Type sectionId,
+		tr::phrase<> title,
 		Type parentSectionId,
 		SearchEntriesIndexer indexer);
 
 	[[nodiscard]] std::vector<SearchEntry> collectAll(
 		not_null<::Main::Session*> session) const;
 
+	[[nodiscard]] QString sectionTitle(Type sectionId) const;
+	[[nodiscard]] QString sectionPath(Type sectionId) const;
+
 private:
 	std::vector<SearchIndexerEntry> _indexers;
 	base::flat_map<Type, Type> _parentSections;
+	base::flat_map<Type, tr::phrase<>> _sectionTitles;
 
 };
 
@@ -86,6 +107,7 @@ class BuildHelper {
 public:
 	BuildHelper(
 		Type sectionId,
+		tr::phrase<> sectionTitle,
 		FnMut<void(SectionBuilder&)> method,
 		Type parentSectionId = nullptr);
 
@@ -147,11 +169,14 @@ public:
 		Fn<object_ptr<Ui::RpWidget>(not_null<Ui::VerticalLayout*>)> factory;
 		QString id;
 		rpl::producer<QString> title;
-		QStringList keywords;
 		style::margins margin;
 		style::align align = style::al_left;
 		HighlightArgs highlight;
 		rpl::producer<bool> shown;
+
+		QStringList keywords;
+		IconDescriptor searchIcon;
+		SearchEntryCheckIcon searchCheckIcon = SearchEntryCheckIcon::None;
 	};
 	Ui::RpWidget *addControl(ControlArgs &&args);
 
@@ -162,6 +187,7 @@ public:
 		IconDescriptor icon;
 		Ui::VerticalLayout *container = nullptr;
 		rpl::producer<QString> label;
+		rpl::producer<bool> toggled;
 		Fn<void()> onClick;
 		QStringList keywords;
 		HighlightArgs highlight;
@@ -198,34 +224,15 @@ public:
 	};
 	Ui::SettingsButton *addPrivacyButton(PrivacyButtonArgs &&args);
 
-	struct ToggleArgs {
-		QString id;
-		rpl::producer<QString> title;
-		const style::SettingsButton *st = nullptr;
-		IconDescriptor icon;
-		Ui::VerticalLayout *container = nullptr;
-		rpl::producer<bool> toggled;
-		QStringList keywords;
-		HighlightArgs highlight;
-	};
-	Ui::SettingsButton *addToggle(ToggleArgs &&args);
-
 	struct CheckboxArgs {
 		QString id;
 		rpl::producer<QString> title;
 		bool checked = false;
 		QStringList keywords;
+		HighlightArgs highlight = { .radius = st::boxRadius };
+		rpl::producer<bool> shown;
 	};
 	Ui::Checkbox *addCheckbox(CheckboxArgs &&args);
-
-	struct SlideCheckboxArgs {
-		QString id;
-		rpl::producer<QString> title;
-		bool checked = false;
-		rpl::producer<bool> shown;
-		QStringList keywords;
-	};
-	Ui::SlideWrap<Ui::Checkbox> *addSlideCheckbox(SlideCheckboxArgs &&args);
 
 	void addSubsectionTitle(rpl::producer<QString> text);
 	void addDivider();

@@ -54,12 +54,16 @@ void BuildChatSectionContent(
 	SetupArchive(controller, container, showOther);
 }
 
-const auto kMeta = BuildHelper(Chat::Id(), [](SectionBuilder &builder) {
-	const auto controller = builder.controller();
-	const auto showOther = builder.showOther();
-	const auto highlights = builder.highlights();
-	BuildChatSectionContent(builder, controller, showOther, highlights);
-}, Main::Id());
+const auto kMeta = BuildHelper(
+	Chat::Id(),
+	tr::lng_settings_section_chat_settings,
+	[](SectionBuilder &builder) {
+		const auto controller = builder.controller();
+		const auto showOther = builder.showOther();
+		const auto highlights = builder.highlights();
+		BuildChatSectionContent(builder, controller, showOther, highlights);
+	},
+	Main::Id());
 
 } // namespace
 

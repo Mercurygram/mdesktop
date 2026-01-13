@@ -7,6 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/builder/settings_builder.h"
 
+#include "apiwrap.h"
+#include "lang/lang_keys.h"
+#include "api/api_user_privacy.h"
 #include "boxes/edit_privacy_box.h"
 #include "main/main_session.h"
 #include "settings/settings_common.h"
@@ -37,6 +40,7 @@ namespace {
 
 BuildHelper::BuildHelper(
 	Type sectionId,
+	tr::phrase<> sectionTitle,
 	FnMut<void(SectionBuilder&)> method,
 	Type parentSectionId)
 : build([=](
@@ -50,7 +54,10 @@ BuildHelper::BuildHelper(
 		controller,
 		Window::GifPauseReason::Layer);
 	auto builder = SectionBuilder(WidgetContext{
-		.container = container,
+		.container = static_cast<Ui::VerticalLayout*>(
+			container->add(object_ptr<Ui::OverrideMargins>(
+				container,
+				object_ptr<Ui::VerticalLayout>(container)))->entity()),
 		.controller = controller,
 		.showOther = std::move(showOther),
 		.isPaused = isPaused,
@@ -74,8 +81,10 @@ BuildHelper::BuildHelper(
 , _method(std::move(method)) {
 	Expects(_method != nullptr);
 
-	SearchRegistry::Instance().add(
+	auto &registry = SearchRegistry::Instance();
+	registry.add(
 		sectionId,
+		sectionTitle,
 		parentSectionId,
 		[=](not_null<::Main::Session*> session) { return index(session); });
 }
@@ -87,10 +96,12 @@ SearchRegistry &SearchRegistry::Instance() {
 
 void SearchRegistry::add(
 		Type sectionId,
+		tr::phrase<> title,
 		Type parentSectionId,
 		SearchEntriesIndexer indexer) {
-	_indexers.push_back({ sectionId, std::move(indexer) });
+	_sectionTitles[sectionId] = title;
 	_parentSections[sectionId] = parentSectionId;
+	_indexers.push_back({ sectionId, std::move(indexer) });
 }
 
 std::vector<SearchEntry> SearchRegistry::collectAll(
@@ -101,6 +112,24 @@ std::vector<SearchEntry> SearchRegistry::collectAll(
 		result.insert(result.end(), entries.begin(), entries.end());
 	}
 	return result;
+}
+
+QString SearchRegistry::sectionTitle(Type sectionId) const {
+	const auto it = _sectionTitles.find(sectionId);
+	return (it != _sectionTitles.end()) ? it->second(tr::now) : QString();
+}
+
+QString SearchRegistry::sectionPath(Type sectionId) const {
+	auto parts = QStringList();
+	auto current = sectionId;
+	while (current) {
+		if (const auto title = sectionTitle(current); !title.isEmpty()) {
+			parts.prepend(title);
+		}
+		const auto it = _parentSections.find(current);
+		current = (it != _parentSections.end()) ? it->second : nullptr;
+	}
+	return parts.join(u" > "_q);
 }
 
 std::vector<SearchEntry> BuildHelper::index(
@@ -208,17 +237,20 @@ Ui::RpWidget *SectionBuilder::addControl(ControlArgs &&args) {
 			.align = args.align,
 			.highlight = std::move(args.highlight),
 		};
-	}, [&] {
+	}, [&]() mutable {
 		return SearchEntry{
 			.id = std::move(args.id),
 			.title = ResolveTitle(std::move(args.title)),
 			.keywords = std::move(args.keywords),
+			.icon = std::move(args.searchIcon),
+			.checkIcon = args.searchCheckIcon,
 		};
 	});
 }
 
 Ui::SettingsButton *SectionBuilder::addButton(ButtonArgs &&args) {
 	const auto &st = args.st ? *args.st : st::settingsButton;
+	auto iconForSearch = IconDescriptor{ args.icon.icon };
 	const auto factory = [&](not_null<Ui::VerticalLayout*> container) {
 		auto button = CreateButtonWithIcon(
 			args.container ? args.container : container.get(),
@@ -235,15 +267,20 @@ Ui::SettingsButton *SectionBuilder::addButton(ButtonArgs &&args) {
 				st,
 				rpl::duplicate(args.title));
 		}
+		if (args.toggled) {
+			button->toggleOn(std::move(args.toggled));
+		}
 		return std::move(button);
 	};
 	return static_cast<Ui::SettingsButton*>(addControl({
 		.factory = factory,
 		.id = std::move(args.id),
 		.title = rpl::duplicate(args.title),
-		.keywords = std::move(args.keywords),
 		.highlight = std::move(args.highlight),
 		.shown = std::move(args.shown),
+
+		.keywords = std::move(args.keywords),
+		.searchIcon = std::move(iconForSearch),
 	}));
 }
 
@@ -297,7 +334,7 @@ Ui::SettingsButton *SectionBuilder::addPremiumButton(PremiumButtonArgs &&args) {
 		.keywords = std::move(args.keywords),
 	});
 	if (result) {
-		[[maybe_unused]] const auto decorated = AddPremiumStar(
+		AddPremiumStar(
 			result,
 			args.credits,
 			v::get<WidgetContext>(_context).isPaused);
@@ -306,120 +343,65 @@ Ui::SettingsButton *SectionBuilder::addPremiumButton(PremiumButtonArgs &&args) {
 }
 
 Ui::SettingsButton *SectionBuilder::addPrivacyButton(PrivacyButtonArgs &&args) {
-	const auto id = args.id;
-	const auto premium = args.premium;
-	auto title = std::move(args.title);
-	return v::match(_context, [&](const WidgetContext &ctx)
-			-> Ui::SettingsButton* {
-		const auto button = AddPrivacyButton(
-			ctx.controller,
-			ctx.container,
-			rpl::duplicate(title),
-			{},
-			args.key,
-			std::move(args.controllerFactory));
+	const auto controller = this->controller();
+	const auto session = this->session();
+
+	const auto button = addButton({
+		.id = args.id,
+		.title = rpl::duplicate(args.title),
+		.st = &st::settingsButtonNoIcon,
+		.label = PrivacyButtonLabel(session, args.key),
+		.keywords = args.keywords,
+	});
+	if (button) {
+		const auto id = args.id;
+		const auto premium = args.premium;
+		const auto shower = Ui::CreateChild<rpl::lifetime>(button);
+		const auto factory = args.controllerFactory;
+		button->addClickHandler([=, key = args.key] {
+			*shower = session->api().userPrivacy().value(
+				key
+			) | rpl::take(
+				1
+			) | rpl::on_next(crl::guard(controller, [=](
+					const Api::UserPrivacy::Rule &value) {
+				controller->show(Box<EditPrivacyBox>(
+					controller,
+					factory(),
+					value));
+			}));
+		});
 		if (premium) {
 			AddPrivacyPremiumStar(
 				button,
-				&ctx.controller->session(),
-				rpl::duplicate(title),
+				session,
+				std::move(args.title),
 				st::settingsButtonNoIcon.padding);
 		}
-		if (!id.isEmpty()) {
-			registerHighlight(id, button, {});
-		}
-		return button;
-	}, [&](const SearchContext &ctx) -> Ui::SettingsButton* {
-		if (!args.id.isEmpty()) {
-			ctx.entries->push_back({
-				.id = std::move(args.id),
-				.title = ResolveTitle(std::move(title)),
-				.keywords = std::move(args.keywords),
-			});
-		}
-		return nullptr;
-	});
-}
-
-Ui::SettingsButton *SectionBuilder::addToggle(ToggleArgs &&args) {
-	auto highlight = std::move(args.highlight);
-	const auto id = args.id;
-	const auto button = v::match(_context, [&](const WidgetContext &ctx)
-			-> Ui::SettingsButton* {
-		const auto &st = args.st ? *args.st : st::settingsButton;
-		const auto target = args.container ? args.container : ctx.container.get();
-		const auto button = target->add(CreateButtonWithIcon(
-			target,
-			rpl::duplicate(args.title),
-			st,
-			std::move(args.icon)));
-		button->toggleOn(std::move(args.toggled));
-		return button;
-	}, [&](const SearchContext &ctx) -> Ui::SettingsButton* {
-		if (!args.id.isEmpty()) {
-			ctx.entries->push_back({
-				.id = std::move(args.id),
-				.title = ResolveTitle(std::move(args.title)),
-				.keywords = std::move(args.keywords),
-			});
-		}
-		return nullptr;
-	});
-	if (button && !id.isEmpty()) {
-		registerHighlight(id, button, std::move(highlight));
 	}
 	return button;
 }
 
 Ui::Checkbox *SectionBuilder::addCheckbox(CheckboxArgs &&args) {
-	return v::match(_context, [&](const WidgetContext &ctx) -> Ui::Checkbox* {
-		const auto checkbox = ctx.container->add(
-			object_ptr<Ui::Checkbox>(
-				ctx.container,
-				ResolveTitle(rpl::duplicate(args.title)),
-				args.checked,
-				st::settingsCheckbox),
-			st::settingsCheckboxPadding);
-		return checkbox;
-	}, [&](const SearchContext &ctx) -> Ui::Checkbox* {
-		if (!args.id.isEmpty()) {
-			ctx.entries->push_back({
-				.id = std::move(args.id),
-				.title = ResolveTitle(std::move(args.title)),
-				.keywords = std::move(args.keywords),
-			});
-		}
-		return nullptr;
-	});
-}
-
-Ui::SlideWrap<Ui::Checkbox> *SectionBuilder::addSlideCheckbox(
-		SlideCheckboxArgs &&args) {
-	return v::match(_context, [&](const WidgetContext &ctx)
-			-> Ui::SlideWrap<Ui::Checkbox>* {
-		const auto wrap = ctx.container->add(
-			object_ptr<Ui::SlideWrap<Ui::Checkbox>>(
-				ctx.container,
-				object_ptr<Ui::Checkbox>(
-					ctx.container,
-					ResolveTitle(rpl::duplicate(args.title)),
-					args.checked,
-					st::settingsCheckbox),
-				st::settingsCheckboxPadding));
-		if (args.shown) {
-			wrap->toggleOn(std::move(args.shown));
-		}
-		return wrap;
-	}, [&](const SearchContext &ctx) -> Ui::SlideWrap<Ui::Checkbox>* {
-		if (!args.id.isEmpty()) {
-			ctx.entries->push_back({
-				.id = std::move(args.id),
-				.title = ResolveTitle(std::move(args.title)),
-				.keywords = std::move(args.keywords),
-			});
-		}
-		return nullptr;
-	});
+	const auto factory = [&](not_null<Ui::VerticalLayout*> container) {
+		return object_ptr<Ui::Checkbox>(
+			container,
+			ResolveTitle(rpl::duplicate(args.title)),
+			args.checked,
+			st::settingsCheckbox);
+	};
+	return static_cast<Ui::Checkbox*>(addControl({
+		.factory = factory,
+		.id = std::move(args.id),
+		.title = rpl::duplicate(args.title),
+		.margin = st::settingsCheckboxPadding,
+		.highlight = std::move(args.highlight),
+		.shown = std::move(args.shown),
+		.keywords = std::move(args.keywords),
+		.searchCheckIcon = (args.checked
+			? SearchEntryCheckIcon::Checked
+			: SearchEntryCheckIcon::Unchecked),
+	}));
 }
 
 void SectionBuilder::addSubsectionTitle(rpl::producer<QString> text) {

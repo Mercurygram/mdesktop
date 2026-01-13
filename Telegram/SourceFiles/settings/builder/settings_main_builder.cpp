@@ -138,14 +138,13 @@ void BuildSectionButtons(SectionBuilder &builder) {
 		.keywords = { u"sessions"_q, u"calls"_q },
 	});
 
-	const auto window = controller ? &controller->window() : nullptr;
 	builder.addButton({
 		.id = u"main/power"_q,
 		.title = tr::lng_settings_power_menu(),
 		.icon = { &st::menuIconPowerUsage },
-		.onClick = window
-			? Fn<void()>([=] { window->show(Box(PowerSavingBox, PowerSaving::Flags())); })
-			: Fn<void()>(nullptr),
+		.onClick = [=] {
+			controller->show(Box(PowerSavingBox, PowerSaving::Flags()));
+		},
 		.keywords = { u"battery"_q, u"animations"_q, u"power"_q, u"saving"_q },
 	});
 
@@ -158,10 +157,10 @@ void BuildSectionButtons(SectionBuilder &builder) {
 		) | rpl::then(
 			Lang::GetInstance().idChanges()
 		) | rpl::map([] { return Lang::GetInstance().nativeName(); }),
-		.onClick = controller ? Fn<void()>([=] {
+		.onClick = [=] {
 			static auto Guard = base::binary_guard();
 			Guard = LanguageBox::Show(controller);
-		}) : Fn<void()>(nullptr),
+		},
 		.keywords = { u"translate"_q, u"localization"_q, u"language"_q },
 	});
 }
@@ -205,10 +204,10 @@ void BuildPremiumSection(SectionBuilder &builder) {
 	builder.addPremiumButton({
 		.id = u"main/premium"_q,
 		.title = tr::lng_premium_summary_title(),
-		.onClick = controller ? Fn<void()>([=] {
+		.onClick = [=] {
 			controller->setPremiumRef("settings");
 			showOther(PremiumId());
-		}) : Fn<void()>(nullptr),
+		},
 		.keywords = { u"subscription"_q },
 	});
 
@@ -217,16 +216,16 @@ void BuildPremiumSection(SectionBuilder &builder) {
 		.id = u"main/credits"_q,
 		.title = tr::lng_settings_credits(),
 		.label = session->credits().balanceValue(
-			) | rpl::map([](CreditsAmount c) {
-				return c
-					? Lang::FormatCreditsAmountToShort(c).string
-					: QString();
-			}),
+		) | rpl::map([](CreditsAmount c) {
+			return c
+				? Lang::FormatCreditsAmountToShort(c).string
+				: QString();
+		}),
 		.credits = true,
-		.onClick = controller ? Fn<void()>([=] {
+		.onClick = [=] {
 			controller->setPremiumRef("settings");
 			showOther(CreditsId());
-		}) : Fn<void()>(nullptr),
+		},
 		.keywords = { u"stars"_q, u"balance"_q },
 	});
 
@@ -237,14 +236,12 @@ void BuildPremiumSection(SectionBuilder &builder) {
 		.icon = { &st::menuIconTon },
 		.label = session->credits().tonBalanceValue(
 		) | rpl::map([](CreditsAmount c) {
-			return c
-				? Lang::FormatCreditsAmountToShort(c).string
-				: QString();
+			return c ? Lang::FormatCreditsAmountToShort(c).string : u""_q;
 		}),
-		.onClick = controller ? Fn<void()>([=] {
+		.onClick = [=] {
 			controller->setPremiumRef("settings");
 			showOther(CurrencyId());
-		}) : Fn<void()>(nullptr),
+		},
 		.keywords = { u"ton"_q, u"crypto"_q, u"wallet"_q },
 		.shown = session->credits().tonBalanceValue(
 		) | rpl::map([](CreditsAmount c) { return !c.empty(); }),
@@ -254,9 +251,7 @@ void BuildPremiumSection(SectionBuilder &builder) {
 		.id = u"main/business"_q,
 		.title = tr::lng_business_title(),
 		.icon = { .icon = &st::menuIconShop },
-		.onClick = showOther
-			? Fn<void()>([=] { showOther(BusinessId()); })
-			: Fn<void()>(nullptr),
+		.onClick = [=] { showOther(BusinessId()); },
 		.keywords = { u"work"_q, u"company"_q },
 	});
 
@@ -265,9 +260,7 @@ void BuildPremiumSection(SectionBuilder &builder) {
 			.id = u"main/send-gift"_q,
 			.title = tr::lng_settings_gift_premium(),
 			.icon = { .icon = &st::menuIconGiftPremium, .newBadge = true },
-			.onClick = controller
-				? Fn<void()>([=] { Ui::ChooseStarGiftRecipient(controller); })
-				: Fn<void()>(nullptr),
+			.onClick = [=] { Ui::ChooseStarGiftRecipient(controller); },
 			.keywords = { u"present"_q, u"send"_q },
 		});
 	}
@@ -327,19 +320,22 @@ void BuildValidationSuggestions(SectionBuilder &builder) {
 	});
 }
 
-const auto kMeta = BuildHelper(Main::Id(), [](SectionBuilder &builder) {
-	builder.addDivider();
-	builder.addSkip();
+const auto kMeta = BuildHelper(
+	Main::Id(),
+	tr::lng_menu_settings,
+	[](SectionBuilder &builder) {
+		builder.addDivider();
+		builder.addSkip();
 
-	BuildValidationSuggestions(builder);
-	BuildSectionButtons(builder);
+		BuildValidationSuggestions(builder);
+		BuildSectionButtons(builder);
 
-	builder.addSkip();
+		builder.addSkip();
 
-	BuildInterfaceScale(builder);
-	BuildPremiumSection(builder);
-	BuildHelpSection(builder);
-});
+		BuildInterfaceScale(builder);
+		BuildPremiumSection(builder);
+		BuildHelpSection(builder);
+	});
 
 } // namespace
 

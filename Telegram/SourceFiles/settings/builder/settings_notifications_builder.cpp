@@ -63,7 +63,7 @@ void BuildMultiAccountSection(
 
 	const auto container = builder.container();
 	if (!container) {
-		builder.addToggle({
+		builder.addButton({
 			.id = u"notifications/multi_account"_q,
 			.title = tr::lng_settings_notify_all(),
 			.toggled = rpl::single(Core::App().settings().notifyFromAll()),
@@ -75,7 +75,7 @@ void BuildMultiAccountSection(
 		return;
 	}
 
-	const auto fromAll = builder.addToggle({
+	const auto fromAll = builder.addButton({
 		.id = u"notifications/accounts"_q,
 		.title = tr::lng_settings_notify_all(),
 		.st = &st::settingsButtonNoIcon,
@@ -120,7 +120,7 @@ void BuildGlobalNotificationsSection(
 	const auto desktopToggles = container
 		? container->lifetime().make_state<rpl::event_stream<bool>>()
 		: nullptr;
-	const auto desktop = builder.addToggle({
+	const auto desktop = builder.addButton({
 		.id = u"notifications/desktop"_q,
 		.title = tr::lng_settings_desktop_notify(),
 		.icon = { &st::menuIconNotifications },
@@ -133,7 +133,7 @@ void BuildGlobalNotificationsSection(
 	const auto flashbounceToggles = container
 		? container->lifetime().make_state<rpl::event_stream<bool>>()
 		: nullptr;
-	const auto flashbounce = builder.addToggle({
+	const auto flashbounce = builder.addButton({
 		.id = u"notifications/flash"_q,
 		.title = (Platform::IsWindows()
 			? tr::lng_settings_alert_windows
@@ -153,7 +153,7 @@ void BuildGlobalNotificationsSection(
 	const auto allowed = [=] {
 		return Core::App().settings().soundNotify();
 	};
-	const auto sound = builder.addToggle({
+	const auto sound = builder.addButton({
 		.id = u"notifications/sound"_q,
 		.title = tr::lng_settings_sound_allowed(),
 		.icon = { &st::menuIconUnmute },
@@ -366,7 +366,7 @@ void BuildEventNotificationsSection(
 		session->api().contactSignupSilentCurrent().value_or(false)
 	) | rpl::then(session->api().contactSignupSilent());
 
-	const auto joined = builder.addToggle({
+	const auto joined = builder.addButton({
 		.id = u"notifications/events/joined"_q,
 		.title = tr::lng_settings_events_joined(),
 		.icon = { &st::menuIconInvite },
@@ -383,7 +383,7 @@ void BuildEventNotificationsSection(
 		}, joined->lifetime());
 	}
 
-	const auto pinned = builder.addToggle({
+	const auto pinned = builder.addButton({
 		.id = u"notifications/events/pinned"_q,
 		.title = tr::lng_settings_events_pinned(),
 		.icon = { &st::menuIconPin },
@@ -419,7 +419,7 @@ void BuildCallNotificationsSection(
 	const auto authorizations = &session->api().authorizations();
 	authorizations->reload();
 
-	const auto acceptCalls = builder.addToggle({
+	const auto acceptCalls = builder.addButton({
 		.id = u"notifications/calls/accept"_q,
 		.title = tr::lng_settings_call_accept_calls(),
 		.icon = { &st::menuIconCallsReceive },
@@ -448,7 +448,7 @@ void BuildBadgeCounterSection(
 
 	const auto &settings = Core::App().settings();
 
-	const auto muted = builder.addToggle({
+	const auto muted = builder.addButton({
 		.id = u"notifications/include-muted-chats"_q,
 		.title = tr::lng_settings_include_muted(),
 		.st = &st::settingsButtonNoIcon,
@@ -458,7 +458,7 @@ void BuildBadgeCounterSection(
 
 	const auto hasFolders = controller
 		&& controller->session().data().chatsFilters().has();
-	const auto mutedFolders = hasFolders ? builder.addToggle({
+	const auto mutedFolders = hasFolders ? builder.addButton({
 		.id = u"notifications/badge/muted_folders"_q,
 		.title = tr::lng_settings_include_muted_folders(),
 		.st = &st::settingsButtonNoIcon,
@@ -466,7 +466,7 @@ void BuildBadgeCounterSection(
 		.keywords = { u"muted"_q, u"folders"_q },
 	}) : nullptr;
 
-	const auto count = builder.addToggle({
+	const auto count = builder.addButton({
 		.id = u"notifications/count-unread-messages"_q,
 		.title = tr::lng_settings_count_unread(),
 		.st = &st::settingsButtonNoIcon,
@@ -534,7 +534,7 @@ void BuildSystemIntegrationAndAdvancedSection(
 	}
 
 	const auto &settings = Core::App().settings();
-	const auto native = nativeText ? builder.addToggle({
+	const auto native = nativeText ? builder.addButton({
 		.id = u"notifications/native"_q,
 		.title = std::move(nativeText),
 		.st = &st::settingsButtonNoIcon,
@@ -721,10 +721,14 @@ void BuildNotificationsSectionContent(
 	BuildSystemIntegrationAndAdvancedSection(builder, controller);
 }
 
-const auto kMeta = BuildHelper(Notifications::Id(), [](SectionBuilder &builder) {
-	const auto controller = builder.controller();
-	BuildNotificationsSectionContent(builder, controller);
-}, Main::Id());
+const auto kMeta = BuildHelper(
+	Notifications::Id(),
+	tr::lng_settings_section_notify,
+	[](SectionBuilder &builder) {
+		const auto controller = builder.controller();
+		BuildNotificationsSectionContent(builder, controller);
+	},
+	Main::Id());
 
 } // namespace
 

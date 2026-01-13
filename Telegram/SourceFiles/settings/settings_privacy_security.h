@@ -40,6 +40,10 @@ not_null<Ui::SettingsButton*> AddPrivacyButton(
 	Fn<std::unique_ptr<EditPrivacyController>()> controllerFactory,
 	const style::SettingsButton *stOverride = nullptr);
 
+[[nodiscard]] rpl::producer<QString> PrivacyButtonLabel(
+	not_null<::Main::Session*> session,
+	Api::UserPrivacy::Key key);
+
 void AddPrivacyPremiumStar(
 	not_null<Ui::SettingsButton*> button,
 	not_null<::Main::Session*> session,
