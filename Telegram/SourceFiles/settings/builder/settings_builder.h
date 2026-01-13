@@ -24,6 +24,10 @@ class SettingsButton;
 class Checkbox;
 } // namespace Ui
 
+namespace Main {
+class Session;
+} // namespace Main
+
 namespace Window {
 class SessionController;
 } // namespace Window
@@ -52,54 +56,50 @@ struct SearchEntry {
 	}
 };
 
-using SearchEntriesProvider = std::function<std::vector<SearchEntry>()>;
+using SearchEntriesIndexer = std::function<std::vector<SearchEntry>(
+	not_null<::Main::Session*> session)>;
 
-struct SearchProviderEntry {
-	Type sectionType;
-	SearchEntriesProvider provider;
+struct SearchIndexerEntry {
+	Type sectionId;
+	SearchEntriesIndexer indexer;
 };
 
 class SearchRegistry {
 public:
 	static SearchRegistry &Instance();
 
-	void add(Type sectionType, SearchEntriesProvider provider);
-	[[nodiscard]] std::vector<SearchEntry> collectAll() const;
+	void add(
+		Type sectionId,
+		Type parentSectionId,
+		SearchEntriesIndexer indexer);
+
+	[[nodiscard]] std::vector<SearchEntry> collectAll(
+		not_null<::Main::Session*> session) const;
 
 private:
-	std::vector<SearchProviderEntry> _providers;
+	std::vector<SearchIndexerEntry> _indexers;
+	base::flat_map<Type, Type> _parentSections;
 
-};
-
-struct SearchProviderRegistrar {
-	SearchProviderRegistrar(Type sectionType, SearchEntriesProvider provider);
 };
 
 class BuildHelper {
 public:
-	template <typename Func>
-	BuildHelper(Type sectionId, Func buildFunc);
+	BuildHelper(
+		Type sectionId,
+		FnMut<void(SectionBuilder&)> method,
+		Type parentSectionId = nullptr);
 
-	void build(
-		not_null<Ui::VerticalLayout*> container,
-		not_null<Window::SessionController*> controller,
-		Fn<void(Type)> showOther,
-		rpl::producer<> showFinished) const;
+	const SectionBuildMethod build;
 
-	[[nodiscard]] std::vector<SearchEntry> index() const;
+	[[nodiscard]] std::vector<SearchEntry> index(
+		not_null<::Main::Session*> session) const;
 
 private:
 	Type _sectionId;
-	mutable FnMut<void(SectionBuilder &)> _buildFunc;
+	Type _parentSectionId;
+	mutable FnMut<void(SectionBuilder &)> _method;
 
 };
-
-struct HighlightEntry {
-	QPointer<QWidget> widget;
-	HighlightArgs args;
-};
-
-using HighlightRegistry = std::vector<std::pair<QString, HighlightEntry>>;
 
 struct WidgetContext {
 	not_null<Ui::VerticalLayout*> container;
@@ -111,6 +111,7 @@ struct WidgetContext {
 
 struct SearchContext {
 	Type sectionId;
+	not_null<::Main::Session*> session;
 	not_null<std::vector<SearchEntry>*> entries;
 };
 
@@ -140,7 +141,7 @@ public:
 	};
 	Ui::RpWidget *add(
 		FnMut<WidgetToAdd(const WidgetContext &ctx)> widget,
-		FnMut<SearchEntry()> search);
+		FnMut<SearchEntry()> search = nullptr);
 
 	struct ControlArgs {
 		Fn<object_ptr<Ui::RpWidget>(not_null<Ui::VerticalLayout*>)> factory;
@@ -150,6 +151,7 @@ public:
 		style::margins margin;
 		style::align align = style::al_left;
 		HighlightArgs highlight;
+		rpl::producer<bool> shown;
 	};
 	Ui::RpWidget *addControl(ControlArgs &&args);
 
@@ -163,9 +165,9 @@ public:
 		Fn<void()> onClick;
 		QStringList keywords;
 		HighlightArgs highlight;
+		rpl::producer<bool> shown;
 	};
-	Ui::SettingsButton *addSettingsButton(ButtonArgs &&args);
-	Ui::SettingsButton *addLabeledButton(ButtonArgs &&args);
+	Ui::SettingsButton *addButton(ButtonArgs &&args);
 
 	struct SectionArgs {
 		QString id;
@@ -175,30 +177,6 @@ public:
 		QStringList keywords;
 	};
 	Ui::SettingsButton *addSectionButton(SectionArgs &&args);
-
-	struct SlideButtonArgs {
-		QString id;
-		rpl::producer<QString> title;
-		const style::SettingsButton *st = nullptr;
-		IconDescriptor icon;
-		rpl::producer<bool> shown;
-		Fn<void()> onClick;
-		QStringList keywords;
-	};
-	Ui::SlideWrap<Ui::SettingsButton> *addSlideButton(SlideButtonArgs &&args);
-
-	struct SlideLabeledButtonArgs {
-		QString id;
-		rpl::producer<QString> title;
-		const style::SettingsButton *st = nullptr;
-		IconDescriptor icon;
-		rpl::producer<QString> label;
-		rpl::producer<bool> shown;
-		Fn<void()> onClick;
-		QStringList keywords;
-	};
-	Ui::SlideWrap<Ui::SettingsButton> *addSlideLabeledButton(
-		SlideLabeledButtonArgs &&args);
 
 	struct PremiumButtonArgs {
 		QString id;
@@ -232,17 +210,6 @@ public:
 	};
 	Ui::SettingsButton *addToggle(ToggleArgs &&args);
 
-	struct SlideToggleArgs {
-		QString id;
-		rpl::producer<QString> title;
-		const style::SettingsButton *st = nullptr;
-		IconDescriptor icon;
-		rpl::producer<bool> toggled;
-		rpl::producer<bool> shown;
-		QStringList keywords;
-	};
-	Ui::SlideWrap<Ui::SettingsButton> *addSlideToggle(SlideToggleArgs &&args);
-
 	struct CheckboxArgs {
 		QString id;
 		rpl::producer<QString> title;
@@ -260,12 +227,6 @@ public:
 	};
 	Ui::SlideWrap<Ui::Checkbox> *addSlideCheckbox(SlideCheckboxArgs &&args);
 
-	struct SlideSectionArgs {
-		rpl::producer<bool> shown;
-		Fn<void(not_null<Ui::VerticalLayout*>)> fill;
-	};
-	Ui::SlideWrap<Ui::VerticalLayout> *addSlideSection(SlideSectionArgs &&args);
-
 	void addSubsectionTitle(rpl::producer<QString> text);
 	void addDivider();
 	void addDividerText(rpl::producer<QString> text);
@@ -274,6 +235,7 @@ public:
 
 	[[nodiscard]] Ui::VerticalLayout *container() const;
 	[[nodiscard]] Window::SessionController *controller() const;
+	[[nodiscard]] not_null<::Main::Session*> session() const;
 	[[nodiscard]] Fn<void(Type)> showOther() const;
 	[[nodiscard]] HighlightRegistry *highlights() const;
 
@@ -286,14 +248,5 @@ private:
 	BuildContext _context;
 
 };
-
-template <typename Func>
-BuildHelper::BuildHelper(Type sectionId, Func buildFunc)
-: _sectionId(sectionId)
-, _buildFunc(std::move(buildFunc)) {
-	SearchRegistry::Instance().add(sectionId, [this] {
-		return index();
-	});
-}
 
 } // namespace Settings::Builder

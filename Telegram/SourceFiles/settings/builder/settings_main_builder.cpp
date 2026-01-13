@@ -38,6 +38,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/layers/generic_box.h"
 #include "ui/new_badges.h"
 #include "ui/text/format_values.h"
+#include "ui/widgets/buttons.h"
+#include "ui/wrap/slide_wrap.h"
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
 #include "styles/style_menu_icons.h"
@@ -46,10 +48,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Settings::Builder {
 namespace {
 
-void BuildSectionButtons(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
-	if (!controller || !controller->session().supportMode()) {
+void BuildSectionButtons(SectionBuilder &builder) {
+	const auto session = builder.session();
+	const auto controller = builder.controller();
+	const auto showOther = builder.showOther();
+
+	if (!session->supportMode()) {
 		builder.addSectionButton({
 			.id = u"main/account"_q,
 			.title = tr::lng_settings_my_account(),
@@ -83,48 +87,38 @@ void BuildSectionButtons(
 		.keywords = { u"themes"_q, u"appearance"_q, u"stickers"_q },
 	});
 
-	const auto showOther = builder.showOther();
-	if (controller) {
-		const auto account = &controller->session().account();
+	{ // Folders
 		const auto preload = [=] {
-			controller->session().data().chatsFilters().requestSuggested();
+			session->data().chatsFilters().requestSuggested();
 		};
-		const auto hasFilters = controller->session().data().chatsFilters().has()
-			|| controller->session().settings().dialogsFiltersEnabled();
+		const auto hasFilters = session->data().chatsFilters().has()
+			|| session->settings().dialogsFiltersEnabled();
 
 		auto shownProducer = hasFilters
 			? rpl::single(true)
 			: (rpl::single(rpl::empty) | rpl::then(
-				account->appConfig().refreshed()
+				session->appConfig().refreshed()
 			) | rpl::map([=] {
-				const auto enabled = account->appConfig().get<bool>(
-					u"dialog_filters_enabled"_q,
-					false);
-				if (enabled) {
-					preload();
-				}
-				return enabled;
-			}));
+			const auto enabled = session->appConfig().get<bool>(
+				u"dialog_filters_enabled"_q,
+				false);
+			if (enabled) {
+				preload();
+			}
+			return enabled;
+		}));
 
 		if (hasFilters) {
 			preload();
 		}
 
-		builder.addSlideButton({
+		builder.addButton({
 			.id = u"main/folders"_q,
 			.title = tr::lng_settings_section_filters(),
 			.icon = { &st::menuIconShowInFolder },
-			.shown = std::move(shownProducer),
 			.onClick = [=] { showOther(Folders::Id()); },
 			.keywords = { u"filters"_q, u"tabs"_q },
-		});
-	} else {
-		builder.addSlideButton({
-			.id = u"main/folders"_q,
-			.title = tr::lng_settings_section_filters(),
-			.icon = { &st::menuIconShowInFolder },
-			.shown = rpl::single(true),
-			.keywords = { u"filters"_q, u"tabs"_q },
+			.shown = std::move(shownProducer),
 		});
 	}
 
@@ -145,7 +139,7 @@ void BuildSectionButtons(
 	});
 
 	const auto window = controller ? &controller->window() : nullptr;
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"main/power"_q,
 		.title = tr::lng_settings_power_menu(),
 		.icon = { &st::menuIconPowerUsage },
@@ -155,11 +149,7 @@ void BuildSectionButtons(
 		.keywords = { u"battery"_q, u"animations"_q, u"power"_q, u"saving"_q },
 	});
 
-	const auto languageClick = controller ? [=] {
-		static auto Guard = base::binary_guard();
-		Guard = LanguageBox::Show(controller);
-	} : Fn<void()>();
-	builder.addLabeledButton({
+	builder.addButton({
 		.id = u"main/language"_q,
 		.title = tr::lng_settings_language(),
 		.icon = { &st::menuIconTranslate },
@@ -168,14 +158,15 @@ void BuildSectionButtons(
 		) | rpl::then(
 			Lang::GetInstance().idChanges()
 		) | rpl::map([] { return Lang::GetInstance().nativeName(); }),
-		.onClick = languageClick,
+		.onClick = controller ? Fn<void()>([=] {
+			static auto Guard = base::binary_guard();
+			Guard = LanguageBox::Show(controller);
+		}) : Fn<void()>(nullptr),
 		.keywords = { u"translate"_q, u"localization"_q, u"language"_q },
 	});
 }
 
-void BuildInterfaceScale(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildInterfaceScale(SectionBuilder &builder) {
 	if (!HasInterfaceScale()) {
 		return;
 	}
@@ -183,32 +174,33 @@ void BuildInterfaceScale(
 	builder.addDivider();
 	builder.addSkip();
 
-	const auto window = controller ? &controller->window() : nullptr;
-	builder.addControl({
-		.factory = window ? [=](not_null<Ui::VerticalLayout*> container) {
-			auto wrap = object_ptr<Ui::VerticalLayout>(container);
-			SetupInterfaceScale(window, wrap.data());
-			return wrap;
-		} : Fn<object_ptr<Ui::RpWidget>(not_null<Ui::VerticalLayout*>)>(nullptr),
-		.id = u"main/scale"_q,
-		.title = tr::lng_settings_default_scale(),
-		.keywords = { u"zoom"_q, u"size"_q, u"interface"_q, u"ui"_q },
+	builder.add([](const WidgetContext &ctx) {
+		const auto window = &ctx.controller->window();
+		auto wrap = object_ptr<Ui::VerticalLayout>(ctx.container);
+		SetupInterfaceScale(window, wrap.data());
+		return SectionBuilder::WidgetToAdd{ .widget = std::move(wrap) };
+	}, [] {
+		return SearchEntry{
+			.id = u"main/scale"_q,
+			.title = tr::lng_settings_default_scale(tr::now),
+			.keywords = { u"zoom"_q, u"size"_q, u"interface"_q, u"ui"_q },
+		};
 	});
 
 	builder.addSkip();
 }
 
-void BuildPremiumSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
-	if (controller && !controller->session().premiumPossible()) {
+void BuildPremiumSection(SectionBuilder &builder) {
+	const auto session = builder.session();
+	const auto controller = builder.controller();
+	const auto showOther = builder.showOther();
+
+	if (!session->premiumPossible()) {
 		return;
 	}
 
 	builder.addDivider();
 	builder.addSkip();
-
-	const auto showOther = builder.showOther();
 
 	builder.addPremiumButton({
 		.id = u"main/premium"_q,
@@ -220,20 +212,16 @@ void BuildPremiumSection(
 		.keywords = { u"subscription"_q },
 	});
 
-	if (controller) {
-		controller->session().credits().load();
-	}
+	session->credits().load();
 	builder.addPremiumButton({
 		.id = u"main/credits"_q,
 		.title = tr::lng_settings_credits(),
-		.label = controller
-			? (controller->session().credits().balanceValue(
-				) | rpl::map([](CreditsAmount c) {
-					return c
-						? Lang::FormatCreditsAmountToShort(c).string
-						: QString();
-				}))
-			: rpl::single(QString()),
+		.label = session->credits().balanceValue(
+			) | rpl::map([](CreditsAmount c) {
+				return c
+					? Lang::FormatCreditsAmountToShort(c).string
+					: QString();
+			}),
 		.credits = true,
 		.onClick = controller ? Fn<void()>([=] {
 			controller->setPremiumRef("settings");
@@ -242,33 +230,27 @@ void BuildPremiumSection(
 		.keywords = { u"stars"_q, u"balance"_q },
 	});
 
-	if (controller) {
-		controller->session().credits().tonLoad();
-	}
-	builder.addSlideLabeledButton({
+	session->credits().tonLoad();
+	builder.addButton({
 		.id = u"main/currency"_q,
 		.title = tr::lng_settings_currency(),
 		.icon = { &st::menuIconTon },
-		.label = controller
-			? (controller->session().credits().tonBalanceValue(
-				) | rpl::map([](CreditsAmount c) {
-					return c
-						? Lang::FormatCreditsAmountToShort(c).string
-						: QString();
-				}))
-			: rpl::single(QString()),
-		.shown = controller
-			? (controller->session().credits().tonBalanceValue(
-				) | rpl::map([](CreditsAmount c) { return !c.empty(); }))
-			: rpl::single(false),
+		.label = session->credits().tonBalanceValue(
+		) | rpl::map([](CreditsAmount c) {
+			return c
+				? Lang::FormatCreditsAmountToShort(c).string
+				: QString();
+		}),
 		.onClick = controller ? Fn<void()>([=] {
 			controller->setPremiumRef("settings");
 			showOther(CurrencyId());
 		}) : Fn<void()>(nullptr),
 		.keywords = { u"ton"_q, u"crypto"_q, u"wallet"_q },
+		.shown = session->credits().tonBalanceValue(
+		) | rpl::map([](CreditsAmount c) { return !c.empty(); }),
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"main/business"_q,
 		.title = tr::lng_business_title(),
 		.icon = { .icon = &st::menuIconShop },
@@ -278,8 +260,8 @@ void BuildPremiumSection(
 		.keywords = { u"work"_q, u"company"_q },
 	});
 
-	if (!controller || controller->session().premiumCanBuy()) {
-		builder.addSettingsButton({
+	if (session->premiumCanBuy()) {
+		builder.addButton({
 			.id = u"main/send-gift"_q,
 			.title = tr::lng_settings_gift_premium(),
 			.icon = { .icon = &st::menuIconGiftPremium, .newBadge = true },
@@ -293,13 +275,12 @@ void BuildPremiumSection(
 	builder.addSkip();
 }
 
-void BuildHelpSection(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+void BuildHelpSection(SectionBuilder &builder) {
 	builder.addDivider();
 	builder.addSkip();
 
-	builder.addSettingsButton({
+	const auto controller = builder.controller();
+	builder.addButton({
 		.id = u"main/faq"_q,
 		.title = tr::lng_settings_faq(),
 		.icon = { &st::menuIconFaq },
@@ -307,7 +288,7 @@ void BuildHelpSection(
 		.keywords = { u"help"_q, u"support"_q, u"questions"_q },
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"main/features"_q,
 		.title = tr::lng_settings_features(),
 		.icon = { &st::menuIconEmojiObjects },
@@ -317,7 +298,7 @@ void BuildHelpSection(
 		.keywords = { u"tips"_q, u"tutorial"_q },
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"main/ask-question"_q,
 		.title = tr::lng_settings_ask_question(),
 		.icon = { &st::menuIconDiscussion },
@@ -328,66 +309,40 @@ void BuildHelpSection(
 	builder.addSkip();
 }
 
-void BuildValidationSuggestions(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
-	if (!controller) {
-		return;
-	}
-
-	const auto showOther = builder.showOther();
-
-	builder.addControl({
-		.factory = [=](not_null<Ui::VerticalLayout*> container) {
-			auto wrap = object_ptr<Ui::VerticalLayout>(container);
-			SetupValidatePhoneNumberSuggestion(controller, wrap.data(), showOther);
-			return wrap;
-		},
+void BuildValidationSuggestions(SectionBuilder &builder) {
+	builder.add([](const WidgetContext &ctx) {
+		const auto controller = ctx.controller.get();
+		const auto showOther = ctx.showOther;
+		auto wrap = object_ptr<Ui::VerticalLayout>(ctx.container);
+		SetupValidatePhoneNumberSuggestion(controller, wrap.data(), showOther);
+		return SectionBuilder::WidgetToAdd{ .widget = std::move(wrap) };
 	});
 
-	builder.addControl({
-		.factory = [=](not_null<Ui::VerticalLayout*> container) {
-			auto wrap = object_ptr<Ui::VerticalLayout>(container);
-			SetupValidatePasswordSuggestion(controller, wrap.data(), showOther);
-			return wrap;
-		},
+	builder.add([](const WidgetContext &ctx) {
+		const auto controller = ctx.controller.get();
+		const auto showOther = ctx.showOther;
+		auto wrap = object_ptr<Ui::VerticalLayout>(ctx.container);
+		SetupValidatePasswordSuggestion(controller, wrap.data(), showOther);
+		return SectionBuilder::WidgetToAdd{ .widget = std::move(wrap) };
 	});
 }
 
-void BuildMainSectionContent(
-		SectionBuilder &builder,
-		Window::SessionController *controller) {
+const auto kMeta = BuildHelper(Main::Id(), [](SectionBuilder &builder) {
 	builder.addDivider();
 	builder.addSkip();
 
-	BuildValidationSuggestions(builder, controller);
-
-	BuildSectionButtons(builder, controller);
+	BuildValidationSuggestions(builder);
+	BuildSectionButtons(builder);
 
 	builder.addSkip();
 
-	BuildInterfaceScale(builder, controller);
-	BuildPremiumSection(builder, controller);
-	BuildHelpSection(builder, controller);
-}
-
-const auto kHelper = BuildHelper(Main::Id(), [](SectionBuilder &builder) {
-	const auto controller = builder.controller();
-	BuildMainSectionContent(builder, controller);
+	BuildInterfaceScale(builder);
+	BuildPremiumSection(builder);
+	BuildHelpSection(builder);
 });
 
 } // namespace
 
-void MainSection(
-		not_null<Ui::VerticalLayout*> container,
-		not_null<Window::SessionController*> controller,
-		Fn<void(Type)> showOther,
-		rpl::producer<> showFinished) {
-	kHelper.build(
-		container,
-		controller,
-		std::move(showOther),
-		std::move(showFinished));
-}
+SectionBuildMethod MainSection = kMeta.build;
 
 } // namespace Settings::Builder

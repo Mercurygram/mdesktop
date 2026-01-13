@@ -15,11 +15,6 @@ class Controller;
 
 namespace Settings {
 
-namespace Builder {
-struct HighlightEntry;
-using HighlightRegistry = std::vector<std::pair<QString, HighlightEntry>>;
-} // namespace Builder
-
 void SetupDataStorage(
 	not_null<Window::SessionController*> controller,
 	not_null<Ui::VerticalLayout*> container);
@@ -29,7 +24,7 @@ void SetupAutoDownload(
 void SetupDefaultThemes(
 	not_null<Window::Controller*> window,
 	not_null<Ui::VerticalLayout*> container,
-	Builder::HighlightRegistry *highlights = nullptr);
+	HighlightRegistry *highlights = nullptr);
 void SetupSupport(
 	not_null<Window::SessionController*> controller,
 	not_null<Ui::VerticalLayout*> container);
@@ -47,22 +42,22 @@ void PaintRoundColorButton(
 void SetupThemeOptions(
 	not_null<Window::SessionController*> controller,
 	not_null<Ui::VerticalLayout*> container,
-	Builder::HighlightRegistry *highlights = nullptr);
+	HighlightRegistry *highlights = nullptr);
 
 void SetupThemeSettings(
 	not_null<Window::SessionController*> controller,
 	not_null<Ui::VerticalLayout*> container,
-	Builder::HighlightRegistry *highlights = nullptr);
+	HighlightRegistry *highlights = nullptr);
 
 void SetupCloudThemes(
 	not_null<Window::SessionController*> controller,
 	not_null<Ui::VerticalLayout*> container,
-	Builder::HighlightRegistry *highlights = nullptr);
+	HighlightRegistry *highlights = nullptr);
 
 void SetupChatBackground(
 	not_null<Window::SessionController*> controller,
 	not_null<Ui::VerticalLayout*> container,
-	Builder::HighlightRegistry *highlights = nullptr);
+	HighlightRegistry *highlights = nullptr);
 
 void SetupChatListQuickAction(
 	not_null<Window::SessionController*> controller,
@@ -71,12 +66,12 @@ void SetupChatListQuickAction(
 void SetupStickersEmoji(
 	not_null<Window::SessionController*> controller,
 	not_null<Ui::VerticalLayout*> container,
-	Builder::HighlightRegistry *highlights = nullptr);
+	HighlightRegistry *highlights = nullptr);
 
 void SetupMessages(
 	not_null<Window::SessionController*> controller,
 	not_null<Ui::VerticalLayout*> container,
-	Builder::HighlightRegistry *highlights = nullptr);
+	HighlightRegistry *highlights = nullptr);
 
 void SetupArchive(
 	not_null<Window::SessionController*> controller,
@@ -87,7 +82,7 @@ void SetupSensitiveContent(
 	not_null<Window::SessionController*> controller,
 	not_null<Ui::VerticalLayout*> container,
 	rpl::producer<> updateTrigger,
-	Builder::HighlightRegistry *highlights = nullptr);
+	HighlightRegistry *highlights = nullptr);
 
 class Chat : public Section<Chat> {
 public:

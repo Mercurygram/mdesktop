@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "platform/platform_notifications_manager.h"
 #include "platform/platform_specific.h"
 #include "settings/builder/settings_builder.h"
+#include "settings/settings_main.h"
 #include "settings/settings_notifications.h"
 #include "settings/settings_notifications_common.h"
 #include "settings/settings_notifications_type.h"
@@ -325,19 +326,19 @@ void BuildNotifyTypeSection(
 		AddTypeButton(container, controller, Data::DefaultNotify::Group, showOther);
 		AddTypeButton(container, controller, Data::DefaultNotify::Broadcast, showOther);
 	} else {
-		builder.addSettingsButton({
+		builder.addButton({
 			.id = u"notifications/private"_q,
 			.title = tr::lng_notification_private_chats(),
 			.icon = { &st::menuIconProfile },
 			.keywords = { u"private"_q, u"chats"_q, u"direct"_q },
 		});
-		builder.addSettingsButton({
+		builder.addButton({
 			.id = u"notifications/groups"_q,
 			.title = tr::lng_notification_groups(),
 			.icon = { &st::menuIconGroups },
 			.keywords = { u"groups"_q, u"chats"_q },
 		});
-		builder.addSettingsButton({
+		builder.addButton({
 			.id = u"notifications/channels"_q,
 			.title = tr::lng_notification_channels(),
 			.icon = { &st::menuIconChannel },
@@ -720,19 +721,13 @@ void BuildNotificationsSectionContent(
 	BuildSystemIntegrationAndAdvancedSection(builder, controller);
 }
 
-const auto kHelper = BuildHelper(Notifications::Id(), [](SectionBuilder &builder) {
+const auto kMeta = BuildHelper(Notifications::Id(), [](SectionBuilder &builder) {
 	const auto controller = builder.controller();
 	BuildNotificationsSectionContent(builder, controller);
-});
+}, Main::Id());
 
 } // namespace
 
-void NotificationsSection(
-		not_null<Ui::VerticalLayout*> container,
-		not_null<Window::SessionController*> controller,
-		Fn<void(Type)> showOther,
-		rpl::producer<> showFinished) {
-	kHelper.build(container, controller, std::move(showOther), std::move(showFinished));
-}
+SectionBuildMethod NotificationsSection = kMeta.build;
 
 } // namespace Settings::Builder

@@ -7,7 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_type.h"
+#include "settings/settings_common.h"
 
 #include <vector>
 
@@ -23,10 +23,6 @@ class SessionController;
 
 namespace Settings::Builder {
 
-void MainSection(
-	not_null<Ui::VerticalLayout*> container,
-	not_null<Window::SessionController*> controller,
-	Fn<void(Type)> showOther,
-	rpl::producer<> showFinished);
+extern SectionBuildMethod MainSection;
 
 } // namespace Settings::Builder

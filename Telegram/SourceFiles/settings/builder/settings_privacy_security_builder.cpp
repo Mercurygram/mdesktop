@@ -39,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_blocked_peers.h"
 #include "settings/settings_global_ttl.h"
 #include "settings/settings_local_passcode.h"
+#include "settings/settings_main.h"
 #include "settings/settings_passkeys.h"
 #include "settings/settings_privacy_controllers.h"
 #include "settings/settings_privacy_security.h"
@@ -99,7 +100,7 @@ void BuildSecuritySection(
 			: tr::lng_settings_cloud_password_off(tr::now);
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"security/cloud_password"_q,
 		.title = tr::lng_settings_cloud_password_start_title(),
 		.icon = { &st::menuIcon2SV },
@@ -129,7 +130,7 @@ void BuildSecuritySection(
 		return ttl ? Ui::FormatTTL(ttl) : none;
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"security/ttl"_q,
 		.title = tr::lng_settings_ttl_title(),
 		.icon = { &st::menuIconTTL },
@@ -159,7 +160,7 @@ void BuildSecuritySection(
 		return has ? on : off;
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"security/passcode"_q,
 		.title = tr::lng_settings_passcode_title(),
 		.icon = { &st::menuIconLock },
@@ -197,12 +198,11 @@ void BuildSecuritySection(
 				|| !session->passkeys().list().empty();
 		});
 
-		builder.addSlideLabeledButton({
+		builder.addButton({
 			.id = u"security/passkeys"_q,
 			.title = tr::lng_settings_passkeys_title(),
 			.icon = { &st::menuIconPermissions },
 			.label = std::move(passkeysLabel),
-			.shown = std::move(passkeysShown),
 			.onClick = [=] {
 				if (!session->passkeys().listKnown()) {
 					return;
@@ -222,6 +222,7 @@ void BuildSecuritySection(
 				}
 			},
 			.keywords = { u"passkeys"_q, u"biometric"_q },
+			.shown = std::move(passkeysShown),
 		});
 	}
 
@@ -235,7 +236,7 @@ void BuildSecuritySection(
 		return count ? QString::number(count) : none;
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"security/blocked"_q,
 		.title = tr::lng_settings_blocked_users(),
 		.icon = { &st::menuIconBlock },
@@ -261,16 +262,16 @@ void BuildSecuritySection(
 		return QString::number(count);
 	});
 
-	builder.addSlideLabeledButton({
+	builder.addButton({
 		.id = u"security/websites"_q,
 		.title = tr::lng_settings_logged_in(),
 		.icon = { &st::menuIconIpAddress },
 		.label = std::move(websitesLabel),
-		.shown = std::move(websitesShown),
 		.onClick = [=] {
 			showOther(Websites::Id());
 		},
 		.keywords = { u"websites"_q, u"bots"_q, u"logged"_q },
+		.shown = std::move(websitesShown),
 	});
 
 	rpl::duplicate(
@@ -284,7 +285,7 @@ void BuildSecuritySection(
 		return count ? QString::number(count) : QString();
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"security/sessions"_q,
 		.title = tr::lng_settings_show_sessions(),
 		.icon = { &st::menuIconDevices },
@@ -389,7 +390,7 @@ void BuildPrivacySection(
 	}) | rpl::flatten_latest();
 
 	const auto messagesPremium = !session->appConfig().newRequirePremiumFree();
-	const auto messagesButton = builder.addSettingsButton({
+	const auto messagesButton = builder.addButton({
 		.id = u"privacy/messages"_q,
 		.title = tr::lng_settings_messages_privacy(),
 		.st = &st::settingsButtonNoIcon,
@@ -528,7 +529,7 @@ void BuildSelfDestructionSection(
 	auto label = session->api().selfDestruct().daysAccountTTL(
 	) | rpl::map(SelfDestructionBox::DaysLabel);
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"privacy/self_destruct"_q,
 		.title = tr::lng_settings_destroy_if(),
 		.st = &st::settingsButtonNoIcon,
@@ -568,20 +569,14 @@ void BuildPrivacySecuritySectionContent(
 	BuildSelfDestructionSection(builder, controller, trigger());
 }
 
-const auto kHelper = BuildHelper(PrivacySecurity::Id(), [](SectionBuilder &builder) {
+const auto kMeta = BuildHelper(PrivacySecurity::Id(), [](SectionBuilder &builder) {
 	const auto controller = builder.controller();
 	const auto showOther = builder.showOther();
 	BuildPrivacySecuritySectionContent(builder, controller, showOther);
-});
+}, Main::Id());
 
 } // namespace
 
-void PrivacySecuritySection(
-		not_null<Ui::VerticalLayout*> container,
-		not_null<Window::SessionController*> controller,
-		Fn<void(Type)> showOther,
-		rpl::producer<> showFinished) {
-	kHelper.build(container, controller, std::move(showOther), std::move(showFinished));
-}
+SectionBuildMethod PrivacySecuritySection = kMeta.build;
 
 } // namespace Settings::Builder

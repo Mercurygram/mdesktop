@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/builder/settings_builder.h"
 #include "settings/settings_advanced.h"
 #include "settings/settings_chat.h"
+#include "settings/settings_main.h"
 #include "settings/settings_experimental.h"
 #include "settings/settings_power_saving.h"
 #include "ui/power_saving.h"
@@ -94,7 +95,7 @@ void BuildDataStorageSection(
 		}
 	};
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"advanced/connection_type"_q,
 		.title = tr::lng_settings_connection_type(),
 		.icon = { &st::menuIconNetwork },
@@ -130,35 +131,31 @@ void BuildDataStorageSection(
 		return QDir::toNativeSeparators(text);
 	});
 
-	builder.addSlideLabeledButton({
+	builder.addButton({
 		.id = u"advanced/download_path"_q,
 		.title = tr::lng_download_path(),
 		.icon = { &st::menuIconShowInFolder },
 		.label = std::move(downloadLabel),
+		.onClick = [=] {
+			controller->show(Box<DownloadPathBox>(controller));
+		},
+		.keywords = { u"download"_q, u"path"_q, u"folder"_q },
 		.shown = showDownloadPath
 			? showDownloadPath->value()
 			: rpl::single(true),
-		.onClick = [=] {
-			if (controller) {
-				controller->show(Box<DownloadPathBox>(controller));
-			}
-		},
-		.keywords = { u"download"_q, u"path"_q, u"folder"_q },
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"advanced/storage"_q,
 		.title = tr::lng_settings_manage_local_storage(),
 		.icon = { &st::menuIconStorage },
 		.onClick = [=] {
-			if (controller) {
-				LocalStorageBox::Show(controller);
-			}
+			LocalStorageBox::Show(controller);
 		},
 		.keywords = { u"storage"_q, u"cache"_q, u"local"_q },
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"advanced/downloads"_q,
 		.title = tr::lng_downloads_section(),
 		.icon = { &st::menuIconDownload },
@@ -204,7 +201,7 @@ void BuildAutoDownloadSection(
 
 	using Source = Data::AutoDownload::Source;
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"advanced/auto_download_private"_q,
 		.title = tr::lng_media_auto_in_private(),
 		.icon = { &st::menuIconProfile },
@@ -217,7 +214,7 @@ void BuildAutoDownloadSection(
 		.keywords = { u"auto"_q, u"download"_q, u"private"_q, u"media"_q },
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"advanced/auto_download_groups"_q,
 		.title = tr::lng_media_auto_in_groups(),
 		.icon = { &st::menuIconGroups },
@@ -230,7 +227,7 @@ void BuildAutoDownloadSection(
 		.keywords = { u"auto"_q, u"download"_q, u"groups"_q, u"media"_q },
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"advanced/auto_download_channels"_q,
 		.title = tr::lng_media_auto_in_channels(),
 		.icon = { &st::menuIconChannel },
@@ -651,7 +648,7 @@ void BuildANGLEOption(
 		Unexpected("Ui::GL::CurrentANGLE value in BuildANGLEOption.");
 	}();
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"advanced/angle_backend"_q,
 		.title = tr::lng_settings_angle_backend(),
 		.st = &st::settingsButtonNoIcon,
@@ -741,7 +738,7 @@ void BuildPerformanceSection(
 	builder.addSkip();
 	builder.addSubsectionTitle(tr::lng_settings_performance());
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"advanced/power_saving"_q,
 		.title = tr::lng_settings_power_menu(),
 		.st = &st::settingsButtonNoIcon,
@@ -845,7 +842,7 @@ void BuildSpellcheckerSection(
 			}, autoDownload->lifetime());
 		}
 
-		builder.addLabeledButton({
+		builder.addButton({
 			.id = u"advanced/manage_dictionaries"_q,
 			.title = tr::lng_settings_manage_dictionaries(),
 			.st = &st::settingsButtonNoIcon,
@@ -945,7 +942,7 @@ void BuildUpdateSection(
 			.keywords = { u"beta"_q, u"update"_q, u"version"_q },
 		});
 
-	const auto check = builder.addSettingsButton({
+	const auto check = builder.addButton({
 		.id = u"advanced/check_update"_q,
 		.title = tr::lng_settings_check_now(),
 		.st = &st::settingsButtonNoIcon,
@@ -1084,7 +1081,7 @@ void BuildExportSection(
 	builder.addDivider();
 	builder.addSkip();
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"advanced/export"_q,
 		.title = tr::lng_settings_export_data(),
 		.icon = { &st::menuIconExport },
@@ -1102,7 +1099,7 @@ void BuildExportSection(
 		.keywords = { u"export"_q, u"data"_q, u"backup"_q },
 	});
 
-	builder.addSettingsButton({
+	builder.addButton({
 		.id = u"advanced/experimental"_q,
 		.title = tr::lng_settings_experimental(),
 		.icon = { &st::menuIconExperimental },
@@ -1115,10 +1112,9 @@ void BuildExportSection(
 	});
 }
 
-void BuildAdvancedSectionContent(
-		SectionBuilder &builder,
-		Window::SessionController *controller,
-		Fn<void(Type)> showOther) {
+const auto kMeta = BuildHelper(Advanced::Id(), [](SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	const auto showOther = builder.showOther();
 	const auto autoUpdate = cAutoUpdate();
 
 	if (!autoUpdate) {
@@ -1134,22 +1130,10 @@ void BuildAdvancedSectionContent(
 		BuildUpdateSection(builder, controller, false);
 	}
 	BuildExportSection(builder, controller, showOther);
-}
-
-const auto kHelper = BuildHelper(Advanced::Id(), [](SectionBuilder &builder) {
-	const auto controller = builder.controller();
-	const auto showOther = builder.showOther();
-	BuildAdvancedSectionContent(builder, controller, showOther);
-});
+}, Main::Id());
 
 } // namespace
 
-void AdvancedSection(
-		not_null<Ui::VerticalLayout*> container,
-		not_null<Window::SessionController*> controller,
-		Fn<void(Type)> showOther,
-		rpl::producer<> showFinished) {
-	kHelper.build(container, controller, std::move(showOther), std::move(showFinished));
-}
+SectionBuildMethod AdvancedSection = kMeta.build;
 
 } // namespace Settings::Builder

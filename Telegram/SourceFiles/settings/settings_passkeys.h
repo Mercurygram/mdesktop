@@ -21,7 +21,7 @@ namespace Settings {
 
 void PasskeysNoneBox(
 	not_null<Ui::GenericBox*> box,
-	not_null<Main::Session*> session);
+	not_null<::Main::Session*> session);
 
 Type PasskeysId();
 

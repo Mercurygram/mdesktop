@@ -744,7 +744,7 @@ auto ClearPaymentInfoBox(not_null<Main::Session*> session) {
 void SetupBotsAndWebsites(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
-		Builder::HighlightRegistry *highlights) {
+		HighlightRegistry *highlights) {
 	Ui::AddSkip(container);
 	Ui::AddSubsectionTitle(container, tr::lng_settings_security_bots());
 
@@ -951,7 +951,7 @@ void SetupSensitiveContent(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
 		rpl::producer<> updateTrigger,
-		Builder::HighlightRegistry *highlights) {
+		HighlightRegistry *highlights) {
 	using namespace rpl::mappers;
 
 	const auto wrap = container->add(
@@ -1123,7 +1123,7 @@ not_null<Ui::SettingsButton*> AddPrivacyButton(
 void SetupArchiveAndMute(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
-		Builder::HighlightRegistry *highlights) {
+		HighlightRegistry *highlights) {
 	using namespace rpl::mappers;
 
 	const auto wrap = container->add(

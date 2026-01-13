@@ -739,7 +739,7 @@ void ChooseFromFile(
 void SetupStickersEmoji(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
-		Builder::HighlightRegistry *highlights) {
+		HighlightRegistry *highlights) {
 	Ui::AddSkip(container);
 
 	const auto title = Ui::AddSubsectionTitle(
@@ -908,7 +908,7 @@ void SetupStickersEmoji(
 void SetupMessages(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
-		Builder::HighlightRegistry *highlights) {
+		HighlightRegistry *highlights) {
 	Ui::AddDivider(container);
 	Ui::AddSkip(container);
 
@@ -1285,7 +1285,7 @@ void SetupAutoDownload(
 void SetupChatBackground(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
-		Builder::HighlightRegistry *highlights) {
+		HighlightRegistry *highlights) {
 	Ui::AddDivider(container);
 	Ui::AddSkip(container);
 
@@ -1608,7 +1608,7 @@ void SetupChatListQuickAction(
 void SetupDefaultThemes(
 		not_null<Window::Controller*> window,
 		not_null<Ui::VerticalLayout*> container,
-		Builder::HighlightRegistry *highlights) {
+		HighlightRegistry *highlights) {
 	using Type = Window::Theme::EmbeddedType;
 	using Scheme = Window::Theme::EmbeddedScheme;
 	using Check = Window::Theme::CloudListCheck;
@@ -1809,7 +1809,7 @@ void SetupDefaultThemes(
 void SetupThemeOptions(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
-		Builder::HighlightRegistry *highlights) {
+		HighlightRegistry *highlights) {
 	using namespace Window::Theme;
 
 	Ui::AddSkip(container, st::settingsPrivacySkip);
@@ -1832,7 +1832,7 @@ void SetupThemeOptions(
 void SetupCloudThemes(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
-		Builder::HighlightRegistry *highlights) {
+		HighlightRegistry *highlights) {
 	using namespace Window::Theme;
 	using namespace rpl::mappers;
 
@@ -1925,7 +1925,7 @@ void SetupCloudThemes(
 void SetupThemeSettings(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> container,
-		Builder::HighlightRegistry *highlights) {
+		HighlightRegistry *highlights) {
 	Ui::AddDivider(container);
 	Ui::AddSkip(container, st::settingsPrivacySkip);
 

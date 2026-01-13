@@ -81,11 +81,18 @@ void ScrollToWidget(not_null<QWidget*> target);
 
 [[nodiscard]] HighlightArgs SubsectionTitleHighlight();
 
-using SectionBuilder = void(*)(
+struct HighlightEntry {
+	QPointer<QWidget> widget;
+	HighlightArgs args;
+};
+
+using HighlightRegistry = std::vector<std::pair<QString, HighlightEntry>>;
+
+using SectionBuildMethod = Fn<void(
 	not_null<Ui::VerticalLayout*> container,
 	not_null<Window::SessionController*> controller,
 	Fn<void(Type)> showOther,
-	rpl::producer<> showFinished);
+	rpl::producer<> showFinished)>;
 
 class AbstractSection : public Ui::RpWidget {
 public:
@@ -169,7 +176,7 @@ public:
 protected:
 	void build(
 		not_null<Ui::VerticalLayout*> container,
-		SectionBuilder builder);
+		SectionBuildMethod method);
 
 private:
 	const not_null<Window::SessionController*> _controller;

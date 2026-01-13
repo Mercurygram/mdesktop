@@ -7,8 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_type.h"
-#include "settings/builder/settings_builder.h"
+#include "settings/settings_common.h"
 
 namespace Ui {
 class VerticalLayout;
@@ -20,10 +19,6 @@ class SessionController;
 
 namespace Settings::Builder {
 
-void PrivacySecuritySection(
-	not_null<Ui::VerticalLayout*> container,
-	not_null<Window::SessionController*> controller,
-	Fn<void(Type)> showOther,
-	rpl::producer<> showFinished);
+extern SectionBuildMethod PrivacySecuritySection;
 
 } // namespace Settings::Builder

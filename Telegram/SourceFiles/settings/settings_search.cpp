@@ -137,7 +137,8 @@ void Search::rebuildResults(const QString &query) {
 		return;
 	}
 
-	const auto entries = Builder::SearchRegistry::Instance().collectAll();
+	const auto entries = Builder::SearchRegistry::Instance().collectAll(
+		&controller()->session());
 	const auto results = FilterAndSort(entries, query);
 
 	if (results.empty()) {

@@ -298,12 +298,9 @@ AbstractSection::AbstractSection(
 
 void AbstractSection::build(
 		not_null<Ui::VerticalLayout*> container,
-		SectionBuilder builder) {
-	builder(
-		static_cast<Ui::VerticalLayout*>(container->add(
-			object_ptr<Ui::OverrideMargins>(
-				container,
-				object_ptr<Ui::VerticalLayout>(container)))->entity()),
+		SectionBuildMethod method) {
+	method(
+		container,
 		_controller,
 		showOtherMethod(),
 		_showFinished.events());

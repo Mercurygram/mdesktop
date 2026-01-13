@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/builder/settings_builder.h"
 #include "settings/settings_chat.h"
 #include "settings/settings_experimental.h"
+#include "settings/settings_main.h"
 #include "settings/settings_privacy_security.h"
 #include "settings/settings_shortcuts.h"
 #include "ui/vertical_list.h"
@@ -53,21 +54,15 @@ void BuildChatSectionContent(
 	SetupArchive(controller, container, showOther);
 }
 
-const auto kHelper = BuildHelper(Chat::Id(), [](SectionBuilder &builder) {
+const auto kMeta = BuildHelper(Chat::Id(), [](SectionBuilder &builder) {
 	const auto controller = builder.controller();
 	const auto showOther = builder.showOther();
 	const auto highlights = builder.highlights();
 	BuildChatSectionContent(builder, controller, showOther, highlights);
-});
+}, Main::Id());
 
 } // namespace
 
-void ChatSection(
-		not_null<Ui::VerticalLayout*> container,
-		not_null<Window::SessionController*> controller,
-		Fn<void(Type)> showOther,
-		rpl::producer<> showFinished) {
-	kHelper.build(container, controller, std::move(showOther), std::move(showFinished));
-}
+SectionBuildMethod ChatSection = kMeta.build;
 
 } // namespace Settings::Builder
