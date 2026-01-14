@@ -42,7 +42,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_builder.h"
 #include "settings/cloud_password/settings_cloud_password_input.h"
 #include "settings/sections/settings_advanced.h"
-#include "settings/settings_business.h"
+#include "settings/sections/settings_business.h"
 #include "settings/sections/settings_calls.h"
 #include "settings/sections/settings_chat.h"
 #include "settings/settings_codes.h"

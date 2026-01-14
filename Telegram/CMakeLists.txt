@@ -1552,8 +1552,8 @@ PRIVATE
     settings/sections/settings_chat.h
     settings/sections/settings_blocked_peers.cpp
     settings/sections/settings_blocked_peers.h
-    settings/settings_business.cpp
-    settings/settings_business.h
+    settings/sections/settings_business.cpp
+    settings/sections/settings_business.h
     settings/sections/settings_calls.cpp
     settings/sections/settings_calls.h
     settings/settings_codes.cpp

@@ -41,7 +41,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_active_sessions.h"
 #include "settings/sections/settings_advanced.h"
 #include "settings/sections/settings_blocked_peers.h"
-#include "settings/settings_business.h"
+#include "settings/sections/settings_business.h"
 #include "settings/sections/settings_calls.h"
 #include "settings/sections/settings_chat.h"
 #include "settings/settings_passkeys.h"

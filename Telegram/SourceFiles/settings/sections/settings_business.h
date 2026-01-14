@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "settings/settings_common.h"
 #include "settings/settings_type.h"
 
 enum class PremiumFeature;
@@ -28,4 +29,9 @@ void ShowBusiness(not_null<Window::SessionController*> controller);
 [[nodiscard]] std::vector<PremiumFeature> BusinessFeaturesOrder(
 	not_null<::Main::Session*> session);
 
+namespace Builder {
+
+extern SectionBuildMethod BusinessSection;
+
+} // namespace Builder
 } // namespace Settings
