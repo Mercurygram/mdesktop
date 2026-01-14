@@ -574,17 +574,6 @@ void BuildManageContent(SectionBuilder &builder) {
 	});
 }
 
-const auto kMeta = BuildHelper({
-	.id = LocalPasscodeManageId(),
-	.parentId = nullptr,
-	.title = &tr::lng_settings_passcode_title,
-	.icon = &st::menuIconLock,
-}, [](SectionBuilder &builder) {
-	BuildManageContent(builder);
-});
-
-} // namespace
-
 class LocalPasscodeManage : public Section<LocalPasscodeManage> {
 public:
 	LocalPasscodeManage(
@@ -638,7 +627,24 @@ void LocalPasscodeManage::setupContent() {
 		[=] { _showBack.fire({}); },
 		[] { return Core::App().lastNonIdleTime(); });
 
-	build(content, Builder::LocalPasscodeManageSection);
+	const SectionBuildMethod buildMethod = [](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		const auto isPaused = Window::PausedIn(
+			controller,
+			Window::GifPauseReason::Layer);
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = isPaused,
+		});
+		BuildManageContent(builder);
+	};
+
+	build(content, buildMethod);
 
 	Ui::ResizeFitChild(this, content);
 }
@@ -679,7 +685,7 @@ base::weak_qptr<Ui::RpWidget> LocalPasscodeManage::createPinnedToBottom(
 }
 
 void LocalPasscodeManage::showFinished() {
-	Section::showFinished();
+	Section<LocalPasscodeManage>::showFinished();
 }
 
 rpl::producer<> LocalPasscodeManage::sectionShowBack() {
@@ -687,6 +693,17 @@ rpl::producer<> LocalPasscodeManage::sectionShowBack() {
 }
 
 LocalPasscodeManage::~LocalPasscodeManage() = default;
+
+const auto kMeta = BuildHelper({
+	.id = LocalPasscodeManage::Id(),
+	.parentId = nullptr,
+	.title = &tr::lng_settings_passcode_title,
+	.icon = &st::menuIconLock,
+}, [](SectionBuilder &builder) {
+	BuildManageContent(builder);
+});
+
+} // namespace
 
 Type LocalPasscodeCreateId() {
 	return LocalPasscodeCreate::Id();
@@ -700,9 +717,4 @@ Type LocalPasscodeManageId() {
 	return LocalPasscodeManage::Id();
 }
 
-namespace Builder {
-
-SectionBuildMethod LocalPasscodeManageSection = kMeta.build;
-
-} // namespace Builder
 } // namespace Settings
