@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_websites.h"
 
 #include "api/api_websites.h"
+#include "settings/settings_common_session.h"
 #include "apiwrap.h"
 #include "boxes/peer_list_box.h"
 #include "data/data_user.h"
@@ -756,16 +757,21 @@ void BuildWebsitesSection(SectionBuilder &builder) {
 	});
 }
 
-const auto kMeta = BuildHelper({
-	.id = Websites::Id(),
-	.parentId = PrivacySecurity::Id(),
-	.title = &tr::lng_settings_connected_title,
-	.icon = &st::menuIconIpAddress,
-}, [](SectionBuilder &builder) {
-	BuildWebsitesSection(builder);
-});
+class Websites : public Section<Websites> {
+public:
+	Websites(
+		QWidget *parent,
+		not_null<Window::SessionController*> controller);
 
-} // namespace
+	[[nodiscard]] rpl::producer<QString> title() override;
+	void showFinished() override;
+
+private:
+	void setupContent();
+
+	rpl::event_stream<> _showFinished;
+
+};
 
 Websites::Websites(
 	QWidget *parent,
@@ -779,29 +785,78 @@ rpl::producer<QString> Websites::title() {
 }
 
 void Websites::showFinished() {
+	_showFinished.fire({});
 	Section::showFinished();
-	controller()->checkHighlightControl(
-		u"websites/disconnect-all"_q,
-		_terminateAll.data());
 }
 
 void Websites::setupContent() {
 	const auto container = Ui::CreateChild<Ui::VerticalLayout>(this);
-	Ui::AddSkip(container);
-	const auto content = container->add(
-		object_ptr<Content>(container, controller()));
-	content->setupContent();
 
-	_terminateAll = content->terminateAllButton();
+	const SectionBuildMethod buildMethod = [](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		auto &lifetime = container->lifetime();
+		const auto highlights = lifetime.make_state<HighlightRegistry>();
 
-	build(container, Builder::WebsitesSection);
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = Window::PausedIn(
+				controller,
+				Window::GifPauseReason::Layer),
+			.highlights = highlights,
+		});
+
+		builder.addSkip();
+
+		builder.add([=](const WidgetContext &ctx) {
+			const auto content = ctx.container->add(
+				object_ptr<Content>(ctx.container, ctx.controller));
+			content->setupContent();
+
+			if (ctx.highlights) {
+				ctx.highlights->push_back({
+					u"websites/disconnect-all"_q,
+					{ content->terminateAllButton() },
+				});
+			}
+
+			return SectionBuilder::WidgetToAdd{};
+		});
+
+		std::move(showFinished) | rpl::on_next([=] {
+			for (const auto &[id, entry] : *highlights) {
+				if (entry.widget) {
+					controller->checkHighlightControl(
+						id,
+						entry.widget,
+						base::duplicate(entry.args));
+				}
+			}
+		}, lifetime);
+	};
+
+	build(container, buildMethod);
 
 	Ui::ResizeFitChild(this, container);
 }
 
-namespace Builder {
+const auto kMeta = BuildHelper({
+	.id = Websites::Id(),
+	.parentId = PrivacySecurity::Id(),
+	.title = &tr::lng_settings_connected_title,
+	.icon = &st::menuIconIpAddress,
+}, [](SectionBuilder &builder) {
+	BuildWebsitesSection(builder);
+});
 
-SectionBuildMethod WebsitesSection = kMeta.build;
+} // namespace
 
-} // namespace Builder
+Type WebsitesId() {
+	return Websites::Id();
+}
+
 } // namespace Settings

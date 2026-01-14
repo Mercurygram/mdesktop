@@ -556,7 +556,7 @@ void SetupWebsitesList(
 		st::settingsButton,
 		{ &st::menuIconIpAddress }
 	)->addClickHandler([=] {
-		showOther(Websites::Id());
+		showOther(WebsitesId());
 	});
 
 	wrap->toggleOn(std::move(count) | rpl::map(rpl::mappers::_1 > 0));
@@ -1397,7 +1397,7 @@ void BuildSecuritySection(
 		.icon = { &st::menuIconIpAddress },
 		.label = std::move(websitesLabel),
 		.onClick = [=] {
-			showOther(Websites::Id());
+			showOther(WebsitesId());
 		},
 		.keywords = { u"websites"_q, u"bots"_q, u"logged"_q },
 		.shown = std::move(websitesShown),

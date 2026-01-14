@@ -7,35 +7,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_common_session.h"
 #include "settings/settings_type.h"
 
-namespace Ui {
-class RpWidget;
-} // namespace Ui
+namespace Window {
+class SessionController;
+} // namespace Window
 
 namespace Settings {
 
-class Websites : public Section<Websites> {
-public:
-	Websites(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller);
+[[nodiscard]] Type WebsitesId();
 
-	void showFinished() override;
-
-	[[nodiscard]] rpl::producer<QString> title() override;
-
-private:
-	void setupContent();
-
-	QPointer<Ui::RpWidget> _terminateAll;
-
-};
-
-namespace Builder {
-
-extern SectionBuildMethod WebsitesSection;
-
-} // namespace Builder
 } // namespace Settings

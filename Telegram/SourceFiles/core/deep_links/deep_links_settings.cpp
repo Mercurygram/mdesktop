@@ -506,13 +506,13 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/active-websites"_q,
-		.action = SettingsSection{ ::Settings::Websites::Id() },
+		.action = SettingsSection{ ::Settings::WebsitesId() },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/active-websites/disconnect-all"_q,
 		.action = SettingsControl{
-			::Settings::Websites::Id(),
+			::Settings::WebsitesId(),
 			u"websites/disconnect-all"_q,
 		},
 	});
