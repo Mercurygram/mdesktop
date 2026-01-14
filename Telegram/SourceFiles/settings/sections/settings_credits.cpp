@@ -76,6 +76,26 @@ namespace {
 
 using namespace Builder;
 
+void BuildCurrencyWithdrawalSection(
+	not_null<Ui::VerticalLayout*> content,
+	not_null<Window::SessionController*> controller);
+
+void BuildCreditsButtons(
+	SectionBuilder &builder,
+	bool isCurrency,
+	QPointer<Ui::SettingsButton> *statsButton,
+	QPointer<Ui::SettingsButton> *giftButton,
+	QPointer<Ui::SettingsButton> *earnButton);
+
+void BuildCreditsSectionContent(
+	SectionBuilder &builder,
+	bool isCurrency,
+	QPointer<Ui::SettingsButton> *statsButton,
+	QPointer<Ui::SettingsButton> *giftButton,
+	QPointer<Ui::SettingsButton> *earnButton,
+	Fn<void(not_null<Ui::VerticalLayout*>)> setupSubscriptions,
+	Fn<void(not_null<Ui::VerticalLayout*>)> setupHistory);
+
 class Credits : public Section<Credits> {
 public:
 	Credits(
@@ -462,11 +482,9 @@ void Credits::setupSwipeBack() {
 void Credits::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 	const auto isCurrency = _creditsType == CreditsType::Ton;
-	const auto paid = [=] {
-		if (_parent) {
-			Ui::StartFireworks(_parent);
-		}
-	};
+	const auto statsButton = &_statsButton;
+	const auto giftButton = &_giftButton;
+	const auto earnButton = &_earnButton;
 
 	struct State final {
 		BuyStarsHandler buyStars;
@@ -522,6 +540,11 @@ void Credits::setupContent() {
 			const auto url = tr::lng_suggest_low_ton_fragment_url(tr::now);
 			button->setClickedCallback([=] { UrlClickHandler::Open(url); });
 		} else {
+			const auto paid = [parent = QPointer<QWidget>(_parent)] {
+				if (parent) {
+					Ui::StartFireworks(parent);
+				}
+			};
 			button->setClickedCallback(state->buyStars.handler(show, paid));
 		}
 		{
@@ -606,185 +629,39 @@ void Credits::setupContent() {
 	}
 	Ui::AddSkip(content, st::lineWidth * 4);
 
-	const auto window = controller()->parentController();
-	const auto self = window->session().user();
-	if (!isCurrency) {
-		const auto wrap = content->add(
-			object_ptr<Ui::SlideWrap<Ui::AbstractButton>>(
-				content,
-				CreateButtonWithIcon(
-					content,
-					tr::lng_credits_stats_button(),
-					st::settingsCreditsButton,
-					{ &st::menuIconStats })));
-		_statsButton = static_cast<Button*>(wrap->entity());
-		wrap->entity()->setClickedCallback([=] {
-			window->showSection(Info::BotEarn::Make(self));
+	const auto setupSubs = [=](not_null<Ui::VerticalLayout*> container) {
+		setupSubscriptions(container);
+	};
+	const auto setupHist = [=](not_null<Ui::VerticalLayout*> container) {
+		setupHistory(container);
+	};
+
+	const SectionBuildMethod buildMethod = [=](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		const auto isPaused = Window::PausedIn(
+			controller,
+			Window::GifPauseReason::Layer);
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = isPaused,
 		});
-		wrap->toggleOn(window->session().credits().loadedValue(
-		) | rpl::map([=] {
-			return window->session().credits().statsEnabled();
-		}));
-	}
-	if (!isCurrency) {
-		_giftButton = AddButtonWithIcon(
-			content,
-			tr::lng_credits_gift_button(),
-			st::settingsCreditsButton,
-			{ &st::settingsButtonIconGift });
-		_giftButton->setClickedCallback([=] {
-			Ui::ShowGiftCreditsBox(window, paid);
-		});
-	}
 
-	if (!isCurrency && Info::BotStarRef::Join::Allowed(self)) {
-		_earnButton = AddButtonWithIcon(
-			content,
-			tr::lng_credits_earn_button(),
-			st::settingsCreditsButton,
-			{ &st::settingsButtonIconEarn });
-		_earnButton->setClickedCallback([=] {
-			window->showSection(Info::BotStarRef::Join::Make(self));
-		});
-	}
-	if (isCurrency) {
-		using namespace Info::ChannelEarn;
-		const auto fill = [=](
-				not_null<Ui::VerticalLayout*> container,
-				CreditsAmount value,
-				float64 multiplier) {
-			Ui::AddSkip(container);
-			Ui::AddSkip(container);
+		BuildCreditsSectionContent(
+			builder,
+			isCurrency,
+			statsButton,
+			giftButton,
+			earnButton,
+			setupSubs,
+			setupHist);
+	};
 
-			const auto labels = container->add(
-				object_ptr<Ui::RpWidget>(container),
-				style::al_top);
-
-			const auto majorLabel = Ui::CreateChild<Ui::FlatLabel>(
-				labels,
-				st::channelEarnBalanceMajorLabel);
-			{
-				const auto &m = st::channelEarnCurrencyCommonMargins;
-				const auto p = QMargins(
-					m.left(),
-					-m.top(),
-					m.right(),
-					m.bottom());
-				AddEmojiToMajor(majorLabel, rpl::single(value), {}, p);
-			}
-			majorLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
-			const auto minorLabel = Ui::CreateChild<Ui::FlatLabel>(
-				labels,
-				MinorPart(value),
-				st::channelEarnBalanceMinorLabel);
-			minorLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
-			rpl::combine(
-				majorLabel->sizeValue(),
-				minorLabel->sizeValue()
-			) | rpl::on_next([=](
-					const QSize &majorSize,
-					const QSize &minorSize) {
-				labels->resize(
-					majorSize.width() + minorSize.width(),
-					majorSize.height());
-				labels->setNaturalWidth(
-					majorSize.width() + minorSize.width());
-				majorLabel->moveToLeft(0, 0);
-				minorLabel->moveToRight(
-					0,
-					st::channelEarnBalanceMinorLabelSkip);
-			}, labels->lifetime());
-			Ui::ToggleChildrenVisibility(labels, true);
-
-			Ui::AddSkip(container);
-			container->add(
-				object_ptr<Ui::FlatLabel>(
-					container,
-					ToUsd(value, multiplier, 0),
-					st::channelEarnOverviewSubMinorLabel),
-				style::al_top);
-
-			Ui::AddSkip(container);
-
-			const auto &stButton = st::creditsSettingsBigBalanceButton;
-			const auto button = container->add(
-				object_ptr<Ui::RoundButton>(
-					container,
-					rpl::never<QString>(),
-					stButton),
-				st::boxRowPadding,
-				style::al_top);
-
-			const auto label = Ui::CreateChild<Ui::FlatLabel>(
-				button,
-				tr::lng_channel_earn_balance_button(tr::now),
-				st::channelEarnSemiboldLabel);
-			label->setTextColorOverride(stButton.textFg->c);
-			label->setAttribute(Qt::WA_TransparentForMouseEvents);
-			rpl::combine(
-				button->sizeValue(),
-				label->sizeValue()
-			) | rpl::on_next([=](const QSize &b, const QSize &l) {
-				label->moveToLeft(
-					(b.width() - l.width()) / 2,
-					(b.height() - l.height()) / 2);
-			}, label->lifetime());
-
-			const auto colorText = [=](float64 value) {
-				label->setTextColorOverride(
-					anim::with_alpha(
-						stButton.textFg->c,
-						anim::interpolateF(.5, 1., value)));
-			};
-			const auto withdrawalEnabled = true;
-			colorText(withdrawalEnabled ? 1. : 0.);
-			button->setAttribute(
-				Qt::WA_TransparentForMouseEvents,
-				!withdrawalEnabled);
-
-			Api::HandleWithdrawalButton(
-				{ .currencyReceiver = self },
-				button,
-				controller()->uiShow());
-			Ui::ToggleChildrenVisibility(button, true);
-
-			Ui::AddSkip(container);
-			Ui::AddSkip(container);
-			Ui::AddSkip(container);
-			Ui::AddDividerText(
-				container,
-				tr::lng_credits_currency_summary_subtitle());
-			Ui::AddSkip(container);
-		};
-
-		const auto self = controller()->session().user();
-		const auto wrap = content->add(
-			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-				content,
-				object_ptr<Ui::VerticalLayout>(content)));
-		const auto apiLifetime = wrap->lifetime().make_state<rpl::lifetime>();
-		const auto api = apiLifetime->make_state<Api::EarnStatistics>(self);
-		wrap->toggle(false, anim::type::instant);
-		api->request() | rpl::on_error_done([] {
-		}, [=] {
-			if (!api->data().availableBalance.empty()) {
-				wrap->toggle(true, anim::type::normal);
-				fill(
-					wrap->entity(),
-					api->data().availableBalance,
-					api->data().usdRate);
-				content->resizeToWidth(content->width());
-			}
-		}, *apiLifetime);
-	}
-
-	if (!isCurrency) {
-		Ui::AddSkip(content, st::lineWidth * 4);
-		Ui::AddDivider(content);
-
-		setupSubscriptions(content);
-	}
-	setupHistory(content);
+	build(content, buildMethod);
 
 	Ui::ResizeFitChild(this, content);
 }
@@ -921,29 +798,236 @@ void Credits::showFinished() {
 class Currency {
 };
 
-void BuildCreditsButtons(SectionBuilder &builder) {
-	builder.add(nullptr, [] {
-		return SearchEntry{
+void BuildCurrencyWithdrawalSection(
+		not_null<Ui::VerticalLayout*> content,
+		not_null<Window::SessionController*> controller) {
+	using namespace Info::ChannelEarn;
+	const auto self = controller->session().user();
+
+	const auto fill = [=](
+			not_null<Ui::VerticalLayout*> container,
+			CreditsAmount value,
+			float64 multiplier) {
+		Ui::AddSkip(container);
+		Ui::AddSkip(container);
+
+		const auto labels = container->add(
+			object_ptr<Ui::RpWidget>(container),
+			style::al_top);
+
+		const auto majorLabel = Ui::CreateChild<Ui::FlatLabel>(
+			labels,
+			st::channelEarnBalanceMajorLabel);
+		{
+			const auto &m = st::channelEarnCurrencyCommonMargins;
+			const auto p = QMargins(
+				m.left(),
+				-m.top(),
+				m.right(),
+				m.bottom());
+			AddEmojiToMajor(majorLabel, rpl::single(value), {}, p);
+		}
+		majorLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+		const auto minorLabel = Ui::CreateChild<Ui::FlatLabel>(
+			labels,
+			MinorPart(value),
+			st::channelEarnBalanceMinorLabel);
+		minorLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+		rpl::combine(
+			majorLabel->sizeValue(),
+			minorLabel->sizeValue()
+		) | rpl::on_next([=](
+				const QSize &majorSize,
+				const QSize &minorSize) {
+			labels->resize(
+				majorSize.width() + minorSize.width(),
+				majorSize.height());
+			labels->setNaturalWidth(
+				majorSize.width() + minorSize.width());
+			majorLabel->moveToLeft(0, 0);
+			minorLabel->moveToRight(
+				0,
+				st::channelEarnBalanceMinorLabelSkip);
+		}, labels->lifetime());
+		Ui::ToggleChildrenVisibility(labels, true);
+
+		Ui::AddSkip(container);
+		container->add(
+			object_ptr<Ui::FlatLabel>(
+				container,
+				ToUsd(value, multiplier, 0),
+				st::channelEarnOverviewSubMinorLabel),
+			style::al_top);
+
+		Ui::AddSkip(container);
+
+		const auto &stButton = st::creditsSettingsBigBalanceButton;
+		const auto button = container->add(
+			object_ptr<Ui::RoundButton>(
+				container,
+				rpl::never<QString>(),
+				stButton),
+			st::boxRowPadding,
+			style::al_top);
+
+		const auto label = Ui::CreateChild<Ui::FlatLabel>(
+			button,
+			tr::lng_channel_earn_balance_button(tr::now),
+			st::channelEarnSemiboldLabel);
+		label->setTextColorOverride(stButton.textFg->c);
+		label->setAttribute(Qt::WA_TransparentForMouseEvents);
+		rpl::combine(
+			button->sizeValue(),
+			label->sizeValue()
+		) | rpl::on_next([=](const QSize &b, const QSize &l) {
+			label->moveToLeft(
+				(b.width() - l.width()) / 2,
+				(b.height() - l.height()) / 2);
+		}, label->lifetime());
+
+		const auto colorText = [=](float64 v) {
+			label->setTextColorOverride(
+				anim::with_alpha(
+					stButton.textFg->c,
+					anim::interpolateF(.5, 1., v)));
+		};
+		const auto withdrawalEnabled = true;
+		colorText(withdrawalEnabled ? 1. : 0.);
+		button->setAttribute(
+			Qt::WA_TransparentForMouseEvents,
+			!withdrawalEnabled);
+
+		Api::HandleWithdrawalButton(
+			{ .currencyReceiver = self },
+			button,
+			controller->uiShow());
+		Ui::ToggleChildrenVisibility(button, true);
+
+		Ui::AddSkip(container);
+		Ui::AddSkip(container);
+		Ui::AddSkip(container);
+		Ui::AddDividerText(
+			container,
+			tr::lng_credits_currency_summary_subtitle());
+		Ui::AddSkip(container);
+	};
+
+	const auto wrap = content->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			content,
+			object_ptr<Ui::VerticalLayout>(content)));
+	const auto apiLifetime = wrap->lifetime().make_state<rpl::lifetime>();
+	const auto api = apiLifetime->make_state<Api::EarnStatistics>(self);
+	wrap->toggle(false, anim::type::instant);
+	api->request() | rpl::on_error_done([] {
+	}, [=] {
+		if (!api->data().availableBalance.empty()) {
+			wrap->toggle(true, anim::type::normal);
+			fill(
+				wrap->entity(),
+				api->data().availableBalance,
+				api->data().usdRate);
+			content->resizeToWidth(content->width());
+		}
+	}, *apiLifetime);
+}
+
+void BuildCreditsButtons(
+		SectionBuilder &builder,
+		bool isCurrency,
+		QPointer<Ui::SettingsButton> *statsButton,
+		QPointer<Ui::SettingsButton> *giftButton,
+		QPointer<Ui::SettingsButton> *earnButton) {
+	const auto session = builder.session();
+	const auto controller = builder.controller();
+	const auto self = session->user();
+
+	if (!isCurrency) {
+		auto statsShown = session->credits().loadedValue(
+		) | rpl::map([session] {
+			return session->credits().statsEnabled();
+		});
+		const auto stats = builder.addButton({
 			.id = u"stars/stats"_q,
-			.title = tr::lng_credits_stats_button(tr::now),
+			.title = tr::lng_credits_stats_button(),
+			.st = &st::settingsCreditsButton,
+			.icon = { &st::menuIconStats },
+			.onClick = [controller, self] {
+				controller->parentController()->showSection(
+					Info::BotEarn::Make(self));
+			},
 			.keywords = { u"statistics"_q },
-		};
-	});
+			.shown = std::move(statsShown),
+		});
+		if (statsButton) {
+			*statsButton = stats;
+		}
+	}
 
-	builder.add(nullptr, [] {
-		return SearchEntry{
+	if (!isCurrency) {
+		const auto gift = builder.addButton({
 			.id = u"stars/gift"_q,
-			.title = tr::lng_credits_gift_button(tr::now),
+			.title = tr::lng_credits_gift_button(),
+			.st = &st::settingsCreditsButton,
+			.icon = { &st::settingsButtonIconGift },
+			.onClick = [controller] {
+				const auto window = controller->parentController();
+				Ui::ShowGiftCreditsBox(window, nullptr);
+			},
 			.keywords = { u"send"_q, u"stars"_q },
-		};
-	});
+		});
+		if (giftButton) {
+			*giftButton = gift;
+		}
+	}
 
-	builder.add(nullptr, [] {
-		return SearchEntry{
+	if (!isCurrency && Info::BotStarRef::Join::Allowed(self)) {
+		const auto earn = builder.addButton({
 			.id = u"stars/earn"_q,
-			.title = tr::lng_credits_earn_button(tr::now),
+			.title = tr::lng_credits_earn_button(),
+			.st = &st::settingsCreditsButton,
+			.icon = { &st::settingsButtonIconEarn },
+			.onClick = [controller, self] {
+				controller->parentController()->showSection(
+					Info::BotStarRef::Join::Make(self));
+			},
 			.keywords = { u"affiliate"_q, u"referral"_q },
-		};
+		});
+		if (earnButton) {
+			*earnButton = earn;
+		}
+	}
+}
+
+void BuildCreditsSectionContent(
+		SectionBuilder &builder,
+		bool isCurrency,
+		QPointer<Ui::SettingsButton> *statsButton,
+		QPointer<Ui::SettingsButton> *giftButton,
+		QPointer<Ui::SettingsButton> *earnButton,
+		Fn<void(not_null<Ui::VerticalLayout*>)> setupSubscriptions,
+		Fn<void(not_null<Ui::VerticalLayout*>)> setupHistory) {
+	BuildCreditsButtons(builder, isCurrency, statsButton, giftButton, earnButton);
+
+	if (isCurrency) {
+		builder.add([](const WidgetContext &ctx) {
+			BuildCurrencyWithdrawalSection(ctx.container, ctx.controller);
+			return SectionBuilder::WidgetToAdd{};
+		});
+	}
+
+	if (!isCurrency) {
+		builder.add([=](const WidgetContext &ctx) {
+			Ui::AddSkip(ctx.container, st::lineWidth * 4);
+			Ui::AddDivider(ctx.container);
+			setupSubscriptions(ctx.container);
+			return SectionBuilder::WidgetToAdd{};
+		});
+	}
+
+	builder.add([=](const WidgetContext &ctx) {
+		setupHistory(ctx.container);
+		return SectionBuilder::WidgetToAdd{};
 	});
 }
 
@@ -953,7 +1037,7 @@ const auto kCreditsBuilderMeta = BuildHelper({
 	.title = &tr::lng_credits_summary_title,
 	.icon = &st::menuIconPremium,
 }, [](SectionBuilder &builder) {
-	BuildCreditsButtons(builder);
+	BuildCreditsButtons(builder, false, nullptr, nullptr, nullptr);
 });
 
 } // namespace
