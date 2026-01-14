@@ -483,7 +483,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"notifications"_q,
-		.action = SettingsSection{ ::Settings::Notifications::Id() },
+		.action = SettingsSection{ ::Settings::NotificationsId() },
 	});
 
 	router.add(u"settings"_q, {
@@ -1831,7 +1831,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"notifications/accounts"_q,
 		.action = SettingsControl{
-			::Settings::Notifications::Id(),
+			::Settings::NotificationsId(),
 			u"notifications/accounts"_q,
 		},
 	});
@@ -1990,28 +1990,28 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"notifications/include-muted-chats"_q,
 		.action = SettingsControl{
-			::Settings::Notifications::Id(),
+			::Settings::NotificationsId(),
 			u"notifications/include-muted-chats"_q,
 		},
 	});
 	router.add(u"settings"_q, {
 		.path = u"notifications/count-unread-messages"_q,
 		.action = SettingsControl{
-			::Settings::Notifications::Id(),
+			::Settings::NotificationsId(),
 			u"notifications/count-unread-messages"_q,
 		},
 	});
 	router.add(u"settings"_q, {
 		.path = u"notifications/new-contacts"_q,
 		.action = SettingsControl{
-			::Settings::Notifications::Id(),
+			::Settings::NotificationsId(),
 			u"notifications/events/joined"_q,
 		},
 	});
 	router.add(u"settings"_q, {
 		.path = u"notifications/pinned-messages"_q,
 		.action = SettingsControl{
-			::Settings::Notifications::Id(),
+			::Settings::NotificationsId(),
 			u"notifications/events/pinned"_q,
 		},
 	});

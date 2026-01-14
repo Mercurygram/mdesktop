@@ -652,7 +652,7 @@ void BuildNotificationsTypeContent(SectionBuilder &builder, Notify type) {
 
 const auto kMeta = BuildHelper({
 	.id = NotificationsType::Id(Notify::User),
-	.parentId = Notifications::Id(),
+	.parentId = NotificationsId(),
 	.title = &tr::lng_notification_private_chats,
 	.icon = &st::menuIconProfile,
 }, [](SectionBuilder &builder) {

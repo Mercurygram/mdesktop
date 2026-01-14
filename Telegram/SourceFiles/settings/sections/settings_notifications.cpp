@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_notifications.h"
 
+#include "settings/settings_common_session.h"
+
 #include "api/api_authorizations.h"
 #include "api/api_ringtones.h"
 #include "apiwrap.h"
@@ -1486,6 +1488,19 @@ void BuildNotificationsSectionContent(SectionBuilder &builder) {
 	BuildSystemIntegrationAndAdvancedSection(builder);
 }
 
+class Notifications : public Section<Notifications> {
+public:
+	Notifications(
+		QWidget *parent,
+		not_null<Window::SessionController*> controller);
+
+	[[nodiscard]] rpl::producer<QString> title() override;
+
+private:
+	void setupContent();
+
+};
+
 const auto kMeta = BuildHelper({
 	.id = Notifications::Id(),
 	.parentId = MainId(),
@@ -1495,7 +1510,7 @@ const auto kMeta = BuildHelper({
 	BuildNotificationsSectionContent(builder);
 });
 
-} // namespace
+const SectionBuildMethod kNotificationsSection = kMeta.build;
 
 Notifications::Notifications(
 	QWidget *parent,
@@ -1510,13 +1525,14 @@ rpl::producer<QString> Notifications::title() {
 
 void Notifications::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
-	build(content, Builder::NotificationsSection);
+	build(content, kNotificationsSection);
 	Ui::ResizeFitChild(this, content);
 }
 
-namespace Builder {
+} // namespace
 
-SectionBuildMethod NotificationsSection = kMeta.build;
+Type NotificationsId() {
+	return Notifications::Id();
+}
 
-} // namespace Builder
 } // namespace Settings

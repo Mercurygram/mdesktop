@@ -341,7 +341,7 @@ void BuildSectionButtons(SectionBuilder &builder) {
 	builder.addSectionButton({
 		.id = u"main/notifications"_q,
 		.title = tr::lng_settings_section_notify(),
-		.targetSection = Notifications::Id(),
+		.targetSection = NotificationsId(),
 		.icon = { &st::menuIconNotifications },
 		.keywords = { u"alerts"_q, u"sounds"_q, u"badge"_q },
 	});
@@ -357,7 +357,7 @@ void BuildSectionButtons(SectionBuilder &builder) {
 	builder.addSectionButton({
 		.id = u"main/chat"_q,
 		.title = tr::lng_settings_section_chat_settings(),
-		.targetSection = Chat::Id(),
+		.targetSection = ChatId(),
 		.icon = { &st::menuIconChatBubble },
 		.keywords = { u"themes"_q, u"appearance"_q, u"stickers"_q },
 	});
