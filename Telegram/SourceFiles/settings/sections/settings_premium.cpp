@@ -2122,9 +2122,4 @@ std::unique_ptr<Ui::RpWidget> MakeEmojiStatusPreview(
 	return result;
 }
 
-namespace Builder {
-
-SectionBuildMethod PremiumSection = kMeta.build;
-
-} // namespace Builder
 } // namespace Settings

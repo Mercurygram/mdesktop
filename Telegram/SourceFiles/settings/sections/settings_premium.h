@@ -116,9 +116,4 @@ void AddSummaryPremium(
 	not_null<QWidget*> parent,
 	not_null<DocumentData*> document);
 
-namespace Builder {
-
-extern SectionBuildMethod PremiumSection;
-
-} // namespace Builder
 } // namespace Settings
