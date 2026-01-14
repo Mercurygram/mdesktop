@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/core_settings.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
+#include "main/main_session_settings.h"
 #include "settings/builder/settings_builder.h"
 #include "settings/settings_advanced.h"
 #include "settings/settings_chat.h"
@@ -19,9 +20,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_main.h"
 #include "settings/settings_privacy_security.h"
 #include "settings/settings_shortcuts.h"
+#include "support/support_common.h"
 #include "ui/layers/generic_box.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/buttons.h"
+#include "ui/widgets/checkbox.h"
 #include "ui/wrap/vertical_layout.h"
 #include "window/window_session_controller.h"
 #include "styles/style_menu_icons.h"
@@ -365,6 +368,151 @@ void BuildArchiveSection(SectionBuilder &builder) {
 	});
 }
 
+void BuildSupportSection(SectionBuilder &builder) {
+	const auto session = builder.session();
+	if (!session->supportMode()) {
+		return;
+	}
+	const auto controller = builder.controller();
+
+	builder.addSkip();
+	builder.addSubsectionTitle({
+		.id = u"chat/support"_q,
+		.title = rpl::single(u"Support settings"_q),
+		.keywords = { u"support"_q },
+	});
+	builder.addSkip(st::settingsSendTypeSkip);
+
+	using SwitchType = Support::SwitchSettings;
+
+	builder.add([controller](const WidgetContext &ctx) {
+		const auto container = ctx.container.get();
+		auto wrap = object_ptr<Ui::VerticalLayout>(container);
+		const auto inner = wrap.data();
+
+		const auto group = std::make_shared<Ui::RadioenumGroup<SwitchType>>(
+			controller->session().settings().supportSwitch());
+
+		const auto addRadio = [&](SwitchType value, const QString &label) {
+			inner->add(
+				object_ptr<Ui::Radioenum<SwitchType>>(
+					inner,
+					group,
+					value,
+					label,
+					st::settingsSendType),
+				st::settingsSendTypePadding);
+		};
+		addRadio(SwitchType::None, "Just send the reply");
+		addRadio(SwitchType::Next, "Send and switch to next");
+		addRadio(SwitchType::Previous, "Send and switch to previous");
+
+		group->setChangedCallback([=](SwitchType value) {
+			controller->session().settings().setSupportSwitch(value);
+			controller->session().saveSettingsDelayed();
+		});
+
+		return SectionBuilder::WidgetToAdd{ .widget = std::move(wrap) };
+	}, [] {
+		return SearchEntry{
+			.id = u"chat/support/switch"_q,
+			.title = u"Send and switch behavior"_q,
+			.keywords = { u"switch"_q, u"next"_q, u"previous"_q, u"reply"_q },
+		};
+	});
+
+	builder.addSkip(st::settingsCheckboxesSkip);
+
+	const auto templatesAutocomplete = builder.addCheckbox({
+		.id = u"chat/support/templates"_q,
+		.title = rpl::single(u"Enable templates autocomplete"_q),
+		.checked = session->settings().supportTemplatesAutocomplete(),
+		.keywords = { u"templates"_q, u"autocomplete"_q },
+	});
+	if (templatesAutocomplete) {
+		templatesAutocomplete->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			controller->session().settings().setSupportTemplatesAutocomplete(
+				checked);
+			controller->session().saveSettingsDelayed();
+		}, templatesAutocomplete->lifetime());
+	}
+
+	const auto allSilent = builder.addCheckbox({
+		.id = u"chat/support/silent"_q,
+		.title = rpl::single(u"Send all messages without sound"_q),
+		.checked = session->settings().supportAllSilent(),
+		.keywords = { u"silent"_q, u"sound"_q, u"mute"_q },
+	});
+	if (allSilent) {
+		allSilent->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			controller->session().settings().setSupportAllSilent(checked);
+			controller->session().saveSettingsDelayed();
+		}, allSilent->lifetime());
+	}
+
+	builder.addSkip(st::settingsCheckboxesSkip);
+	builder.addSubsectionTitle({
+		.id = u"chat/support/chats-period"_q,
+		.title = rpl::single(u"Load chats for a period"_q),
+		.keywords = { u"period"_q, u"days"_q },
+	});
+
+	builder.add([controller](const WidgetContext &ctx) {
+		constexpr auto kDayDuration = 24 * 60 * 60;
+		struct Option {
+			int days = 0;
+			QString label;
+		};
+		const auto options = std::vector<Option>{
+			{ 1, "1 day" },
+			{ 7, "1 week" },
+			{ 30, "1 month" },
+			{ 365, "1 year" },
+			{ 0, "All of them" },
+		};
+		const auto current = controller->session().settings().supportChatsTimeSlice();
+		const auto days = current / kDayDuration;
+		const auto best = ranges::min_element(
+			options,
+			std::less<>(),
+			[&](const Option &option) { return std::abs(option.days - days); });
+
+		const auto container = ctx.container.get();
+		auto wrap = object_ptr<Ui::VerticalLayout>(container);
+		const auto inner = wrap.data();
+
+		const auto group = std::make_shared<Ui::RadiobuttonGroup>(best->days);
+		for (const auto &option : options) {
+			inner->add(
+				object_ptr<Ui::Radiobutton>(
+					inner,
+					group,
+					option.days,
+					option.label,
+					st::settingsSendType),
+				st::settingsSendTypePadding);
+		}
+		group->setChangedCallback([=](int days) {
+			controller->session().settings().setSupportChatsTimeSlice(
+				days * kDayDuration);
+			controller->session().saveSettingsDelayed();
+		});
+
+		return SectionBuilder::WidgetToAdd{ .widget = std::move(wrap) };
+	}, [] {
+		return SearchEntry{
+			.id = u"chat/support/chats-period/options"_q,
+			.title = u"Chat loading period options"_q,
+			.keywords = { u"week"_q, u"month"_q, u"year"_q },
+		};
+	});
+
+	builder.addSkip(st::settingsCheckboxesSkip);
+	builder.addSkip();
+}
+
 void BuildChatSectionContent(SectionBuilder &builder) {
 	BuildThemeOptionsSection(builder);
 	BuildThemeSettingsSection(builder);
@@ -375,6 +523,7 @@ void BuildChatSectionContent(SectionBuilder &builder) {
 	BuildMessagesSection(builder);
 	BuildSensitiveContentSection(builder);
 	BuildArchiveSection(builder);
+	BuildSupportSection(builder);
 }
 
 const auto kMeta = BuildHelper({
