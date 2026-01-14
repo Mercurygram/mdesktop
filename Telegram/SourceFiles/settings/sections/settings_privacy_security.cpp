@@ -1793,7 +1793,7 @@ void BuildPrivacySecuritySectionContent(SectionBuilder &builder) {
 
 const auto kMeta = BuildHelper({
 	.id = PrivacySecurity::Id(),
-	.parentId = Main::Id(),
+	.parentId = MainId(),
 	.title = &tr::lng_settings_section_privacy,
 	.icon = &st::menuIconLock,
 }, [](SectionBuilder &builder) {

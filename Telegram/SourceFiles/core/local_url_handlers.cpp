@@ -842,7 +842,7 @@ bool ResolveSettings(
 			ShowLoginEmailSettings(controller);
 			return {};
 		}
-		return ::Settings::Main::Id();
+		return ::Settings::MainId();
 	}();
 
 	if (type.has_value()) {

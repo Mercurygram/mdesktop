@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "settings/sections/settings_main.h"
 #include "settings/settings_builder.h"
+#include "settings/settings_common_session.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/wrap/vertical_layout_reorder.h"
 #include "ui/wrap/padding_wrap.h"
@@ -1294,7 +1295,7 @@ void Information::setupContent() {
 
 const auto kMeta = BuildHelper({
 	.id = Information::Id(),
-	.parentId = Main::Id(),
+	.parentId = MainId(),
 	.title = &tr::lng_settings_section_info,
 	.icon = &st::menuIconProfile,
 }, [](SectionBuilder &builder) {

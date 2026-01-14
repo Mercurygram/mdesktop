@@ -1238,7 +1238,7 @@ void Folders::showFinished() {
 
 const auto kMeta = BuildHelper({
 	.id = Folders::Id(),
-	.parentId = Main::Id(),
+	.parentId = MainId(),
 	.title = &tr::lng_filters_title,
 	.icon = &st::menuIconShowInFolder,
 }, [](SectionBuilder &builder) {

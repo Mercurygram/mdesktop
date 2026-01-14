@@ -1488,7 +1488,7 @@ void BuildNotificationsSectionContent(SectionBuilder &builder) {
 
 const auto kMeta = BuildHelper({
 	.id = Notifications::Id(),
-	.parentId = Main::Id(),
+	.parentId = MainId(),
 	.title = &tr::lng_settings_section_notify,
 	.icon = &st::menuIconNotifications,
 }, [](SectionBuilder &builder) {

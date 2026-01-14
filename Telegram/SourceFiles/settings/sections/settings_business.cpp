@@ -951,7 +951,7 @@ base::weak_qptr<Ui::RpWidget> Business::createPinnedToBottom(
 
 const auto kMeta = BuildHelper({
 	.id = Business::Id(),
-	.parentId = Main::Id(),
+	.parentId = MainId(),
 	.title = &tr::lng_business_title,
 	.icon = &st::menuIconShop,
 }, [](SectionBuilder &builder) {

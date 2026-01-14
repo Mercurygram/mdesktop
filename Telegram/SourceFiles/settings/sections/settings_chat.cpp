@@ -1274,7 +1274,7 @@ void BuildChatSectionContent(SectionBuilder &builder) {
 
 const auto kMeta = BuildHelper({
 	.id = Chat::Id(),
-	.parentId = Main::Id(),
+	.parentId = MainId(),
 	.title = &tr::lng_settings_section_chat_settings,
 	.icon = &st::menuIconChatBubble,
 }, [](SectionBuilder &builder) {

@@ -595,6 +595,135 @@ void BuildValidationSuggestions(SectionBuilder &builder) {
 	});
 }
 
+class Main final : public Section<Main> {
+public:
+	Main(QWidget *parent, not_null<Window::SessionController*> controller);
+
+	[[nodiscard]] rpl::producer<QString> title() override;
+
+	void fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) override;
+	void showFinished() override;
+
+protected:
+	void keyPressEvent(QKeyEvent *e) override;
+
+private:
+	void setupContent();
+
+	QPointer<Ui::UserpicButton> _userpic;
+
+};
+
+Main::Main(
+	QWidget *parent,
+	not_null<Window::SessionController*> controller)
+: Section(parent, controller) {
+	setupContent();
+}
+
+rpl::producer<QString> Main::title() {
+	return tr::lng_menu_settings();
+}
+
+void Main::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
+	const auto &list = Core::App().domain().accounts();
+	if (list.size() < Core::App().domain().maxAccounts()) {
+		addAction(tr::lng_menu_add_account(tr::now), [=] {
+			Core::App().domain().addActivated(MTP::Environment{});
+		}, &st::menuIconAddAccount);
+	}
+	if (!controller()->session().supportMode()) {
+		addAction(
+			tr::lng_settings_information(tr::now),
+			[=] { showOther(InformationId()); },
+			&st::menuIconEdit);
+	}
+	const auto window = &controller()->window();
+	const auto logout = addAction({
+		.text = tr::lng_settings_logout(tr::now),
+		.handler = [=] { window->showLogoutConfirmation(); },
+		.icon = &st::menuIconLeaveAttention,
+		.isAttention = true,
+	});
+	logout->setProperty("highlight-control-id", u"settings/log-out"_q);
+}
+
+void Main::keyPressEvent(QKeyEvent *e) {
+	crl::on_main(this, [=, text = e->text()]{
+		CodesFeedString(controller(), text);
+	});
+	return Section::keyPressEvent(e);
+}
+
+void Main::setupContent() {
+	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
+
+	const auto window = controller();
+	const auto session = &window->session();
+	const auto cover = content->add(object_ptr<Cover>(
+		content,
+		window,
+		session->user()));
+	_userpic = cover->userpic();
+
+	const SectionBuildMethod buildMethod = [](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		const auto isPaused = Window::PausedIn(
+			controller,
+			Window::GifPauseReason::Layer);
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = isPaused,
+		});
+		builder.addDivider();
+		builder.addSkip();
+		BuildValidationSuggestions(builder);
+		BuildSectionButtons(builder);
+		builder.addSkip();
+		BuildInterfaceScale(builder);
+		BuildPremiumSection(builder);
+		BuildHelpSection(builder);
+	};
+	build(content, buildMethod);
+
+	Ui::ResizeFitChild(this, content);
+
+	session->api().cloudPassword().reload();
+	session->api().reloadContactSignupSilent();
+	session->api().sensitiveContent().reload();
+	session->api().globalPrivacy().reload();
+	session->api().premium().reload();
+	session->data().cloudThemes().refresh();
+}
+
+void Main::showFinished() {
+	controller()->checkHighlightControl(u"profile-photo"_q, _userpic.data(), {
+		.margin = st::settingsPhotoHighlightMargin,
+		.shape = HighlightShape::Ellipse,
+	});
+	const auto emojiId = u"profile-photo/use-emoji"_q;
+	if (controller()->takeHighlightControlId(emojiId)) {
+		if (const auto popupMenu = _userpic->showChangePhotoMenu()) {
+			const auto menu = popupMenu->menu();
+			for (const auto action : menu->actions()) {
+				const auto controlId = "highlight-control-id";
+				if (action->property(controlId).toString() == emojiId) {
+					if (const auto item = menu->itemForAction(action)) {
+						HighlightWidget(item);
+					}
+					break;
+				}
+			}
+		}
+	}
+	Section<Main>::showFinished();
+}
+
 const auto kMeta = BuildHelper({
 	.id = Main::Id(),
 	.parentId = nullptr,
@@ -985,91 +1114,8 @@ void SetupInterfaceScale(
 	}
 }
 
-Main::Main(
-	QWidget *parent,
-	not_null<Window::SessionController*> controller)
-: Section(parent, controller) {
-	setupContent();
-}
-
-rpl::producer<QString> Main::title() {
-	return tr::lng_menu_settings();
-}
-
-void Main::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
-	const auto &list = Core::App().domain().accounts();
-	if (list.size() < Core::App().domain().maxAccounts()) {
-		addAction(tr::lng_menu_add_account(tr::now), [=] {
-			Core::App().domain().addActivated(MTP::Environment{});
-		}, &st::menuIconAddAccount);
-	}
-	if (!controller()->session().supportMode()) {
-		addAction(
-			tr::lng_settings_information(tr::now),
-			[=] { showOther(InformationId()); },
-			&st::menuIconEdit);
-	}
-	const auto window = &controller()->window();
-	const auto logout = addAction({
-		.text = tr::lng_settings_logout(tr::now),
-		.handler = [=] { window->showLogoutConfirmation(); },
-		.icon = &st::menuIconLeaveAttention,
-		.isAttention = true,
-	});
-	logout->setProperty("highlight-control-id", u"settings/log-out"_q);
-}
-
-void Main::keyPressEvent(QKeyEvent *e) {
-	crl::on_main(this, [=, text = e->text()]{
-		CodesFeedString(controller(), text);
-	});
-	return Section::keyPressEvent(e);
-}
-
-void Main::setupContent() {
-	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
-
-	const auto window = controller();
-	const auto session = &window->session();
-	const auto cover = content->add(object_ptr<Cover>(
-		content,
-		window,
-		session->user()));
-	_userpic = cover->userpic();
-
-	build(content, Builder::MainSection);
-
-	Ui::ResizeFitChild(this, content);
-
-	session->api().cloudPassword().reload();
-	session->api().reloadContactSignupSilent();
-	session->api().sensitiveContent().reload();
-	session->api().globalPrivacy().reload();
-	session->api().premium().reload();
-	session->data().cloudThemes().refresh();
-}
-
-void Main::showFinished() {
-	controller()->checkHighlightControl(u"profile-photo"_q, _userpic.data(), {
-		.margin = st::settingsPhotoHighlightMargin,
-		.shape = HighlightShape::Ellipse,
-	});
-	const auto emojiId = u"profile-photo/use-emoji"_q;
-	if (controller()->takeHighlightControlId(emojiId)) {
-		if (const auto popupMenu = _userpic->showChangePhotoMenu()) {
-			const auto menu = popupMenu->menu();
-			for (const auto action : menu->actions()) {
-				const auto controlId = "highlight-control-id";
-				if (action->property(controlId).toString() == emojiId) {
-					if (const auto item = menu->itemForAction(action)) {
-						HighlightWidget(item);
-					}
-					break;
-				}
-			}
-		}
-	}
-	Section<Main>::showFinished();
+Type MainId() {
+	return Main::Id();
 }
 
 void OpenFaq(base::weak_ptr<Window::SessionController> weak) {
@@ -1115,9 +1161,4 @@ void OpenAskQuestionConfirm(not_null<Window::SessionController*> window) {
 	}));
 }
 
-namespace Builder {
-
-SectionBuildMethod MainSection = kMeta.build;
-
-} // namespace Builder
 } // namespace Settings

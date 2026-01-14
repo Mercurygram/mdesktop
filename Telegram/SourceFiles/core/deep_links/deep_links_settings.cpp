@@ -223,7 +223,7 @@ Result ShowLogOutMenu(const Context &ctx) {
 		return Result::NeedsAuth;
 	}
 	ctx.controller->setHighlightControlId(u"settings/log-out"_q);
-	ctx.controller->showSettings(::Settings::Main::Id());
+	ctx.controller->showSettings(::Settings::MainId());
 	return Result::Handled;
 }
 
@@ -321,7 +321,7 @@ Result ShowPrivacyBox(
 void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = QString(),
-		.action = SettingsSection{ ::Settings::Main::Id() },
+		.action = SettingsSection{ ::Settings::MainId() },
 	});
 
 	router.add(u"settings"_q, {
@@ -466,7 +466,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"profile-photo/use-emoji"_q,
 		.action = SettingsControl{
-			::Settings::Main::Id(),
+			::Settings::MainId(),
 			u"profile-photo/use-emoji"_q,
 		},
 	});
@@ -1390,7 +1390,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/text-size"_q,
 		.action = SettingsControl{
-			::Settings::Main::Id(),
+			::Settings::MainId(),
 			u"main/scale"_q,
 		},
 	});
@@ -1679,7 +1679,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"search"_q,
-		.action = SettingsSection{ ::Settings::Main::Id() },
+		.action = SettingsSection{ ::Settings::MainId() },
 	});
 
 	router.add(u"settings"_q, {
@@ -1700,7 +1700,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"edit/set-photo"_q,
 		.action = SettingsControl{
-			::Settings::Main::Id(),
+			::Settings::MainId(),
 			u"profile-photo"_q,
 		},
 	});

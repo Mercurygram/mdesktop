@@ -1578,7 +1578,7 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToBottom(
 
 const auto kMeta = BuildHelper({
 	.id = Premium::Id(),
-	.parentId = Main::Id(),
+	.parentId = MainId(),
 	.title = &tr::lng_premium_summary_title,
 	.icon = &st::menuIconPremium,
 }, [](SectionBuilder &builder) {

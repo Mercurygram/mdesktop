@@ -7,7 +7,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_common_session.h"
 #include "settings/settings_type.h"
 
 namespace Window {
@@ -16,12 +15,12 @@ class SessionController;
 } // namespace Window
 
 namespace Ui {
-class SettingsButton;
-class UserpicButton;
 class VerticalLayout;
 } // namespace Ui
 
 namespace Settings {
+
+[[nodiscard]] Type MainId();
 
 void SetupLanguageButton(
 	not_null<Window::Controller*> window,
@@ -44,30 +43,4 @@ void SetupValidatePasswordSuggestion(
 void OpenFaq(base::weak_ptr<Window::SessionController> weak);
 void OpenAskQuestionConfirm(not_null<Window::SessionController*> window);
 
-class Main : public Section<Main> {
-public:
-	Main(QWidget *parent, not_null<Window::SessionController*> controller);
-
-	[[nodiscard]] rpl::producer<QString> title() override;
-
-	void fillTopBarMenu(
-		const Ui::Menu::MenuCallback &addAction) override;
-
-	void showFinished() override;
-
-protected:
-	void keyPressEvent(QKeyEvent *e) override;
-
-private:
-	void setupContent();
-
-	QPointer<Ui::UserpicButton> _userpic;
-
-};
-
-namespace Builder {
-
-extern SectionBuildMethod MainSection;
-
-} // namespace Builder
 } // namespace Settings

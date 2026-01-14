@@ -1114,7 +1114,7 @@ void BuildExportSection(SectionBuilder &builder) {
 
 const auto kMeta = BuildHelper({
 	.id = Advanced::Id(),
-	.parentId = Main::Id(),
+	.parentId = MainId(),
 	.title = &tr::lng_settings_advanced,
 	.icon = &st::menuIconManage,
 }, [](SectionBuilder &builder) {

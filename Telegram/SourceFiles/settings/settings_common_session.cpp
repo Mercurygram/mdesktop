@@ -15,7 +15,7 @@ namespace Settings {
 
 bool HasMenu(Type type) {
 	return (type == ::Settings::CloudPasswordEmailConfirmId())
-		|| (type == Main::Id())
+		|| (type == MainId())
 		|| (type == Chat::Id());
 }
 

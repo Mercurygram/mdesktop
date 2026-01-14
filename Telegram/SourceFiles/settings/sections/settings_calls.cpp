@@ -20,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "platform/platform_specific.h"
 #include "settings/sections/settings_main.h"
 #include "settings/settings_builder.h"
+#include "settings/settings_common_session.h"
 #include "tgcalls/VideoCaptureInterface.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/boxes/single_choice_box.h"
@@ -725,7 +726,7 @@ void Calls::requestPermissionAndStartTestingMicrophone() {
 
 const auto kMeta = BuildHelper({
 	.id = Calls::Id(),
-	.parentId = Main::Id(),
+	.parentId = MainId(),
 	.title = &tr::lng_settings_section_devices,
 	.icon = &st::menuIconUnmute,
 }, [](SectionBuilder &builder) {

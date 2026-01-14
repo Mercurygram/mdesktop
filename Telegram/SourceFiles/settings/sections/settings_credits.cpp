@@ -1033,7 +1033,7 @@ void BuildCreditsSectionContent(
 
 const auto kCreditsBuilderMeta = BuildHelper({
 	.id = Credits::Id(),
-	.parentId = Main::Id(),
+	.parentId = MainId(),
 	.title = &tr::lng_credits_summary_title,
 	.icon = &st::menuIconPremium,
 }, [](SectionBuilder &builder) {
