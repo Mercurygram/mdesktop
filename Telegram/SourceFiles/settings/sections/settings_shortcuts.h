@@ -7,33 +7,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_common_session.h"
 #include "settings/settings_type.h"
+
+namespace Window {
+class SessionController;
+} // namespace Window
 
 namespace Settings {
 
-class Shortcuts : public Section<Shortcuts> {
-public:
-	Shortcuts(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller);
-	~Shortcuts();
+[[nodiscard]] Type ShortcutsId();
 
-	void showFinished() override;
-
-	[[nodiscard]] rpl::producer<QString> title() override;
-
-private:
-	void setupContent();
-
-	Fn<void()> _save;
-	QPointer<Ui::RpWidget> _resetButton;
-
-};
-
-namespace Builder {
-
-extern SectionBuildMethod ShortcutsSection;
-
-} // namespace Builder
 } // namespace Settings

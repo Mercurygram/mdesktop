@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "settings/sections/settings_chat.h"
 #include "settings/settings_builder.h"
+#include "settings/settings_common_session.h"
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
@@ -498,16 +499,24 @@ void BuildShortcutsSection(SectionBuilder &builder) {
 	});
 }
 
-const auto kMeta = BuildHelper({
-	.id = Shortcuts::Id(),
-	.parentId = Chat::Id(),
-	.title = &tr::lng_settings_shortcuts,
-	.icon = &st::menuIconShortcut,
-}, [](SectionBuilder &builder) {
-	BuildShortcutsSection(builder);
-});
+class Shortcuts : public Section<Shortcuts> {
+public:
+	Shortcuts(
+		QWidget *parent,
+		not_null<Window::SessionController*> controller);
+	~Shortcuts();
 
-} // namespace
+	void showFinished() override;
+
+	[[nodiscard]] rpl::producer<QString> title() override;
+
+private:
+	void setupContent();
+
+	Fn<void()> _save;
+	QPointer<Ui::RpWidget> _resetButton;
+
+};
 
 Shortcuts::Shortcuts(
 	QWidget *parent,
@@ -529,18 +538,73 @@ rpl::producer<QString> Shortcuts::title() {
 void Shortcuts::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	auto result = SetupShortcutsContent(controller(), content);
-	_save = std::move(result.save);
-	_resetButton = result.resetButton;
+	const SectionBuildMethod buildMethod = [
+		resetButton = &_resetButton,
+		save = &_save
+	](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		auto &lifetime = container->lifetime();
+		const auto highlights = lifetime.make_state<HighlightRegistry>();
+		const auto isPaused = Window::PausedIn(
+			controller,
+			Window::GifPauseReason::Layer);
 
-	build(content, Builder::ShortcutsSection);
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = isPaused,
+			.highlights = highlights,
+		});
+
+		auto result = SetupShortcutsContent(controller, container);
+		*save = std::move(result.save);
+		*resetButton = result.resetButton;
+
+		if (highlights && *resetButton) {
+			highlights->push_back({
+				u"shortcuts/reset"_q,
+				{ resetButton->data(), { .rippleShape = true } },
+			});
+		}
+
+		std::move(showFinished) | rpl::on_next([=] {
+			for (const auto &[id, entry] : *highlights) {
+				if (entry.widget) {
+					controller->checkHighlightControl(
+						id,
+						entry.widget,
+						base::duplicate(entry.args));
+				}
+			}
+		}, lifetime);
+	};
+
+	build(content, buildMethod);
 
 	Ui::ResizeFitChild(this, content);
 }
 
 void Shortcuts::showFinished() {
-	Section::showFinished();
-	controller()->checkHighlightControl(u"shortcuts/reset"_q, _resetButton);
+	Section<Shortcuts>::showFinished();
+}
+
+const auto kMeta = BuildHelper({
+	.id = Shortcuts::Id(),
+	.parentId = Chat::Id(),
+	.title = &tr::lng_settings_shortcuts,
+	.icon = &st::menuIconShortcut,
+}, [](SectionBuilder &builder) {
+	BuildShortcutsSection(builder);
+});
+
+} // namespace
+
+Type ShortcutsId() {
+	return Shortcuts::Id();
 }
 
 namespace Builder {

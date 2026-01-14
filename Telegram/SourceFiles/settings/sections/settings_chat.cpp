@@ -1092,7 +1092,7 @@ void BuildArchiveSection(SectionBuilder &builder) {
 		.id = u"chat/shortcuts"_q,
 		.title = tr::lng_settings_shortcuts(),
 		.icon = { &st::menuIconShortcut },
-		.onClick = [showOther] { showOther(Shortcuts::Id()); },
+		.onClick = [showOther] { showOther(ShortcutsId()); },
 		.keywords = { u"shortcuts"_q, u"keyboard"_q, u"hotkeys"_q },
 	});
 
@@ -1676,7 +1676,7 @@ void SetupArchive(
 		st::settingsButton,
 		{ &st::menuIconShortcut }
 	)->addClickHandler([=] {
-		showOther(Shortcuts::Id());
+		showOther(ShortcutsId());
 	});
 
 	PreloadArchiveSettings(&controller->session());
