@@ -5,12 +5,14 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_shortcuts.h"
+#include "settings/sections/settings_shortcuts.h"
 
 #include "base/event_filter.h"
 #include "core/application.h"
 #include "core/shortcuts.h"
 #include "lang/lang_keys.h"
+#include "settings/sections/settings_chat.h"
+#include "settings/settings_builder.h"
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
@@ -18,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/slide_wrap.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/vertical_list.h"
+#include "window/window_session_controller.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
 
@@ -27,6 +30,8 @@ namespace Settings {
 namespace {
 
 namespace S = ::Shortcuts;
+
+using namespace Builder;
 
 struct Labeled {
 	S::Command command = {};
@@ -131,7 +136,12 @@ struct Labeled {
 	return result;
 }
 
-[[nodiscard]] Fn<void()> SetupShortcutsContent(
+struct SetupShortcutsResult {
+	Fn<void()> save;
+	QPointer<Ui::RpWidget> resetButton;
+};
+
+[[nodiscard]] SetupShortcutsResult SetupShortcutsContent(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::VerticalLayout*> content) {
 	const auto &defaults = S::KeysDefaults();
@@ -323,7 +333,6 @@ struct Labeled {
 		state->recording = nullptr;
 		InvokeQueued(content, [=] {
 			InvokeQueued(content, [=] {
-				// Let all the shortcut events propagate first.
 				S::Unpause();
 			});
 		});
@@ -399,7 +408,6 @@ struct Labeled {
 				return base::EventFilterResult::Cancel;
 			} else if (!m && !clear && !S::AllowWithoutModifiers(k)) {
 				if (k != Qt::Key_Escape) {
-					// Intercept this KeyPress event.
 					stopRecording();
 				}
 				return base::EventFilterResult::Cancel;
@@ -474,9 +482,30 @@ struct Labeled {
 		fill(entry);
 	}
 
-	return [=] {
+	return {
+		.save = [=] {},
+		.resetButton = reset,
 	};
 }
+
+void BuildShortcutsSection(SectionBuilder &builder) {
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"shortcuts/reset"_q,
+			.title = tr::lng_shortcuts_reset(tr::now),
+			.keywords = { u"reset"_q, u"defaults"_q, u"restore"_q },
+		};
+	});
+}
+
+const auto kMeta = BuildHelper({
+	.id = Shortcuts::Id(),
+	.parentId = Chat::Id(),
+	.title = &tr::lng_settings_shortcuts,
+	.icon = &st::menuIconShortcut,
+}, [](SectionBuilder &builder) {
+	BuildShortcutsSection(builder);
+});
 
 } // namespace
 
@@ -500,9 +529,23 @@ rpl::producer<QString> Shortcuts::title() {
 void Shortcuts::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	_save = SetupShortcutsContent(controller(), content);
+	auto result = SetupShortcutsContent(controller(), content);
+	_save = std::move(result.save);
+	_resetButton = result.resetButton;
+
+	build(content, Builder::ShortcutsSection);
 
 	Ui::ResizeFitChild(this, content);
 }
 
+void Shortcuts::showFinished() {
+	Section::showFinished();
+	controller()->checkHighlightControl(u"shortcuts/reset"_q, _resetButton);
+}
+
+namespace Builder {
+
+SectionBuildMethod ShortcutsSection = kMeta.build;
+
+} // namespace Builder
 } // namespace Settings

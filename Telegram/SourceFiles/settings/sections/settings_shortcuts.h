@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "settings/settings_common_session.h"
+#include "settings/settings_type.h"
 
 namespace Settings {
 
@@ -18,14 +19,21 @@ public:
 		not_null<Window::SessionController*> controller);
 	~Shortcuts();
 
+	void showFinished() override;
+
 	[[nodiscard]] rpl::producer<QString> title() override;
 
 private:
 	void setupContent();
 
 	Fn<void()> _save;
+	QPointer<Ui::RpWidget> _resetButton;
 
 };
 
-} // namespace Settings
+namespace Builder {
 
+extern SectionBuildMethod ShortcutsSection;
+
+} // namespace Builder
+} // namespace Settings

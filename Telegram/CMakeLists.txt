@@ -1598,9 +1598,9 @@ PRIVATE
     settings/settings_privacy_controllers.h
     settings/settings_scale_preview.cpp
     settings/settings_scale_preview.h
-    settings/settings_shortcuts.cpp
-    settings/settings_shortcuts.h
     settings/settings_type.h
+    settings/sections/settings_shortcuts.cpp
+    settings/sections/settings_shortcuts.h
     settings/settings_websites.cpp
     settings/settings_websites.h
     storage/details/storage_file_utilities.cpp
