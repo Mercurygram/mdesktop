@@ -47,7 +47,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_chat.h"
 #include "settings/settings_codes.h"
 #include "settings/sections/settings_credits.h"
-#include "settings/settings_folders.h"
+#include "settings/sections/settings_folders.h"
 #include "settings/settings_information.h"
 #include "settings/sections/settings_notifications.h"
 #include "settings/settings_power_saving.h"

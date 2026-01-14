@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "settings/settings_common_session.h"
+#include "settings/settings_type.h"
 
 namespace Settings {
 
@@ -35,5 +36,9 @@ private:
 
 };
 
-} // namespace Settings
+namespace Builder {
 
+extern SectionBuildMethod FoldersSection;
+
+} // namespace Builder
+} // namespace Settings

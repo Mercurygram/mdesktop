@@ -48,7 +48,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/passkeys.h"
 #include "calls/calls_box_controller.h"
 #include "settings/sections/settings_credits.h"
-#include "settings/settings_folders.h"
+#include "settings/sections/settings_folders.h"
 #include "settings/sections/settings_global_ttl.h"
 #include "settings/settings_information.h"
 #include "settings/sections/settings_local_passcode.h"

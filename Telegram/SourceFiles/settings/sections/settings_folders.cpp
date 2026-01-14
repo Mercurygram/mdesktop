@@ -5,9 +5,9 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_folders.h"
+#include "settings/sections/settings_folders.h"
 
-#include "api/api_chat_filters.h" // ProcessFilterRemove.
+#include "api/api_chat_filters.h"
 #include "apiwrap.h"
 #include "boxes/filters/edit_filter_box.h"
 #include "boxes/premium_limits_box.h"
@@ -17,13 +17,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_chat_filters.h"
 #include "data/data_folder.h"
 #include "data/data_peer.h"
-#include "data/data_peer_values.h" // Data::AmPremiumValue.
+#include "data/data_peer_values.h"
 #include "data/data_premium_limits.h"
 #include "data/data_session.h"
 #include "history/history.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
 #include "main/main_session.h"
+#include "settings/sections/settings_main.h"
+#include "settings/settings_builder.h"
 #include "settings/settings_premium.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/empty_userpic.h"
@@ -46,6 +48,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_layers.h"
 #include "styles/style_boxes.h"
 #include "styles/style_chat_helpers.h"
+#include "styles/style_menu_icons.h"
 
 namespace Settings {
 
@@ -55,8 +58,10 @@ struct FoldersHighlightTargets {
 	QPointer<Ui::RpWidget> viewSection;
 	QPointer<Ui::RpWidget> recommendedTitle;
 };
+
 namespace {
 
+using namespace Builder;
 using Flag = Data::ChatFilter::Flag;
 using Flags = Data::ChatFilter::Flags;
 
@@ -64,7 +69,7 @@ class FilterRowButton final : public Ui::RippleButton {
 public:
 	FilterRowButton(
 		not_null<QWidget*> parent,
-		not_null<Main::Session*> session,
+		not_null<::Main::Session*> session,
 		const Data::ChatFilter &filter,
 		const QString &description = {});
 
@@ -93,7 +98,7 @@ private:
 	void setState(State state, bool force = false);
 	void updateButtonsVisibility();
 
-	const not_null<Main::Session*> _session;
+	const not_null<::Main::Session*> _session;
 
 	Ui::IconButton _remove;
 	Ui::RoundButton _restore;
@@ -121,7 +126,7 @@ struct FilterRow {
 };
 
 [[nodiscard]] int CountFilterChats(
-		not_null<Main::Session*> session,
+		not_null<::Main::Session*> session,
 		const Data::ChatFilter &filter) {
 	auto result = 0;
 	const auto addList = [&](not_null<Dialogs::MainList*> list) {
@@ -142,7 +147,7 @@ struct FilterRow {
 }
 
 [[nodiscard]] int ComputeCount(
-		not_null<Main::Session*> session,
+		not_null<::Main::Session*> session,
 		const Data::ChatFilter &filter,
 		bool check = false) {
 	const auto &list = session->data().chatsFilters().list();
@@ -160,7 +165,7 @@ struct FilterRow {
 }
 
 [[nodiscard]] QString ComputeCountString(
-		not_null<Main::Session*> session,
+		not_null<::Main::Session*> session,
 		const Data::ChatFilter &filter,
 		bool check = false) {
 	const auto count = ComputeCount(session, filter, check);
@@ -176,7 +181,7 @@ struct FilterRow {
 
 FilterRowButton::FilterRowButton(
 	not_null<QWidget*> parent,
-	not_null<Main::Session*> session,
+	not_null<::Main::Session*> session,
 	const Data::ChatFilter &filter,
 	const QString &description)
 : RippleButton(parent, st::defaultRippleAnimation)
@@ -333,7 +338,6 @@ void FilterRowButton::paintEvent(QPaintEvent *e) {
 	if (_state != State::Suggested) {
 		const auto icon = Ui::LookupFilterIcon(_icon).normal;
 
-		// For now.
 		auto hq = PainterHighQualityEnabler(p);
 		const auto iconWidth = icon->width() - style::ConvertScale(9);
 		const auto scale = st::settingsIconAdd.width() / float64(iconWidth);
@@ -787,7 +791,6 @@ void FilterRowButton::paintEvent(QPaintEvent *e) {
 			order.insert(order.begin() + position, FilterId(0));
 		}
 		if (next) {
-			// We're not closing the layer yet, so delete removed rows.
 			for (auto i = state->rows.begin(); i != state->rows.end();) {
 				if (i->removed) {
 					const auto button = i->button;
@@ -1031,6 +1034,51 @@ void SetupView(
 	Ui::AddSkip(content);
 }
 
+void BuildFoldersSectionContent(SectionBuilder &builder) {
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"folders/create"_q,
+			.title = tr::lng_filters_create(tr::now),
+			.keywords = { u"folder"_q, u"filter"_q, u"new"_q, u"add"_q },
+		};
+	});
+
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"folders/add-recommended"_q,
+			.title = tr::lng_filters_recommended(tr::now),
+			.keywords = { u"suggested"_q, u"recommended"_q },
+		};
+	});
+
+	if (builder.session()->premiumPossible()) {
+		builder.add(nullptr, [] {
+			return SearchEntry{
+				.id = u"folders/show-tags"_q,
+				.title = tr::lng_filters_enable_tags(tr::now),
+				.keywords = { u"tags"_q, u"colors"_q, u"premium"_q },
+			};
+		});
+	}
+
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"folders/tab-view"_q,
+			.title = tr::lng_filters_view_subtitle(tr::now),
+			.keywords = { u"view"_q, u"layout"_q, u"tabs"_q },
+		};
+	});
+}
+
+const auto kMeta = BuildHelper({
+	.id = Folders::Id(),
+	.parentId = Main::Id(),
+	.title = &tr::lng_filters_title,
+	.icon = &st::menuIconShowInFolder,
+}, [](SectionBuilder &builder) {
+	BuildFoldersSectionContent(builder);
+});
+
 } // namespace
 
 Folders::Folders(
@@ -1093,4 +1141,9 @@ void Folders::showFinished() {
 		SubsectionTitleHighlight());
 }
 
+namespace Builder {
+
+SectionBuildMethod FoldersSection = kMeta.build;
+
+} // namespace Builder
 } // namespace Settings
