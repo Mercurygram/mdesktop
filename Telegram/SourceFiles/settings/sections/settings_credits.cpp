@@ -5,7 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_credits.h"
+#include "settings/sections/settings_credits.h"
 
 #include "api/api_credits.h"
 #include "api/api_earn.h"
@@ -24,20 +24,24 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/bot/earn/info_bot_earn_widget.h"
 #include "info/bot/starref/info_bot_starref_common.h"
 #include "info/bot/starref/info_bot_starref_join_widget.h"
-#include "info/channel_statistics/boosts/giveaway/boost_badge.h" // InfiniteRadialAnimationWidget.
+#include "info/channel_statistics/boosts/giveaway/boost_badge.h"
 #include "info/channel_statistics/earn/earn_format.h"
 #include "info/channel_statistics/earn/earn_icons.h"
 #include "info/channel_statistics/earn/info_channel_earn_list.h"
 #include "info/info_memento.h"
-#include "info/settings/info_settings_widget.h" // SectionCustomTopBarData.
+#include "info/settings/info_settings_widget.h"
 #include "info/statistics/info_statistics_list_controllers.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
+#include "settings/sections/settings_main.h"
+#include "settings/settings_builder.h"
 #include "settings/settings_common.h"
 #include "settings/settings_common_session.h"
 #include "settings/settings_credits_graphics.h"
 #include "statistics/widgets/chart_header_widget.h"
-#include "ui/boxes/boost_box.h" // Ui::StartFireworks.
+#include "ui/boxes/boost_box.h"
+#include "ui/controls/swipe_handler.h"
+#include "ui/controls/swipe_handler_data.h"
 #include "ui/effects/animation_value_f.h"
 #include "ui/effects/credits_graphics.h"
 #include "ui/effects/premium_graphics.h"
@@ -54,8 +58,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/fade_wrap.h"
 #include "ui/wrap/slide_wrap.h"
 #include "ui/wrap/vertical_layout.h"
-#include "ui/controls/swipe_handler.h"
-#include "ui/controls/swipe_handler_data.h"
 #include "window/window_session_controller.h"
 #include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h"
@@ -68,10 +70,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_statistics.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_channel_earn.h"
-#include "styles/style_chat.h"
 
 namespace Settings {
 namespace {
+
+using namespace Builder;
 
 class Credits : public Section<Credits> {
 public:
@@ -918,6 +921,41 @@ void Credits::showFinished() {
 class Currency {
 };
 
+void BuildCreditsButtons(SectionBuilder &builder) {
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"stars/stats"_q,
+			.title = tr::lng_credits_stats_button(tr::now),
+			.keywords = { u"statistics"_q },
+		};
+	});
+
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"stars/gift"_q,
+			.title = tr::lng_credits_gift_button(tr::now),
+			.keywords = { u"send"_q, u"stars"_q },
+		};
+	});
+
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"stars/earn"_q,
+			.title = tr::lng_credits_earn_button(tr::now),
+			.keywords = { u"affiliate"_q, u"referral"_q },
+		};
+	});
+}
+
+const auto kCreditsBuilderMeta = BuildHelper({
+	.id = Credits::Id(),
+	.parentId = Main::Id(),
+	.title = &tr::lng_credits_summary_title,
+	.icon = &st::menuIconPremium,
+}, [](SectionBuilder &builder) {
+	BuildCreditsButtons(builder);
+});
+
 } // namespace
 
 template <>
@@ -1023,4 +1061,9 @@ rpl::producer<bool> BuyStarsHandler::loadingValue() const {
 	return _loading.value();
 }
 
+namespace Builder {
+
+SectionBuildMethod CreditsSection = kCreditsBuilderMeta.build;
+
+} // namespace Builder
 } // namespace Settings

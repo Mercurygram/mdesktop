@@ -7,7 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_type.h"
+#include "settings/settings_common.h"
 
 namespace Api {
 class CreditsTopupOptions;
@@ -39,4 +39,9 @@ private:
 
 };
 
+namespace Builder {
+
+extern SectionBuildMethod CreditsSection;
+
+} // namespace Builder
 } // namespace Settings

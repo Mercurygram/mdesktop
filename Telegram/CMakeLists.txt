@@ -1560,8 +1560,8 @@ PRIVATE
     settings/settings_codes.h
     settings/settings_common_session.cpp
     settings/settings_common_session.h
-    settings/settings_credits.cpp
-    settings/settings_credits.h
+    settings/sections/settings_credits.cpp
+    settings/sections/settings_credits.h
     settings/settings_credits_graphics.cpp
     settings/settings_credits_graphics.h
     settings/settings_experimental.cpp
