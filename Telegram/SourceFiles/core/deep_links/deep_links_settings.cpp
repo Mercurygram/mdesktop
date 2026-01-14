@@ -49,7 +49,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "calls/calls_box_controller.h"
 #include "settings/settings_credits.h"
 #include "settings/settings_folders.h"
-#include "settings/settings_global_ttl.h"
+#include "settings/sections/settings_global_ttl.h"
 #include "settings/settings_information.h"
 #include "settings/settings_local_passcode.h"
 #include "settings/sections/settings_main.h"

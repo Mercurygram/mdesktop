@@ -5,9 +5,8 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_global_ttl.h"
+#include "settings/sections/settings_global_ttl.h"
 
-#include "settings/settings_common.h"
 #include "api/api_self_destruct.h"
 #include "apiwrap.h"
 #include "boxes/peer_list_controllers.h"
@@ -20,7 +19,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lottie/lottie_icon.h"
 #include "main/main_session.h"
 #include "menu/menu_ttl_validator.h"
-#include "settings/settings_common_session.h"
+#include "settings/sections/settings_privacy_security.h"
+#include "settings/settings_builder.h"
+#include "settings/settings_common.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/painter.h"
 #include "ui/vertical_list.h"
@@ -33,11 +34,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
 #include "styles/style_layers.h"
+#include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
 #include "styles/style_calls.h"
 
 namespace Settings {
 namespace {
+
+using namespace Builder;
 
 class TTLRow : public ChatsListBoxController::Row {
 public:
@@ -89,9 +93,9 @@ void TTLRow::paintStatusText(
 class TTLChatsBoxController : public ChatsListBoxController {
 public:
 
-	TTLChatsBoxController(not_null<Main::Session*> session);
+	TTLChatsBoxController(not_null<::Main::Session*> session);
 
-	Main::Session &session() const override;
+	::Main::Session &session() const override;
 	void rowClicked(not_null<PeerListRow*> row) override;
 
 protected:
@@ -99,18 +103,18 @@ protected:
 	std::unique_ptr<Row> createRow(not_null<History*> history) override;
 
 private:
-	const not_null<Main::Session*> _session;
+	const not_null<::Main::Session*> _session;
 
 	rpl::lifetime _lifetime;
 
 };
 
-TTLChatsBoxController::TTLChatsBoxController(not_null<Main::Session*> session)
+TTLChatsBoxController::TTLChatsBoxController(not_null<::Main::Session*> session)
 : ChatsListBoxController(session)
 , _session(session) {
 }
 
-Main::Session &TTLChatsBoxController::session() const {
+::Main::Session &TTLChatsBoxController::session() const {
 	return *_session;
 }
 
@@ -187,35 +191,36 @@ void SetupTopContent(
 
 }
 
+const auto kMeta = BuildHelper({
+	.id = GlobalTTL::Id(),
+	.parentId = PrivacySecurity::Id(),
+	.title = &tr::lng_settings_ttl_title,
+	.icon = &st::menuIconTTL,
+}, [](SectionBuilder &builder) {
+	builder.addSubsectionTitle({
+		.id = u"auto-delete/period"_q,
+		.title = tr::lng_settings_ttl_after_subtitle(),
+		.keywords = { u"ttl"_q, u"auto-delete"_q, u"timer"_q },
+	});
+
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"auto-delete/set-custom"_q,
+			.title = tr::lng_settings_ttl_after_custom(tr::now),
+			.keywords = { u"custom"_q, u"ttl"_q, u"period"_q },
+		};
+	});
+
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"auto-delete/apply-existing"_q,
+			.title = tr::lng_settings_ttl_after_about_link(tr::now),
+			.keywords = { u"apply"_q, u"existing"_q, u"chats"_q },
+		};
+	});
+});
+
 } // namespace
-
-class GlobalTTL : public Section<GlobalTTL> {
-public:
-	GlobalTTL(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller);
-
-	[[nodiscard]] rpl::producer<QString> title() override;
-	void setupContent();
-
-	void showFinished() override final;
-
-private:
-	void rebuildButtons(TimeId currentTTL) const;
-	void showSure(TimeId ttl, bool rebuild) const;
-
-	void request(TimeId ttl) const;
-
-	const std::shared_ptr<Ui::RadiobuttonGroup> _group;
-	const std::shared_ptr<Main::SessionShow> _show;
-
-	not_null<Ui::VerticalLayout*> _buttons;
-	QPointer<Ui::SettingsButton> _customButton;
-
-	rpl::event_stream<> _showFinished;
-	rpl::lifetime _requestLifetime;
-
-};
 
 GlobalTTL::GlobalTTL(
 	QWidget *parent,
@@ -248,7 +253,7 @@ void GlobalTTL::showSure(TimeId ttl, bool rebuild) const {
 				lt_after_duration,
 				{ .text = ttlText },
 				tr::marked));
-			_show->hideLayer(); // Don't use close().
+			_show->hideLayer();
 		});
 		request(ttl);
 	};
@@ -441,4 +446,9 @@ Type GlobalTTLId() {
 	return GlobalTTL::Id();
 }
 
+namespace Builder {
+
+SectionBuildMethod GlobalTTLSection = kMeta.build;
+
+} // namespace Builder
 } // namespace Settings
