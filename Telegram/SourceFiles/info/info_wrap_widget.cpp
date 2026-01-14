@@ -18,7 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/cloud_password/settings_cloud_password_email_confirm.h"
 #include "settings/settings_chat.h"
 #include "settings/settings_information.h"
-#include "settings/settings_main.h"
+#include "settings/sections/settings_main.h"
 #include "settings/settings_premium.h"
 #include "settings/settings_search.h"
 #include "ui/effects/ripple_animation.h" // MaskByDrawer.

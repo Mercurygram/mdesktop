@@ -32,7 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/builder/settings_builder.h"
 #include "settings/settings_advanced.h"
 #include "settings/settings_chat.h"
-#include "settings/settings_main.h"
+#include "settings/sections/settings_main.h"
 #include "settings/settings_experimental.h"
 #include "settings/settings_power_saving.h"
 #include "ui/power_saving.h"

@@ -25,7 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "platform/platform_notifications_manager.h"
 #include "platform/platform_specific.h"
 #include "settings/builder/settings_builder.h"
-#include "settings/settings_main.h"
+#include "settings/sections/settings_main.h"
 #include "settings/settings_notifications.h"
 #include "settings/settings_notifications_common.h"
 #include "settings/settings_notifications_type.h"

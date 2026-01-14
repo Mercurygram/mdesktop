@@ -39,7 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_blocked_peers.h"
 #include "settings/settings_global_ttl.h"
 #include "settings/settings_local_passcode.h"
-#include "settings/settings_main.h"
+#include "settings/sections/settings_main.h"
 #include "settings/settings_passkeys.h"
 #include "settings/settings_privacy_controllers.h"
 #include "settings/settings_privacy_security.h"
