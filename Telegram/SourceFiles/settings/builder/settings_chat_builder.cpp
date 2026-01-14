@@ -14,7 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
 #include "settings/builder/settings_builder.h"
-#include "settings/settings_advanced.h"
+#include "settings/sections/settings_advanced.h"
 #include "settings/settings_chat.h"
 #include "settings/settings_experimental.h"
 #include "settings/sections/settings_main.h"

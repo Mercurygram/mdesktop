@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "settings/settings_common_session.h"
+#include "settings/settings_type.h"
 
 namespace Main {
 class Account;
@@ -16,6 +17,7 @@ class Session;
 
 namespace Ui {
 class GenericBox;
+class VerticalLayout;
 } // namespace Ui
 
 namespace Window {
@@ -62,4 +64,9 @@ private:
 
 };
 
+namespace Builder {
+
+extern SectionBuildMethod AdvancedSection;
+
+} // namespace Builder
 } // namespace Settings

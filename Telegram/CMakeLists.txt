@@ -1546,8 +1546,8 @@ PRIVATE
     settings/cloud_password/settings_cloud_password_validate_icon.h
     settings/settings_active_sessions.cpp
     settings/settings_active_sessions.h
-    settings/settings_advanced.cpp
-    settings/settings_advanced.h
+    settings/sections/settings_advanced.cpp
+    settings/sections/settings_advanced.h
     settings/settings_blocked_peers.cpp
     settings/settings_blocked_peers.h
     settings/settings_business.cpp
@@ -1580,8 +1580,6 @@ PRIVATE
     settings/sections/settings_main.h
     settings/settings_search.cpp
     settings/settings_search.h
-    settings/builder/settings_advanced_builder.cpp
-    settings/builder/settings_advanced_builder.h
     settings/builder/settings_builder.cpp
     settings/builder/settings_builder.h
     settings/builder/settings_chat_builder.cpp
