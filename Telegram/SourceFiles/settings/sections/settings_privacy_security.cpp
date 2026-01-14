@@ -516,7 +516,7 @@ void SetupBlockedList(
 		st::settingsButton,
 		{ &st::menuIconBlock });
 	blockedPeers->addClickHandler([=] {
-		showOther(Blocked::Id());
+		showOther(BlockedPeersId());
 	});
 	std::move(
 		updateTrigger
@@ -1370,7 +1370,7 @@ void BuildSecuritySection(
 		.icon = { &st::menuIconBlock },
 		.label = std::move(blockedCount),
 		.onClick = [=] {
-			showOther(Blocked::Id());
+			showOther(BlockedPeersId());
 		},
 		.keywords = { u"blocked"_q, u"ban"_q },
 	});

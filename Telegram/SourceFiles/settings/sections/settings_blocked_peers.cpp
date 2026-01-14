@@ -51,16 +51,37 @@ void BuildBlockedSection(SectionBuilder &builder) {
 	});
 }
 
-const auto kMeta = BuildHelper({
-	.id = Blocked::Id(),
-	.parentId = PrivacySecurity::Id(),
-	.title = &tr::lng_settings_blocked_users,
-	.icon = &st::menuIconBlock,
-}, [](SectionBuilder &builder) {
-	BuildBlockedSection(builder);
-});
+class Blocked : public Section<Blocked> {
+public:
+	Blocked(
+		QWidget *parent,
+		not_null<Window::SessionController*> controller);
 
-} // namespace
+	void showFinished() override;
+
+	[[nodiscard]] rpl::producer<QString> title() override;
+
+	[[nodiscard]] base::weak_qptr<Ui::RpWidget> createPinnedToTop(
+		not_null<QWidget*> parent) override;
+
+private:
+	void setupContent();
+	void checkTotal(int total);
+
+	void visibleTopBottomUpdated(int visibleTop, int visibleBottom) override;
+
+	const not_null<Ui::VerticalLayout*> _container;
+
+	base::unique_qptr<Ui::RpWidget> _loading;
+
+	rpl::variable<int> _countBlocked;
+
+	rpl::event_stream<> _showFinished;
+	rpl::event_stream<bool> _emptinessChanges;
+
+	QPointer<Ui::RpWidget> _blockUserButton;
+
+};
 
 Blocked::Blocked(
 	QWidget *parent,
@@ -255,7 +276,39 @@ void Blocked::setupContent() {
 		resize(width(), std::max(height, min));
 	}, _container->lifetime());
 
-	build(_container, Builder::BlockedSection);
+	const SectionBuildMethod buildMethod = [](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		auto &lifetime = container->lifetime();
+		const auto highlights = lifetime.make_state<HighlightRegistry>();
+
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = Window::PausedIn(
+				controller,
+				Window::GifPauseReason::Layer),
+			.highlights = highlights,
+		});
+
+		BuildBlockedSection(builder);
+
+		std::move(showFinished) | rpl::on_next([=] {
+			for (const auto &[id, entry] : *highlights) {
+				if (entry.widget) {
+					controller->checkHighlightControl(
+						id,
+						entry.widget,
+						base::duplicate(entry.args));
+				}
+			}
+		}, lifetime);
+	};
+
+	build(_container, buildMethod);
 }
 
 void Blocked::checkTotal(int total) {
@@ -275,9 +328,19 @@ void Blocked::showFinished() {
 		_blockUserButton);
 }
 
-namespace Builder {
+const auto kMeta = BuildHelper({
+	.id = Blocked::Id(),
+	.parentId = PrivacySecurity::Id(),
+	.title = &tr::lng_settings_blocked_users,
+	.icon = &st::menuIconBlock,
+}, [](SectionBuilder &builder) {
+	BuildBlockedSection(builder);
+});
 
-SectionBuildMethod BlockedSection = kMeta.build;
+} // namespace
 
-} // namespace Builder
+Type BlockedPeersId() {
+	return Blocked::Id();
+}
+
 } // namespace Settings

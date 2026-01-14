@@ -493,13 +493,13 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/blocked"_q,
-		.action = SettingsSection{ ::Settings::Blocked::Id() },
+		.action = SettingsSection{ ::Settings::BlockedPeersId() },
 	});
 
 	router.add(u"settings"_q, {
 		.path = u"privacy/blocked/block-user"_q,
 		.action = SettingsControl{
-			::Settings::Blocked::Id(),
+			::Settings::BlockedPeersId(),
 			u"privacy/blocked/block-user"_q,
 		},
 	});
