@@ -22,6 +22,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_privacy_security.h"
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
+#include "settings/settings_common_session.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/painter.h"
 #include "ui/vertical_list.h"
@@ -160,35 +161,398 @@ std::unique_ptr<TTLChatsBoxController::Row> TTLChatsBoxController::createRow(
 	return result;
 }
 
-void SetupTopContent(
-		not_null<Ui::VerticalLayout*> parent,
-		rpl::producer<> showFinished) {
-	const auto divider = Ui::CreateChild<Ui::BoxContentDivider>(parent.get());
-	const auto verticalLayout = parent->add(
-		object_ptr<Ui::VerticalLayout>(parent.get()));
+struct GlobalTTLState {
+	std::shared_ptr<Ui::RadiobuttonGroup> group;
+	std::shared_ptr<::Main::SessionShow> show;
+	not_null<Ui::VerticalLayout*> buttons;
+	QPointer<Ui::SettingsButton> customButton;
+	rpl::lifetime requestLifetime;
+};
 
-	auto icon = CreateLottieIcon(
-		verticalLayout,
-		{
-			.name = u"ttl"_q,
-			.sizeOverride = {
-				st::settingsCloudPasswordIconSize,
-				st::settingsCloudPasswordIconSize,
+void BuildTopContent(SectionBuilder &builder, rpl::producer<> showFinished) {
+	builder.add([showFinished = std::move(showFinished)](
+			const WidgetContext &ctx) mutable {
+		const auto parent = ctx.container;
+		const auto divider = Ui::CreateChild<Ui::BoxContentDivider>(
+			parent.get());
+		const auto verticalLayout = parent->add(
+			object_ptr<Ui::VerticalLayout>(parent.get()));
+
+		auto icon = CreateLottieIcon(
+			verticalLayout,
+			{
+				.name = u"ttl"_q,
+				.sizeOverride = {
+					st::settingsCloudPasswordIconSize,
+					st::settingsCloudPasswordIconSize,
+				},
 			},
-		},
-		st::settingsFilterIconPadding);
-	std::move(
-		showFinished
-	) | rpl::on_next([animate = std::move(icon.animate)] {
-		animate(anim::repeat::loop);
-	}, verticalLayout->lifetime());
-	verticalLayout->add(std::move(icon.widget));
+			st::settingsFilterIconPadding);
+		std::move(
+			showFinished
+		) | rpl::on_next([animate = std::move(icon.animate)] {
+			animate(anim::repeat::loop);
+		}, verticalLayout->lifetime());
+		verticalLayout->add(std::move(icon.widget));
 
-	verticalLayout->geometryValue(
-	) | rpl::on_next([=](const QRect &r) {
-		divider->setGeometry(r);
-	}, divider->lifetime());
+		verticalLayout->geometryValue(
+		) | rpl::on_next([=](const QRect &r) {
+			divider->setGeometry(r);
+		}, divider->lifetime());
 
+		return SectionBuilder::WidgetToAdd{};
+	});
+}
+
+void RebuildButtons(
+		not_null<GlobalTTLState*> state,
+		not_null<Window::SessionController*> controller,
+		TimeId currentTTL) {
+	auto ttls = std::vector<TimeId>{
+		0,
+		3600 * 24,
+		3600 * 24 * 7,
+		3600 * 24 * 31,
+	};
+	if (!ranges::contains(ttls, currentTTL)) {
+		ttls.push_back(currentTTL);
+		ranges::sort(ttls);
+	}
+	if (state->buttons->count() > int(ttls.size())) {
+		return;
+	}
+
+	const auto request = [=](TimeId ttl) {
+		controller->session().api().selfDestruct().updateDefaultHistoryTTL(ttl);
+	};
+
+	const auto showSure = [=](TimeId ttl, bool rebuild) {
+		const auto ttlText = Ui::FormatTTLAfter(ttl);
+		const auto confirmed = [=] {
+			if (rebuild) {
+				RebuildButtons(state, controller, ttl);
+			}
+			state->group->setChangedCallback([=](int value) {
+				state->group->setChangedCallback(nullptr);
+				state->show->showToast(tr::lng_settings_ttl_after_toast(
+					tr::now,
+					lt_after_duration,
+					{ .text = ttlText },
+					tr::marked));
+				state->show->hideLayer();
+			});
+			request(ttl);
+		};
+		if (state->group->value()) {
+			confirmed();
+			return;
+		}
+		state->show->showBox(Ui::MakeConfirmBox({
+			.text = tr::lng_settings_ttl_after_sure(
+				lt_after_duration,
+				rpl::single(ttlText)),
+			.confirmed = confirmed,
+			.cancelled = [=](Fn<void()> &&close) {
+				state->group->setChangedCallback(nullptr);
+				close();
+			},
+			.confirmText = tr::lng_sure_enable(),
+		}));
+	};
+
+	state->buttons->clear();
+	for (const auto &ttl : ttls) {
+		const auto ttlText = Ui::FormatTTLAfter(ttl);
+		const auto button = state->buttons->add(object_ptr<Ui::SettingsButton>(
+			state->buttons,
+			(!ttl)
+				? tr::lng_settings_ttl_after_off()
+				: tr::lng_settings_ttl_after(
+					lt_after_duration,
+					rpl::single(ttlText)),
+			st::settingsButtonNoIcon));
+		button->setClickedCallback([=] {
+			if (state->group->current() == ttl) {
+				return;
+			}
+			if (!ttl) {
+				state->group->setChangedCallback(nullptr);
+				request(ttl);
+				return;
+			}
+			showSure(ttl, false);
+		});
+		const auto radio = Ui::CreateChild<Ui::Radiobutton>(
+			button,
+			state->group,
+			ttl,
+			QString());
+		radio->setAttribute(Qt::WA_TransparentForMouseEvents);
+		radio->show();
+		const auto padding = button->st().padding;
+		button->sizeValue(
+		) | rpl::on_next([=](QSize s) {
+			radio->moveToLeft(
+				s.width() - radio->checkRect().width() - padding.left(),
+				radio->checkRect().top());
+		}, radio->lifetime());
+	}
+	state->buttons->resizeToWidth(state->buttons->width());
+}
+
+void BuildTTLOptions(
+		SectionBuilder &builder,
+		not_null<GlobalTTLState*> state) {
+	builder.addSkip();
+	builder.addSubsectionTitle({
+		.id = u"auto-delete/period"_q,
+		.title = tr::lng_settings_ttl_after_subtitle(),
+		.keywords = { u"ttl"_q, u"auto-delete"_q, u"timer"_q },
+	});
+
+	builder.add([=](const WidgetContext &ctx) {
+		const auto controller = ctx.controller;
+		ctx.container->add(
+			object_ptr<Ui::VerticalLayout>::fromRaw(state->buttons.get()));
+
+		const auto &apiTTL = controller->session().api().selfDestruct();
+		const auto rebuild = [=](TimeId period) {
+			RebuildButtons(state, controller, period);
+			state->group->setValue(period);
+		};
+		rebuild(apiTTL.periodDefaultHistoryTTLCurrent());
+		apiTTL.periodDefaultHistoryTTL(
+		) | rpl::on_next(rebuild, ctx.container->lifetime());
+
+		return SectionBuilder::WidgetToAdd{};
+	});
+}
+
+void BuildCustomButton(
+		SectionBuilder &builder,
+		not_null<GlobalTTLState*> state) {
+	builder.add([=](const WidgetContext &ctx) {
+		const auto controller = ctx.controller;
+		const auto show = controller->uiShow();
+
+		const auto showSure = [=](TimeId ttl, bool rebuild) {
+			const auto ttlText = Ui::FormatTTLAfter(ttl);
+			const auto confirmed = [=] {
+				if (rebuild) {
+					RebuildButtons(state, controller, ttl);
+				}
+				state->group->setChangedCallback([=](int value) {
+					state->group->setChangedCallback(nullptr);
+					state->show->showToast(tr::lng_settings_ttl_after_toast(
+						tr::now,
+						lt_after_duration,
+						{ .text = ttlText },
+						tr::marked));
+					state->show->hideLayer();
+				});
+				controller->session().api().selfDestruct().updateDefaultHistoryTTL(ttl);
+			};
+			if (state->group->value()) {
+				confirmed();
+				return;
+			}
+			state->show->showBox(Ui::MakeConfirmBox({
+				.text = tr::lng_settings_ttl_after_sure(
+					lt_after_duration,
+					rpl::single(ttlText)),
+				.confirmed = confirmed,
+				.cancelled = [=](Fn<void()> &&close) {
+					state->group->setChangedCallback(nullptr);
+					close();
+				},
+				.confirmText = tr::lng_sure_enable(),
+			}));
+		};
+
+		state->customButton = ctx.container->add(object_ptr<Ui::SettingsButton>(
+			ctx.container,
+			tr::lng_settings_ttl_after_custom(),
+			st::settingsButtonNoIcon));
+		state->customButton->setClickedCallback([=] {
+			show->showBox(Box(TTLMenu::TTLBox, TTLMenu::Args{
+				.show = show,
+				.startTtl = state->group->current(),
+				.callback = [=](TimeId ttl, Fn<void()>) { showSure(ttl, true); },
+				.hideDisable = true,
+			}));
+		});
+		if (ctx.highlights) {
+			ctx.highlights->push_back({
+				u"auto-delete/set-custom"_q,
+				{ state->customButton.data(), { .rippleShape = true } },
+			});
+		}
+
+		return SectionBuilder::WidgetToAdd{};
+	}, [] {
+		return SearchEntry{
+			.id = u"auto-delete/set-custom"_q,
+			.title = tr::lng_settings_ttl_after_custom(tr::now),
+			.keywords = { u"custom"_q, u"ttl"_q, u"period"_q },
+		};
+	});
+}
+
+void BuildApplyToExisting(
+		SectionBuilder &builder,
+		not_null<GlobalTTLState*> state) {
+	builder.addSkip();
+
+	builder.add([=](const WidgetContext &ctx) {
+		const auto controller = ctx.controller;
+		const auto session = &controller->session();
+
+		auto footer = object_ptr<Ui::FlatLabel>(
+			ctx.container,
+			tr::lng_settings_ttl_after_about(
+				lt_link,
+				tr::lng_settings_ttl_after_about_link(
+				) | rpl::map([](QString s) { return tr::link(s, 1); }),
+				tr::marked),
+			st::boxDividerLabel);
+		footer->setLink(1, std::make_shared<LambdaClickHandler>([=] {
+			auto boxController = std::make_unique<TTLChatsBoxController>(session);
+			auto initBox = [=, ctrl = boxController.get()](
+					not_null<PeerListBox*> box) {
+				box->addButton(tr::lng_settings_apply(), [=] {
+					const auto &peers = box->collectSelectedRows();
+					if (peers.empty()) {
+						return;
+					}
+					const auto &apiTTL = session->api().selfDestruct();
+					const auto ttl = apiTTL.periodDefaultHistoryTTLCurrent();
+					for (const auto &peer : peers) {
+						peer->session().api().request(MTPmessages_SetHistoryTTL(
+							peer->input(),
+							MTP_int(ttl)
+						)).done([=](const MTPUpdates &result) {
+							peer->session().api().applyUpdates(result);
+						}).send();
+					}
+					box->showToast(ttl
+						? tr::lng_settings_ttl_select_chats_toast(
+							tr::now,
+							lt_count,
+							peers.size(),
+							lt_duration,
+							{ .text = Ui::FormatTTL(ttl) },
+							tr::marked)
+						: tr::lng_settings_ttl_select_chats_disabled_toast(
+							tr::now,
+							lt_count,
+							peers.size(),
+							tr::marked));
+					box->closeBox();
+				});
+				box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
+			};
+			controller->show(
+				Box<PeerListBox>(std::move(boxController), std::move(initBox)));
+		}));
+		ctx.container->add(object_ptr<Ui::DividerLabel>(
+			ctx.container,
+			std::move(footer),
+			st::defaultBoxDividerLabelPadding));
+
+		return SectionBuilder::WidgetToAdd{};
+	}, [] {
+		return SearchEntry{
+			.id = u"auto-delete/apply-existing"_q,
+			.title = tr::lng_settings_ttl_after_about_link(tr::now),
+			.keywords = { u"apply"_q, u"existing"_q, u"chats"_q },
+		};
+	});
+}
+
+class GlobalTTL : public Section<GlobalTTL> {
+public:
+	GlobalTTL(
+		QWidget *parent,
+		not_null<Window::SessionController*> controller);
+
+	[[nodiscard]] rpl::producer<QString> title() override;
+	void showFinished() override;
+
+private:
+	void setupContent();
+
+	std::shared_ptr<GlobalTTLState> _state;
+	rpl::event_stream<> _showFinished;
+
+};
+
+GlobalTTL::GlobalTTL(
+	QWidget *parent,
+	not_null<Window::SessionController*> controller)
+: Section(parent, controller)
+, _state(std::make_shared<GlobalTTLState>(GlobalTTLState{
+	.group = std::make_shared<Ui::RadiobuttonGroup>(0),
+	.show = controller->uiShow(),
+	.buttons = Ui::CreateChild<Ui::VerticalLayout>(this),
+})) {
+	setupContent();
+}
+
+rpl::producer<QString> GlobalTTL::title() {
+	return tr::lng_settings_ttl_title();
+}
+
+void GlobalTTL::setupContent() {
+	setFocusPolicy(Qt::StrongFocus);
+	setFocus();
+
+	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
+	const auto state = _state;
+
+	const SectionBuildMethod buildMethod = [state](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		auto &lifetime = container->lifetime();
+		const auto highlights = lifetime.make_state<HighlightRegistry>();
+		const auto isPaused = Window::PausedIn(
+			controller,
+			Window::GifPauseReason::Layer);
+		auto showFinishedDup = rpl::duplicate(showFinished);
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = isPaused,
+			.highlights = highlights,
+		});
+
+		BuildTopContent(builder, std::move(showFinishedDup));
+		BuildTTLOptions(builder, state.get());
+		BuildCustomButton(builder, state.get());
+		BuildApplyToExisting(builder, state.get());
+
+		std::move(showFinished) | rpl::on_next([=] {
+			for (const auto &[id, entry] : *highlights) {
+				if (entry.widget) {
+					controller->checkHighlightControl(
+						id,
+						entry.widget,
+						base::duplicate(entry.args));
+				}
+			}
+		}, lifetime);
+	};
+
+	build(content, buildMethod);
+
+	Ui::ResizeFitChild(this, content);
+}
+
+void GlobalTTL::showFinished() {
+	_showFinished.fire({});
+	Section<GlobalTTL>::showFinished();
 }
 
 const auto kMeta = BuildHelper({
@@ -197,10 +561,12 @@ const auto kMeta = BuildHelper({
 	.title = &tr::lng_settings_ttl_title,
 	.icon = &st::menuIconTTL,
 }, [](SectionBuilder &builder) {
-	builder.addSubsectionTitle({
-		.id = u"auto-delete/period"_q,
-		.title = tr::lng_settings_ttl_after_subtitle(),
-		.keywords = { u"ttl"_q, u"auto-delete"_q, u"timer"_q },
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"auto-delete/period"_q,
+			.title = tr::lng_settings_ttl_after_subtitle(tr::now),
+			.keywords = { u"ttl"_q, u"auto-delete"_q, u"timer"_q },
+		};
 	});
 
 	builder.add(nullptr, [] {
@@ -221,226 +587,6 @@ const auto kMeta = BuildHelper({
 });
 
 } // namespace
-
-GlobalTTL::GlobalTTL(
-	QWidget *parent,
-	not_null<Window::SessionController*> controller)
-: Section(parent, controller)
-, _group(std::make_shared<Ui::RadiobuttonGroup>(0))
-, _show(controller->uiShow())
-, _buttons(Ui::CreateChild<Ui::VerticalLayout>(this)) {
-	setupContent();
-}
-
-rpl::producer<QString> GlobalTTL::title() {
-	return tr::lng_settings_ttl_title();
-}
-
-void GlobalTTL::request(TimeId ttl) const {
-	controller()->session().api().selfDestruct().updateDefaultHistoryTTL(ttl);
-}
-
-void GlobalTTL::showSure(TimeId ttl, bool rebuild) const {
-	const auto ttlText = Ui::FormatTTLAfter(ttl);
-	const auto confirmed = [=] {
-		if (rebuild) {
-			rebuildButtons(ttl);
-		}
-		_group->setChangedCallback([=](int value) {
-			_group->setChangedCallback(nullptr);
-			_show->showToast(tr::lng_settings_ttl_after_toast(
-				tr::now,
-				lt_after_duration,
-				{ .text = ttlText },
-				tr::marked));
-			_show->hideLayer();
-		});
-		request(ttl);
-	};
-	if (_group->value()) {
-		confirmed();
-		return;
-	}
-	_show->showBox(Ui::MakeConfirmBox({
-		.text = tr::lng_settings_ttl_after_sure(
-			lt_after_duration,
-			rpl::single(ttlText)),
-		.confirmed = confirmed,
-		.cancelled = [=](Fn<void()> &&close) {
-			_group->setChangedCallback(nullptr);
-			close();
-		},
-		.confirmText = tr::lng_sure_enable(),
-	}));
-}
-
-void GlobalTTL::rebuildButtons(TimeId currentTTL) const {
-	auto ttls = std::vector<TimeId>{
-		0,
-		3600 * 24,
-		3600 * 24 * 7,
-		3600 * 24 * 31,
-	};
-	if (!ranges::contains(ttls, currentTTL)) {
-		ttls.push_back(currentTTL);
-		ranges::sort(ttls);
-	}
-	if (_buttons->count() > ttls.size()) {
-		return;
-	}
-	_buttons->clear();
-	for (const auto &ttl : ttls) {
-		const auto ttlText = Ui::FormatTTLAfter(ttl);
-		const auto button = _buttons->add(object_ptr<Ui::SettingsButton>(
-			_buttons,
-			(!ttl)
-				? tr::lng_settings_ttl_after_off()
-				: tr::lng_settings_ttl_after(
-					lt_after_duration,
-					rpl::single(ttlText)),
-			st::settingsButtonNoIcon));
-		button->setClickedCallback([=] {
-			if (_group->current() == ttl) {
-				return;
-			}
-			if (!ttl) {
-				_group->setChangedCallback(nullptr);
-				request(ttl);
-				return;
-			}
-			showSure(ttl, false);
-		});
-		const auto radio = Ui::CreateChild<Ui::Radiobutton>(
-			button,
-			_group,
-			ttl,
-			QString());
-		radio->setAttribute(Qt::WA_TransparentForMouseEvents);
-		radio->show();
-		const auto padding = button->st().padding;
-		button->sizeValue(
-		) | rpl::on_next([=](QSize s) {
-			radio->moveToLeft(
-				s.width() - radio->checkRect().width() - padding.left(),
-				radio->checkRect().top());
-		}, radio->lifetime());
-	}
-	_buttons->resizeToWidth(width());
-}
-
-void GlobalTTL::setupContent() {
-	setFocusPolicy(Qt::StrongFocus);
-	setFocus();
-
-	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
-
-	SetupTopContent(content, _showFinished.events());
-
-	Ui::AddSkip(content);
-	Ui::AddSubsectionTitle(content, tr::lng_settings_ttl_after_subtitle());
-
-	content->add(object_ptr<Ui::VerticalLayout>::fromRaw(_buttons));
-
-	{
-		const auto &apiTTL = controller()->session().api().selfDestruct();
-		const auto rebuild = [=](TimeId period) {
-			rebuildButtons(period);
-			_group->setValue(period);
-		};
-		rebuild(apiTTL.periodDefaultHistoryTTLCurrent());
-		apiTTL.periodDefaultHistoryTTL(
-		) | rpl::on_next(rebuild, content->lifetime());
-	}
-
-	const auto show = controller()->uiShow();
-	_customButton = content->add(object_ptr<Ui::SettingsButton>(
-		content,
-		tr::lng_settings_ttl_after_custom(),
-		st::settingsButtonNoIcon));
-	_customButton->setClickedCallback([=] {
-		struct Args {
-			std::shared_ptr<Ui::Show> show;
-			TimeId startTtl;
-			rpl::producer<QString> about;
-			Fn<void(TimeId)> callback;
-		};
-
-		show->showBox(Box(TTLMenu::TTLBox, TTLMenu::Args{
-			.show = show,
-			.startTtl = _group->current(),
-			.callback = [=](TimeId ttl, Fn<void()>) { showSure(ttl, true); },
-			.hideDisable = true,
-		}));
-	});
-
-	Ui::AddSkip(content);
-
-	auto footer = object_ptr<Ui::FlatLabel>(
-		content,
-		tr::lng_settings_ttl_after_about(
-			lt_link,
-			tr::lng_settings_ttl_after_about_link(
-			) | rpl::map([](QString s) { return tr::link(s, 1); }),
-			tr::marked),
-		st::boxDividerLabel);
-	footer->setLink(1, std::make_shared<LambdaClickHandler>([=] {
-		const auto window = controller();
-		const auto session = &window->session();
-		auto controller = std::make_unique<TTLChatsBoxController>(session);
-		auto initBox = [=, controller = controller.get()](
-				not_null<PeerListBox*> box) {
-			box->addButton(tr::lng_settings_apply(), crl::guard(this, [=] {
-				const auto &peers = box->collectSelectedRows();
-				if (peers.empty()) {
-					return;
-				}
-				const auto &apiTTL = session->api().selfDestruct();
-				const auto ttl = apiTTL.periodDefaultHistoryTTLCurrent();
-				for (const auto &peer : peers) {
-					peer->session().api().request(MTPmessages_SetHistoryTTL(
-						peer->input(),
-						MTP_int(ttl)
-					)).done([=](const MTPUpdates &result) {
-						peer->session().api().applyUpdates(result);
-					}).send();
-				}
-				box->showToast(ttl
-					? tr::lng_settings_ttl_select_chats_toast(
-						tr::now,
-						lt_count,
-						peers.size(),
-						lt_duration,
-						{ .text = Ui::FormatTTL(ttl) },
-						tr::marked)
-					: tr::lng_settings_ttl_select_chats_disabled_toast(
-						tr::now,
-						lt_count,
-						peers.size(),
-						tr::marked));
-				box->closeBox();
-			}));
-			box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
-		};
-		window->show(
-			Box<PeerListBox>(std::move(controller), std::move(initBox)));
-	}));
-	content->add(object_ptr<Ui::DividerLabel>(
-		content,
-		std::move(footer),
-		st::defaultBoxDividerLabelPadding));
-
-	Ui::ResizeFitChild(this, content);
-}
-
-void GlobalTTL::showFinished() {
-	_showFinished.fire({});
-	if (_customButton) {
-		controller()->checkHighlightControl(
-			u"auto-delete/set-custom"_q,
-			_customButton,
-			{ .rippleShape = true });
-	}
-}
 
 Type GlobalTTLId() {
 	return GlobalTTL::Id();
