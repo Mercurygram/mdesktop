@@ -1570,8 +1570,8 @@ PRIVATE
     settings/sections/settings_folders.h
     settings/sections/settings_global_ttl.cpp
     settings/sections/settings_global_ttl.h
-    settings/settings_information.cpp
-    settings/settings_information.h
+    settings/sections/settings_information.cpp
+    settings/sections/settings_information.h
     settings/settings_intro.cpp
     settings/settings_intro.h
     settings/sections/settings_local_passcode.cpp

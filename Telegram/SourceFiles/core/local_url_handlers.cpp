@@ -58,7 +58,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_active_sessions.h"
 #include "settings/sections/settings_credits.h"
 #include "settings/settings_credits_graphics.h"
-#include "settings/settings_information.h"
+#include "settings/sections/settings_information.h"
 #include "settings/sections/settings_global_ttl.h"
 #include "settings/sections/settings_folders.h"
 #include "settings/sections/settings_main.h"

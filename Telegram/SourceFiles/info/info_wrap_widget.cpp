@@ -17,7 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/info_top_bar.h"
 #include "settings/cloud_password/settings_cloud_password_email_confirm.h"
 #include "settings/sections/settings_chat.h"
-#include "settings/settings_information.h"
+#include "settings/sections/settings_information.h"
 #include "settings/sections/settings_main.h"
 #include "settings/settings_premium.h"
 #include "settings/settings_search.h"

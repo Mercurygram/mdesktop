@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "settings/settings_common_session.h"
+#include "settings/settings_type.h"
 
 class UserData;
 
@@ -72,4 +73,10 @@ void AddUnread(
 	rpl::producer<UnreadBadge> value);
 
 } // namespace Badge
+
+namespace Builder {
+
+extern SectionBuildMethod InformationSection;
+
+} // namespace Builder
 } // namespace Settings

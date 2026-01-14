@@ -9,7 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "info/info_memento.h"
 #include "settings/sections/settings_main.h"
-#include "settings/settings_information.h"
+#include "settings/sections/settings_information.h"
 #include "ui/ui_utility.h"
 
 namespace Info {

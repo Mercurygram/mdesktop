@@ -50,7 +50,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_credits.h"
 #include "settings/sections/settings_folders.h"
 #include "settings/sections/settings_global_ttl.h"
-#include "settings/settings_information.h"
+#include "settings/sections/settings_information.h"
 #include "settings/sections/settings_local_passcode.h"
 #include "settings/sections/settings_main.h"
 #include "settings/cloud_password/settings_cloud_password_email_confirm.h"

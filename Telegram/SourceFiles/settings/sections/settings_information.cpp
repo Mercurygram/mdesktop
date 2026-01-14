@@ -5,8 +5,10 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_information.h"
+#include "settings/sections/settings_information.h"
 
+#include "settings/sections/settings_main.h"
+#include "settings/settings_builder.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/wrap/vertical_layout_reorder.h"
 #include "ui/wrap/padding_wrap.h"
@@ -69,6 +71,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Settings {
 
+using namespace Builder;
+
 struct InformationHighlightTargets {
 	QPointer<Ui::RpWidget> photo;
 	QPointer<Ui::RpWidget> uploadPhoto;
@@ -88,7 +92,7 @@ public:
 	ComposedBadge(
 		not_null<Ui::RpWidget*> parent,
 		not_null<Ui::SettingsButton*> button,
-		not_null<Main::Session*> session,
+		not_null<::Main::Session*> session,
 		rpl::producer<QString> &&text,
 		bool hasUnread,
 		Fn<bool()> animationPaused);
@@ -106,7 +110,7 @@ private:
 ComposedBadge::ComposedBadge(
 	not_null<Ui::RpWidget*> parent,
 	not_null<Ui::SettingsButton*> button,
-	not_null<Main::Session*> session,
+	not_null<::Main::Session*> session,
 	rpl::producer<QString> &&text,
 	bool hasUnread,
 	Fn<bool()> animationPaused)
@@ -122,7 +126,7 @@ ComposedBadge::ComposedBadge(
 		kPlayStatusLimit,
 		Info::Profile::BadgeType::Premium) {
 	if (hasUnread) {
-		_unread = CreateUnread(this, rpl::single(
+		_unread = Badge::CreateUnread(this, rpl::single(
 			rpl::empty
 		) | rpl::then(
 			session->data().unreadBadgeChanges()
@@ -215,7 +219,7 @@ private:
 
 	Ui::SlideWrap<Ui::SettingsButton> *_addAccount = nullptr;
 	base::flat_map<
-		not_null<Main::Account*>,
+		not_null<::Main::Account*>,
 		base::unique_qptr<Ui::SettingsButton>> _watched;
 
 	base::unique_qptr<Ui::PopupMenu> _contextMenu;
@@ -521,7 +525,7 @@ void SetupRows(
 	) | rpl::map([](const QString &label, bool empty) {
 		return empty ? "t.me/username" : label;
 	});
-	auto value = rpl::combine(
+	auto usernameValue = rpl::combine(
 		std::move(username),
 		tr::lng_settings_username_add()
 	) | rpl::map([](const TextWithEntities &username, const QString &add) {
@@ -540,7 +544,7 @@ void SetupRows(
 	AddRow(
 		container,
 		std::move(label),
-		std::move(value),
+		std::move(usernameValue),
 		tr::lng_context_copy_mention(tr::now),
 		[=] {
 			if (controller->showFrozenError()) {
@@ -656,8 +660,6 @@ void SetupBio(
 		}
 	}, bio->lifetime());
 
-	// We need 'bio' to still exist here as InputField, so we add this
-	// to 'container' lifetime, not to the 'bio' lifetime.
 	container->lifetime().add([=] {
 		if (*generation > 0) {
 			save();
@@ -702,7 +704,7 @@ void SetupAccountsWrap(
 [[nodiscard]] object_ptr<Ui::SettingsButton> MakeAccountButton(
 		QWidget *parent,
 		not_null<Window::SessionController*> window,
-		not_null<Main::Account*> account,
+		not_null<::Main::Account*> account,
 		Fn<void(Qt::KeyboardModifiers)> callback,
 		bool locked) {
 	const auto active = (account == &window->session().account());
@@ -880,7 +882,7 @@ void AccountsList::setup() {
 		Core::App().domain().accountsChanges()
 	) | rpl::on_next([=] {
 		const auto &list = Core::App().domain().accounts();
-		const auto exists = [&](not_null<Main::Account*> account) {
+		const auto exists = [&](not_null<::Main::Account*> account) {
 			for (const auto &[index, existing] : list) {
 				if (account == existing.get()) {
 					return true;
@@ -908,7 +910,6 @@ void AccountsList::setup() {
 
 	Core::App().domain().maxAccountsChanges(
 	) | rpl::on_next([=] {
-		// Full rebuild.
 		for (auto i = _watched.begin(); i != _watched.end(); i++) {
 			i->second = nullptr;
 		}
@@ -1075,11 +1076,93 @@ void AccountsList::rebuild() {
 		std::max(1, count - premiumLimit));
 
 	_addAccount->toggle(
-		(count < Main::Domain::kPremiumMaxAccounts),
+		(count < ::Main::Domain::kPremiumMaxAccounts),
 		anim::type::instant);
 
 	_reorder->start();
 }
+
+void BuildInformationSection(SectionBuilder &builder) {
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"profile-photo"_q,
+			.title = tr::lng_settings_section_info(tr::now),
+			.keywords = { u"photo"_q, u"avatar"_q, u"picture"_q, u"profile"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"profile-photo/use-emoji"_q,
+			.title = tr::lng_attach_photo(tr::now),
+			.keywords = { u"upload"_q, u"emoji"_q, u"sticker"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"edit/bio"_q,
+			.title = tr::lng_bio_placeholder(tr::now),
+			.keywords = { u"bio"_q, u"about"_q, u"description"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"edit/name"_q,
+			.title = tr::lng_settings_name_label(tr::now),
+			.keywords = { u"name"_q, u"first"_q, u"last"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"edit/phone"_q,
+			.title = tr::lng_settings_phone_label(tr::now),
+			.keywords = { u"phone"_q, u"number"_q, u"mobile"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"edit/username"_q,
+			.title = tr::lng_settings_username_label(tr::now),
+			.keywords = { u"username"_q, u"link"_q, u"t.me"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"edit/your-color"_q,
+			.title = tr::lng_settings_theme_name_color(tr::now),
+			.keywords = { u"color"_q, u"theme"_q, u"name"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"edit/channel"_q,
+			.title = tr::lng_settings_channel_label(tr::now),
+			.keywords = { u"channel"_q, u"personal"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"edit/birthday"_q,
+			.title = tr::lng_settings_birthday_label(tr::now),
+			.keywords = { u"birthday"_q, u"date"_q, u"birth"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"edit/add-account"_q,
+			.title = tr::lng_menu_add_account(tr::now),
+			.keywords = { u"account"_q, u"add"_q, u"switch"_q, u"multiple"_q },
+		};
+	});
+}
+
+const auto kMeta = BuildHelper({
+	.id = Information::Id(),
+	.parentId = Main::Id(),
+	.title = &tr::lng_settings_section_info,
+	.icon = &st::menuIconProfile,
+}, [](SectionBuilder &builder) {
+	BuildInformationSection(builder);
+});
 
 } // namespace
 
@@ -1095,6 +1178,7 @@ rpl::producer<QString> Information::title() {
 }
 
 void Information::showFinished() {
+	Section::showFinished();
 	controller()->checkHighlightControl(u"profile-photo"_q, _photo, {
 		.shape = HighlightShape::Ellipse,
 	});
@@ -1128,6 +1212,8 @@ void Information::setupContent() {
 	_colorButton = targets.colorButton;
 	_channelButton = targets.channelButton;
 	_addAccount = targets.addAccount;
+
+	build(content, Builder::InformationSection);
 
 	Ui::ResizeFitChild(this, content);
 }
@@ -1249,4 +1335,10 @@ void AddUnread(
 }
 
 } // namespace Badge
+
+namespace Builder {
+
+SectionBuildMethod InformationSection = kMeta.build;
+
+} // namespace Builder
 } // namespace Settings
