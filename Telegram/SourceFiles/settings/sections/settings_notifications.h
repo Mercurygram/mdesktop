@@ -8,10 +8,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "settings/settings_common_session.h"
+#include "settings/settings_type.h"
 
 namespace Ui {
 class VerticalLayout;
 } // namespace Ui
+
+namespace Window {
+class SessionController;
+} // namespace Window
 
 namespace Settings {
 
@@ -28,4 +33,9 @@ private:
 
 };
 
+namespace Builder {
+
+extern SectionBuildMethod NotificationsSection;
+
+} // namespace Builder
 } // namespace Settings

@@ -1582,12 +1582,10 @@ PRIVATE
     settings/settings_search.h
     settings/builder/settings_builder.cpp
     settings/builder/settings_builder.h
-    settings/builder/settings_notifications_builder.cpp
-    settings/builder/settings_notifications_builder.h
     settings/builder/settings_privacy_security_builder.cpp
     settings/builder/settings_privacy_security_builder.h
-    settings/settings_notifications.cpp
-    settings/settings_notifications.h
+    settings/sections/settings_notifications.cpp
+    settings/sections/settings_notifications.h
     settings/settings_notifications_type.cpp
     settings/settings_notifications_type.h
     settings/settings_passkeys.cpp

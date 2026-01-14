@@ -49,7 +49,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_credits.h"
 #include "settings/settings_folders.h"
 #include "settings/settings_information.h"
-#include "settings/settings_notifications.h"
+#include "settings/sections/settings_notifications.h"
 #include "settings/settings_power_saving.h"
 #include "settings/settings_premium.h"
 #include "settings/settings_privacy_security.h"
