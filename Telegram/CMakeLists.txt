@@ -1550,8 +1550,8 @@ PRIVATE
     settings/sections/settings_advanced.h
     settings/sections/settings_chat.cpp
     settings/sections/settings_chat.h
-    settings/settings_blocked_peers.cpp
-    settings/settings_blocked_peers.h
+    settings/sections/settings_blocked_peers.cpp
+    settings/sections/settings_blocked_peers.h
     settings/settings_business.cpp
     settings/settings_business.h
     settings/sections/settings_calls.cpp

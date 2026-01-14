@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "settings/settings_common_session.h"
+#include "settings/settings_type.h"
 
 namespace Ui {
 class VerticalLayout;
@@ -51,4 +52,9 @@ private:
 
 };
 
+namespace Builder {
+
+extern SectionBuildMethod BlockedSection;
+
+} // namespace Builder
 } // namespace Settings

@@ -5,7 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_blocked_peers.h"
+#include "settings/sections/settings_blocked_peers.h"
 
 #include "api/api_blocked_peers.h"
 #include "apiwrap.h"
@@ -14,6 +14,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
 #include "main/main_session.h"
+#include "settings/sections/settings_privacy_security.h"
+#include "settings/settings_builder.h"
 #include "settings/settings_common.h"
 #include "settings/settings_privacy_controllers.h"
 #include "ui/widgets/buttons.h"
@@ -28,6 +30,37 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_menu_icons.h"
 
 namespace Settings {
+namespace {
+
+using namespace Builder;
+
+void BuildBlockedSection(SectionBuilder &builder) {
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"blocked/block-user"_q,
+			.title = tr::lng_blocked_list_add(tr::now),
+			.keywords = { u"block"_q, u"ban"_q, u"add"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"blocked/list"_q,
+			.title = tr::lng_blocked_list_subtitle(tr::now, lt_count, 0),
+			.keywords = { u"blocked"_q, u"users"_q, u"list"_q },
+		};
+	});
+}
+
+const auto kMeta = BuildHelper({
+	.id = Blocked::Id(),
+	.parentId = PrivacySecurity::Id(),
+	.title = &tr::lng_settings_blocked_users,
+	.icon = &st::menuIconBlock,
+}, [](SectionBuilder &builder) {
+	BuildBlockedSection(builder);
+});
+
+} // namespace
 
 Blocked::Blocked(
 	QWidget *parent,
@@ -110,7 +143,6 @@ base::weak_qptr<Ui::RpWidget> Blocked::createPinnedToTop(
 				_countBlocked.value() | rpl::map(rpl::mappers::_1 > 0)
 			) | rpl::distinct_until_changed());
 
-		// Workaround.
 		std::move(
 			subtitleText
 		) | rpl::on_next([=] {
@@ -202,10 +234,6 @@ void Blocked::setupContent() {
 		Ui::AddSkip(content, st::settingsBlockedListIconPadding.top());
 	}
 
-	// We want minimal height to be the same no matter if subtitle
-	// is visible or not, so minimal height isn't a constant here.
-//	Ui::ResizeFitChild(this, _container, st::settingsBlockedHeightMin);
-
 	widthValue(
 	) | rpl::on_next([=](int width) {
 		_container->resizeToWidth(width);
@@ -226,6 +254,8 @@ void Blocked::setupContent() {
 		const auto min = total - (subtitled ? subtitle : 0);
 		resize(width(), std::max(height, min));
 	}, _container->lifetime());
+
+	build(_container, Builder::BlockedSection);
 }
 
 void Blocked::checkTotal(int total) {
@@ -238,10 +268,16 @@ void Blocked::visibleTopBottomUpdated(int visibleTop, int visibleBottom) {
 }
 
 void Blocked::showFinished() {
+	Section::showFinished();
 	_showFinished.fire({});
 	controller()->checkHighlightControl(
-		u"privacy/blocked/block-user"_q,
+		u"blocked/block-user"_q,
 		_blockUserButton);
 }
 
+namespace Builder {
+
+SectionBuildMethod BlockedSection = kMeta.build;
+
+} // namespace Builder
 } // namespace Settings
