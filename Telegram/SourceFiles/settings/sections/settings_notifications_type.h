@@ -34,11 +34,6 @@ private:
 
 	const Data::DefaultNotify _type;
 
-	QPointer<Ui::RpWidget> _showToggle;
-	QPointer<Ui::RpWidget> _soundToggle;
-	QPointer<Ui::RpWidget> _addException;
-	QPointer<Ui::RpWidget> _deleteExceptions;
-
 };
 
 [[nodiscard]] bool NotificationsEnabledForType(

@@ -44,13 +44,6 @@ namespace {
 using Notify = Data::DefaultNotify;
 using namespace Builder;
 
-struct NotificationsTypeHighlightTargets {
-	QPointer<Ui::RpWidget> showToggle;
-	QPointer<Ui::RpWidget> soundToggle;
-	QPointer<Ui::RpWidget> addException;
-	QPointer<Ui::RpWidget> deleteExceptions;
-};
-
 struct Factory : AbstractSectionFactory {
 	explicit Factory(Notify type) : type(type) {
 	}
@@ -399,8 +392,7 @@ void ExceptionsController::sort() {
 void SetupChecks(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> controller,
-		Notify type,
-		NotificationsTypeHighlightTargets *targets) {
+		Notify type) {
 	Ui::AddSubsectionTitle(container, Title(type));
 
 	const auto session = &controller->session();
@@ -415,9 +407,6 @@ void SetupChecks(
 	enabled->toggleOn(
 		NotificationsEnabledForTypeValue(session, type),
 		true);
-	if (targets) {
-		targets->showToggle = enabled;
-	}
 
 	enabled->setAcceptBoth();
 	MuteMenu::SetupMuteMenu(
@@ -459,9 +448,6 @@ void SetupChecks(
 	) | rpl::then(settings->defaultUpdates(
 		type
 	) | rpl::map([=] { return soundValue(); })));
-	if (targets) {
-		targets->soundToggle = sound;
-	}
 
 	const auto toneWrap = soundInner->add(
 		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
@@ -550,16 +536,12 @@ void SetupChecks(
 void SetupExceptions(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> window,
-		Notify type,
-		NotificationsTypeHighlightTargets *targets) {
+		Notify type) {
 	const auto add = AddButtonWithIcon(
 		container,
 		tr::lng_notification_exceptions_add(),
 		st::settingsButtonActive,
 		{ &st::menuIconInviteSettings });
-	if (targets) {
-		targets->addException = add;
-	}
 
 	auto controller = std::make_unique<ExceptionsController>(window, type);
 	controller->setStyleOverrides(&st::settingsBlockedList);
@@ -604,9 +586,6 @@ void SetupExceptions(
 				tr::lng_notification_exceptions_clear(),
 				st::settingsAttentionButtonWithIcon,
 				{ &st::menuIconDeleteAttention })));
-	if (targets) {
-		targets->deleteExceptions = wrap->entity();
-	}
 	wrap->entity()->setClickedCallback([=] {
 		const auto clear = [=](Fn<void()> close) {
 			window->session().data().notifySettings().clearExceptions(type);
@@ -625,13 +604,13 @@ void SetupExceptions(
 		anim::type::instant);
 }
 
-const auto kMeta = BuildHelper({
-	.id = NotificationsType::Id(Notify::User),
-	.parentId = Notifications::Id(),
-	.title = &tr::lng_notification_private_chats,
-	.icon = &st::menuIconProfile,
-}, [](SectionBuilder &builder) {
-	builder.add(nullptr, [] {
+void BuildNotificationsTypeContent(SectionBuilder &builder, Notify type) {
+	builder.addSkip(st::settingsPrivacySkip);
+
+	builder.add([=](const WidgetContext &ctx) {
+		SetupChecks(ctx.container, ctx.controller, type);
+		return SectionBuilder::WidgetToAdd{};
+	}, [] {
 		return SearchEntry{
 			.id = u"notifications/type/show"_q,
 			.title = tr::lng_notification_enable(tr::now),
@@ -647,7 +626,14 @@ const auto kMeta = BuildHelper({
 		};
 	});
 
-	builder.add(nullptr, [] {
+	builder.addSkip();
+	builder.addDivider();
+	builder.addSkip();
+
+	builder.add([=](const WidgetContext &ctx) {
+		SetupExceptions(ctx.container, ctx.controller, type);
+		return SectionBuilder::WidgetToAdd{};
+	}, [] {
 		return SearchEntry{
 			.id = u"notifications/type/add-exception"_q,
 			.title = tr::lng_notification_exceptions_add(tr::now),
@@ -662,6 +648,15 @@ const auto kMeta = BuildHelper({
 			.keywords = { u"clear"_q, u"delete"_q, u"exceptions"_q },
 		};
 	});
+}
+
+const auto kMeta = BuildHelper({
+	.id = NotificationsType::Id(Notify::User),
+	.parentId = Notifications::Id(),
+	.title = &tr::lng_notification_private_chats,
+	.icon = &st::menuIconProfile,
+}, [](SectionBuilder &builder) {
+	BuildNotificationsTypeContent(builder, Notify::User);
 });
 
 } // namespace
@@ -685,18 +680,7 @@ rpl::producer<QString> NotificationsType::title() {
 }
 
 void NotificationsType::showFinished() {
-	controller()->checkHighlightControl(
-		u"notifications/type/show"_q,
-		_showToggle);
-	controller()->checkHighlightControl(
-		u"notifications/type/sound"_q,
-		_soundToggle);
-	controller()->checkHighlightControl(
-		u"notifications/type/add-exception"_q,
-		_addException);
-	controller()->checkHighlightControl(
-		u"notifications/type/delete-exceptions"_q,
-		_deleteExceptions);
+	AbstractSection::showFinished();
 }
 
 Type NotificationsType::Id(Notify type) {
@@ -707,21 +691,24 @@ void NotificationsType::setupContent(
 		not_null<Window::SessionController*> controller) {
 	const auto container = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	auto targets = NotificationsTypeHighlightTargets();
+	const auto type = _type;
+	const SectionBuildMethod buildMethod = [type](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = Window::PausedIn(
+				controller,
+				Window::GifPauseReason::Layer),
+		});
+		BuildNotificationsTypeContent(builder, type);
+	};
 
-	Ui::AddSkip(container, st::settingsPrivacySkip);
-	SetupChecks(container, controller, _type, &targets);
-
-	Ui::AddSkip(container);
-	Ui::AddDivider(container);
-	Ui::AddSkip(container);
-
-	SetupExceptions(container, controller, _type, &targets);
-
-	_showToggle = targets.showToggle;
-	_soundToggle = targets.soundToggle;
-	_addException = targets.addException;
-	_deleteExceptions = targets.deleteExceptions;
+	build(container, buildMethod);
 
 	Ui::ResizeFitChild(this, container);
 }
