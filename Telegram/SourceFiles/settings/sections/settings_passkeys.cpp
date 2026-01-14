@@ -5,76 +5,81 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_passkeys.h"
+#include "settings/sections/settings_passkeys.h"
 
+#include "base/unixtime.h"
 #include "core/application.h"
-#include "settings/cloud_password/settings_cloud_password_common.h"
-#include "settings/settings_common.h"
-#include "settings/settings_common_session.h"
 #include "data/components/passkeys.h"
 #include "data/data_session.h"
-#include "window/window_controller.h"
-#include "window/window_session_controller.h"
+#include "data/stickers/data_custom_emoji.h"
+#include "lang/lang_keys.h"
+#include "lottie/lottie_icon.h"
 #include "main/main_session.h"
 #include "platform/platform_webauthn.h"
-#include "ui/layers/generic_box.h"
+#include "settings/cloud_password/settings_cloud_password_common.h"
+#include "settings/sections/settings_privacy_security.h"
+#include "settings/settings_builder.h"
+#include "settings/settings_common.h"
+#include "settings/settings_common_session.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/layers/generic_box.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
+#include "ui/text/custom_emoji_instance.h"
 #include "ui/text/text_utilities.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/widgets/menu/menu_add_action_callback.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
-#include "ui/wrap/vertical_layout.h"
 #include "ui/wrap/slide_wrap.h"
-#include "lang/lang_keys.h"
-#include "lottie/lottie_icon.h"
-#include "base/unixtime.h"
-#include "data/stickers/data_custom_emoji.h"
-#include "ui/text/custom_emoji_instance.h"
+#include "ui/wrap/vertical_layout.h"
+#include "window/window_controller.h"
+#include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
 #include "styles/style_channel_earn.h"
 #include "styles/style_chat.h"
 #include "styles/style_layers.h"
+#include "styles/style_menu_icons.h"
 #include "styles/style_premium.h"
 #include "styles/style_settings.h"
-#include "styles/style_menu_icons.h"
 
 namespace Settings {
+namespace {
 
-class Passkeys : public Section<Passkeys> {
-public:
-	Passkeys(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller);
+using namespace Builder;
 
-	[[nodiscard]] rpl::producer<QString> title() override;
+void BuildPasskeysSection(SectionBuilder &builder) {
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"passkeys/create"_q,
+			.title = tr::lng_settings_passkeys_button(tr::now),
+			.keywords = { u"add"_q, u"register"_q, u"create"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"passkeys/list"_q,
+			.title = tr::lng_settings_passkeys_title(tr::now),
+			.keywords = { u"passkeys"_q, u"biometric"_q, u"authentication"_q },
+		};
+	});
+}
 
-	[[nodiscard]] rpl::producer<> showFinishes() const {
-		return _showFinished.events();
-	}
+const auto kMeta = BuildHelper({
+	.id = Passkeys::Id(),
+	.parentId = PrivacySecurity::Id(),
+	.title = &tr::lng_settings_passkeys_title,
+	.icon = &st::menuIconPermissions,
+}, [](SectionBuilder &builder) {
+	BuildPasskeysSection(builder);
+});
 
-	const Ui::RoundRect *bottomSkipRounding() const override {
-		return &_bottomSkipRounding;
-	}
-
-private:
-	void showFinished() override;
-
-	void setupContent();
-
-	QPointer<Ui::SettingsButton> _addButton;
-	Ui::RoundRect _bottomSkipRounding;
-
-	rpl::event_stream<> _showFinished;
-
-};
+} // namespace
 
 void PasskeysNoneBox(
 		not_null<Ui::GenericBox*> box,
-		not_null<Main::Session*> session) {
+		not_null<::Main::Session*> session) {
 	box->setWidth(st::boxWideWidth);
 	box->setNoContentMargin(true);
 	box->setCloseByEscape(true);
@@ -236,11 +241,13 @@ Passkeys::Passkeys(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
 : Section(parent, controller)
+, _container(Ui::CreateChild<Ui::VerticalLayout>(this))
 , _bottomSkipRounding(st::boxRadius, st::boxDividerBg) {
 	setupContent();
 }
 
 void Passkeys::showFinished() {
+	Section::showFinished();
 	_showFinished.fire({});
 	if (_addButton) {
 		controller()->checkHighlightControl(
@@ -255,30 +262,29 @@ rpl::producer<QString> Passkeys::title() {
 }
 
 void Passkeys::setupContent() {
-	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 	const auto session = &controller()->session();
 
 	CloudPassword::SetupHeader(
-		content,
+		_container,
 		u"passkeys"_q,
-		showFinishes(),
+		_showFinished.events(),
 		rpl::single(QString()),
 		tr::lng_settings_passkeys_about());
 
-	Ui::AddSkip(content);
+	Ui::AddSkip(_container);
 
-	const auto container = content->add(
-		object_ptr<Ui::VerticalLayout>(content));
+	const auto passkeysListContainer = _container->add(
+		object_ptr<Ui::VerticalLayout>(_container));
 
 	const auto &st = st::peerListBoxItem;
 	const auto nameStyle = &st.nameStyle;
 	const auto rebuild = [=] {
-		while (container->count()) {
-			delete container->widgetAt(0);
+		while (passkeysListContainer->count()) {
+			delete passkeysListContainer->widgetAt(0);
 		}
 		for (const auto &passkey : session->passkeys().list()) {
-			const auto button = container->add(
-				object_ptr<Ui::AbstractButton>(container));
+			const auto button = passkeysListContainer->add(
+				object_ptr<Ui::AbstractButton>(passkeysListContainer));
 			button->resize(button->width(), st.height);
 			const auto menu = Ui::CreateChild<Ui::IconButton>(
 				button,
@@ -391,15 +397,15 @@ void Passkeys::setupContent() {
 			});
 			button->showChildren();
 		}
-		container->showChildren();
-		container->resizeToWidth(content->width());
+		passkeysListContainer->showChildren();
+		passkeysListContainer->resizeToWidth(_container->width());
 	};
 
-	const auto buttonWrap = content->add(
+	const auto buttonWrap = _container->add(
 		object_ptr<Ui::SlideWrap<Ui::SettingsButton>>(
-			content,
+			_container,
 			CreateButtonWithIcon(
-				content,
+				_container,
 				tr::lng_settings_passkeys_button(),
 				st::settingsButtonActive,
 				{ &st::settingsIconPasskeys })));
@@ -412,12 +418,12 @@ void Passkeys::setupContent() {
 	buttonWrap->finishAnimating();
 
 	session->passkeys().requestList(
-	) | rpl::on_next(rebuild, content->lifetime());
+	) | rpl::on_next(rebuild, _container->lifetime());
 	rebuild();
 
-	Ui::AddSkip(content);
+	Ui::AddSkip(_container);
 	const auto label = Ui::AddDividerText(
-		content,
+		_container,
 		tr::lng_settings_passkeys_button_about(
 			lt_link,
 			tr::lng_channel_earn_about_link(
@@ -433,11 +439,27 @@ void Passkeys::setupContent() {
 		controller()->show(Box(PasskeysNoneBox, session));
 		return false;
 	});
-	Ui::ResizeFitChild(this, content);
+
+	widthValue(
+	) | rpl::on_next([=](int width) {
+		_container->resizeToWidth(width);
+	}, _container->lifetime());
+
+	_container->heightValue(
+	) | rpl::on_next([=](int height) {
+		resize(width(), height);
+	}, _container->lifetime());
+
+	build(_container, Builder::PasskeysSection);
 }
 
 Type PasskeysId() {
 	return Passkeys::Id();
 }
 
+namespace Builder {
+
+SectionBuildMethod PasskeysSection = kMeta.build;
+
+} // namespace Builder
 } // namespace Settings
