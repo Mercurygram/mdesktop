@@ -59,7 +59,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_cloud_password.h"
 #include "core/core_cloud_password.h"
 #include "settings/sections/settings_notifications.h"
-#include "settings/settings_notifications_type.h"
+#include "settings/sections/settings_notifications_type.h"
 #include "settings/settings_power_saving.h"
 #include "settings/settings_premium.h"
 #include "ui/power_saving.h"

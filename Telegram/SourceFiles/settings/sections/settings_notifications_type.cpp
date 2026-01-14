@@ -5,7 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_notifications_type.h"
+#include "settings/sections/settings_notifications_type.h"
 
 #include "api/api_ringtones.h"
 #include "apiwrap.h"
@@ -24,6 +24,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "menu/menu_mute.h"
 #include "platform/platform_notifications_manager.h"
+#include "settings/sections/settings_notifications.h"
+#include "settings/settings_builder.h"
+#include "settings/settings_common.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/popup_menu.h"
@@ -31,7 +34,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/vertical_layout.h"
 #include "ui/vertical_list.h"
 #include "window/window_session_controller.h"
-#include "settings/settings_common.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
@@ -40,6 +42,7 @@ namespace Settings {
 namespace {
 
 using Notify = Data::DefaultNotify;
+using namespace Builder;
 
 struct NotificationsTypeHighlightTargets {
 	QPointer<Ui::RpWidget> showToggle;
@@ -69,11 +72,11 @@ class AddExceptionBoxController final
 	, public base::has_weak_ptr {
 public:
 	AddExceptionBoxController(
-		not_null<Main::Session*> session,
+		not_null<::Main::Session*> session,
 		Notify type,
 		Fn<void(not_null<PeerData*>)> done);
 
-	Main::Session &session() const override;
+	::Main::Session &session() const override;
 	void rowClicked(not_null<PeerListRow*> row) override;
 	base::unique_qptr<Ui::PopupMenu> rowContextMenu(
 		QWidget *parent,
@@ -83,7 +86,7 @@ private:
 	void prepareViewHook() override;
 	std::unique_ptr<Row> createRow(not_null<History*> history) override;
 
-	const not_null<Main::Session*> _session;
+	const not_null<::Main::Session*> _session;
 	const Notify _type;
 	const Fn<void(not_null<PeerData*>)> _done;
 
@@ -100,7 +103,7 @@ public:
 		not_null<Window::SessionController*> window,
 		Notify type);
 
-	Main::Session &session() const override;
+	::Main::Session &session() const override;
 	void prepare() override;
 	void rowClicked(not_null<PeerListRow*> row) override;
 	base::unique_qptr<Ui::PopupMenu> rowContextMenu(
@@ -136,7 +139,7 @@ private:
 };
 
 AddExceptionBoxController::AddExceptionBoxController(
-	not_null<Main::Session*> session,
+	not_null<::Main::Session*> session,
 	Notify type,
 	Fn<void(not_null<PeerData*>)> done)
 : ChatsListBoxController(session)
@@ -145,7 +148,7 @@ AddExceptionBoxController::AddExceptionBoxController(
 , _done(std::move(done)) {
 }
 
-Main::Session &AddExceptionBoxController::session() const {
+::Main::Session &AddExceptionBoxController::session() const {
 	return *_session;
 }
 
@@ -180,11 +183,8 @@ base::unique_qptr<Ui::PopupMenu> AddExceptionBoxController::rowContextMenu(
 		peer->owner().history(peer),
 		delegate()->peerListUiShow());
 
-	// First clear _menu value, so that we don't check row positions yet.
 	base::take(_menu);
 
-	// Here unique_qptr is used like a shared pointer, where
-	// not the last destroyed pointer destroys the object, but the first.
 	_menu = base::unique_qptr<Ui::PopupMenu>(result.get());
 	_menu->setDestroyedCallback(crl::guard(this, [=] {
 		_lastClickedPeer = nullptr;
@@ -213,7 +213,7 @@ ExceptionsController::ExceptionsController(
 , _type(type) {
 }
 
-Main::Session &ExceptionsController::session() const {
+::Main::Session &ExceptionsController::session() const {
 	return _window->session();
 }
 
@@ -321,11 +321,8 @@ base::unique_qptr<Ui::PopupMenu> ExceptionsController::rowContextMenu(
 		peer->owner().history(peer),
 		_window->uiShow());
 
-	// First clear _menu value, so that we don't check row positions yet.
 	base::take(_menu);
 
-	// Here unique_qptr is used like a shared pointer, where
-	// not the last destroyed pointer destroys the object, but the first.
 	_menu = base::unique_qptr<Ui::PopupMenu>(result.get());
 
 	return result;
@@ -628,6 +625,45 @@ void SetupExceptions(
 		anim::type::instant);
 }
 
+const auto kMeta = BuildHelper({
+	.id = NotificationsType::Id(Notify::User),
+	.parentId = Notifications::Id(),
+	.title = &tr::lng_notification_private_chats,
+	.icon = &st::menuIconProfile,
+}, [](SectionBuilder &builder) {
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"notifications/type/show"_q,
+			.title = tr::lng_notification_enable(tr::now),
+			.keywords = { u"enable"_q, u"notifications"_q, u"mute"_q },
+		};
+	});
+
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"notifications/type/sound"_q,
+			.title = tr::lng_notification_sound(tr::now),
+			.keywords = { u"sound"_q, u"audio"_q, u"tone"_q },
+		};
+	});
+
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"notifications/type/add-exception"_q,
+			.title = tr::lng_notification_exceptions_add(tr::now),
+			.keywords = { u"exception"_q, u"add"_q, u"exclude"_q },
+		};
+	});
+
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"notifications/type/delete-exceptions"_q,
+			.title = tr::lng_notification_exceptions_clear(tr::now),
+			.keywords = { u"clear"_q, u"delete"_q, u"exceptions"_q },
+		};
+	});
+});
+
 } // namespace
 
 NotificationsType::NotificationsType(
@@ -691,7 +727,7 @@ void NotificationsType::setupContent(
 }
 
 bool NotificationsEnabledForType(
-		not_null<Main::Session*> session,
+		not_null<::Main::Session*> session,
 		Notify type) {
 	const auto settings = &session->data().notifySettings();
 	const auto until = settings->defaultSettings(type).muteUntil();
@@ -699,7 +735,7 @@ bool NotificationsEnabledForType(
 }
 
 rpl::producer<bool> NotificationsEnabledForTypeValue(
-		not_null<Main::Session*> session,
+		not_null<::Main::Session*> session,
 		Notify type) {
 	const auto settings = &session->data().notifySettings();
 	return rpl::single(
