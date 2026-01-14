@@ -50,7 +50,7 @@ constexpr auto kMaxDeviceModelLength = 32;
 
 using EntryData = Api::Authorizations::Entry;
 
-enum class Type {
+enum class DeviceType {
 	Windows,
 	Mac,
 	Ubuntu,
@@ -112,7 +112,7 @@ public:
 private:
 	const not_null<RowDelegate*> _delegate;
 	Ui::Text::String _location;
-	Type _type = Type::Other;
+	DeviceType _type = DeviceType::Other;
 	EntryData _data;
 	QImage _userpic;
 
@@ -162,7 +162,7 @@ void RenameBox(not_null<Ui::GenericBox*> box) {
 			: QString());
 }
 
-[[nodiscard]] Type TypeFromEntry(const EntryData &entry) {
+[[nodiscard]] DeviceType TypeFromEntry(const EntryData &entry) {
 	const auto platform = entry.platform.toLower();
 	const auto device = entry.name.toLower();
 	const auto system = entry.system.toLower();
@@ -174,85 +174,85 @@ void RenameBox(not_null<Ui::GenericBox*> box) {
 	const auto kiOS = std::array{ 1, 7, 10840, 16352 };
 	const auto kWeb = std::array{ 2496, 739222, 1025907 };
 
-	const auto detectBrowser = [&]() -> std::optional<Type> {
+	const auto detectBrowser = [&]() -> std::optional<DeviceType> {
 		if (device.contains("edg/")
 			|| device.contains("edgios/")
 			|| device.contains("edga/")) {
-			return Type::Edge;
+			return DeviceType::Edge;
 		} else if (device.contains("chrome")) {
-			return Type::Chrome;
+			return DeviceType::Chrome;
 		} else if (device.contains("safari")) {
-			return Type::Safari;
+			return DeviceType::Safari;
 		} else if (device.contains("firefox")) {
-			return Type::Firefox;
+			return DeviceType::Firefox;
 		}
 		return {};
 	};
-	const auto detectDesktop = [&]() -> std::optional<Type> {
+	const auto detectDesktop = [&]() -> std::optional<DeviceType> {
 		if (platform.contains("windows") || system.contains("windows")) {
-			return Type::Windows;
+			return DeviceType::Windows;
 		} else if (platform.contains("macos") || system.contains("macos")) {
-			return Type::Mac;
+			return DeviceType::Mac;
 		} else if (platform.contains("ubuntu")
 			|| system.contains("ubuntu")
 			|| platform.contains("unity")
 			|| system.contains("unity")) {
-			return Type::Ubuntu;
+			return DeviceType::Ubuntu;
 		} else if (platform.contains("linux") || system.contains("linux")) {
-			return Type::Linux;
+			return DeviceType::Linux;
 		}
 		return {};
 	};
 
 	if (ranges::contains(kAndroid, apiId)) {
-		return Type::Android;
+		return DeviceType::Android;
 	} else if (ranges::contains(kDesktop, apiId)) {
-		return detectDesktop().value_or(Type::Linux);
+		return detectDesktop().value_or(DeviceType::Linux);
 	} else if (ranges::contains(kMac, apiId)) {
-		return Type::Mac;
+		return DeviceType::Mac;
 	} else if (ranges::contains(kWeb, apiId)) {
-		return detectBrowser().value_or(Type::Web);
+		return detectBrowser().value_or(DeviceType::Web);
 	} else if (device.contains("chromebook")) {
-		return Type::Other;
+		return DeviceType::Other;
 	} else if (const auto browser = detectBrowser()) {
 		return *browser;
 	} else if (device.contains("iphone")) {
-		return Type::iPhone;
+		return DeviceType::iPhone;
 	} else if (device.contains("ipad")) {
-		return Type::iPad;
+		return DeviceType::iPad;
 	} else if (ranges::contains(kiOS, apiId)) {
-		return Type::iPhone;
+		return DeviceType::iPhone;
 	} else if (const auto desktop = detectDesktop()) {
 		return *desktop;
 	} else if (platform.contains("android") || system.contains("android")) {
-		return Type::Android;
+		return DeviceType::Android;
 	} else if (platform.contains("ios") || system.contains("ios")) {
-		return Type::iPhone;
+		return DeviceType::iPhone;
 	}
-	return Type::Other;
+	return DeviceType::Other;
 }
 
-[[nodiscard]] QBrush GradientForType(Type type, int size) {
+[[nodiscard]] QBrush GradientForType(DeviceType type, int size) {
 	const auto colors = [&]() -> std::pair<style::color, style::color> {
 		switch (type) {
-		case Type::Windows:
-		case Type::Mac:
-		case Type::Other:
+		case DeviceType::Windows:
+		case DeviceType::Mac:
+		case DeviceType::Other:
 			return { st::historyPeer4UserpicBg, st::historyPeer4UserpicBg2 };
-		case Type::Ubuntu:
+		case DeviceType::Ubuntu:
 			return { st::historyPeer8UserpicBg, st::historyPeer8UserpicBg2 };
-		case Type::Linux:
+		case DeviceType::Linux:
 			return { st::historyPeer5UserpicBg, st::historyPeer5UserpicBg2 };
-		case Type::iPhone:
-		case Type::iPad:
+		case DeviceType::iPhone:
+		case DeviceType::iPad:
 			return { st::historyPeer7UserpicBg, st::historyPeer7UserpicBg2 };
-		case Type::Android:
+		case DeviceType::Android:
 			return { st::historyPeer2UserpicBg, st::historyPeer2UserpicBg2 };
-		case Type::Web:
-		case Type::Chrome:
-		case Type::Edge:
-		case Type::Firefox:
-		case Type::Safari:
+		case DeviceType::Web:
+		case DeviceType::Chrome:
+		case DeviceType::Edge:
+		case DeviceType::Firefox:
+		case DeviceType::Safari:
 			return { st::historyPeer6UserpicBg, st::historyPeer6UserpicBg2 };
 		}
 		Unexpected("Type in GradientForType.");
@@ -265,50 +265,50 @@ void RenameBox(not_null<Ui::GenericBox*> box) {
 	return QBrush(std::move(gradient));
 }
 
-[[nodiscard]] const style::icon &IconForType(Type type) {
+[[nodiscard]] const style::icon &IconForType(DeviceType type) {
 	switch (type) {
-	case Type::Windows: return st::sessionIconWindows;
-	case Type::Mac: return st::sessionIconMac;
-	case Type::Ubuntu: return st::sessionIconUbuntu;
-	case Type::Linux: return st::sessionIconLinux;
-	case Type::iPhone: return st::sessionIconiPhone;
-	case Type::iPad: return st::sessionIconiPad;
-	case Type::Android: return st::sessionIconAndroid;
-	case Type::Web: return st::sessionIconWeb;
-	case Type::Chrome: return st::sessionIconChrome;
-	case Type::Edge: return st::sessionIconEdge;
-	case Type::Firefox: return st::sessionIconFirefox;
-	case Type::Safari: return st::sessionIconSafari;
-	case Type::Other: return st::sessionIconOther;
+	case DeviceType::Windows: return st::sessionIconWindows;
+	case DeviceType::Mac: return st::sessionIconMac;
+	case DeviceType::Ubuntu: return st::sessionIconUbuntu;
+	case DeviceType::Linux: return st::sessionIconLinux;
+	case DeviceType::iPhone: return st::sessionIconiPhone;
+	case DeviceType::iPad: return st::sessionIconiPad;
+	case DeviceType::Android: return st::sessionIconAndroid;
+	case DeviceType::Web: return st::sessionIconWeb;
+	case DeviceType::Chrome: return st::sessionIconChrome;
+	case DeviceType::Edge: return st::sessionIconEdge;
+	case DeviceType::Firefox: return st::sessionIconFirefox;
+	case DeviceType::Safari: return st::sessionIconSafari;
+	case DeviceType::Other: return st::sessionIconOther;
 	}
 	Unexpected("Type in IconForType.");
 }
 
-[[nodiscard]] const style::icon *IconBigForType(Type type) {
+[[nodiscard]] const style::icon *IconBigForType(DeviceType type) {
 	switch (type) {
-	case Type::Web: return &st::sessionBigIconWeb;
-	case Type::Other: return &st::sessionBigIconOther;
+	case DeviceType::Web: return &st::sessionBigIconWeb;
+	case DeviceType::Other: return &st::sessionBigIconOther;
 	}
 	return nullptr;
 }
 
-[[nodiscard]] std::unique_ptr<Lottie::Icon> LottieForType(Type type) {
+[[nodiscard]] std::unique_ptr<Lottie::Icon> LottieForType(DeviceType type) {
 	if (IconBigForType(type)) {
 		return nullptr;
 	}
 	const auto path = [&] {
 		switch (type) {
-		case Type::Windows: return "device_desktop_win";
-		case Type::Mac: return "device_desktop_mac";
-		case Type::Ubuntu: return "device_linux_ubuntu";
-		case Type::Linux: return "device_linux";
-		case Type::iPhone: return "device_phone_ios";
-		case Type::iPad: return "device_tablet_ios";
-		case Type::Android: return "device_phone_android";
-		case Type::Chrome: return "device_web_chrome";
-		case Type::Edge: return "device_web_edge";
-		case Type::Firefox: return "device_web_firefox";
-		case Type::Safari: return "device_web_safari";
+		case DeviceType::Windows: return "device_desktop_win";
+		case DeviceType::Mac: return "device_desktop_mac";
+		case DeviceType::Ubuntu: return "device_linux_ubuntu";
+		case DeviceType::Linux: return "device_linux";
+		case DeviceType::iPhone: return "device_phone_ios";
+		case DeviceType::iPad: return "device_tablet_ios";
+		case DeviceType::Android: return "device_phone_android";
+		case DeviceType::Chrome: return "device_web_chrome";
+		case DeviceType::Edge: return "device_web_edge";
+		case DeviceType::Firefox: return "device_web_firefox";
+		case DeviceType::Safari: return "device_web_safari";
 		}
 		Unexpected("Type in LottieForType.");
 	}();
@@ -319,7 +319,7 @@ void RenameBox(not_null<Ui::GenericBox*> box) {
 	});
 }
 
-[[nodiscard]] QImage GenerateUserpic(Type type) {
+[[nodiscard]] QImage GenerateUserpic(DeviceType type) {
 	const auto size = st::sessionListItem.photoSize;
 	const auto full = size * style::DevicePixelRatio();
 	const auto rect = QRect(0, 0, size, size);
@@ -342,7 +342,7 @@ void RenameBox(not_null<Ui::GenericBox*> box) {
 [[nodiscard]] not_null<Ui::RpWidget*> GenerateUserpicBig(
 		not_null<Ui::RpWidget*> parent,
 		rpl::producer<> shown,
-		Type type) {
+		DeviceType type) {
 	const auto size = st::sessionBigUserpicSize;
 	const auto full = size * style::DevicePixelRatio();
 	const auto rect = QRect(0, 0, size, size);
@@ -1171,16 +1171,21 @@ void BuildSessionsSection(SectionBuilder &builder) {
 	});
 }
 
-const auto kMeta = BuildHelper({
-	.id = Sessions::Id(),
-	.parentId = PrivacySecurity::Id(),
-	.title = &tr::lng_settings_sessions_title,
-	.icon = &st::menuIconDevices,
-}, [](SectionBuilder &builder) {
-	BuildSessionsSection(builder);
-});
+class Sessions : public Section<Sessions> {
+public:
+	Sessions(
+		QWidget *parent,
+		not_null<Window::SessionController*> controller);
 
-} // namespace
+	[[nodiscard]] rpl::producer<QString> title() override;
+	void showFinished() override;
+
+private:
+	void setupContent();
+
+	rpl::event_stream<> _showFinished;
+
+};
 
 Sessions::Sessions(
 	QWidget *parent,
@@ -1194,26 +1199,79 @@ rpl::producer<QString> Sessions::title() {
 }
 
 void Sessions::showFinished() {
+	_showFinished.fire({});
 	Section::showFinished();
-	controller()->checkHighlightControl(u"sessions/terminate-all"_q, _terminateAll);
-	controller()->checkHighlightControl(u"sessions/auto-terminate"_q, _autoTerminate);
 }
 
 void Sessions::setupContent() {
 	const auto container = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	AddSkip(container, st::settingsPrivacySkip);
-	const auto content = container->add(
-		object_ptr<SessionsContent>(container, controller()));
-	content->setupContent();
+	const SectionBuildMethod buildMethod = [](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		auto &lifetime = container->lifetime();
+		const auto highlights = lifetime.make_state<HighlightRegistry>();
 
-	_terminateAll = content->terminateAllButton();
-	_autoTerminate = content->autoTerminateButton();
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = Window::PausedIn(
+				controller,
+				Window::GifPauseReason::Layer),
+			.highlights = highlights,
+		});
 
-	build(container, Builder::SessionsSection);
+		builder.addSkip(st::settingsPrivacySkip);
+
+		builder.add([=](const WidgetContext &ctx) {
+			const auto content = ctx.container->add(
+				object_ptr<SessionsContent>(ctx.container, ctx.controller));
+			content->setupContent();
+
+			if (ctx.highlights) {
+				ctx.highlights->push_back({
+					u"sessions/terminate-all"_q,
+					{ content->terminateAllButton() },
+				});
+				ctx.highlights->push_back({
+					u"sessions/auto-terminate"_q,
+					{ content->autoTerminateButton() },
+				});
+			}
+
+			return SectionBuilder::WidgetToAdd{};
+		});
+
+		std::move(showFinished) | rpl::on_next([=] {
+			for (const auto &[id, entry] : *highlights) {
+				if (entry.widget) {
+					controller->checkHighlightControl(
+						id,
+						entry.widget,
+						base::duplicate(entry.args));
+				}
+			}
+		}, lifetime);
+	};
+
+	build(container, buildMethod);
 
 	Ui::ResizeFitChild(this, container);
 }
+
+const auto kMeta = BuildHelper({
+	.id = Sessions::Id(),
+	.parentId = PrivacySecurity::Id(),
+	.title = &tr::lng_settings_sessions_title,
+	.icon = &st::menuIconDevices,
+}, [](SectionBuilder &builder) {
+	BuildSessionsSection(builder);
+});
+
+} // namespace
 
 void AddSessionInfoRow(
 		not_null<Ui::VerticalLayout*> container,
@@ -1252,9 +1310,8 @@ void AddSessionInfoRow(
 	}, widget->lifetime());
 }
 
-namespace Builder {
+Type SessionsId() {
+	return Sessions::Id();
+}
 
-SectionBuildMethod SessionsSection = kMeta.build;
-
-} // namespace Builder
 } // namespace Settings

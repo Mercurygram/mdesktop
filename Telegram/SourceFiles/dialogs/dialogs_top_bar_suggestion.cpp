@@ -97,7 +97,7 @@ void ShowAuthToast(
 				Qt::MouseButton button) {
 			if (const auto controller = FindSessionController(parent)) {
 				session->api().authorizations().reload();
-				controller->showSettings(Settings::Sessions::Id());
+				controller->showSettings(Settings::SessionsId());
 				return false;
 			}
 			return true;

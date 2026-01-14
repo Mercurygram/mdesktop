@@ -7,31 +7,19 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_common_session.h"
 #include "settings/settings_type.h"
 
 namespace Ui {
 class VerticalLayout;
 } // namespace Ui
 
+namespace Window {
+class SessionController;
+} // namespace Window
+
 namespace Settings {
 
-class Sessions : public Section<Sessions> {
-public:
-	Sessions(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller);
-
-	[[nodiscard]] rpl::producer<QString> title() override;
-	void showFinished() override;
-
-private:
-	void setupContent();
-
-	QPointer<Ui::RpWidget> _terminateAll;
-	QPointer<Ui::RpWidget> _autoTerminate;
-
-};
+[[nodiscard]] Type SessionsId();
 
 void AddSessionInfoRow(
 	not_null<Ui::VerticalLayout*> container,
@@ -39,9 +27,4 @@ void AddSessionInfoRow(
 	const QString &value,
 	const style::icon &icon);
 
-namespace Builder {
-
-extern SectionBuildMethod SessionsSection;
-
-} // namespace Builder
 } // namespace Settings

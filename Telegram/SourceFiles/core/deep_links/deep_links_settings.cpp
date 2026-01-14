@@ -473,7 +473,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"devices"_q,
-		.action = SettingsSection{ ::Settings::Sessions::Id() },
+		.action = SettingsSection{ ::Settings::SessionsId() },
 	});
 
 	router.add(u"settings"_q, {
@@ -1785,14 +1785,14 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"devices/terminate-sessions"_q,
 		.action = SettingsControl{
-			::Settings::Sessions::Id(),
+			::Settings::SessionsId(),
 			u"devices/terminate-sessions"_q,
 		},
 	});
 	router.add(u"settings"_q, {
 		.path = u"devices/auto-terminate"_q,
 		.action = SettingsControl{
-			::Settings::Sessions::Id(),
+			::Settings::SessionsId(),
 			u"devices/auto-terminate"_q,
 		},
 	});

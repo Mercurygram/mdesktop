@@ -823,7 +823,7 @@ bool ResolveSettings(
 			ShowPhonePrivacyBox(controller);
 			return {};
 		} else if (section == u"devices"_q) {
-			return ::Settings::Sessions::Id();
+			return ::Settings::SessionsId();
 		} else if (section == u"folders"_q) {
 			return ::Settings::FoldersId();
 		} else if (section == u"privacy"_q) {
@@ -848,7 +848,7 @@ bool ResolveSettings(
 	if (type.has_value()) {
 		if (!controller) {
 			return false;
-		} else if (*type == ::Settings::Sessions::Id()) {
+		} else if (*type == ::Settings::SessionsId()) {
 			controller->session().api().authorizations().reload();
 		}
 		controller->showSettings(*type);

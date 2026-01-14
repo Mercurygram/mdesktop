@@ -586,7 +586,7 @@ void SetupSessionsList(
 		st::settingsButton,
 		{ &st::menuIconDevices }
 	)->addClickHandler([=] {
-		showOther(Sessions::Id());
+		showOther(SessionsId());
 	});
 
 	Ui::AddSkip(container);
@@ -1421,7 +1421,7 @@ void BuildSecuritySection(
 		.icon = { &st::menuIconDevices },
 		.label = std::move(sessionsCount),
 		.onClick = [=] {
-			showOther(Sessions::Id());
+			showOther(SessionsId());
 		},
 		.keywords = { u"sessions"_q, u"devices"_q, u"active"_q },
 	});
