@@ -11,7 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/builder/settings_builder.h"
 #include "settings/sections/settings_advanced.h"
 #include "settings/sections/settings_main.h"
-#include "settings/settings_privacy_security.h"
+#include "settings/sections/settings_privacy_security.h"
 #include "settings/settings_experimental.h"
 #include "settings/settings_shortcuts.h"
 #include "boxes/abstract_box.h"

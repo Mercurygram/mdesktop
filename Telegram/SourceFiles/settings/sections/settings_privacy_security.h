@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "settings/settings_common_session.h"
+#include "settings/settings_type.h"
 #include "api/api_user_privacy.h"
 
 class EditPrivacyController;
@@ -101,4 +102,9 @@ private:
 
 };
 
+namespace Builder {
+
+extern SectionBuildMethod PrivacySecuritySection;
+
+} // namespace Builder
 } // namespace Settings
