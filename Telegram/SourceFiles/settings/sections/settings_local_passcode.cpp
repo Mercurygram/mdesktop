@@ -5,7 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_local_passcode.h"
+#include "settings/sections/settings_local_passcode.h"
 
 #include "base/platform/base_platform_last_input.h"
 #include "base/platform/base_platform_info.h"
@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "settings/cloud_password/settings_cloud_password_common.h"
 #include "settings/cloud_password/settings_cloud_password_step.h"
+#include "settings/settings_builder.h"
 #include "settings/settings_common.h"
 #include "storage/storage_domain.h"
 #include "ui/vertical_list.h"
@@ -36,6 +37,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Settings {
 namespace {
+
+using namespace Builder;
 
 void SetPasscode(
 		not_null<Window::SessionController*> controller,
@@ -178,7 +181,6 @@ void LocalPasscodeEnter::setupContent() {
 		const auto error = content->add(
 			object_ptr<Ui::FlatLabel>(
 				content,
-				// Set any text to resize.
 				tr::lng_language_name(tr::now),
 				st::settingLocalPasscodeError),
 			st::changePhoneDescriptionPadding,
@@ -381,6 +383,208 @@ public:
 
 };
 
+namespace {
+
+enum class UnlockType {
+	None,
+	Default,
+	Biometrics,
+	Companion,
+};
+
+void BuildManageContent(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	if (!controller) {
+		return;
+	}
+
+	const auto container = builder.container();
+
+	struct State {
+		rpl::event_stream<> autoLockBoxClosing;
+	};
+	const auto state = container->lifetime().make_state<State>();
+
+	builder.addSkip();
+
+	builder.addButton({
+		.id = u"passcode/change"_q,
+		.title = tr::lng_passcode_change(),
+		.icon = { &st::menuIconLock },
+		.onClick = [=] {
+			builder.showOther()(LocalPasscodeChange::Id());
+		},
+		.keywords = { u"password"_q, u"code"_q },
+	});
+
+	auto autolockLabel = state->autoLockBoxClosing.events_starting_with(
+		{}
+	) | rpl::map([] {
+		const auto autolock = Core::App().settings().autoLock();
+		const auto hours = autolock / 3600;
+		const auto minutes = (autolock - (hours * 3600)) / 60;
+
+		return (hours && minutes)
+			? tr::lng_passcode_autolock_hours_minutes(
+				tr::now,
+				lt_hours_count,
+				QString::number(hours),
+				lt_minutes_count,
+				QString::number(minutes))
+			: minutes
+			? tr::lng_minutes(tr::now, lt_count, minutes)
+			: tr::lng_hours(tr::now, lt_count, hours);
+	});
+
+	const auto autoLockButton = builder.addButton({
+		.id = u"passcode/auto-lock"_q,
+		.title = base::Platform::LastUserInputTimeSupported()
+			? tr::lng_passcode_autolock_away()
+			: tr::lng_passcode_autolock_inactive(),
+		.icon = { &st::menuIconTimer },
+		.label = std::move(autolockLabel),
+		.keywords = { u"timeout"_q, u"lock"_q, u"time"_q },
+	});
+	if (autoLockButton) {
+		autoLockButton->addClickHandler([=] {
+			const auto box = controller->show(Box<AutoLockBox>());
+			box->boxClosing(
+			) | rpl::start_to_stream(state->autoLockBoxClosing, box->lifetime());
+		});
+	}
+
+	builder.addSkip();
+
+	using Divider = CloudPassword::OneEdgeBoxContentDivider;
+	builder.add([](const WidgetContext &ctx) {
+		const auto divider = Ui::CreateChild<Divider>(ctx.container.get());
+		divider->lower();
+		const auto about = ctx.container->add(
+			object_ptr<Ui::PaddingWrap<>>(
+				ctx.container,
+				object_ptr<Ui::FlatLabel>(
+					ctx.container,
+					rpl::combine(
+						tr::lng_passcode_about1(),
+						tr::lng_passcode_about3()
+					) | rpl::map([](const QString &s1, const QString &s2) {
+						return s1 + "\n\n" + s2;
+					}),
+					st::boxDividerLabel),
+			st::defaultBoxDividerLabelPadding));
+		about->geometryValue(
+		) | rpl::on_next([=](const QRect &r) {
+			divider->setGeometry(r);
+		}, divider->lifetime());
+		return SectionBuilder::WidgetToAdd{};
+	});
+
+	builder.add([controller](const WidgetContext &ctx) {
+		const auto systemUnlockWrap = ctx.container->add(
+			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+				ctx.container,
+				object_ptr<Ui::VerticalLayout>(ctx.container))
+		)->setDuration(0);
+		const auto systemUnlockContent = systemUnlockWrap->entity();
+
+		const auto unlockType = systemUnlockContent->lifetime().make_state<
+			rpl::variable<UnlockType>
+		>(base::SystemUnlockStatus(
+			true
+		) | rpl::map([](base::SystemUnlockAvailability status) {
+			return status.withBiometrics
+				? UnlockType::Biometrics
+				: status.withCompanion
+				? UnlockType::Companion
+				: status.available
+				? UnlockType::Default
+				: UnlockType::None;
+		}));
+
+		unlockType->value(
+		) | rpl::on_next([=](UnlockType type) {
+			while (systemUnlockContent->count()) {
+				delete systemUnlockContent->widgetAt(0);
+			}
+
+			Ui::AddSkip(systemUnlockContent);
+
+			const auto biometricsButton = AddButtonWithIcon(
+				systemUnlockContent,
+				(Platform::IsWindows()
+					? tr::lng_settings_use_winhello()
+					: (type == UnlockType::Biometrics)
+					? tr::lng_settings_use_touchid()
+					: (type == UnlockType::Companion)
+					? tr::lng_settings_use_applewatch()
+					: tr::lng_settings_use_systempwd()),
+				st::settingsButton,
+				{ Platform::IsWindows()
+					? &st::menuIconWinHello
+					: (type == UnlockType::Biometrics)
+					? &st::menuIconTouchID
+					: (type == UnlockType::Companion)
+					? &st::menuIconAppleWatch
+					: &st::menuIconSystemPwd });
+			biometricsButton->toggleOn(
+				rpl::single(Core::App().settings().systemUnlockEnabled())
+			)->toggledChanges(
+			) | rpl::filter([=](bool value) {
+				return value != Core::App().settings().systemUnlockEnabled();
+			}) | rpl::on_next([=](bool value) {
+				Core::App().settings().setSystemUnlockEnabled(value);
+				Core::App().saveSettingsDelayed();
+			}, systemUnlockContent->lifetime());
+
+			Ui::AddSkip(systemUnlockContent);
+
+			Ui::AddDividerText(
+				systemUnlockContent,
+				(Platform::IsWindows()
+					? tr::lng_settings_use_winhello_about()
+					: (type == UnlockType::Biometrics)
+					? tr::lng_settings_use_touchid_about()
+					: (type == UnlockType::Companion)
+					? tr::lng_settings_use_applewatch_about()
+					: tr::lng_settings_use_systempwd_about()));
+
+		}, systemUnlockContent->lifetime());
+
+		systemUnlockWrap->toggleOn(unlockType->value(
+		) | rpl::map(rpl::mappers::_1 != UnlockType::None));
+
+		return SectionBuilder::WidgetToAdd{};
+	}, [] {
+		return SearchEntry{
+			.id = u"passcode/biometrics"_q,
+			.title = Platform::IsWindows()
+				? tr::lng_settings_use_winhello(tr::now)
+				: tr::lng_settings_use_touchid(tr::now),
+			.keywords = { u"biometrics"_q, u"touchid"_q, u"faceid"_q,
+				u"winhello"_q, u"fingerprint"_q },
+		};
+	});
+
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"passcode/disable"_q,
+			.title = tr::lng_settings_passcode_disable(tr::now),
+			.keywords = { u"disable"_q, u"remove"_q, u"turn off"_q },
+		};
+	});
+}
+
+const auto kMeta = BuildHelper({
+	.id = LocalPasscodeManageId(),
+	.parentId = nullptr,
+	.title = &tr::lng_settings_passcode_title,
+	.icon = &st::menuIconLock,
+}, [](SectionBuilder &builder) {
+	BuildManageContent(builder);
+});
+
+} // namespace
+
 class LocalPasscodeManage : public Section<LocalPasscodeManage> {
 public:
 	LocalPasscodeManage(
@@ -402,14 +606,7 @@ private:
 	void setupContent();
 
 	rpl::variable<bool> _isBottomFillerShown;
-
-	rpl::event_stream<> _showFinished;
 	rpl::event_stream<> _showBack;
-
-	QPointer<Ui::RpWidget> _changeButton;
-	QPointer<Ui::RpWidget> _autoLockButton;
-	QPointer<Ui::RpWidget> _biometricsButton;
-	QPointer<Ui::RpWidget> _disableButton;
 
 };
 
@@ -436,168 +633,12 @@ rpl::producer<std::vector<Type>> LocalPasscodeManage::removeFromStack() {
 void LocalPasscodeManage::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	struct State {
-		rpl::event_stream<> autoLockBoxClosing;
-	};
-	const auto state = content->lifetime().make_state<State>();
-
 	CloudPassword::SetupAutoCloseTimer(
 		content->lifetime(),
 		[=] { _showBack.fire({}); },
 		[] { return Core::App().lastNonIdleTime(); });
 
-	Ui::AddSkip(content);
-
-	const auto changeButton = AddButtonWithIcon(
-		content,
-		tr::lng_passcode_change(),
-		st::settingsButton,
-		{ &st::menuIconLock });
-	_changeButton = changeButton;
-	changeButton->addClickHandler([=] {
-		showOther(LocalPasscodeChange::Id());
-	});
-
-	auto autolockLabel = state->autoLockBoxClosing.events_starting_with(
-		{}
-	) | rpl::map([] {
-		const auto autolock = Core::App().settings().autoLock();
-		const auto hours = autolock / 3600;
-		const auto minutes = (autolock - (hours * 3600)) / 60;
-
-		return (hours && minutes)
-			? tr::lng_passcode_autolock_hours_minutes(
-				tr::now,
-				lt_hours_count,
-				QString::number(hours),
-				lt_minutes_count,
-				QString::number(minutes))
-			: minutes
-			? tr::lng_minutes(tr::now, lt_count, minutes)
-			: tr::lng_hours(tr::now, lt_count, hours);
-	});
-
-	const auto autoLockButton = AddButtonWithLabel(
-		content,
-		(base::Platform::LastUserInputTimeSupported()
-			? tr::lng_passcode_autolock_away
-			: tr::lng_passcode_autolock_inactive)(),
-		std::move(autolockLabel),
-		st::settingsButton,
-		{ &st::menuIconTimer });
-	_autoLockButton = autoLockButton;
-	autoLockButton->addClickHandler([=] {
-		const auto box = controller()->show(Box<AutoLockBox>());
-		box->boxClosing(
-		) | rpl::start_to_stream(state->autoLockBoxClosing, box->lifetime());
-	});
-
-	Ui::AddSkip(content);
-
-	using Divider = CloudPassword::OneEdgeBoxContentDivider;
-	const auto divider = Ui::CreateChild<Divider>(this);
-	divider->lower();
-	const auto about = content->add(
-		object_ptr<Ui::PaddingWrap<>>(
-			content,
-			object_ptr<Ui::FlatLabel>(
-				content,
-				rpl::combine(
-					tr::lng_passcode_about1(),
-					tr::lng_passcode_about3()
-				) | rpl::map([](const QString &s1, const QString &s2) {
-					return s1 + "\n\n" + s2;
-				}),
-				st::boxDividerLabel),
-		st::defaultBoxDividerLabelPadding));
-	about->geometryValue(
-	) | rpl::on_next([=](const QRect &r) {
-		divider->setGeometry(r);
-	}, divider->lifetime());
-	_isBottomFillerShown.value(
-	) | rpl::on_next([=](bool shown) {
-		divider->skipEdge(Qt::BottomEdge, shown);
-	}, divider->lifetime());
-
-	const auto systemUnlockWrap = content->add(
-		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-			content,
-			object_ptr<Ui::VerticalLayout>(content))
-	)->setDuration(0);
-	const auto systemUnlockContent = systemUnlockWrap->entity();
-
-	enum class UnlockType {
-		None,
-		Default,
-		Biometrics,
-		Companion,
-	};
-	const auto unlockType = systemUnlockContent->lifetime().make_state<
-		rpl::variable<UnlockType>
-	>(base::SystemUnlockStatus(
-		true
-	) | rpl::map([](base::SystemUnlockAvailability status) {
-		return status.withBiometrics
-			? UnlockType::Biometrics
-			: status.withCompanion
-			? UnlockType::Companion
-			: status.available
-			? UnlockType::Default
-			: UnlockType::None;
-	}));
-
-	unlockType->value(
-	) | rpl::on_next([=](UnlockType type) {
-		while (systemUnlockContent->count()) {
-			delete systemUnlockContent->widgetAt(0);
-		}
-
-		Ui::AddSkip(systemUnlockContent);
-
-		const auto biometricsButton = AddButtonWithIcon(
-			systemUnlockContent,
-			(Platform::IsWindows()
-				? tr::lng_settings_use_winhello()
-				: (type == UnlockType::Biometrics)
-				? tr::lng_settings_use_touchid()
-				: (type == UnlockType::Companion)
-				? tr::lng_settings_use_applewatch()
-				: tr::lng_settings_use_systempwd()),
-			st::settingsButton,
-			{ Platform::IsWindows()
-				? &st::menuIconWinHello
-				: (type == UnlockType::Biometrics)
-				? &st::menuIconTouchID
-				: (type == UnlockType::Companion)
-				? &st::menuIconAppleWatch
-				: &st::menuIconSystemPwd });
-		_biometricsButton = biometricsButton;
-		biometricsButton->toggleOn(
-			rpl::single(Core::App().settings().systemUnlockEnabled())
-		)->toggledChanges(
-		) | rpl::filter([=](bool value) {
-			return value != Core::App().settings().systemUnlockEnabled();
-		}) | rpl::on_next([=](bool value) {
-			Core::App().settings().setSystemUnlockEnabled(value);
-			Core::App().saveSettingsDelayed();
-		}, systemUnlockContent->lifetime());
-
-		Ui::AddSkip(systemUnlockContent);
-
-		Ui::AddDividerText(
-			systemUnlockContent,
-			(Platform::IsWindows()
-				? tr::lng_settings_use_winhello_about()
-				: (type == UnlockType::Biometrics)
-				? tr::lng_settings_use_touchid_about()
-				: (type == UnlockType::Companion)
-				? tr::lng_settings_use_applewatch_about()
-				: tr::lng_settings_use_systempwd_about()));
-
-	}, systemUnlockContent->lifetime());
-
-	systemUnlockWrap->toggleOn(unlockType->value(
-	) | rpl::map(rpl::mappers::_1 != UnlockType::None));
+	build(content, Builder::LocalPasscodeManageSection);
 
 	Ui::ResizeFitChild(this, content);
 }
@@ -633,24 +674,12 @@ base::weak_qptr<Ui::RpWidget> LocalPasscodeManage::createPinnedToBottom(
 		std::move(callback));
 
 	_isBottomFillerShown = base::take(bottomButton.isBottomFillerShown);
-	_disableButton = bottomButton.button.get();
 
 	return bottomButton.content;
 }
 
 void LocalPasscodeManage::showFinished() {
-	_showFinished.fire({});
-
-	controller()->checkHighlightControl(u"passcode/change"_q, _changeButton);
-	controller()->checkHighlightControl(
-		u"passcode/auto-lock"_q,
-		_autoLockButton);
-	controller()->checkHighlightControl(
-		u"passcode/biometrics"_q,
-		_biometricsButton);
-	controller()->checkHighlightControl(
-		u"passcode/disable"_q,
-		_disableButton);
+	Section::showFinished();
 }
 
 rpl::producer<> LocalPasscodeManage::sectionShowBack() {
@@ -671,4 +700,9 @@ Type LocalPasscodeManageId() {
 	return LocalPasscodeManage::Id();
 }
 
+namespace Builder {
+
+SectionBuildMethod LocalPasscodeManageSection = kMeta.build;
+
+} // namespace Builder
 } // namespace Settings

@@ -7,7 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_type.h"
+#include "settings/settings_common.h"
 
 namespace Settings {
 
@@ -15,5 +15,9 @@ Type LocalPasscodeCreateId();
 Type LocalPasscodeCheckId();
 Type LocalPasscodeManageId();
 
-} // namespace Settings
+namespace Builder {
 
+extern SectionBuildMethod LocalPasscodeManageSection;
+
+} // namespace Builder
+} // namespace Settings

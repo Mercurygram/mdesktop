@@ -1574,8 +1574,8 @@ PRIVATE
     settings/settings_information.h
     settings/settings_intro.cpp
     settings/settings_intro.h
-    settings/settings_local_passcode.cpp
-    settings/settings_local_passcode.h
+    settings/sections/settings_local_passcode.cpp
+    settings/sections/settings_local_passcode.h
     settings/sections/settings_main.cpp
     settings/sections/settings_main.h
     settings/settings_search.cpp
