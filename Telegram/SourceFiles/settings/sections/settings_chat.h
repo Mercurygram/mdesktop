@@ -7,8 +7,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_common_session.h"
-#include "settings/settings_type.h"
+#include "settings/settings_common.h"
+
+class QPainter;
+class QBrush;
 
 namespace Window {
 class Controller;
@@ -20,6 +22,8 @@ class VerticalLayout;
 } // namespace Ui
 
 namespace Settings {
+
+[[nodiscard]] Type ChatId();
 
 void SetupDataStorage(
 	not_null<Window::SessionController*> controller,
@@ -90,23 +94,4 @@ void SetupSensitiveContent(
 	rpl::producer<> updateTrigger,
 	HighlightRegistry *highlights = nullptr);
 
-class Chat : public Section<Chat> {
-public:
-	Chat(QWidget *parent, not_null<Window::SessionController*> controller);
-
-	[[nodiscard]] rpl::producer<QString> title() override;
-
-	void fillTopBarMenu(
-		const Ui::Menu::MenuCallback &addAction) override;
-
-private:
-	void setupContent();
-
-};
-
-namespace Builder {
-
-extern SectionBuildMethod ChatSection;
-
-} // namespace Builder
 } // namespace Settings

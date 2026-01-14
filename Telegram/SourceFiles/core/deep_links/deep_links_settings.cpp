@@ -1215,7 +1215,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"data/show-18-content"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/show-18-content"_q,
 		},
 	});
@@ -1253,7 +1253,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"appearance"_q,
-		.action = SettingsSection{ ::Settings::Chat::Id() },
+		.action = SettingsSection{ ::Settings::ChatId() },
 	});
 
 	router.add(u"settings"_q, {
@@ -1287,7 +1287,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/themes"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/themes"_q,
 		},
 	});
@@ -1295,7 +1295,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/themes/edit"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/themes-edit"_q,
 		},
 	});
@@ -1303,7 +1303,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/themes/create"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/themes-create"_q,
 		},
 	});
@@ -1311,7 +1311,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/wallpapers"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/wallpapers"_q,
 		},
 	});
@@ -1319,7 +1319,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/wallpapers/set"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/wallpapers-set"_q,
 		},
 	});
@@ -1327,7 +1327,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/wallpapers/choose-photo"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/wallpapers-choose-photo"_q,
 		},
 	});
@@ -1382,7 +1382,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/auto-night-mode"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/auto-night-mode"_q,
 		},
 	});
@@ -1403,7 +1403,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/stickers-emoji"_q,
 		},
 	});
@@ -1462,7 +1462,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/emoji/suggest"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/suggest-animated-emoji"_q,
 		},
 	});
@@ -1470,7 +1470,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/emoji/quick-reaction"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/quick-reaction"_q,
 		},
 	});
@@ -1478,7 +1478,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/emoji/quick-reaction/choose"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/quick-reaction-choose"_q,
 		},
 	});
@@ -1486,7 +1486,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/suggest-by-emoji"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/suggest-by-emoji"_q,
 		},
 	});
@@ -1494,7 +1494,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"appearance/stickers-and-emoji/emoji/large"_q,
 		.action = SettingsControl{
-			::Settings::Chat::Id(),
+			::Settings::ChatId(),
 			u"chat/large-emoji"_q,
 		},
 	});

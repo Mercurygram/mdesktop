@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_chat.h"
 
+#include "settings/settings_common_session.h"
+
 #include "base/timer_rpl.h"
 #include "settings/settings_builder.h"
 #include "settings/sections/settings_advanced.h"
@@ -1272,6 +1274,20 @@ void BuildChatSectionContent(SectionBuilder &builder) {
 	BuildSupportSection(builder);
 }
 
+class Chat : public Section<Chat> {
+public:
+	Chat(QWidget *parent, not_null<Window::SessionController*> controller);
+
+	[[nodiscard]] rpl::producer<QString> title() override;
+
+	void fillTopBarMenu(
+		const Ui::Menu::MenuCallback &addAction) override;
+
+private:
+	void setupContent();
+
+};
+
 const auto kMeta = BuildHelper({
 	.id = Chat::Id(),
 	.parentId = MainId(),
@@ -1280,6 +1296,36 @@ const auto kMeta = BuildHelper({
 }, [](SectionBuilder &builder) {
 	BuildChatSectionContent(builder);
 });
+
+const SectionBuildMethod kChatSection = kMeta.build;
+
+Chat::Chat(QWidget *parent, not_null<Window::SessionController*> controller)
+: Section(parent, controller) {
+	setupContent();
+}
+
+rpl::producer<QString> Chat::title() {
+	return tr::lng_settings_section_chat_settings();
+}
+
+void Chat::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
+	const auto window = &controller()->window();
+	const auto createTheme = addAction(
+		tr::lng_settings_bg_theme_create(tr::now),
+		[=] { window->show(Box(Window::Theme::CreateBox, window)); },
+		&st::menuIconChangeColors);
+	createTheme->setProperty(
+		"highlight-control-id",
+		u"chat/themes-create"_q);
+}
+
+void Chat::setupContent() {
+	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
+
+	build(content, kChatSection);
+
+	Ui::ResizeFitChild(this, content);
+}
 
 } // namespace
 
@@ -2645,37 +2691,8 @@ void SetupSupport(
 	Ui::AddSkip(inner);
 }
 
-Chat::Chat(QWidget *parent, not_null<Window::SessionController*> controller)
-: Section(parent, controller) {
-	setupContent();
+Type ChatId() {
+	return Chat::Id();
 }
 
-rpl::producer<QString> Chat::title() {
-	return tr::lng_settings_section_chat_settings();
-}
-
-void Chat::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
-	const auto window = &controller()->window();
-	const auto createTheme = addAction(
-		tr::lng_settings_bg_theme_create(tr::now),
-		[=] { window->show(Box(Window::Theme::CreateBox, window)); },
-		&st::menuIconChangeColors);
-	createTheme->setProperty(
-		"highlight-control-id",
-		u"chat/themes-create"_q);
-}
-
-void Chat::setupContent() {
-	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
-
-	build(content, Builder::ChatSection);
-
-	Ui::ResizeFitChild(this, content);
-}
-
-namespace Builder {
-
-SectionBuildMethod ChatSection = kMeta.build;
-
-} // namespace Builder
 } // namespace Settings

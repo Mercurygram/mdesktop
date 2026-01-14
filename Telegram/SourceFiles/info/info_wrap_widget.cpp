@@ -802,7 +802,7 @@ void WrapWidget::showFinishedHook() {
 		const auto highlightId = [&]() -> QString {
 			if (settingsType == ::Settings::MainId()) {
 				return u"settings/log-out"_q;
-			} else if (settingsType == ::Settings::Chat::Id()) {
+			} else if (settingsType == ::Settings::ChatId()) {
 				return u"chat/themes-create"_q;
 			}
 			return QString();
