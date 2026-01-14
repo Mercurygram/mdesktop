@@ -403,6 +403,8 @@ PRIVATE
     ui/controls/delete_message_context_action.h
     ui/controls/download_bar.cpp
     ui/controls/download_bar.h
+    ui/controls/dynamic_images_strip.cpp
+    ui/controls/dynamic_images_strip.h
     ui/controls/emoji_button.cpp
     ui/controls/emoji_button.h
     ui/controls/feature_list.cpp

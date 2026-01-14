@@ -1746,3 +1746,5 @@ menuTranscribeDummyButton: IconButton(defaultIconButton) {
 }
 
 roundVideoFont: font(14px semibold);
+
+topPeersSelectorUserpicExpand: 0.1;
