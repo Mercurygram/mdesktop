@@ -49,20 +49,83 @@ namespace {
 
 using namespace Builder;
 
-void BuildPasskeysSection(SectionBuilder &builder) {
-	builder.add(nullptr, [] {
-		return SearchEntry{
-			.id = u"passkeys/create"_q,
-			.title = tr::lng_settings_passkeys_button(tr::now),
-			.keywords = { u"add"_q, u"register"_q, u"create"_q },
-		};
+class Passkeys : public Section<Passkeys> {
+public:
+	Passkeys(
+		QWidget *parent,
+		not_null<Window::SessionController*> controller);
+
+	void showFinished() override;
+
+	[[nodiscard]] rpl::producer<QString> title() override;
+
+	const Ui::RoundRect *bottomSkipRounding() const override {
+		return &_bottomSkipRounding;
+	}
+
+private:
+	void setupContent();
+
+	const not_null<Ui::VerticalLayout*> _container;
+
+	QPointer<Ui::SettingsButton> _addButton;
+	Ui::RoundRect _bottomSkipRounding;
+
+	rpl::event_stream<> _showFinished;
+
+};
+
+void BuildPasskeysSection(
+		SectionBuilder &builder,
+		QPointer<Ui::SettingsButton> *addButton,
+		Fn<void(not_null<Ui::VerticalLayout*>)> setupList) {
+	const auto session = builder.session();
+	const auto controller = builder.controller();
+
+	builder.add([=](const WidgetContext &ctx) {
+		setupList(ctx.container);
+		return SectionBuilder::WidgetToAdd{};
 	});
-	builder.add(nullptr, [] {
-		return SearchEntry{
-			.id = u"passkeys/list"_q,
-			.title = tr::lng_settings_passkeys_title(tr::now),
-			.keywords = { u"passkeys"_q, u"biometric"_q, u"authentication"_q },
-		};
+
+	auto buttonShown = session->passkeys().requestList(
+	) | rpl::map([session] { return session->passkeys().canRegister(); });
+
+	const auto button = builder.addButton({
+		.id = u"passkeys/create"_q,
+		.title = tr::lng_settings_passkeys_button(),
+		.st = &st::settingsButtonActive,
+		.icon = { &st::settingsIconPasskeys },
+		.onClick = [controller, session] {
+			controller->show(Box(PasskeysNoneBox, session));
+		},
+		.keywords = { u"add"_q, u"register"_q, u"create"_q },
+		.highlight = { .rippleShape = true },
+		.shown = std::move(buttonShown),
+	});
+	if (addButton) {
+		*addButton = button;
+	}
+
+	builder.addSkip();
+	builder.add([=](const WidgetContext &ctx) {
+		const auto label = Ui::AddDividerText(
+			ctx.container,
+			tr::lng_settings_passkeys_button_about(
+				lt_link,
+				tr::lng_channel_earn_about_link(
+					lt_emoji,
+					rpl::single(Ui::Text::IconEmoji(&st::textMoreIconEmoji)),
+					tr::rich
+				) | rpl::map([](TextWithEntities text) {
+					return tr::link(std::move(text), u"internal"_q);
+				}),
+				tr::rich
+			));
+		label->setClickHandlerFilter([controller, session](const auto &...) {
+			controller->show(Box(PasskeysNoneBox, session));
+			return false;
+		});
+		return SectionBuilder::WidgetToAdd{};
 	});
 }
 
@@ -72,8 +135,211 @@ const auto kMeta = BuildHelper({
 	.title = &tr::lng_settings_passkeys_title,
 	.icon = &st::menuIconPermissions,
 }, [](SectionBuilder &builder) {
-	BuildPasskeysSection(builder);
+	BuildPasskeysSection(builder, nullptr, [](not_null<Ui::VerticalLayout*>) {});
 });
+
+Passkeys::Passkeys(
+	QWidget *parent,
+	not_null<Window::SessionController*> controller)
+: Section(parent, controller)
+, _container(Ui::CreateChild<Ui::VerticalLayout>(this))
+, _bottomSkipRounding(st::boxRadius, st::boxDividerBg) {
+	setupContent();
+}
+
+void Passkeys::showFinished() {
+	Section::showFinished();
+	_showFinished.fire({});
+	if (_addButton) {
+		controller()->checkHighlightControl(
+			u"passkeys/create"_q,
+			_addButton,
+			{ .rippleShape = true });
+	}
+}
+
+rpl::producer<QString> Passkeys::title() {
+	return tr::lng_settings_passkeys_title();
+}
+
+void Passkeys::setupContent() {
+	const auto session = &controller()->session();
+	const auto addButton = &_addButton;
+
+	CloudPassword::SetupHeader(
+		_container,
+		u"passkeys"_q,
+		_showFinished.events(),
+		rpl::single(QString()),
+		tr::lng_settings_passkeys_about());
+
+	Ui::AddSkip(_container);
+
+	const auto setupList = [=](not_null<Ui::VerticalLayout*> container) {
+		const auto passkeysListContainer = container->add(
+			object_ptr<Ui::VerticalLayout>(container));
+
+		const auto &st = st::peerListBoxItem;
+		const auto nameStyle = &st.nameStyle;
+		const auto ctrl = controller();
+		const auto rebuild = [=] {
+			while (passkeysListContainer->count()) {
+				delete passkeysListContainer->widgetAt(0);
+			}
+			for (const auto &passkey : session->passkeys().list()) {
+				const auto button = passkeysListContainer->add(
+					object_ptr<Ui::AbstractButton>(passkeysListContainer));
+				button->resize(button->width(), st.height);
+				const auto menu = Ui::CreateChild<Ui::IconButton>(
+					button,
+					st::themesMenuToggle);
+				menu->setClickedCallback([=] {
+					const auto popup = Ui::CreateChild<Ui::PopupMenu>(
+						menu,
+						st::popupMenuWithIcons);
+					const auto handler = [=, id = passkey.id] {
+						ctrl->show(Ui::MakeConfirmBox({
+							.text = rpl::combine(
+								tr::lng_settings_passkeys_delete_sure_about(),
+								tr::lng_settings_passkeys_delete_sure_about2()
+							) | rpl::map([](QString a, QString b) {
+								return a + "\n\n" + b;
+							}),
+							.confirmed = [=](Fn<void()> close) {
+								session->passkeys().deletePasskey(
+									id,
+									close,
+									[](QString) {});
+							},
+							.confirmText = tr::lng_box_delete(),
+							.confirmStyle = &st::attentionBoxButton,
+							.title
+								= tr::lng_settings_passkeys_delete_sure_title(),
+						}));
+					};
+					Ui::Menu::CreateAddActionCallback(popup)({
+						.text = tr::lng_proxy_menu_delete(tr::now),
+						.handler = handler,
+						.icon = &st::menuIconDeleteAttention,
+						.isAttention = true,
+					});
+					popup->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
+					const auto menuGlobal = menu->mapToGlobal(
+						QPoint(menu->width(), menu->height()));
+					popup->popup(menuGlobal);
+				});
+				button->widthValue() | rpl::on_next([=](int width) {
+					menu->moveToRight(0, (st.height - menu->height()) / 2, width);
+				}, button->lifetime());
+				const auto iconSize = st::settingsIconPasskeys.width();
+				const auto emoji = iconSize;
+				const auto iconLeft = st::settingsButton.iconLeft;
+				auto emojiInstance = passkey.softwareEmojiId
+					? session->data().customEmojiManager().create(
+						passkey.softwareEmojiId,
+						[=] { button->update(); },
+						Data::CustomEmojiSizeTag::Large,
+						emoji)
+					: nullptr;
+				const auto emojiPtr = emojiInstance.get();
+				button->lifetime().add([emoji = std::move(emojiInstance)] {});
+				const auto formatDateTime = [](TimeId timestamp) {
+					const auto dt = base::unixtime::parse(timestamp);
+					return tr::lng_mediaview_date_time(
+						tr::now,
+						lt_date,
+						langDayOfMonthFull(dt.date()),
+						lt_time,
+						QLocale().toString(dt.time(), QLocale::ShortFormat));
+				};
+				const auto date = (passkey.lastUsageDate > 0)
+					? tr::lng_settings_passkeys_last_used(
+						tr::now,
+						lt_date,
+						formatDateTime(passkey.lastUsageDate))
+					: tr::lng_settings_passkeys_created(
+						tr::now,
+						lt_date,
+						formatDateTime(passkey.date));
+				const auto nameText = button->lifetime().make_state<
+					Ui::Text::String>(
+						*nameStyle,
+						passkey.name.isEmpty()
+							? tr::lng_settings_passkey_unknown(tr::now)
+							: passkey.name);
+				const auto dateText = button->lifetime().make_state<
+					Ui::Text::String>(st::defaultTextStyle, date);
+				button->paintOn([=](QPainter &p) {
+					const auto iconTop = (st.height - iconSize) / 2;
+					if (emojiPtr) {
+						emojiPtr->paint(p, {
+							.textColor = st.nameFg->c,
+							.now = crl::now(),
+							.position = QPoint(iconLeft, iconTop),
+						});
+					} else {
+						const auto w = button->width();
+						st::settingsIconPasskeys.paint(p, iconLeft, iconTop, w);
+					}
+					const auto textLeft = st::settingsButton.padding.left();
+					const auto textWidth = button->width() - textLeft
+						- st::settingsButton.padding.right();
+					p.setPen(st.nameFg);
+					nameText->draw(p, {
+						.position = { textLeft, st.namePosition.y() },
+						.outerWidth = button->width(),
+						.availableWidth = textWidth,
+						.elisionLines = 1,
+					});
+					p.setPen(st.statusFg);
+					dateText->draw(p, {
+						.position = { textLeft, st.statusPosition.y() },
+						.outerWidth = button->width(),
+						.availableWidth = textWidth,
+						.elisionLines = 1,
+					});
+				});
+				button->showChildren();
+			}
+			passkeysListContainer->showChildren();
+			passkeysListContainer->resizeToWidth(container->width());
+		};
+
+		session->passkeys().requestList(
+		) | rpl::on_next(rebuild, container->lifetime());
+		rebuild();
+	};
+
+	const SectionBuildMethod buildMethod = [=](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		const auto isPaused = Window::PausedIn(
+			controller,
+			Window::GifPauseReason::Layer);
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = isPaused,
+		});
+
+		BuildPasskeysSection(builder, addButton, setupList);
+	};
+
+	build(_container, buildMethod);
+
+	widthValue(
+	) | rpl::on_next([=](int width) {
+		_container->resizeToWidth(width);
+	}, _container->lifetime());
+
+	_container->heightValue(
+	) | rpl::on_next([=](int height) {
+		resize(width(), height);
+	}, _container->lifetime());
+}
 
 } // namespace
 
@@ -235,222 +501,6 @@ void PasskeysNoneBox(
 			}
 		}, box->lifetime());
 	}
-}
-
-Passkeys::Passkeys(
-	QWidget *parent,
-	not_null<Window::SessionController*> controller)
-: Section(parent, controller)
-, _container(Ui::CreateChild<Ui::VerticalLayout>(this))
-, _bottomSkipRounding(st::boxRadius, st::boxDividerBg) {
-	setupContent();
-}
-
-void Passkeys::showFinished() {
-	Section::showFinished();
-	_showFinished.fire({});
-	if (_addButton) {
-		controller()->checkHighlightControl(
-			u"passkeys/create"_q,
-			_addButton,
-			{ .rippleShape = true });
-	}
-}
-
-rpl::producer<QString> Passkeys::title() {
-	return tr::lng_settings_passkeys_title();
-}
-
-void Passkeys::setupContent() {
-	const auto session = &controller()->session();
-
-	CloudPassword::SetupHeader(
-		_container,
-		u"passkeys"_q,
-		_showFinished.events(),
-		rpl::single(QString()),
-		tr::lng_settings_passkeys_about());
-
-	Ui::AddSkip(_container);
-
-	const auto passkeysListContainer = _container->add(
-		object_ptr<Ui::VerticalLayout>(_container));
-
-	const auto &st = st::peerListBoxItem;
-	const auto nameStyle = &st.nameStyle;
-	const auto rebuild = [=] {
-		while (passkeysListContainer->count()) {
-			delete passkeysListContainer->widgetAt(0);
-		}
-		for (const auto &passkey : session->passkeys().list()) {
-			const auto button = passkeysListContainer->add(
-				object_ptr<Ui::AbstractButton>(passkeysListContainer));
-			button->resize(button->width(), st.height);
-			const auto menu = Ui::CreateChild<Ui::IconButton>(
-				button,
-				st::themesMenuToggle);
-			menu->setClickedCallback([=] {
-				const auto popup = Ui::CreateChild<Ui::PopupMenu>(
-					menu,
-					st::popupMenuWithIcons);
-				const auto handler = [=, id = passkey.id] {
-					controller()->show(Ui::MakeConfirmBox({
-						.text = rpl::combine(
-							tr::lng_settings_passkeys_delete_sure_about(),
-							tr::lng_settings_passkeys_delete_sure_about2()
-						) | rpl::map([](QString a, QString b) {
-							return a + "\n\n" + b;
-						}),
-						.confirmed = [=](Fn<void()> close) {
-							session->passkeys().deletePasskey(
-								id,
-								close,
-								[](QString) {});
-						},
-						.confirmText = tr::lng_box_delete(),
-						.confirmStyle = &st::attentionBoxButton,
-						.title
-							= tr::lng_settings_passkeys_delete_sure_title(),
-					}));
-				};
-				Ui::Menu::CreateAddActionCallback(popup)({
-					.text = tr::lng_proxy_menu_delete(tr::now),
-					.handler = handler,
-					.icon = &st::menuIconDeleteAttention,
-					.isAttention = true,
-				});
-				popup->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
-				const auto menuGlobal = menu->mapToGlobal(
-					QPoint(menu->width(), menu->height()));
-				popup->popup(menuGlobal);
-			});
-			button->widthValue() | rpl::on_next([=](int width) {
-				menu->moveToRight(0, (st.height - menu->height()) / 2, width);
-			}, button->lifetime());
-			const auto iconSize = st::settingsIconPasskeys.width();
-			const auto emoji = iconSize;
-			const auto iconLeft = st::settingsButton.iconLeft;
-			auto emojiInstance = passkey.softwareEmojiId
-				? session->data().customEmojiManager().create(
-					passkey.softwareEmojiId,
-					[=] { button->update(); },
-					Data::CustomEmojiSizeTag::Large,
-					emoji)
-				: nullptr;
-			const auto emojiPtr = emojiInstance.get();
-			button->lifetime().add([emoji = std::move(emojiInstance)] {});
-			const auto formatDateTime = [](TimeId timestamp) {
-				const auto dt = base::unixtime::parse(timestamp);
-				return tr::lng_mediaview_date_time(
-					tr::now,
-					lt_date,
-					langDayOfMonthFull(dt.date()),
-					lt_time,
-					QLocale().toString(dt.time(), QLocale::ShortFormat));
-			};
-			const auto date = (passkey.lastUsageDate > 0)
-				? tr::lng_settings_passkeys_last_used(
-					tr::now,
-					lt_date,
-					formatDateTime(passkey.lastUsageDate))
-				: tr::lng_settings_passkeys_created(
-					tr::now,
-					lt_date,
-					formatDateTime(passkey.date));
-			const auto nameText = button->lifetime().make_state<
-				Ui::Text::String>(
-					*nameStyle,
-					passkey.name.isEmpty()
-						? tr::lng_settings_passkey_unknown(tr::now)
-						: passkey.name);
-			const auto dateText = button->lifetime().make_state<
-				Ui::Text::String>(st::defaultTextStyle, date);
-			button->paintOn([=](QPainter &p) {
-				const auto iconTop = (st.height - iconSize) / 2;
-				if (emojiPtr) {
-					emojiPtr->paint(p, {
-						.textColor = st.nameFg->c,
-						.now = crl::now(),
-						.position = QPoint(iconLeft, iconTop),
-					});
-				} else {
-					const auto w = button->width();
-					st::settingsIconPasskeys.paint(p, iconLeft, iconTop, w);
-				}
-				const auto textLeft = st::settingsButton.padding.left();
-				const auto textWidth = button->width() - textLeft
-					- st::settingsButton.padding.right();
-				p.setPen(st.nameFg);
-				nameText->draw(p, {
-					.position = { textLeft, st.namePosition.y() },
-					.outerWidth = button->width(),
-					.availableWidth = textWidth,
-					.elisionLines = 1,
-				});
-				p.setPen(st.statusFg);
-				dateText->draw(p, {
-					.position = { textLeft, st.statusPosition.y() },
-					.outerWidth = button->width(),
-					.availableWidth = textWidth,
-					.elisionLines = 1,
-				});
-			});
-			button->showChildren();
-		}
-		passkeysListContainer->showChildren();
-		passkeysListContainer->resizeToWidth(_container->width());
-	};
-
-	const auto buttonWrap = _container->add(
-		object_ptr<Ui::SlideWrap<Ui::SettingsButton>>(
-			_container,
-			CreateButtonWithIcon(
-				_container,
-				tr::lng_settings_passkeys_button(),
-				st::settingsButtonActive,
-				{ &st::settingsIconPasskeys })));
-	_addButton = buttonWrap->entity();
-	_addButton->setClickedCallback([=] {
-		controller()->show(Box(PasskeysNoneBox, session));
-	});
-	buttonWrap->toggleOn(session->passkeys().requestList(
-	) | rpl::map([=] { return session->passkeys().canRegister(); }));
-	buttonWrap->finishAnimating();
-
-	session->passkeys().requestList(
-	) | rpl::on_next(rebuild, _container->lifetime());
-	rebuild();
-
-	Ui::AddSkip(_container);
-	const auto label = Ui::AddDividerText(
-		_container,
-		tr::lng_settings_passkeys_button_about(
-			lt_link,
-			tr::lng_channel_earn_about_link(
-				lt_emoji,
-				rpl::single(Ui::Text::IconEmoji(&st::textMoreIconEmoji)),
-				tr::rich
-			) | rpl::map([](TextWithEntities text) {
-				return tr::link(std::move(text), u"internal"_q);
-			}),
-			tr::rich
-		));
-	label->setClickHandlerFilter([=](const auto &...) {
-		controller()->show(Box(PasskeysNoneBox, session));
-		return false;
-	});
-
-	widthValue(
-	) | rpl::on_next([=](int width) {
-		_container->resizeToWidth(width);
-	}, _container->lifetime());
-
-	_container->heightValue(
-	) | rpl::on_next([=](int height) {
-		resize(width(), height);
-	}, _container->lifetime());
-
-	build(_container, Builder::PasskeysSection);
 }
 
 Type PasskeysId() {
