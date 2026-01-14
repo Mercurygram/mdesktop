@@ -35,7 +35,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "platform/platform_specific.h"
 #include "settings/builder/settings_builder.h"
 #include "settings/sections/settings_main.h"
-#include "settings/settings_chat.h"
+#include "settings/sections/settings_chat.h"
 #include "settings/settings_experimental.h"
 #include "settings/settings_power_saving.h"
 #include "settings/settings_privacy_security.h"

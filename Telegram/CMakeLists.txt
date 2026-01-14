@@ -1548,12 +1548,12 @@ PRIVATE
     settings/settings_active_sessions.h
     settings/sections/settings_advanced.cpp
     settings/sections/settings_advanced.h
+    settings/sections/settings_chat.cpp
+    settings/sections/settings_chat.h
     settings/settings_blocked_peers.cpp
     settings/settings_blocked_peers.h
     settings/settings_business.cpp
     settings/settings_business.h
-    settings/settings_chat.cpp
-    settings/settings_chat.h
     settings/settings_calls.cpp
     settings/settings_calls.h
     settings/settings_codes.cpp
@@ -1582,8 +1582,6 @@ PRIVATE
     settings/settings_search.h
     settings/builder/settings_builder.cpp
     settings/builder/settings_builder.h
-    settings/builder/settings_chat_builder.cpp
-    settings/builder/settings_chat_builder.h
     settings/builder/settings_notifications_builder.cpp
     settings/builder/settings_notifications_builder.h
     settings/builder/settings_privacy_security_builder.cpp

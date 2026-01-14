@@ -8,7 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_common_session.h"
 
 #include "settings/cloud_password/settings_cloud_password_email_confirm.h"
-#include "settings/settings_chat.h"
+#include "settings/sections/settings_chat.h"
 #include "settings/sections/settings_main.h"
 
 namespace Settings {

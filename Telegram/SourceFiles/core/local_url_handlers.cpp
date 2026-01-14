@@ -64,7 +64,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_main.h"
 #include "settings/settings_privacy_controllers.h"
 #include "settings/settings_privacy_security.h"
-#include "settings/settings_chat.h"
+#include "settings/sections/settings_chat.h"
 #include "settings/settings_premium.h"
 #include "storage/storage_account.h"
 #include "mainwidget.h"
