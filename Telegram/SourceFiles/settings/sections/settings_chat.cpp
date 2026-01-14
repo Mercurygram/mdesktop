@@ -8,7 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_chat.h"
 
 #include "base/timer_rpl.h"
-#include "settings/builder/settings_builder.h"
+#include "settings/settings_builder.h"
 #include "settings/sections/settings_advanced.h"
 #include "settings/sections/settings_main.h"
 #include "settings/sections/settings_privacy_security.h"

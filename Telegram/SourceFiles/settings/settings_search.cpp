@@ -8,7 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_search.h"
 
 #include "lang/lang_keys.h"
-#include "settings/builder/settings_builder.h"
+#include "settings/settings_builder.h"
 #include "settings/settings_common.h"
 #include "ui/painter.h"
 #include "ui/search_field_controller.h"
