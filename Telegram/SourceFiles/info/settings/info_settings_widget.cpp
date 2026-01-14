@@ -203,7 +203,7 @@ const Ui::RoundRect *Widget::bottomSkipRounding() const {
 
 rpl::producer<bool> Widget::desiredShadowVisibility() const {
 	return (_type == ::Settings::Main::Id()
-		|| _type == ::Settings::Information::Id())
+		|| _type == ::Settings::InformationId())
 		? ContentWidget::desiredShadowVisibility()
 		: rpl::single(true);
 }

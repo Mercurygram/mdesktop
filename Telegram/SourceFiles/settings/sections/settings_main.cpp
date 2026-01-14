@@ -332,7 +332,7 @@ void BuildSectionButtons(SectionBuilder &builder) {
 		builder.addSectionButton({
 			.id = u"main/account"_q,
 			.title = tr::lng_settings_my_account(),
-			.targetSection = Information::Id(),
+			.targetSection = InformationId(),
 			.icon = { &st::menuIconProfile },
 			.keywords = { u"profile"_q, u"edit"_q, u"information"_q },
 		});
@@ -1006,7 +1006,7 @@ void Main::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
 	if (!controller()->session().supportMode()) {
 		addAction(
 			tr::lng_settings_information(tr::now),
-			[=] { showOther(Information::Id()); },
+			[=] { showOther(InformationId()); },
 			&st::menuIconEdit);
 	}
 	const auto window = &controller()->window();

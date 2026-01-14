@@ -1921,7 +1921,7 @@ void TopBar::addTopBarEditButton(
 				: st::infoTopBarBlackEdit)));
 	_topBarButton->show();
 	_topBarButton->addClickHandler([=] {
-		controller->showSettings(::Settings::Information::Id());
+		controller->showSettings(::Settings::InformationId());
 	});
 
 	widthValue() | rpl::on_next([=] {

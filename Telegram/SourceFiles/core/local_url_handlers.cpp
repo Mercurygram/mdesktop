@@ -837,7 +837,7 @@ bool ResolveSettings(
 		} else if (section == u"auto_delete"_q) {
 			return ::Settings::GlobalTTLId();
 		} else if (section == u"information"_q) {
-			return ::Settings::Information::Id();
+			return ::Settings::InformationId();
 		} else if (section == u"login_email"_q) {
 			ShowLoginEmailSettings(controller);
 			return {};

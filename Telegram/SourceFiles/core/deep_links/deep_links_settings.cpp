@@ -326,7 +326,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"edit"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = SettingsSection{ ::Settings::InformationId() },
 	});
 
 	router.add(u"settings"_q, {
@@ -336,7 +336,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"my-profile/edit"_q,
-		.action = SettingsSection{ ::Settings::Information::Id() },
+		.action = SettingsSection{ ::Settings::InformationId() },
 	});
 
 	router.add(u"settings"_q, {
@@ -1719,7 +1719,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"edit/bio"_q,
 		.action = SettingsControl{
-			::Settings::Information::Id(),
+			::Settings::InformationId(),
 			u"edit/bio"_q,
 		},
 	});
@@ -1753,14 +1753,14 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"edit/channel"_q,
 		.action = SettingsControl{
-			::Settings::Information::Id(),
+			::Settings::InformationId(),
 			u"edit/channel"_q,
 		},
 	});
 	router.add(u"settings"_q, {
 		.path = u"edit/add-account"_q,
 		.action = SettingsControl{
-			::Settings::Information::Id(),
+			::Settings::InformationId(),
 			u"edit/add-account"_q,
 		},
 	});

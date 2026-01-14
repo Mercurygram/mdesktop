@@ -420,7 +420,7 @@ void WrapWidget::setupTopBarMenuToggle() {
 			button->addClickHandler([=] {
 				_controller->showSettings(::Settings::Search::Id());
 			});
-		} else if (section.settingsType() == ::Settings::Information::Id()) {
+		} else if (section.settingsType() == ::Settings::InformationId()) {
 			const auto controller = _controller->parentController();
 			const auto self = controller->session().user();
 			if (!self->username().isEmpty()) {
@@ -444,7 +444,7 @@ void WrapWidget::setupTopBarMenuToggle() {
 		const auto button = _topBar->addButton(
 			base::make_unique_q<Ui::IconButton>(_topBar, st));
 		button->addClickHandler([=] {
-			_controller->showSettings(::Settings::Information::Id());
+			_controller->showSettings(::Settings::InformationId());
 		});
 	} else if (section.type() == Section::Type::Downloads) {
 		auto &manager = Core::App().downloadManager();

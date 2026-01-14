@@ -70,6 +70,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtCore/QBuffer>
 
 namespace Settings {
+namespace {
 
 using namespace Builder;
 
@@ -81,8 +82,6 @@ struct InformationHighlightTargets {
 	QPointer<Ui::RpWidget> channelButton;
 	QPointer<Ui::RpWidget> addAccount;
 };
-
-namespace {
 
 constexpr auto kSaveBioTimeout = 1000;
 constexpr auto kPlayStatusLimit = 2;
@@ -1155,16 +1154,26 @@ void BuildInformationSection(SectionBuilder &builder) {
 	});
 }
 
-const auto kMeta = BuildHelper({
-	.id = Information::Id(),
-	.parentId = Main::Id(),
-	.title = &tr::lng_settings_section_info,
-	.icon = &st::menuIconProfile,
-}, [](SectionBuilder &builder) {
-	BuildInformationSection(builder);
-});
+class Information : public Section<Information> {
+public:
+	Information(
+		QWidget *parent,
+		not_null<Window::SessionController*> controller);
 
-} // namespace
+	[[nodiscard]] rpl::producer<QString> title() override;
+	void showFinished() override;
+
+private:
+	void setupContent();
+
+	QPointer<Ui::RpWidget> _photo;
+	QPointer<Ui::RpWidget> _uploadPhoto;
+	QPointer<Ui::RpWidget> _bio;
+	QPointer<Ui::RpWidget> _colorButton;
+	QPointer<Ui::RpWidget> _channelButton;
+	QPointer<Ui::RpWidget> _addAccount;
+
+};
 
 Information::Information(
 	QWidget *parent,
@@ -1178,44 +1187,124 @@ rpl::producer<QString> Information::title() {
 }
 
 void Information::showFinished() {
-	Section::showFinished();
-	controller()->checkHighlightControl(u"profile-photo"_q, _photo, {
-		.shape = HighlightShape::Ellipse,
-	});
-	controller()->checkHighlightControl(u"profile-photo/use-emoji"_q, _uploadPhoto, {
-		.shape = HighlightShape::Ellipse,
-	});
-	controller()->checkHighlightControl(u"edit/bio"_q, _bio, {
-		.margin = st::settingsBioHighlightMargin,
-	});
-	controller()->checkHighlightControl(u"edit/your-color"_q, _colorButton);
-	controller()->checkHighlightControl(u"edit/channel"_q, _channelButton);
-	controller()->checkHighlightControl(u"edit/add-account"_q, _addAccount);
+	Section<Information>::showFinished();
 }
 
 void Information::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	const auto self = controller()->session().user();
-	auto targets = InformationHighlightTargets();
+	const SectionBuildMethod buildMethod = [
+		photo = &_photo,
+		uploadPhoto = &_uploadPhoto,
+		bio = &_bio,
+		colorButton = &_colorButton,
+		channelButton = &_channelButton,
+		addAccount = &_addAccount
+	](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		auto &lifetime = container->lifetime();
+		const auto highlights = lifetime.make_state<HighlightRegistry>();
+		const auto isPaused = Window::PausedIn(
+			controller,
+			Window::GifPauseReason::Layer);
 
-	SetupPhoto(content, controller(), self, &targets);
-	SetupBio(content, self, &targets);
-	SetupRows(content, controller(), self);
-	SetupPersonalChannel(content, controller(), self, &targets);
-	SetupBirthday(content, controller(), self);
-	SetupAccountsWrap(content, controller(), &targets);
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = isPaused,
+			.highlights = highlights,
+		});
 
-	_photo = targets.photo;
-	_uploadPhoto = targets.uploadPhoto;
-	_bio = targets.bio;
-	_colorButton = targets.colorButton;
-	_channelButton = targets.channelButton;
-	_addAccount = targets.addAccount;
+		const auto self = controller->session().user();
+		auto targets = InformationHighlightTargets();
 
-	build(content, Builder::InformationSection);
+		SetupPhoto(container, controller, self, &targets);
+		SetupBio(container, self, &targets);
+		SetupRows(container, controller, self);
+		SetupPersonalChannel(container, controller, self, &targets);
+		SetupBirthday(container, controller, self);
+		SetupAccountsWrap(container, controller, &targets);
+
+		*photo = targets.photo;
+		*uploadPhoto = targets.uploadPhoto;
+		*bio = targets.bio;
+		*colorButton = targets.colorButton;
+		*channelButton = targets.channelButton;
+		*addAccount = targets.addAccount;
+
+		if (highlights) {
+			if (*photo) {
+				highlights->push_back({
+					u"profile-photo"_q,
+					{ photo->data(), { .shape = HighlightShape::Ellipse } },
+				});
+			}
+			if (*uploadPhoto) {
+				highlights->push_back({
+					u"profile-photo/use-emoji"_q,
+					{ uploadPhoto->data(), { .shape = HighlightShape::Ellipse } },
+				});
+			}
+			if (*bio) {
+				highlights->push_back({
+					u"edit/bio"_q,
+					{ bio->data(), { .margin = st::settingsBioHighlightMargin } },
+				});
+			}
+			if (*colorButton) {
+				highlights->push_back({
+					u"edit/your-color"_q,
+					{ colorButton->data(), { .rippleShape = true } },
+				});
+			}
+			if (*channelButton) {
+				highlights->push_back({
+					u"edit/channel"_q,
+					{ channelButton->data(), { .rippleShape = true } },
+				});
+			}
+			if (*addAccount) {
+				highlights->push_back({
+					u"edit/add-account"_q,
+					{ addAccount->data(), { .rippleShape = true } },
+				});
+			}
+		}
+
+		std::move(showFinished) | rpl::on_next([=] {
+			for (const auto &[id, entry] : *highlights) {
+				if (entry.widget) {
+					controller->checkHighlightControl(
+						id,
+						entry.widget,
+						base::duplicate(entry.args));
+				}
+			}
+		}, lifetime);
+	};
+
+	build(content, buildMethod);
 
 	Ui::ResizeFitChild(this, content);
+}
+
+const auto kMeta = BuildHelper({
+	.id = Information::Id(),
+	.parentId = Main::Id(),
+	.title = &tr::lng_settings_section_info,
+	.icon = &st::menuIconProfile,
+}, [](SectionBuilder &builder) {
+	BuildInformationSection(builder);
+});
+
+} // namespace
+
+Type InformationId() {
+	return Information::Id();
 }
 
 AccountsEvents SetupAccounts(

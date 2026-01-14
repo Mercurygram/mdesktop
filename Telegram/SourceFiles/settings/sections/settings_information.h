@@ -7,12 +7,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_common_session.h"
 #include "settings/settings_type.h"
 
 class UserData;
 
 namespace Ui {
+class RpWidget;
+class SettingsButton;
+class VerticalLayout;
 struct UnreadBadgeStyle;
 } // namespace Ui
 
@@ -20,29 +22,13 @@ namespace Main {
 class Account;
 } // namespace Main
 
+namespace Window {
+class SessionController;
+} // namespace Window
+
 namespace Settings {
 
-class Information : public Section<Information> {
-public:
-	Information(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller);
-
-	[[nodiscard]] rpl::producer<QString> title() override;
-
-	void showFinished() override;
-
-private:
-	void setupContent();
-
-	QPointer<Ui::RpWidget> _photo;
-	QPointer<Ui::RpWidget> _uploadPhoto;
-	QPointer<Ui::RpWidget> _bio;
-	QPointer<Ui::RpWidget> _colorButton;
-	QPointer<Ui::RpWidget> _channelButton;
-	QPointer<Ui::RpWidget> _addAccount;
-
-};
+[[nodiscard]] Type InformationId();
 
 struct AccountsEvents {
 	rpl::producer<> closeRequests;
@@ -73,10 +59,4 @@ void AddUnread(
 	rpl::producer<UnreadBadge> value);
 
 } // namespace Badge
-
-namespace Builder {
-
-extern SectionBuildMethod InformationSection;
-
-} // namespace Builder
 } // namespace Settings
