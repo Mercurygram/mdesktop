@@ -222,6 +222,12 @@ struct Entry {
 	bool newBadge = false;
 };
 
+struct PremiumState {
+	QString ref;
+	Fn<void(bool)> setPaused;
+	std::shared_ptr<Ui::RadiobuttonGroup> radioGroup;
+};
+
 using Order = std::vector<QString>;
 
 [[nodiscard]] Order FallbackOrder() {
@@ -1037,7 +1043,68 @@ void BuildPremiumFeatures(SectionBuilder &builder) {
 	}
 }
 
-void BuildPremiumSectionContent(SectionBuilder &builder) {
+void SetupSubscriptionOptions(
+		not_null<Ui::VerticalLayout*> container,
+		not_null<Window::SessionController*> controller,
+		const QString &ref,
+		std::shared_ptr<Ui::RadiobuttonGroup> radioGroup) {
+	const auto isEmojiStatus = (!!Ref::EmojiStatus::Parse(ref));
+	const auto isGift = (!!Ref::Gift::Parse(ref));
+
+	const auto options = container->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			container,
+			object_ptr<Ui::VerticalLayout>(container)));
+	const auto skip = container->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			container,
+			object_ptr<Ui::VerticalLayout>(container)));
+	const auto content = options->entity();
+
+	Ui::AddSkip(content, st::settingsPremiumOptionsPadding.top());
+
+	const auto apiPremium = &controller->session().api().premium();
+	Ui::Premium::AddGiftOptions(
+		content,
+		radioGroup,
+		SubscriptionOptionsForRows(apiPremium->subscriptionOptions()),
+		st::premiumSubscriptionOption,
+		true);
+
+	Ui::AddSkip(content, st::settingsPremiumOptionsPadding.bottom());
+	Ui::AddDivider(content);
+
+	const auto lastSkip = TopTransitionSkip() * (isEmojiStatus ? 1 : 2);
+
+	Ui::AddSkip(content, lastSkip - st::defaultVerticalListSkip);
+	Ui::AddSkip(skip->entity(), lastSkip);
+
+	if (isEmojiStatus || isGift) {
+		options->toggle(false, anim::type::instant);
+		skip->toggle(true, anim::type::instant);
+		return;
+	}
+	auto toggleOn = rpl::combine(
+		Data::AmPremiumValue(&controller->session()),
+		apiPremium->statusTextValue(
+		) | rpl::map([=] {
+			return apiPremium->subscriptionOptions().size() < 2;
+		})
+	) | rpl::map([=](bool premium, bool noOptions) {
+		return !premium && !noOptions;
+	});
+	options->toggleOn(rpl::duplicate(toggleOn), anim::type::instant);
+	skip->toggleOn(std::move(
+		toggleOn
+	) | rpl::map([](bool value) { return !value; }), anim::type::instant);
+}
+
+void BuildPremiumSectionContent(
+		SectionBuilder &builder,
+		std::shared_ptr<PremiumState> state) {
+	const auto controller = builder.controller();
+	const auto session = builder.session();
+
 	builder.add(nullptr, [] {
 		return SearchEntry{
 			.id = u"premium/subscribe"_q,
@@ -1045,6 +1112,38 @@ void BuildPremiumSectionContent(SectionBuilder &builder) {
 			.keywords = { u"subscription"_q, u"buy"_q },
 		};
 	});
+
+	if (controller && state) {
+		builder.add([controller, session, state](const WidgetContext &ctx) {
+			SetupSubscriptionOptions(
+				ctx.container,
+				controller,
+				state->ref,
+				state->radioGroup);
+
+			auto buttonCallback = [controller, state](PremiumFeature section) {
+				if (state->setPaused) {
+					state->setPaused(true);
+				}
+				const auto hidden = crl::guard(
+					(QObject*)controller->widget(),
+					[state] {
+						if (state->setPaused) {
+							state->setPaused(false);
+						}
+					});
+
+				ShowPremiumPreviewToBuy(controller, section, hidden);
+			};
+			AddSummaryPremium(
+				ctx.container,
+				controller,
+				state->ref,
+				std::move(buttonCallback));
+
+			return SectionBuilder::WidgetToAdd{};
+		});
+	}
 
 	BuildPremiumFeatures(builder);
 }
@@ -1073,18 +1172,14 @@ public:
 private:
 	void setupContent();
 	void setupSwipeBack();
-	void setupSubscriptionOptions(not_null<Ui::VerticalLayout*> container);
 
-	const QString _ref;
+	std::shared_ptr<PremiumState> _state;
 
 	QPointer<Ui::GradientButton> _subscribe;
 	base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> _back;
 	base::unique_qptr<Ui::IconButton> _close;
 	rpl::variable<bool> _backToggles;
 	rpl::variable<Info::Wrap> _wrap;
-	Fn<void(bool)> _setPaused;
-
-	std::shared_ptr<Ui::RadiobuttonGroup> _radioGroup;
 
 	rpl::event_stream<> _showBack;
 	rpl::event_stream<> _showFinished;
@@ -1096,8 +1191,10 @@ Premium::Premium(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
 : Section(parent, controller)
-, _ref(ResolveRef(controller->premiumRef()))
-, _radioGroup(std::make_shared<Ui::RadiobuttonGroup>()) {
+, _state(std::make_shared<PremiumState>(PremiumState{
+	.ref = ResolveRef(controller->premiumRef()),
+	.radioGroup = std::make_shared<Ui::RadiobuttonGroup>(),
+})) {
 	setupContent();
 	setupSwipeBack();
 	controller->session().api().premium().reload();
@@ -1123,59 +1220,6 @@ void Premium::setStepDataReference(std::any &data) {
 		) | rpl::map_to(true);
 		_wrap = std::move(my->wrapValue);
 	}
-}
-
-void Premium::setupSubscriptionOptions(
-		not_null<Ui::VerticalLayout*> container) {
-	const auto isEmojiStatus = (!!Ref::EmojiStatus::Parse(_ref));
-	const auto isGift = (!!Ref::Gift::Parse(_ref));
-
-	const auto options = container->add(
-		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-			container,
-			object_ptr<Ui::VerticalLayout>(container)));
-	const auto skip = container->add(
-		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-			container,
-			object_ptr<Ui::VerticalLayout>(container)));
-	const auto content = options->entity();
-
-	Ui::AddSkip(content, st::settingsPremiumOptionsPadding.top());
-
-	const auto apiPremium = &controller()->session().api().premium();
-	Ui::Premium::AddGiftOptions(
-		content,
-		_radioGroup,
-		SubscriptionOptionsForRows(apiPremium->subscriptionOptions()),
-		st::premiumSubscriptionOption,
-		true);
-
-	Ui::AddSkip(content, st::settingsPremiumOptionsPadding.bottom());
-	Ui::AddDivider(content);
-
-	const auto lastSkip = TopTransitionSkip() * (isEmojiStatus ? 1 : 2);
-
-	Ui::AddSkip(content, lastSkip - st::defaultVerticalListSkip);
-	Ui::AddSkip(skip->entity(), lastSkip);
-
-	if (isEmojiStatus || isGift) {
-		options->toggle(false, anim::type::instant);
-		skip->toggle(true, anim::type::instant);
-		return;
-	}
-	auto toggleOn = rpl::combine(
-		Data::AmPremiumValue(&controller()->session()),
-		apiPremium->statusTextValue(
-		) | rpl::map([=] {
-			return apiPremium->subscriptionOptions().size() < 2;
-		})
-	) | rpl::map([=](bool premium, bool noOptions) {
-		return !premium && !noOptions;
-	});
-	options->toggleOn(rpl::duplicate(toggleOn), anim::type::instant);
-	skip->toggleOn(std::move(
-		toggleOn
-	) | rpl::map([](bool value) { return !value; }), anim::type::instant);
 }
 
 void Premium::setupSwipeBack() {
@@ -1220,40 +1264,30 @@ void Premium::setupSwipeBack() {
 
 void Premium::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
+	const auto state = _state;
 
-	setupSubscriptionOptions(content);
+	const SectionBuildMethod buildMethod = [state](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		const auto isPaused = Window::PausedIn(
+			controller,
+			Window::GifPauseReason::Layer);
 
-	auto buttonCallback = [=](PremiumFeature section) {
-		_setPaused(true);
-		const auto hidden = crl::guard(this, [=] { _setPaused(false); });
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = isPaused,
+		});
 
-		ShowPremiumPreviewToBuy(controller(), section, hidden);
+		BuildPremiumSectionContent(builder, state);
 	};
-	AddSummaryPremium(content, controller(), _ref, std::move(buttonCallback));
-#if 0
-	Ui::AddSkip(content);
-	Ui::AddDivider(content);
-	Ui::AddSkip(content);
 
-	content->add(
-		object_ptr<Ui::FlatLabel>(
-			content,
-			tr::lng_premium_summary_bottom_subtitle(tr::bold),
-			stLabel),
-		st::defaultSubsectionTitlePadding);
-	content->add(
-		object_ptr<Ui::FlatLabel>(
-			content,
-			tr::lng_premium_summary_bottom_about(tr::rich),
-			st::aboutLabel),
-		st::boxRowPadding);
-	Ui::AddSkip(
-		content,
-		stDefault.padding.top() + stDefault.padding.bottom());
-#endif
+	build(content, buildMethod);
 
 	Ui::ResizeFitChild(this, content);
-
 }
 
 base::weak_qptr<Ui::RpWidget> Premium::createPinnedToTop(
@@ -1265,7 +1299,7 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToTop(
 			tr::lng_premium_summary_title_subscribed(),
 			tr::lng_premium_summary_title());
 	auto about = [&]() -> rpl::producer<TextWithEntities> {
-		const auto gift = Ref::Gift::Parse(_ref);
+		const auto gift = Ref::Gift::Parse(_state->ref);
 		if (gift) {
 			auto &data = controller()->session().data();
 			if (const auto peer = data.peer(gift.peerId)) {
@@ -1290,8 +1324,8 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToTop(
 			tr::lng_premium_summary_top_about(tr::rich));
 	}();
 
-	const auto emojiStatusData = Ref::EmojiStatus::Parse(_ref);
-	const auto premiumGiftData = Ref::PremiumGift::Parse(_ref);
+	const auto emojiStatusData = Ref::EmojiStatus::Parse(_state->ref);
+	const auto premiumGiftData = Ref::PremiumGift::Parse(_state->ref);
 	const auto isEmojiStatus = (!!emojiStatusData);
 	const auto isPremiumGift = (!!premiumGiftData);
 
@@ -1350,7 +1384,7 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToTop(
 				.about = std::move(about),
 			});
 	}();
-	_setPaused = [=](bool paused) {
+	_state->setPaused = [=](bool paused) {
 		content->setPaused(paused);
 		if (_subscribe) {
 			_subscribe->setGlarePaused(paused);
@@ -1440,11 +1474,11 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToBottom(
 		not_null<Ui::RpWidget*> parent) {
 	const auto content = Ui::CreateChild<Ui::RpWidget>(parent.get());
 
-	if (Ref::Gift::Parse(_ref)) {
+	if (Ref::Gift::Parse(_state->ref)) {
 		return nullptr;
 	}
 
-	const auto emojiStatusData = Ref::EmojiStatus::Parse(_ref);
+	const auto emojiStatusData = Ref::EmojiStatus::Parse(_state->ref);
 	const auto session = &controller()->session();
 
 	auto buttonText = [&]() -> std::optional<rpl::producer<QString>> {
@@ -1467,11 +1501,11 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToBottom(
 	_subscribe = CreateSubscribeButton({
 		controller(),
 		content,
-		[ref = _ref] { return ref; },
+		[ref = _state->ref] { return ref; },
 		std::move(buttonText),
 		std::nullopt,
 		[=, options = session->api().premium().subscriptionOptions()] {
-			const auto value = _radioGroup->current();
+			const auto value = _state->radioGroup->current();
 			return (value < options.size() && value >= 0)
 				? options[value].botUrl
 				: QString();
@@ -1505,7 +1539,7 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToBottom(
 				options[value].costPerMonth);
 			_buttonText = std::move(text);
 		};
-		_radioGroup->setChangedCallback(callback);
+		_state->radioGroup->setChangedCallback(callback);
 		callback(0);
 	}
 
@@ -1548,7 +1582,7 @@ const auto kMeta = BuildHelper({
 	.title = &tr::lng_premium_summary_title,
 	.icon = &st::menuIconPremium,
 }, [](SectionBuilder &builder) {
-	BuildPremiumSectionContent(builder);
+	BuildPremiumSectionContent(builder, nullptr);
 });
 
 } // namespace
