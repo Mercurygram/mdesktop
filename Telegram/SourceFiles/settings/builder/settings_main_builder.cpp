@@ -320,22 +320,24 @@ void BuildValidationSuggestions(SectionBuilder &builder) {
 	});
 }
 
-const auto kMeta = BuildHelper(
-	Main::Id(),
-	tr::lng_menu_settings,
-	[](SectionBuilder &builder) {
-		builder.addDivider();
-		builder.addSkip();
+const auto kMeta = BuildHelper({
+	.id = Main::Id(),
+	.parentId = nullptr,
+	.title = &tr::lng_menu_settings,
+	.icon = &st::menuIconSettings,
+}, [](SectionBuilder &builder) {
+	builder.addDivider();
+	builder.addSkip();
 
-		BuildValidationSuggestions(builder);
-		BuildSectionButtons(builder);
+	BuildValidationSuggestions(builder);
+	BuildSectionButtons(builder);
 
-		builder.addSkip();
+	builder.addSkip();
 
-		BuildInterfaceScale(builder);
-		BuildPremiumSection(builder);
-		BuildHelpSection(builder);
-	});
+	BuildInterfaceScale(builder);
+	BuildPremiumSection(builder);
+	BuildHelpSection(builder);
+});
 
 } // namespace
 

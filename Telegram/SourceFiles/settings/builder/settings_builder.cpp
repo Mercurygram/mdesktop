@@ -39,10 +39,8 @@ namespace {
 } // namespace
 
 BuildHelper::BuildHelper(
-	Type sectionId,
-	tr::phrase<> sectionTitle,
-	FnMut<void(SectionBuilder&)> method,
-	Type parentSectionId)
+	SectionMeta &&meta,
+	FnMut<void(SectionBuilder&)> method)
 : build([=](
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> controller,
@@ -76,16 +74,12 @@ BuildHelper::BuildHelper(
 		}
 	}, lifetime);
 })
-, _sectionId(sectionId)
-, _parentSectionId(parentSectionId)
+, _meta(std::move(meta))
 , _method(std::move(method)) {
 	Expects(_method != nullptr);
 
-	auto &registry = SearchRegistry::Instance();
-	registry.add(
-		sectionId,
-		sectionTitle,
-		parentSectionId,
+	SearchRegistry::Instance().add(
+		&_meta,
 		[=](not_null<::Main::Session*> session) { return index(session); });
 }
 
@@ -95,18 +89,24 @@ SearchRegistry &SearchRegistry::Instance() {
 }
 
 void SearchRegistry::add(
-		Type sectionId,
-		tr::phrase<> title,
-		Type parentSectionId,
+		not_null<const SectionMeta*> meta,
 		SearchEntriesIndexer indexer) {
-	_sectionTitles[sectionId] = title;
-	_parentSections[sectionId] = parentSectionId;
-	_indexers.push_back({ sectionId, std::move(indexer) });
+	_sections[meta->id] = meta;
+	_indexers.push_back({ meta->id, std::move(indexer) });
 }
 
 std::vector<SearchEntry> SearchRegistry::collectAll(
 		not_null<Main::Session*> session) const {
 	auto result = std::vector<SearchEntry>();
+	for (const auto &[sectionId, meta] : _sections) {
+		if (meta->parentId) {
+			result.push_back({
+				.title = (*meta->title)(tr::now),
+				.section = sectionId,
+				.icon = { meta->icon },
+			});
+		}
+	}
 	for (const auto &entry : _indexers) {
 		auto entries = entry.indexer(session);
 		result.insert(result.end(), entries.begin(), entries.end());
@@ -115,19 +115,20 @@ std::vector<SearchEntry> SearchRegistry::collectAll(
 }
 
 QString SearchRegistry::sectionTitle(Type sectionId) const {
-	const auto it = _sectionTitles.find(sectionId);
-	return (it != _sectionTitles.end()) ? it->second(tr::now) : QString();
+	const auto it = _sections.find(sectionId);
+	return (it != _sections.end()) ? (*it->second->title)(tr::now) : QString();
 }
 
 QString SearchRegistry::sectionPath(Type sectionId) const {
 	auto parts = QStringList();
-	auto current = sectionId;
+	const auto start = _sections.find(sectionId);
+	auto current = (start != _sections.end()) ? start->second->parentId : nullptr;
 	while (current) {
 		if (const auto title = sectionTitle(current); !title.isEmpty()) {
 			parts.prepend(title);
 		}
-		const auto it = _parentSections.find(current);
-		current = (it != _parentSections.end()) ? it->second : nullptr;
+		const auto it = _sections.find(current);
+		current = (it != _sections.end()) ? it->second->parentId : nullptr;
 	}
 	return parts.join(u" > "_q);
 }
@@ -136,14 +137,14 @@ std::vector<SearchEntry> BuildHelper::index(
 		not_null<Main::Session*> session) const {
 	auto entries = std::vector<SearchEntry>();
 	auto builder = SectionBuilder(SearchContext{
-		.sectionId = _sectionId,
+		.sectionId = _meta.id,
 		.session = session,
 		.entries = &entries,
 	});
 	_method(builder);
 	for (auto &entry : entries) {
 		if (!entry.section) {
-			entry.section = _sectionId;
+			entry.section = _meta.id;
 		}
 	}
 	return entries;

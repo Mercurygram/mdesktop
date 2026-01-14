@@ -720,13 +720,14 @@ void BuildNotificationsSectionContent(SectionBuilder &builder) {
 	BuildSystemIntegrationAndAdvancedSection(builder);
 }
 
-const auto kMeta = BuildHelper(
-	Notifications::Id(),
-	tr::lng_settings_section_notify,
-	[](SectionBuilder &builder) {
-		BuildNotificationsSectionContent(builder);
-	},
-	Main::Id());
+const auto kMeta = BuildHelper({
+	.id = Notifications::Id(),
+	.parentId = Main::Id(),
+	.title = &tr::lng_settings_section_notify,
+	.icon = &st::menuIconNotifications,
+}, [](SectionBuilder &builder) {
+	BuildNotificationsSectionContent(builder);
+});
 
 } // namespace
 

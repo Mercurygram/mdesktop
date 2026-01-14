@@ -377,13 +377,14 @@ void BuildChatSectionContent(SectionBuilder &builder) {
 	BuildArchiveSection(builder);
 }
 
-const auto kMeta = BuildHelper(
-	Chat::Id(),
-	tr::lng_settings_section_chat_settings,
-	[](SectionBuilder &builder) {
-		BuildChatSectionContent(builder);
-	},
-	Main::Id());
+const auto kMeta = BuildHelper({
+	.id = Chat::Id(),
+	.parentId = Main::Id(),
+	.title = &tr::lng_settings_section_chat_settings,
+	.icon = &st::menuIconChatBubble,
+}, [](SectionBuilder &builder) {
+	BuildChatSectionContent(builder);
+});
 
 } // namespace
 

@@ -164,6 +164,10 @@ public:
 		return false;
 	}
 
+	[[nodiscard]] rpl::producer<> showFinishes() const {
+		return _showFinished.events();
+	}
+
 	void showOther(Type type) {
 		_showOtherRequests.fire_copy(type);
 	}

@@ -72,7 +72,7 @@ struct SearchEntry {
 	}
 };
 
-using SearchEntriesIndexer = std::function<std::vector<SearchEntry>(
+using SearchEntriesIndexer = Fn<std::vector<SearchEntry>(
 	not_null<::Main::Session*> session)>;
 
 struct SearchIndexerEntry {
@@ -80,14 +80,19 @@ struct SearchIndexerEntry {
 	SearchEntriesIndexer indexer;
 };
 
+struct SectionMeta {
+	Type id;
+	Type parentId;
+	not_null<const tr::phrase<>*> title;
+	not_null<const style::icon*> icon;
+};
+
 class SearchRegistry {
 public:
 	static SearchRegistry &Instance();
 
 	void add(
-		Type sectionId,
-		tr::phrase<> title,
-		Type parentSectionId,
+		not_null<const SectionMeta*> meta,
 		SearchEntriesIndexer indexer);
 
 	[[nodiscard]] std::vector<SearchEntry> collectAll(
@@ -98,18 +103,14 @@ public:
 
 private:
 	std::vector<SearchIndexerEntry> _indexers;
-	base::flat_map<Type, Type> _parentSections;
-	base::flat_map<Type, tr::phrase<>> _sectionTitles;
+	base::flat_map<Type, const SectionMeta*> _sections;
 
 };
 
+
 class BuildHelper {
 public:
-	BuildHelper(
-		Type sectionId,
-		tr::phrase<> sectionTitle,
-		FnMut<void(SectionBuilder&)> method,
-		Type parentSectionId = nullptr);
+	BuildHelper(SectionMeta &&meta, FnMut<void(SectionBuilder&)> method);
 
 	const SectionBuildMethod build;
 
@@ -117,8 +118,7 @@ public:
 		not_null<::Main::Session*> session) const;
 
 private:
-	Type _sectionId;
-	Type _parentSectionId;
+	const SectionMeta _meta;
 	mutable FnMut<void(SectionBuilder &)> _method;
 
 };

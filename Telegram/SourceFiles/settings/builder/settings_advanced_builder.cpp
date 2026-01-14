@@ -1094,27 +1094,28 @@ void BuildExportSection(SectionBuilder &builder) {
 	});
 }
 
-const auto kMeta = BuildHelper(
-	Advanced::Id(),
-	tr::lng_settings_advanced,
-	[](SectionBuilder &builder) {
-		const auto autoUpdate = cAutoUpdate();
+const auto kMeta = BuildHelper({
+	.id = Advanced::Id(),
+	.parentId = Main::Id(),
+	.title = &tr::lng_settings_advanced,
+	.icon = &st::menuIconManage,
+}, [](SectionBuilder &builder) {
+	const auto autoUpdate = cAutoUpdate();
 
-		if (!autoUpdate) {
-			BuildUpdateSection(builder, true);
-		}
-		BuildDataStorageSection(builder);
-		BuildAutoDownloadSection(builder);
-		BuildWindowTitleSection(builder);
-		BuildSystemIntegrationSection(builder);
-		BuildPerformanceSection(builder);
-		BuildSpellcheckerSection(builder);
-		if (autoUpdate) {
-			BuildUpdateSection(builder, false);
-		}
-		BuildExportSection(builder);
-	},
-	Main::Id());
+	if (!autoUpdate) {
+		BuildUpdateSection(builder, true);
+	}
+	BuildDataStorageSection(builder);
+	BuildAutoDownloadSection(builder);
+	BuildWindowTitleSection(builder);
+	BuildSystemIntegrationSection(builder);
+	BuildPerformanceSection(builder);
+	BuildSpellcheckerSection(builder);
+	if (autoUpdate) {
+		BuildUpdateSection(builder, false);
+	}
+	BuildExportSection(builder);
+});
 
 } // namespace
 

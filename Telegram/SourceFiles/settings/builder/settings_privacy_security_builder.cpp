@@ -668,13 +668,14 @@ void BuildPrivacySecuritySectionContent(SectionBuilder &builder) {
 	BuildSelfDestructionSection(builder, trigger());
 }
 
-const auto kMeta = BuildHelper(
-	PrivacySecurity::Id(),
-	tr::lng_settings_section_privacy,
-	[](SectionBuilder &builder) {
-		BuildPrivacySecuritySectionContent(builder);
-	},
-	Main::Id());
+const auto kMeta = BuildHelper({
+	.id = PrivacySecurity::Id(),
+	.parentId = Main::Id(),
+	.title = &tr::lng_settings_section_privacy,
+	.icon = &st::menuIconLock,
+}, [](SectionBuilder &builder) {
+	BuildPrivacySecuritySectionContent(builder);
+});
 
 } // namespace
 
