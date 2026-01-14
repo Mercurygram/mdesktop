@@ -111,13 +111,13 @@ void ShowMenu(
 		auto openFiltersSettings = [=] {
 			const auto filters = &session->data().chatsFilters();
 			if (filters->suggestedLoaded()) {
-				controller->showSettings(Settings::Folders::Id());
+				controller->showSettings(Settings::FoldersId());
 			} else if (!state->waitingSuggested) {
 				state->waitingSuggested = true;
 				filters->requestSuggested();
 				filters->suggestedUpdated(
 				) | rpl::take(1) | rpl::on_next([=] {
-					controller->showSettings(Settings::Folders::Id());
+					controller->showSettings(Settings::FoldersId());
 				}, parent->lifetime());
 			}
 		};

@@ -825,7 +825,7 @@ bool ResolveSettings(
 		} else if (section == u"devices"_q) {
 			return ::Settings::Sessions::Id();
 		} else if (section == u"folders"_q) {
-			return ::Settings::Folders::Id();
+			return ::Settings::FoldersId();
 		} else if (section == u"privacy"_q) {
 			return ::Settings::PrivacySecurity::Id();
 		} else if (section == u"themes"_q) {

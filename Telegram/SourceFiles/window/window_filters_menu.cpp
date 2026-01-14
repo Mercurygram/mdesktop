@@ -360,13 +360,13 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 void FiltersMenu::openFiltersSettings() {
 	const auto filters = &_session->session().data().chatsFilters();
 	if (filters->suggestedLoaded()) {
-		_session->showSettings(Settings::Folders::Id());
+		_session->showSettings(Settings::FoldersId());
 	} else if (!_waitingSuggested) {
 		_waitingSuggested = true;
 		filters->requestSuggested();
 		filters->suggestedUpdated(
 		) | rpl::take(1) | rpl::on_next([=] {
-			_session->showSettings(Settings::Folders::Id());
+			_session->showSettings(Settings::FoldersId());
 		}, _outer.lifetime());
 	}
 }

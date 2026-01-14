@@ -7,38 +7,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_common_session.h"
 #include "settings/settings_type.h"
+
+namespace Window {
+class SessionController;
+} // namespace Window
 
 namespace Settings {
 
-class Folders : public Section<Folders> {
-public:
-	Folders(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller);
-	~Folders();
+[[nodiscard]] Type FoldersId();
 
-	void showFinished() override;
-
-	[[nodiscard]] rpl::producer<QString> title() override;
-
-private:
-	void setupContent();
-
-	Fn<void()> _save;
-
-	rpl::event_stream<> _showFinished;
-	QPointer<Ui::RpWidget> _createButton;
-	QPointer<Ui::RpWidget> _tagsButton;
-	QPointer<Ui::RpWidget> _viewSection;
-	QPointer<Ui::RpWidget> _recommendedTitle;
-
-};
-
-namespace Builder {
-
-extern SectionBuildMethod FoldersSection;
-
-} // namespace Builder
 } // namespace Settings

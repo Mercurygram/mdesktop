@@ -391,7 +391,7 @@ void BuildSectionButtons(SectionBuilder &builder) {
 			.id = u"main/folders"_q,
 			.title = tr::lng_settings_section_filters(),
 			.icon = { &st::menuIconShowInFolder },
-			.onClick = [=] { showOther(Folders::Id()); },
+			.onClick = [=] { showOther(FoldersId()); },
 			.keywords = { u"filters"_q, u"tabs"_q },
 			.shown = std::move(shownProducer),
 		});

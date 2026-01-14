@@ -478,7 +478,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"folders"_q,
-		.action = SettingsSection{ ::Settings::Folders::Id() },
+		.action = SettingsSection{ ::Settings::FoldersId() },
 	});
 
 	router.add(u"settings"_q, {
@@ -1801,28 +1801,28 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"folders/create"_q,
 		.action = SettingsControl{
-			::Settings::Folders::Id(),
+			::Settings::FoldersId(),
 			u"folders/create"_q,
 		},
 	});
 	router.add(u"settings"_q, {
 		.path = u"folders/add-recommended"_q,
 		.action = SettingsControl{
-			::Settings::Folders::Id(),
+			::Settings::FoldersId(),
 			u"folders/add-recommended"_q,
 		},
 	});
 	router.add(u"settings"_q, {
 		.path = u"folders/show-tags"_q,
 		.action = SettingsControl{
-			::Settings::Folders::Id(),
+			::Settings::FoldersId(),
 			u"folders/show-tags"_q,
 		},
 	});
 	router.add(u"settings"_q, {
 		.path = u"folders/tab-view"_q,
 		.action = SettingsControl{
-			::Settings::Folders::Id(),
+			::Settings::FoldersId(),
 			u"folders/tab-view"_q,
 		},
 	});

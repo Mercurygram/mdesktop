@@ -161,7 +161,7 @@ auto GenerateCodes() {
 	});
 	codes.emplace(u"folders"_q, [](SessionController *window) {
 		if (window) {
-			window->showSettings(Settings::Folders::Id());
+			window->showSettings(Settings::FoldersId());
 		}
 	});
 	codes.emplace(u"registertg"_q, [](SessionController *window) {
