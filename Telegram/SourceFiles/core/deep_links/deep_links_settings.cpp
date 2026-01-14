@@ -64,7 +64,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_premium.h"
 #include "ui/power_saving.h"
 #include "settings/sections/settings_privacy_security.h"
-#include "settings/settings_websites.h"
+#include "settings/sections/settings_websites.h"
 #include "boxes/connection_box.h"
 #include "boxes/local_storage_box.h"
 #include "mainwindow.h"

@@ -50,7 +50,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_passkeys.h"
 #include "settings/sections/settings_premium.h"
 #include "settings/settings_privacy_controllers.h"
-#include "settings/settings_websites.h"
+#include "settings/sections/settings_websites.h"
 #include "storage/storage_domain.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/effects/premium_graphics.h"

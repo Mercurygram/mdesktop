@@ -5,16 +5,18 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_websites.h"
+#include "settings/sections/settings_websites.h"
 
 #include "api/api_websites.h"
 #include "apiwrap.h"
 #include "boxes/peer_list_box.h"
 #include "data/data_user.h"
-#include "ui/boxes/confirm_box.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "settings/sections/settings_active_sessions.h"
+#include "settings/sections/settings_privacy_security.h"
+#include "settings/settings_builder.h"
+#include "ui/boxes/confirm_box.h"
 #include "ui/controls/userpic_button.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/wrap/slide_wrap.h"
@@ -29,7 +31,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_settings.h"
 #include "styles/style_menu_icons.h"
 
+namespace Settings {
 namespace {
+
+using namespace Builder;
 
 constexpr auto kShortPollTimeout = 60 * crl::time(1000);
 
@@ -136,7 +141,6 @@ void InfoBox(
 		style::margins(0, 0, 0, st::sessionDateSkip),
 		style::al_top);
 
-	using namespace Settings;
 	const auto container = box->verticalLayout();
 	Ui::AddDivider(container);
 	Ui::AddSkip(container, st::sessionSubtitleSkip);
@@ -330,9 +334,9 @@ class Content::ListController final
 	, public RowDelegate
 	, public base::has_weak_ptr {
 public:
-	explicit ListController(not_null<Main::Session*> session);
+	explicit ListController(not_null<::Main::Session*> session);
 
-	Main::Session &session() const override;
+	::Main::Session &session() const override;
 	void prepare() override;
 	void rowClicked(not_null<PeerListRow*> row) override;
 	void rowElementClicked(not_null<PeerListRow*> row, int element) override;
@@ -346,11 +350,11 @@ public:
 
 	[[nodiscard]] static std::unique_ptr<ListController> Add(
 		not_null<Ui::VerticalLayout*> container,
-		not_null<Main::Session*> session,
+		not_null<::Main::Session*> session,
 		style::margins margins = {});
 
 private:
-	const not_null<Main::Session*> _session;
+	const not_null<::Main::Session*> _session;
 
 	rpl::event_stream<uint64> _terminateRequests;
 	rpl::event_stream<int> _itemsCount;
@@ -569,7 +573,6 @@ Content::Inner::Inner(
 }
 
 void Content::Inner::setupContent() {
-	using namespace Settings;
 	using namespace rpl::mappers;
 
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
@@ -640,11 +643,11 @@ Ui::RpWidget *Content::Inner::terminateAllButton() const {
 }
 
 Content::ListController::ListController(
-	not_null<Main::Session*> session)
+	not_null<::Main::Session*> session)
 : _session(session) {
 }
 
-Main::Session &Content::ListController::session() const {
+::Main::Session &Content::ListController::session() const {
 	return *_session;
 }
 
@@ -717,7 +720,7 @@ rpl::producer<EntryData> Content::ListController::showRequests() const {
 
 auto Content::ListController::Add(
 	not_null<Ui::VerticalLayout*> container,
-	not_null<Main::Session*> session,
+	not_null<::Main::Session*> session,
 	style::margins margins)
 -> std::unique_ptr<ListController> {
 	auto &lifetime = container->lifetime();
@@ -736,9 +739,33 @@ auto Content::ListController::Add(
 	return controller;
 }
 
-} // namespace
+void BuildWebsitesSection(SectionBuilder &builder) {
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"websites/disconnect-all"_q,
+			.title = tr::lng_settings_disconnect_all(tr::now),
+			.keywords = { u"disconnect"_q, u"terminate"_q, u"logout"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"websites/list"_q,
+			.title = tr::lng_settings_logged_in_title(tr::now),
+			.keywords = { u"websites"_q, u"bots"_q, u"logged"_q },
+		};
+	});
+}
 
-namespace Settings {
+const auto kMeta = BuildHelper({
+	.id = Websites::Id(),
+	.parentId = PrivacySecurity::Id(),
+	.title = &tr::lng_settings_connected_title,
+	.icon = &st::menuIconIpAddress,
+}, [](SectionBuilder &builder) {
+	BuildWebsitesSection(builder);
+});
+
+} // namespace
 
 Websites::Websites(
 	QWidget *parent,
@@ -752,6 +779,7 @@ rpl::producer<QString> Websites::title() {
 }
 
 void Websites::showFinished() {
+	Section::showFinished();
 	controller()->checkHighlightControl(
 		u"websites/disconnect-all"_q,
 		_terminateAll.data());
@@ -766,7 +794,14 @@ void Websites::setupContent() {
 
 	_terminateAll = content->terminateAllButton();
 
+	build(container, Builder::WebsitesSection);
+
 	Ui::ResizeFitChild(this, container);
 }
 
+namespace Builder {
+
+SectionBuildMethod WebsitesSection = kMeta.build;
+
+} // namespace Builder
 } // namespace Settings

@@ -1601,8 +1601,8 @@ PRIVATE
     settings/settings_type.h
     settings/sections/settings_shortcuts.cpp
     settings/sections/settings_shortcuts.h
-    settings/settings_websites.cpp
-    settings/settings_websites.h
+    settings/sections/settings_websites.cpp
+    settings/sections/settings_websites.h
     storage/details/storage_file_utilities.cpp
     storage/details/storage_file_utilities.h
     storage/details/storage_settings_scheme.cpp

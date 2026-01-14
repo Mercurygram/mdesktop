@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "settings/settings_common_session.h"
+#include "settings/settings_type.h"
 
 namespace Ui {
 class RpWidget;
@@ -21,8 +22,9 @@ public:
 		QWidget *parent,
 		not_null<Window::SessionController*> controller);
 
-	[[nodiscard]] rpl::producer<QString> title() override;
 	void showFinished() override;
+
+	[[nodiscard]] rpl::producer<QString> title() override;
 
 private:
 	void setupContent();
@@ -31,4 +33,9 @@ private:
 
 };
 
+namespace Builder {
+
+extern SectionBuildMethod WebsitesSection;
+
+} // namespace Builder
 } // namespace Settings
