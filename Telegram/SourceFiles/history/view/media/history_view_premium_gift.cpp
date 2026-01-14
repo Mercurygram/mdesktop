@@ -28,7 +28,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "settings/sections/settings_credits.h" // Settings::CreditsId
 #include "settings/settings_credits_graphics.h" // GiftedCreditsBox
-#include "settings/settings_premium.h" // Settings::ShowGiftPremium
+#include "settings/sections/settings_premium.h" // Settings::ShowGiftPremium
 #include "ui/chat/chat_style.h"
 #include "ui/controls/ton_common.h" // kNanosInOne
 #include "ui/layers/generic_box.h"

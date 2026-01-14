@@ -1592,8 +1592,8 @@ PRIVATE
     settings/sections/settings_passkeys.h
     settings/settings_power_saving.cpp
     settings/settings_power_saving.h
-    settings/settings_premium.cpp
-    settings/settings_premium.h
+    settings/sections/settings_premium.cpp
+    settings/sections/settings_premium.h
     settings/settings_privacy_controllers.cpp
     settings/settings_privacy_controllers.h
     settings/settings_scale_preview.cpp

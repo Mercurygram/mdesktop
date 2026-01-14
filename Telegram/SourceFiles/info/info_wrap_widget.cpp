@@ -19,7 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_chat.h"
 #include "settings/sections/settings_information.h"
 #include "settings/sections/settings_main.h"
-#include "settings/settings_premium.h"
+#include "settings/sections/settings_premium.h"
 #include "settings/settings_search.h"
 #include "ui/effects/ripple_animation.h" // MaskByDrawer.
 #include "ui/widgets/menu/menu_add_action_callback.h"

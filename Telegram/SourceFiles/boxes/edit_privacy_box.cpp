@@ -20,7 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_app_config.h"
 #include "main/main_session.h"
 #include "settings/settings_common.h"
-#include "settings/settings_premium.h"
+#include "settings/sections/settings_premium.h"
 #include "settings/settings_privacy_controllers.h"
 #include "settings/sections/settings_privacy_security.h"
 #include "ui/boxes/peer_qr_box.h"

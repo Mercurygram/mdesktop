@@ -5,7 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_premium.h"
+#include "settings/sections/settings_premium.h"
 
 #include "boxes/premium_preview_box.h"
 #include "boxes/sticker_set_box.h"
@@ -29,6 +29,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "main/main_app_config.h"
 #include "main/main_session.h"
+#include "settings/sections/settings_main.h"
+#include "settings/settings_builder.h"
 #include "settings/settings_common_session.h"
 #include "ui/abstract_button.h"
 #include "ui/basic_click_handlers.h"
@@ -60,6 +62,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "api/api_premium.h"
 #include "styles/style_chat_helpers.h"
+#include "styles/style_menu_icons.h"
 #include "styles/style_premium.h"
 #include "styles/style_info.h"
 #include "styles/style_layers.h"
@@ -67,6 +70,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Settings {
 namespace {
+
+using namespace Builder;
 
 using SectionCustomTopBarData = Info::Settings::SectionCustomTopBarData;
 
@@ -451,7 +456,7 @@ using Order = std::vector<QString>;
 }
 
 void SendAppLog(
-		not_null<Main::Session*> session,
+		not_null<::Main::Session*> session,
 		const QString &type,
 		const MTPJSONValue &data) {
 	const auto now = double(base::unixtime::now())
@@ -963,6 +968,87 @@ void TopBarWithSticker::resizeEvent(QResizeEvent *e) {
 	}
 }
 
+[[nodiscard]] QString GetFeatureTitle(const QString &key) {
+	if (key == u"saved_tags"_q) {
+		return tr::lng_premium_summary_subtitle_tags_for_messages(tr::now);
+	} else if (key == u"last_seen"_q) {
+		return tr::lng_premium_summary_subtitle_last_seen(tr::now);
+	} else if (key == u"message_privacy"_q) {
+		return tr::lng_premium_summary_subtitle_message_privacy(tr::now);
+	} else if (key == u"wallpapers"_q) {
+		return tr::lng_premium_summary_subtitle_wallpapers(tr::now);
+	} else if (key == u"peer_colors"_q) {
+		return tr::lng_premium_summary_subtitle_peer_colors(tr::now);
+	} else if (key == u"stories"_q) {
+		return tr::lng_premium_summary_subtitle_stories(tr::now);
+	} else if (key == u"double_limits"_q) {
+		return tr::lng_premium_summary_subtitle_double_limits(tr::now);
+	} else if (key == u"more_upload"_q) {
+		return tr::lng_premium_summary_subtitle_more_upload(tr::now);
+	} else if (key == u"faster_download"_q) {
+		return tr::lng_premium_summary_subtitle_faster_download(tr::now);
+	} else if (key == u"voice_to_text"_q) {
+		return tr::lng_premium_summary_subtitle_voice_to_text(tr::now);
+	} else if (key == u"no_ads"_q) {
+		return tr::lng_premium_summary_subtitle_no_ads(tr::now);
+	} else if (key == u"emoji_status"_q) {
+		return tr::lng_premium_summary_subtitle_emoji_status(tr::now);
+	} else if (key == u"infinite_reactions"_q) {
+		return tr::lng_premium_summary_subtitle_infinite_reactions(tr::now);
+	} else if (key == u"premium_stickers"_q) {
+		return tr::lng_premium_summary_subtitle_premium_stickers(tr::now);
+	} else if (key == u"animated_emoji"_q) {
+		return tr::lng_premium_summary_subtitle_animated_emoji(tr::now);
+	} else if (key == u"advanced_chat_management"_q) {
+		return tr::lng_premium_summary_subtitle_advanced_chat_management(tr::now);
+	} else if (key == u"profile_badge"_q) {
+		return tr::lng_premium_summary_subtitle_profile_badge(tr::now);
+	} else if (key == u"animated_userpics"_q) {
+		return tr::lng_premium_summary_subtitle_animated_userpics(tr::now);
+	} else if (key == u"translations"_q) {
+		return tr::lng_premium_summary_subtitle_translation(tr::now);
+	} else if (key == u"business"_q) {
+		return tr::lng_premium_summary_subtitle_business(tr::now);
+	} else if (key == u"effects"_q) {
+		return tr::lng_premium_summary_subtitle_effects(tr::now);
+	} else if (key == u"todo"_q) {
+		return tr::lng_premium_summary_subtitle_todo_lists(tr::now);
+	}
+	return QString();
+}
+
+void BuildPremiumFeatures(SectionBuilder &builder) {
+	const auto session = builder.session();
+	const auto mtpOrder = session->appConfig().get<Order>(
+		"premium_promo_order",
+		FallbackOrder());
+
+	for (const auto &key : mtpOrder) {
+		const auto title = GetFeatureTitle(key);
+		if (title.isEmpty()) {
+			continue;
+		}
+		builder.add(nullptr, [key, title] {
+			return SearchEntry{
+				.id = u"premium/"_q + key,
+				.title = title,
+			};
+		});
+	}
+}
+
+void BuildPremiumSectionContent(SectionBuilder &builder) {
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"premium/subscribe"_q,
+			.title = tr::lng_premium_summary_button(tr::now, lt_cost, QString()),
+			.keywords = { u"subscription"_q, u"buy"_q },
+		};
+	});
+
+	BuildPremiumFeatures(builder);
+}
+
 class Premium : public Section<Premium> {
 public:
 	Premium(
@@ -1456,6 +1542,15 @@ base::weak_qptr<Ui::RpWidget> Premium::createPinnedToBottom(
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });
 }
 
+const auto kMeta = BuildHelper({
+	.id = Premium::Id(),
+	.parentId = Main::Id(),
+	.title = &tr::lng_premium_summary_title,
+	.icon = &st::menuIconPremium,
+}, [](SectionBuilder &builder) {
+	BuildPremiumSectionContent(builder);
+});
+
 } // namespace
 
 template <>
@@ -1482,7 +1577,7 @@ Type PremiumId() {
 	return Premium::Id();
 }
 
-void ShowPremium(not_null<Main::Session*> session, const QString &ref) {
+void ShowPremium(not_null<::Main::Session*> session, const QString &ref) {
 	const auto active = Core::App().activeWindow();
 	const auto controller = (active && active->isPrimary())
 		? active->sessionController()
@@ -1572,7 +1667,7 @@ void ShowPremiumPromoToast(
 		TextWithEntities textWithLink,
 		const QString &ref) {
 	ShowPremiumPromoToast(show, [=](
-			not_null<Main::Session*> session) {
+			not_null<::Main::Session*> session) {
 		Expects(&show->session() == session);
 
 		return show->resolveWindow();
@@ -1580,9 +1675,9 @@ void ShowPremiumPromoToast(
 }
 
 void ShowPremiumPromoToast(
-		std::shared_ptr<Main::SessionShow> show,
+		std::shared_ptr<::Main::SessionShow> show,
 		Fn<Window::SessionController*(
-			not_null<Main::Session*>)> resolveWindow,
+			not_null<::Main::Session*>)> resolveWindow,
 		TextWithEntities textWithLink,
 		const QString &ref) {
 	using WeakToast = base::weak_ptr<Ui::Toast::Instance>;
@@ -1669,7 +1764,7 @@ not_null<Ui::GradientButton*> CreateSubscribeButton(
 	Expects(args.show || args.controller);
 
 	auto show = args.show ? std::move(args.show) : args.controller->uiShow();
-	auto resolve = [show](not_null<Main::Session*> session) {
+	auto resolve = [show](not_null<::Main::Session*> session) {
 		Expects(session == &show->session());
 
 		return show->resolveWindow();
@@ -1760,7 +1855,7 @@ not_null<Ui::GradientButton*> CreateSubscribeButton(
 }
 
 std::vector<PremiumFeature> PremiumFeaturesOrder(
-		not_null<Main::Session*> session) {
+		not_null<::Main::Session*> session) {
 	const auto mtpOrder = session->appConfig().get<Order>(
 		"premium_promo_order",
 		FallbackOrder());
@@ -1993,4 +2088,9 @@ std::unique_ptr<Ui::RpWidget> MakeEmojiStatusPreview(
 	return result;
 }
 
+namespace Builder {
+
+SectionBuildMethod PremiumSection = kMeta.build;
+
+} // namespace Builder
 } // namespace Settings

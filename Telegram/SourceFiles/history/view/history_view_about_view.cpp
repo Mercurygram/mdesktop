@@ -38,7 +38,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "settings/business/settings_chat_intro.h"
 #include "settings/sections/settings_credits.h" // BuyStarsHandler
-#include "settings/settings_premium.h"
+#include "settings/sections/settings_premium.h"
 #include "ui/chat/chat_style.h"
 #include "ui/text/custom_emoji_instance.h"
 #include "ui/text/text_utilities.h"

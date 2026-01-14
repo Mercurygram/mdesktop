@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "settings/settings_common.h"
 #include "settings/settings_type.h"
 
 class DocumentData;
@@ -114,10 +115,10 @@ void AddSummaryPremium(
 [[nodiscard]] std::unique_ptr<Ui::RpWidget> MakeEmojiStatusPreview(
 	not_null<QWidget*> parent,
 	not_null<DocumentData*> document);
-[[nodiscard]] std::unique_ptr<Ui::RpWidget> MakeEmojiSetStatusPreview(
-	not_null<QWidget*> parent,
-	not_null<PeerData*> peer,
-	not_null<DocumentData*> document);
 
+namespace Builder {
+
+extern SectionBuildMethod PremiumSection;
+
+} // namespace Builder
 } // namespace Settings
-
