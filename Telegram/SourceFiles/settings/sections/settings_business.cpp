@@ -76,6 +76,11 @@ struct Entry {
 	bool newBadge = false;
 };
 
+struct BusinessState {
+	Fn<void(bool)> setPaused;
+	QPointer<Ui::SettingsButton> sponsoredButton;
+};
+
 using Order = std::vector<QString>;
 
 [[nodiscard]] Order FallbackOrder() {
@@ -399,7 +404,7 @@ void BuildBusinessFeatures(SectionBuilder &builder) {
 
 void BuildSponsoredSection(
 		SectionBuilder &builder,
-		QPointer<Ui::SettingsButton> *sponsoredButton) {
+		std::shared_ptr<BusinessState> state) {
 	const auto controller = builder.controller();
 	const auto session = builder.session();
 
@@ -415,7 +420,7 @@ void BuildSponsoredSection(
 		return;
 	}
 
-	builder.add([controller, session, sponsoredButton](const WidgetContext &ctx) {
+	builder.add([controller, session, state](const WidgetContext &ctx) {
 		const auto content = ctx.container;
 		const auto sponsoredWrap = content->add(
 			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
@@ -449,8 +454,8 @@ void BuildSponsoredSection(
 			const auto button = inner->add(object_ptr<Ui::SettingsButton>(
 				inner,
 				tr::lng_business_button_sponsored()));
-			if (sponsoredButton) {
-				*sponsoredButton = button;
+			if (state) {
+				state->sponsoredButton = button;
 			}
 			Ui::AddSkip(inner);
 
@@ -513,7 +518,7 @@ void BuildSponsoredSection(
 
 void BuildBusinessSectionContent(
 		SectionBuilder &builder,
-		QPointer<Ui::SettingsButton> *sponsoredButton) {
+		std::shared_ptr<BusinessState> state) {
 	const auto controller = builder.controller();
 	const auto session = builder.session();
 
@@ -530,14 +535,13 @@ void BuildBusinessSectionContent(
 	BuildBusinessFeatures(builder);
 
 	if (controller) {
-		builder.add([controller, session](const WidgetContext &ctx) {
+		builder.add([controller, session, state](const WidgetContext &ctx) {
 			const auto content = ctx.container;
 			const auto owner = &session->data();
 			const auto showOther = ctx.showOther;
 
 			auto waitingToShow = content->lifetime().make_state<PremiumFeature>(
 				PremiumFeature::Business);
-			auto setPaused = content->lifetime().make_state<Fn<void(bool)>>();
 
 			const auto showFeature = [=](PremiumFeature feature) {
 				if (feature == PremiumFeature::FilterTags) {
@@ -608,12 +612,12 @@ void BuildBusinessSectionContent(
 
 			AddBusinessSummary(content, controller, [=](PremiumFeature feature) {
 				if (!session->premium()) {
-					if (*setPaused) {
-						(*setPaused)(true);
+					if (state && state->setPaused) {
+						state->setPaused(true);
 					}
 					const auto hidden = crl::guard(content, [=] {
-						if (*setPaused) {
-							(*setPaused)(false);
+						if (state && state->setPaused) {
+							state->setPaused(false);
 						}
 					});
 
@@ -630,7 +634,7 @@ void BuildBusinessSectionContent(
 		});
 	}
 
-	BuildSponsoredSection(builder, sponsoredButton);
+	BuildSponsoredSection(builder, state);
 }
 
 class Business : public Section<Business> {
@@ -658,21 +662,17 @@ private:
 	void setupContent();
 	void setupSwipeBack();
 
+	std::shared_ptr<BusinessState> _state;
 	QPointer<Ui::GradientButton> _subscribe;
 	base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> _back;
 	base::unique_qptr<Ui::IconButton> _close;
 	rpl::variable<bool> _backToggles;
 	rpl::variable<Info::Wrap> _wrap;
-	Fn<void(bool)> _setPaused;
 	std::shared_ptr<Ui::RadiobuttonGroup> _radioGroup;
 
 	rpl::event_stream<> _showBack;
 	rpl::event_stream<> _showFinished;
 	rpl::variable<QString> _buttonText;
-
-	PremiumFeature _waitingToShow = PremiumFeature::Business;
-
-	QPointer<Ui::SettingsButton> _sponsoredButton;
 
 };
 
@@ -680,6 +680,7 @@ Business::Business(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
 : Section(parent, controller)
+, _state(std::make_shared<BusinessState>())
 , _radioGroup(std::make_shared<Ui::RadiobuttonGroup>()) {
 	setupContent();
 	setupSwipeBack();
@@ -751,182 +752,27 @@ void Business::setupSwipeBack() {
 
 void Business::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
+	const auto state = _state;
 
-	const auto owner = &controller()->session().data();
-	owner->chatbots().preload();
-	owner->businessInfo().preload();
-	owner->shortcutMessages().preloadShortcuts();
-	owner->session().api().chatLinks().preload();
+	const SectionBuildMethod buildMethod = [state](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		const auto isPaused = Window::PausedIn(
+			controller,
+			Window::GifPauseReason::Layer);
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = isPaused,
+		});
 
-	Ui::AddSkip(content, st::settingsFromFileTop);
-
-	const auto showFeature = [=](PremiumFeature feature) {
-		if (feature == PremiumFeature::FilterTags) {
-			ShowPremiumPreviewToBuy(controller(), feature);
-			return;
-		}
-		showOther([&] {
-			switch (feature) {
-			case PremiumFeature::AwayMessage: return AwayMessageId();
-			case PremiumFeature::BusinessHours: return WorkingHoursId();
-			case PremiumFeature::BusinessLocation: return LocationId();
-			case PremiumFeature::GreetingMessage: return GreetingId();
-			case PremiumFeature::QuickReplies: return QuickRepliesId();
-			case PremiumFeature::BusinessBots: return ChatbotsId();
-			case PremiumFeature::ChatIntro: return ChatIntroId();
-			case PremiumFeature::ChatLinks: return ChatLinksId();
-			}
-			Unexpected("Feature in showFeature.");
-		}());
-	};
-	const auto isReady = [=](PremiumFeature feature) {
-		switch (feature) {
-		case PremiumFeature::AwayMessage:
-			return owner->businessInfo().awaySettingsLoaded()
-				&& owner->shortcutMessages().shortcutsLoaded();
-		case PremiumFeature::BusinessHours:
-			return owner->session().user()->isFullLoaded()
-				&& owner->businessInfo().timezonesLoaded();
-		case PremiumFeature::BusinessLocation:
-			return owner->session().user()->isFullLoaded();
-		case PremiumFeature::GreetingMessage:
-			return owner->businessInfo().greetingSettingsLoaded()
-				&& owner->shortcutMessages().shortcutsLoaded();
-		case PremiumFeature::QuickReplies:
-			return owner->shortcutMessages().shortcutsLoaded();
-		case PremiumFeature::BusinessBots:
-			return owner->chatbots().loaded();
-		case PremiumFeature::ChatIntro:
-			return owner->session().user()->isFullLoaded();
-		case PremiumFeature::ChatLinks:
-			return owner->session().api().chatLinks().loaded();
-		case PremiumFeature::FilterTags:
-			return true;
-		}
-		Unexpected("Feature in isReady.");
-	};
-	const auto check = [=] {
-		if (_waitingToShow != PremiumFeature::Business
-			&& isReady(_waitingToShow)) {
-			showFeature(
-				std::exchange(_waitingToShow, PremiumFeature::Business));
-		}
+		BuildBusinessSectionContent(builder, state);
 	};
 
-	rpl::merge(
-		owner->businessInfo().awaySettingsChanged(),
-		owner->businessInfo().greetingSettingsChanged(),
-		owner->businessInfo().timezonesValue() | rpl::to_empty,
-		owner->shortcutMessages().shortcutsChanged(),
-		owner->chatbots().changes() | rpl::to_empty,
-		owner->session().changes().peerUpdates(
-			owner->session().user(),
-			Data::PeerUpdate::Flag::FullInfo) | rpl::to_empty,
-		owner->session().api().chatLinks().loadedUpdates()
-	) | rpl::on_next(check, content->lifetime());
-
-	AddBusinessSummary(content, controller(), [=](PremiumFeature feature) {
-		if (!controller()->session().premium()) {
-			_setPaused(true);
-			const auto hidden = crl::guard(this, [=] { _setPaused(false); });
-
-			ShowPremiumPreviewToBuy(controller(), feature, hidden);
-			return;
-		} else if (!isReady(feature)) {
-			_waitingToShow = feature;
-		} else {
-			showFeature(feature);
-		}
-	});
-
-	const auto sponsoredWrap = content->add(
-		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-			content,
-			object_ptr<Ui::VerticalLayout>(content)));
-	const auto fillSponsoredWrap = [=] {
-		while (sponsoredWrap->entity()->count()) {
-			delete sponsoredWrap->entity()->widgetAt(0);
-		}
-		Ui::AddDivider(sponsoredWrap->entity());
-		const auto loading = sponsoredWrap->entity()->add(
-			object_ptr<Ui::SlideWrap<Ui::FlatLabel>>(
-				sponsoredWrap->entity(),
-				object_ptr<Ui::FlatLabel>(
-					sponsoredWrap->entity(),
-					tr::lng_contacts_loading())),
-			st::boxRowPadding);
-		loading->entity()->setTextColorOverride(st::windowSubTextFg->c);
-
-		const auto wrap = sponsoredWrap->entity()->add(
-			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-				sponsoredWrap->entity(),
-				object_ptr<Ui::VerticalLayout>(sponsoredWrap->entity())));
-		wrap->toggle(false, anim::type::instant);
-		const auto inner = wrap->entity();
-		Ui::AddSkip(inner);
-		Ui::AddSubsectionTitle(
-			inner,
-			tr::lng_business_subtitle_sponsored());
-		const auto button = inner->add(object_ptr<Ui::SettingsButton>(
-			inner,
-			tr::lng_business_button_sponsored()));
-		_sponsoredButton = button;
-		Ui::AddSkip(inner);
-
-		const auto session = &controller()->session();
-		{
-			inner->add(object_ptr<Ui::DividerLabel>(
-				inner,
-				object_ptr<Ui::FlatLabel>(
-					inner,
-					tr::lng_business_about_sponsored(
-						lt_link,
-						rpl::combine(
-							tr::lng_business_about_sponsored_link(
-								lt_emoji,
-								rpl::single(Ui::Text::IconEmoji(
-									&st::textMoreIconEmoji)),
-								tr::rich),
-							tr::lng_business_about_sponsored_url()
-						) | rpl::map([](TextWithEntities text, QString url) {
-							return tr::link(text, url);
-						}),
-						tr::rich),
-					st::boxDividerLabel),
-				st::defaultBoxDividerLabelPadding));
-		}
-
-		const auto api = inner->lifetime().make_state<Api::SponsoredToggle>(
-			session);
-
-		api->toggled(
-		) | rpl::on_next([=](bool enabled) {
-			button->toggleOn(rpl::single(enabled));
-			wrap->toggle(true, anim::type::instant);
-			loading->toggle(false, anim::type::instant);
-
-			button->toggledChanges(
-			) | rpl::on_next([=](bool toggled) {
-				api->setToggled(
-					toggled
-				) | rpl::on_error_done([=](const QString &error) {
-					controller()->showToast(error);
-				}, [] {
-				}, button->lifetime());
-			}, button->lifetime());
-		}, inner->lifetime());
-
-		Ui::ToggleChildrenVisibility(sponsoredWrap->entity(), true);
-		sponsoredWrap->entity()->resizeToWidth(content->width());
-	};
-	Data::AmPremiumValue(
-		&controller()->session()
-	) | rpl::on_next([=](bool isPremium) {
-		sponsoredWrap->toggle(isPremium, anim::type::normal);
-		if (isPremium) {
-			fillSponsoredWrap();
-		}
-	}, content->lifetime());
+	build(content, buildMethod);
 
 	Ui::ResizeFitChild(this, content);
 }
@@ -959,7 +805,7 @@ base::weak_qptr<Ui::RpWidget> Business::createPinnedToTop(
 				.about = std::move(about),
 			});
 	}();
-	_setPaused = [=](bool paused) {
+	_state->setPaused = [=](bool paused) {
 		content->setPaused(paused);
 		if (_subscribe) {
 			_subscribe->setGlarePaused(paused);
@@ -1027,7 +873,7 @@ void Business::showFinished() {
 	crl::on_main(this, [=] {
 		controller()->checkHighlightControl(
 			u"business/sponsored"_q,
-			_sponsoredButton);
+			_state->sponsoredButton);
 	});
 }
 
