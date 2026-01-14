@@ -19,6 +19,7 @@ namespace HistoryView {
 void ShowTopPeersSelector(
 	not_null<Ui::RpWidget*> parent,
 	std::shared_ptr<Main::SessionShow> show,
-	FullMsgId fullId);
+	FullMsgId fullId,
+	QPoint globalPos);
 
 } // namespace HistoryView

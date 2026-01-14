@@ -4017,7 +4017,7 @@ ClickHandlerPtr Message::prepareRightActionLink() const {
 			}
 		};
 	};
-	return std::make_shared<LambdaClickHandler>([=](
+	const auto result = std::make_shared<LambdaClickHandler>([=](
 			ClickContext context) {
 		const auto controller = ExtractController(context);
 		if (!controller || controller->session().uniqueId() != sessionId) {
@@ -4039,6 +4039,8 @@ ClickHandlerPtr Message::prepareRightActionLink() const {
 			}
 		}
 	});
+	result->setProperty(kFastShareProperty, QVariant::fromValue(true));
+	return result;
 }
 
 ClickHandlerPtr Message::fastReplyLink() const {

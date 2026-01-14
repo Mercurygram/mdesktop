@@ -1751,3 +1751,4 @@ topPeersSelectorUserpicSize: 30px;
 topPeersSelectorUserpicGap: 8px;
 topPeersSelectorPadding: 6px;
 topPeersSelectorUserpicExpand: 0.1;
+topPeersSelectorSkip: point(11px, -5px);

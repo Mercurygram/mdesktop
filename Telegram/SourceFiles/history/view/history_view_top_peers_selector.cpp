@@ -49,7 +49,8 @@ constexpr auto kMaxPeers = 5;
 void ShowTopPeersSelector(
 		not_null<Ui::RpWidget*> parent,
 		std::shared_ptr<Main::SessionShow> show,
-		FullMsgId fullId) {
+		FullMsgId fullId,
+		QPoint globalPos) {
 	const auto session = &show->session();
 	const auto peers = CollectPeers(session);
 	auto thumbnails = std::vector<std::shared_ptr<Ui::DynamicImage>>();
@@ -108,7 +109,9 @@ void ShowTopPeersSelector(
 	});
 	userpicsWidget->setCursor(style::cur_pointer);
 	selector->updateShowState(0, 0, true);
-	selector->popup(QCursor::pos());
+	selector->popup((!globalPos.isNull() ? globalPos : QCursor::pos())
+		- QPoint(selector->width() / 2, selector->height())
+		+ st::topPeersSelectorSkip);
 
 	auto animation
 		= selector->lifetime().make_state<Ui::Animations::Simple>();
