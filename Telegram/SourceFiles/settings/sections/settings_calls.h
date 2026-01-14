@@ -7,7 +7,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_common_session.h"
 #include "settings/settings_type.h"
 
 namespace style {
@@ -31,28 +30,12 @@ class SessionController;
 
 namespace Settings {
 
-class Calls : public Section<Calls> {
-public:
-	Calls(QWidget *parent, not_null<Window::SessionController*> controller);
-	~Calls();
+[[nodiscard]] Type CallsId();
 
-	[[nodiscard]] rpl::producer<QString> title() override;
-
-	void sectionSaveChanges(FnMut<void()> done) override;
-
-	static Webrtc::VideoTrack *AddCameraSubsection(
-		std::shared_ptr<Ui::Show> show,
-		not_null<Ui::VerticalLayout*> content,
-		bool saveToSettings);
-
-private:
-	void setupContent();
-	void requestPermissionAndStartTestingMicrophone();
-
-	rpl::event_stream<QString> _cameraNameStream;
-	rpl::variable<bool> _testingMicrophone;
-
-};
+Webrtc::VideoTrack *AddCameraSubsection(
+	std::shared_ptr<Ui::Show> show,
+	not_null<Ui::VerticalLayout*> content,
+	bool saveToSettings);
 
 inline constexpr auto kMicTestUpdateInterval = crl::time(100);
 inline constexpr auto kMicTestAnimationDuration = crl::time(200);
@@ -79,9 +62,4 @@ inline constexpr auto kMicTestAnimationDuration = crl::time(200);
 	const style::Checkbox *st = nullptr,
 	const style::Radio *radioSt = nullptr);
 
-namespace Builder {
-
-extern SectionBuildMethod CallsSection;
-
-} // namespace Builder
 } // namespace Settings

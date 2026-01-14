@@ -45,6 +45,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "webrtc/webrtc_audio_input_tester.h"
 #include "webrtc/webrtc_device_resolver.h"
 #include "settings/sections/settings_calls.h"
+#include "settings/settings_common.h"
 #include "settings/settings_credits_graphics.h"
 #include "main/main_session.h"
 #include "apiwrap.h"

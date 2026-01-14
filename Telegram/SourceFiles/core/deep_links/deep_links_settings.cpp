@@ -1637,7 +1637,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"calls"_q,
-		.action = SettingsSection{ ::Settings::Calls::Id() },
+		.action = SettingsSection{ ::Settings::CallsId() },
 	});
 
 	router.add(u"settings"_q, {

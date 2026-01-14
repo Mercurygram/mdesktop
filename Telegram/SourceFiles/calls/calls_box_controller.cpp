@@ -875,7 +875,7 @@ void ShowCallsBox(
 				st::popupMenuWithIcons);
 			const auto showSettings = [=] {
 				window->showSettings(
-					Settings::Calls::Id(),
+					Settings::CallsId(),
 					::Window::SectionShow(anim::type::instant));
 			};
 			const auto clearAll = crl::guard(box, [=] {

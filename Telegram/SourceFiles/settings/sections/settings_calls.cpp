@@ -42,6 +42,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_settings.h"
 
 namespace Settings {
+
+Webrtc::VideoTrack *AddCameraSubsection(
+	std::shared_ptr<Ui::Show> show,
+	not_null<Ui::VerticalLayout*> content,
+	bool saveToSettings);
+
 namespace {
 
 using namespace Webrtc;
@@ -354,7 +360,7 @@ void BuildCameraSection(SectionBuilder &builder) {
 	});
 
 	builder.add([controller](const WidgetContext &ctx) {
-		Calls::AddCameraSubsection(controller->uiShow(), ctx.container, true);
+		AddCameraSubsection(controller->uiShow(), ctx.container, true);
 		return SectionBuilder::WidgetToAdd{};
 	}, [] {
 		return SearchEntry{
@@ -429,15 +435,6 @@ void BuildCallsSectionContent(SectionBuilder &builder) {
 	BuildCameraSection(builder);
 	BuildOtherSection(builder);
 }
-
-const auto kMeta = BuildHelper({
-	.id = Calls::Id(),
-	.parentId = Main::Id(),
-	.title = &tr::lng_settings_section_devices,
-	.icon = &st::menuIconUnmute,
-}, [](SectionBuilder &builder) {
-	BuildCallsSectionContent(builder);
-});
 
 void ChooseMediaDeviceBox(
 		not_null<Ui::GenericBox*> box,
@@ -632,7 +629,21 @@ void ChooseMediaDeviceBox(
 	});
 }
 
-} // namespace
+class Calls : public Section<Calls> {
+public:
+	Calls(QWidget *parent, not_null<Window::SessionController*> controller);
+	~Calls();
+
+	[[nodiscard]] rpl::producer<QString> title() override;
+	void sectionSaveChanges(FnMut<void()> done) override;
+
+private:
+	void setupContent();
+	void requestPermissionAndStartTestingMicrophone();
+
+	rpl::variable<bool> _testingMicrophone;
+
+};
 
 Calls::Calls(
 	QWidget *parent,
@@ -650,7 +661,84 @@ rpl::producer<QString> Calls::title() {
 	return tr::lng_settings_section_devices();
 }
 
-Webrtc::VideoTrack *Calls::AddCameraSubsection(
+void Calls::sectionSaveChanges(FnMut<void()> done) {
+	_testingMicrophone = false;
+	done();
+}
+
+void Calls::setupContent() {
+	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
+
+	const SectionBuildMethod buildMethod = [](
+			not_null<Ui::VerticalLayout*> container,
+			not_null<Window::SessionController*> controller,
+			Fn<void(Type)> showOther,
+			rpl::producer<> showFinished) {
+		const auto isPaused = Window::PausedIn(
+			controller,
+			Window::GifPauseReason::Layer);
+		auto builder = SectionBuilder(WidgetContext{
+			.container = container,
+			.controller = controller,
+			.showOther = std::move(showOther),
+			.isPaused = isPaused,
+		});
+		BuildCallsSectionContent(builder);
+	};
+
+	build(content, buildMethod);
+	Ui::ResizeFitChild(this, content);
+}
+
+void Calls::requestPermissionAndStartTestingMicrophone() {
+	using PermissionType = ::Platform::PermissionType;
+	using PermissionStatus = ::Platform::PermissionStatus;
+	const auto status = GetPermissionStatus(
+		PermissionType::Microphone);
+	if (status == PermissionStatus::Granted) {
+		_testingMicrophone = true;
+	} else if (status == PermissionStatus::CanRequest) {
+		const auto startTestingChecked = crl::guard(this, [=](
+				PermissionStatus status) {
+			if (status == PermissionStatus::Granted) {
+				crl::on_main(crl::guard(this, [=] {
+					_testingMicrophone = true;
+				}));
+			}
+		});
+		RequestPermission(
+			PermissionType::Microphone,
+			startTestingChecked);
+	} else {
+		const auto showSystemSettings = [controller = controller()] {
+			OpenSystemSettingsForPermission(
+				PermissionType::Microphone);
+			controller->hideLayer();
+		};
+		controller()->show(Ui::MakeConfirmBox({
+			.text = tr::lng_no_mic_permission(),
+			.confirmed = showSystemSettings,
+			.confirmText = tr::lng_menu_settings(),
+		}));
+	}
+}
+
+const auto kMeta = BuildHelper({
+	.id = Calls::Id(),
+	.parentId = Main::Id(),
+	.title = &tr::lng_settings_section_devices,
+	.icon = &st::menuIconUnmute,
+}, [](SectionBuilder &builder) {
+	BuildCallsSectionContent(builder);
+});
+
+} // namespace
+
+Type CallsId() {
+	return Calls::Id();
+}
+
+Webrtc::VideoTrack *AddCameraSubsection(
 		std::shared_ptr<Ui::Show> show,
 		not_null<Ui::VerticalLayout*> content,
 		bool saveToSettings) {
@@ -758,50 +846,6 @@ Webrtc::VideoTrack *Calls::AddCameraSubsection(
 	}, lifetime);
 
 	return track;
-}
-
-void Calls::sectionSaveChanges(FnMut<void()> done) {
-	_testingMicrophone = false;
-	done();
-}
-
-void Calls::setupContent() {
-	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
-	build(content, Builder::CallsSection);
-	Ui::ResizeFitChild(this, content);
-}
-
-void Calls::requestPermissionAndStartTestingMicrophone() {
-	using PermissionType = ::Platform::PermissionType;
-	using PermissionStatus = ::Platform::PermissionStatus;
-	const auto status = GetPermissionStatus(
-		PermissionType::Microphone);
-	if (status == PermissionStatus::Granted) {
-		_testingMicrophone = true;
-	} else if (status == PermissionStatus::CanRequest) {
-		const auto startTestingChecked = crl::guard(this, [=](
-				PermissionStatus status) {
-			if (status == PermissionStatus::Granted) {
-				crl::on_main(crl::guard(this, [=] {
-					_testingMicrophone = true;
-				}));
-			}
-		});
-		RequestPermission(
-			PermissionType::Microphone,
-			startTestingChecked);
-	} else {
-		const auto showSystemSettings = [controller = controller()] {
-			OpenSystemSettingsForPermission(
-				PermissionType::Microphone);
-			controller->hideLayer();
-		};
-		controller()->show(Ui::MakeConfirmBox({
-			.text = tr::lng_no_mic_permission(),
-			.confirmed = showSystemSettings,
-			.confirmText = tr::lng_menu_settings(),
-		}));
-	}
 }
 
 rpl::producer<QString> PlaybackDeviceNameValue(rpl::producer<QString> id) {

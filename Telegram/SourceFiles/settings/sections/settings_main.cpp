@@ -408,7 +408,7 @@ void BuildSectionButtons(SectionBuilder &builder) {
 	builder.addSectionButton({
 		.id = u"main/devices"_q,
 		.title = tr::lng_settings_section_devices(),
-		.targetSection = Calls::Id(),
+		.targetSection = CallsId(),
 		.icon = { &st::menuIconUnmute },
 		.keywords = { u"sessions"_q, u"calls"_q },
 	});
