@@ -488,7 +488,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"privacy"_q,
-		.action = SettingsSection{ ::Settings::PrivacySecurity::Id() },
+		.action = SettingsSection{ ::Settings::PrivacySecurityId() },
 	});
 
 	router.add(u"settings"_q, {
@@ -1152,7 +1152,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"privacy/self-destruct"_q,
 		.action = SettingsControl{
-			::Settings::PrivacySecurity::Id(),
+			::Settings::PrivacySecurityId(),
 			u"privacy/self_destruct"_q,
 		},
 	});
@@ -1160,7 +1160,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"privacy/data-settings/suggest-contacts"_q,
 		.action = SettingsControl{
-			::Settings::PrivacySecurity::Id(),
+			::Settings::PrivacySecurityId(),
 			u"privacy/top_peers"_q,
 		},
 	});
@@ -1168,7 +1168,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"privacy/data-settings/clear-payment-info"_q,
 		.action = SettingsControl{
-			::Settings::PrivacySecurity::Id(),
+			::Settings::PrivacySecurityId(),
 			u"privacy/bots_payment"_q,
 		},
 	});
@@ -1176,7 +1176,7 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"privacy/archive-and-mute"_q,
 		.action = SettingsControl{
-			::Settings::PrivacySecurity::Id(),
+			::Settings::PrivacySecurityId(),
 			u"privacy/archive_and_mute"_q,
 		},
 	});

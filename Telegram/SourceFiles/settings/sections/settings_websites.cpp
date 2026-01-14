@@ -846,7 +846,7 @@ void Websites::setupContent() {
 
 const auto kMeta = BuildHelper({
 	.id = Websites::Id(),
-	.parentId = PrivacySecurity::Id(),
+	.parentId = PrivacySecurityId(),
 	.title = &tr::lng_settings_connected_title,
 	.icon = &st::menuIconIpAddress,
 }, [](SectionBuilder &builder) {

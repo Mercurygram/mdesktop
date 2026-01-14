@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_blocked_peers.h"
 
+#include "settings/settings_common_session.h"
+
 #include "api/api_blocked_peers.h"
 #include "apiwrap.h"
 #include "data/data_changes.h"
@@ -330,7 +332,7 @@ void Blocked::showFinished() {
 
 const auto kMeta = BuildHelper({
 	.id = Blocked::Id(),
-	.parentId = PrivacySecurity::Id(),
+	.parentId = PrivacySecurityId(),
 	.title = &tr::lng_settings_blocked_users,
 	.icon = &st::menuIconBlock,
 }, [](SectionBuilder &builder) {

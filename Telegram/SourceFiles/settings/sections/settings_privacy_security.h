@@ -7,8 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_common_session.h"
-#include "settings/settings_type.h"
+#include "settings/settings_common.h"
 #include "api/api_user_privacy.h"
 
 class EditPrivacyController;
@@ -19,6 +18,8 @@ class GenericBox;
 } // namespace Ui
 
 namespace Settings {
+
+[[nodiscard]] Type PrivacySecurityId();
 
 void SetupSensitiveContent(
 	not_null<Window::SessionController*> controller,
@@ -89,22 +90,4 @@ void SetupSelfDestruction(
 	not_null<Ui::VerticalLayout*> container,
 	rpl::producer<> updateTrigger);
 
-class PrivacySecurity : public Section<PrivacySecurity> {
-public:
-	PrivacySecurity(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller);
-
-	[[nodiscard]] rpl::producer<QString> title() override;
-
-private:
-	void setupContent();
-
-};
-
-namespace Builder {
-
-extern SectionBuildMethod PrivacySecuritySection;
-
-} // namespace Builder
 } // namespace Settings

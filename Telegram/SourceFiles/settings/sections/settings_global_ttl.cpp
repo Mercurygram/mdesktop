@@ -557,7 +557,7 @@ void GlobalTTL::showFinished() {
 
 const auto kMeta = BuildHelper({
 	.id = GlobalTTL::Id(),
-	.parentId = PrivacySecurity::Id(),
+	.parentId = PrivacySecurityId(),
 	.title = &tr::lng_settings_ttl_title,
 	.icon = &st::menuIconTTL,
 }, [](SectionBuilder &builder) {

@@ -131,7 +131,7 @@ void BuildPasskeysSection(
 
 const auto kMeta = BuildHelper({
 	.id = Passkeys::Id(),
-	.parentId = PrivacySecurity::Id(),
+	.parentId = PrivacySecurityId(),
 	.title = &tr::lng_settings_passkeys_title,
 	.icon = &st::menuIconPermissions,
 }, [](SectionBuilder &builder) {

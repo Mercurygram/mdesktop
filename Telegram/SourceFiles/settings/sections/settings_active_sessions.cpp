@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_active_sessions.h"
 
+#include "settings/settings_common_session.h"
+
 #include "api/api_authorizations.h"
 #include "apiwrap.h"
 #include "base/algorithm.h"
@@ -1264,7 +1266,7 @@ void Sessions::setupContent() {
 
 const auto kMeta = BuildHelper({
 	.id = Sessions::Id(),
-	.parentId = PrivacySecurity::Id(),
+	.parentId = PrivacySecurityId(),
 	.title = &tr::lng_settings_sessions_title,
 	.icon = &st::menuIconDevices,
 }, [](SectionBuilder &builder) {

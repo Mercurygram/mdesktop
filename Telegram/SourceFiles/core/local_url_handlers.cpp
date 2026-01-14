@@ -827,9 +827,9 @@ bool ResolveSettings(
 		} else if (section == u"folders"_q) {
 			return ::Settings::FoldersId();
 		} else if (section == u"privacy"_q) {
-			return ::Settings::PrivacySecurity::Id();
+			return ::Settings::PrivacySecurityId();
 		} else if (section == u"themes"_q) {
-			return ::Settings::Chat::Id();
+			return ::Settings::ChatId();
 		} else if (section == u"change_number"_q) {
 			controller->show(
 				Ui::MakeInformBox(tr::lng_change_phone_error()));

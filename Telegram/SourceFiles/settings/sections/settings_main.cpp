@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_main.h"
 
+#include "settings/settings_common_session.h"
+
 #include "api/api_cloud_password.h"
 #include "api/api_credits.h"
 #include "api/api_global_privacy.h"
@@ -349,7 +351,7 @@ void BuildSectionButtons(SectionBuilder &builder) {
 	builder.addSectionButton({
 		.id = u"main/privacy"_q,
 		.title = tr::lng_settings_section_privacy(),
-		.targetSection = PrivacySecurity::Id(),
+		.targetSection = PrivacySecurityId(),
 		.icon = { &st::menuIconLock },
 		.keywords = { u"security"_q, u"passcode"_q, u"password"_q, u"2fa"_q },
 	});
