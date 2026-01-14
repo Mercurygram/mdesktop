@@ -7,7 +7,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "settings/settings_common_session.h"
 #include "settings/settings_type.h"
 
 namespace Main {
@@ -27,6 +26,8 @@ class SessionController;
 
 namespace Settings {
 
+[[nodiscard]] Type AdvancedId();
+
 void SetupConnectionType(
 	not_null<Window::Controller*> controller,
 	not_null<::Main::Account*> account,
@@ -34,9 +35,6 @@ void SetupConnectionType(
 bool HasUpdate();
 void SetupUpdate(not_null<Ui::VerticalLayout*> container);
 void SetupWindowTitleContent(
-	Window::SessionController *controller,
-	not_null<Ui::VerticalLayout*> container);
-void SetupWindowCloseBehaviorContent(
 	Window::SessionController *controller,
 	not_null<Ui::VerticalLayout*> container);
 void SetupSystemIntegrationContent(
@@ -51,22 +49,4 @@ void ArchiveSettingsBox(
 	not_null<Window::SessionController*> controller);
 void PreloadArchiveSettings(not_null<::Main::Session*> session);
 
-class Advanced : public Section<Advanced> {
-public:
-	Advanced(
-		QWidget *parent,
-		not_null<Window::SessionController*> controller);
-
-	[[nodiscard]] rpl::producer<QString> title() override;
-
-private:
-	void setupContent();
-
-};
-
-namespace Builder {
-
-extern SectionBuildMethod AdvancedSection;
-
-} // namespace Builder
 } // namespace Settings

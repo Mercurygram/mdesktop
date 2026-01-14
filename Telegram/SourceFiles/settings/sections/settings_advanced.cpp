@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_advanced.h"
 
+#include "settings/settings_common_session.h"
+
 #include "api/api_global_privacy.h"
 #include "apiwrap.h"
 #include "base/call_delayed.h"
@@ -1112,6 +1114,19 @@ void BuildExportSection(SectionBuilder &builder) {
 	});
 }
 
+class Advanced : public Section<Advanced> {
+public:
+	Advanced(
+		QWidget *parent,
+		not_null<Window::SessionController*> controller);
+
+	[[nodiscard]] rpl::producer<QString> title() override;
+
+private:
+	void setupContent();
+
+};
+
 const auto kMeta = BuildHelper({
 	.id = Advanced::Id(),
 	.parentId = MainId(),
@@ -1134,6 +1149,27 @@ const auto kMeta = BuildHelper({
 	}
 	BuildExportSection(builder);
 });
+
+const SectionBuildMethod kAdvancedSection = kMeta.build;
+
+Advanced::Advanced(
+	QWidget *parent,
+	not_null<Window::SessionController*> controller)
+: Section(parent, controller) {
+	setupContent();
+}
+
+rpl::producer<QString> Advanced::title() {
+	return tr::lng_settings_advanced();
+}
+
+void Advanced::setupContent() {
+	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
+
+	build(content, kAdvancedSection);
+
+	Ui::ResizeFitChild(this, content);
+}
 
 } // namespace
 
@@ -1771,28 +1807,8 @@ void PreloadArchiveSettings(not_null<::Main::Session*> session) {
 	session->api().globalPrivacy().reload();
 }
 
-Advanced::Advanced(
-	QWidget *parent,
-	not_null<Window::SessionController*> controller)
-: Section(parent, controller) {
-	setupContent();
+Type AdvancedId() {
+	return Advanced::Id();
 }
 
-rpl::producer<QString> Advanced::title() {
-	return tr::lng_settings_advanced();
-}
-
-void Advanced::setupContent() {
-	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
-
-	build(content, Builder::AdvancedSection);
-
-	Ui::ResizeFitChild(this, content);
-}
-
-namespace Builder {
-
-SectionBuildMethod AdvancedSection = kMeta.build;
-
-} // namespace Builder
 } // namespace Settings

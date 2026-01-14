@@ -400,7 +400,7 @@ void BuildSectionButtons(SectionBuilder &builder) {
 	builder.addSectionButton({
 		.id = u"main/advanced"_q,
 		.title = tr::lng_settings_advanced(),
-		.targetSection = Advanced::Id(),
+		.targetSection = AdvancedId(),
 		.icon = { &st::menuIconManage },
 		.keywords = { u"performance"_q, u"proxy"_q, u"experimental"_q },
 	});

@@ -1658,7 +1658,7 @@ void UpdateApplication() {
 				controller->showSection(
 					std::make_shared<Info::Memento>(
 						Info::Settings::Tag{ controller->session().user() },
-						::Settings::Advanced::Id()),
+						::Settings::AdvancedId()),
 					Window::SectionShow());
 			} else {
 				window->widget()->showSpecialLayer(
