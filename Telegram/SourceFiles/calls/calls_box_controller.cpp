@@ -42,7 +42,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_updates.h"
 #include "apiwrap.h"
 #include "info/profile/info_profile_icon.h"
-#include "settings/settings_calls.h"
+#include "settings/sections/settings_calls.h"
 #include "settings/settings_common.h"
 #include "styles/style_info.h" // infoTopBarMenu
 #include "styles/style_layers.h" // st::boxLabel.

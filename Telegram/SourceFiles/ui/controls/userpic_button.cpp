@@ -38,7 +38,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "media/streaming/media_streaming_instance.h"
 #include "media/streaming/media_streaming_player.h"
 #include "media/streaming/media_streaming_document.h"
-#include "settings/settings_calls.h" // Calls::AddCameraSubsection.
+#include "settings/sections/settings_calls.h" // Calls::AddCameraSubsection.
 #include "settings/settings_privacy_controllers.h"
 #include "webrtc/webrtc_environment.h"
 #include "webrtc/webrtc_video_track.h"

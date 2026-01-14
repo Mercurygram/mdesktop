@@ -8,28 +8,26 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "settings/settings_common_session.h"
-#include "ui/effects/animations.h"
-#include "base/timer.h"
+#include "settings/settings_type.h"
 
 namespace style {
 struct Checkbox;
 struct Radio;
 } // namespace style
 
-namespace Calls {
-class Call;
-} // namespace Calls
-
-namespace Ui {
-class LevelMeter;
-class GenericBox;
-class Show;
-} // namespace Ui
-
 namespace Webrtc {
-class AudioInputTester;
 class VideoTrack;
 } // namespace Webrtc
+
+namespace Ui {
+class GenericBox;
+class Show;
+class VerticalLayout;
+} // namespace Ui
+
+namespace Window {
+class SessionController;
+} // namespace Window
 
 namespace Settings {
 
@@ -50,17 +48,6 @@ public:
 private:
 	void setupContent();
 	void requestPermissionAndStartTestingMicrophone();
-
-	void initPlaybackButton(
-		not_null<Ui::VerticalLayout*> container,
-		rpl::producer<QString> text,
-		rpl::producer<QString> resolvedId,
-		Fn<void(QString)> set);
-	void initCaptureButton(
-		not_null<Ui::VerticalLayout*> container,
-		rpl::producer<QString> text,
-		rpl::producer<QString> resolvedId,
-		Fn<void(QString)> set);
 
 	rpl::event_stream<QString> _cameraNameStream;
 	rpl::variable<bool> _testingMicrophone;
@@ -92,5 +79,9 @@ inline constexpr auto kMicTestAnimationDuration = crl::time(200);
 	const style::Checkbox *st = nullptr,
 	const style::Radio *radioSt = nullptr);
 
-} // namespace Settings
+namespace Builder {
 
+extern SectionBuildMethod CallsSection;
+
+} // namespace Builder
+} // namespace Settings
