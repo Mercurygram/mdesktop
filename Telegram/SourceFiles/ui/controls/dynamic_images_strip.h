@@ -13,6 +13,11 @@ namespace Ui {
 
 class DynamicImage;
 
+struct HoveredItemInfo {
+	int index = -1;
+	QPoint globalPos;
+};
+
 class DynamicImagesStrip final : public RpWidget {
 public:
 	DynamicImagesStrip(
@@ -23,6 +28,7 @@ public:
 
 	void setProgress(float64 progress);
 	void setClickCallback(Fn<void(int)> callback);
+	[[nodiscard]] rpl::producer<HoveredItemInfo> hoveredItemValue() const;
 
 protected:
 	void paintEvent(QPaintEvent *e) override;
@@ -32,6 +38,7 @@ protected:
 
 private:
 	void startAnimation();
+	void updateHoveredItem(int index);
 
 	std::vector<std::shared_ptr<DynamicImage>> _thumbnails;
 	int _userpicSize = 0;
@@ -44,6 +51,7 @@ private:
 	std::vector<float64> _alphaTargets;
 	Animations::Basic _animation;
 	Fn<void(int)> _clickCallback;
+	rpl::event_stream<HoveredItemInfo> _hoveredItem;
 
 };
 

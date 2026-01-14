@@ -7,20 +7,26 @@
 #include "history/view/history_view_top_peers_selector.h"
 
 #include "apiwrap.h"
-#include "main/session/session_show.h"
+#include "base/unique_qptr.h"
 #include "chat_helpers/share_message_phrase_factory.h"
+#include "data/components/top_peers.h"
+#include "data/data_peer.h"
+#include "data/data_session.h"
+#include "data/data_user.h"
+#include "history/history.h"
+#include "info/profile/info_profile_values.h"
+#include "lang/lang_keys.h"
+#include "main/main_session.h"
+#include "main/session/session_show.h"
 #include "ui/controls/dynamic_images_strip.h"
 #include "ui/controls/popup_selector.h"
 #include "ui/dynamic_image.h"
 #include "ui/dynamic_thumbnails.h"
 #include "ui/effects/animations.h"
 #include "ui/rect.h"
-#include "data/components/top_peers.h"
-#include "history/history.h"
-#include "data/data_peer.h"
-#include "data/data_user.h"
-#include "data/data_session.h"
-#include "main/main_session.h"
+#include "ui/widgets/labels.h"
+#include "ui/widgets/tooltip.h"
+#include "ui/wrap/padding_wrap.h"
 #include "styles/style_chat_helpers.h"
 
 namespace HistoryView {
@@ -108,15 +114,60 @@ void ShowTopPeersSelector(
 		selector->hideAnimated();
 	});
 	userpicsWidget->setCursor(style::cur_pointer);
+
+	struct State {
+		base::unique_qptr<Ui::ImportantTooltip> tooltip;
+		Ui::Animations::Simple animation;
+	};
+	const auto state = selector->lifetime().make_state<State>();
+
+	userpicsWidget->hoveredItemValue(
+	) | rpl::on_next([=](Ui::HoveredItemInfo info) {
+		if (info.index < 0) {
+			state->tooltip = nullptr;
+			return;
+		}
+		state->tooltip = base::make_unique_q<Ui::ImportantTooltip>(
+			parent,
+			object_ptr<Ui::PaddingWrap<Ui::FlatLabel>>(
+				selector,
+				Ui::MakeNiceTooltipLabel(
+					parent,
+					Info::Profile::NameValue(peers[info.index]) | rpl::map(tr::rich),
+					userpicsWidget->width(),
+					st::topPeersSelectorImportantTooltipLabel),
+				st::topPeersSelectorImportantTooltip.padding),
+			st::topPeersSelectorImportantTooltip);
+		state->tooltip->setWindowFlags(Qt::WindowFlags(Qt::ToolTip)
+			| Qt::BypassWindowManagerHint
+			| Qt::NoDropShadowWindowHint
+			| Qt::FramelessWindowHint);
+		state->tooltip->setAttribute(Qt::WA_NoSystemBackground, true);
+		state->tooltip->setAttribute(Qt::WA_TranslucentBackground, true);
+		state->tooltip->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+		const auto step = st::topPeersSelectorUserpicSize
+			+ st::topPeersSelectorUserpicGap;
+		const auto shift = (userpicsWidget->height()
+			- st::topPeersSelectorUserpicSize) / 2;
+		const auto localX = info.index * step + shift;
+		const auto avatarRect = QRect(
+			localX,
+			-shift,
+			st::topPeersSelectorUserpicSize,
+			st::topPeersSelectorUserpicSize);
+		const auto globalRect = QRect(
+			userpicsWidget->mapToGlobal(avatarRect.topLeft()),
+			avatarRect.size());
+		state->tooltip->pointAt(globalRect, RectPart::Top);
+		state->tooltip->toggleAnimated(true);
+	}, selector->lifetime());
 	selector->updateShowState(0, 0, true);
 	selector->popup((!globalPos.isNull() ? globalPos : QCursor::pos())
 		- QPoint(selector->width() / 2, selector->height())
 		+ st::topPeersSelectorSkip);
 
-	auto animation
-		= selector->lifetime().make_state<Ui::Animations::Simple>();
 	constexpr auto kShift = 0.15;
-	animation->start([=](float64 value) {
+	state->animation.start([=](float64 value) {
 		const auto userpicsProgress = std::clamp((value - kShift), 0., 1.);
 		userpicsWidget->setProgress(anim::easeInQuint(1, userpicsProgress));
 		value = std::clamp(value, 0., 1.);

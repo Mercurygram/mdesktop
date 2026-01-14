@@ -9,6 +9,7 @@
 #include "ui/dynamic_image.h"
 #include "ui/painter.h"
 #include "styles/style_chat_helpers.h"
+#include "styles/style_widgets.h"
 
 namespace Ui {
 namespace {
@@ -60,6 +61,10 @@ void DynamicImagesStrip::setProgress(float64 progress) {
 
 void DynamicImagesStrip::setClickCallback(Fn<void(int)> callback) {
 	_clickCallback = std::move(callback);
+}
+
+rpl::producer<HoveredItemInfo> DynamicImagesStrip::hoveredItemValue() const {
+	return _hoveredItem.events();
 }
 
 void DynamicImagesStrip::paintEvent(QPaintEvent *e) {
@@ -129,6 +134,9 @@ void DynamicImagesStrip::mouseMoveEvent(QMouseEvent *e) {
 					_alphaTargets[i] = kDimmedAlpha;
 				}
 			}
+			updateHoveredItem(newIndex);
+		} else {
+			updateHoveredItem(-1);
 		}
 		startAnimation();
 	}
@@ -147,6 +155,7 @@ void DynamicImagesStrip::leaveEventHook(QEvent *e) {
 			_scaleTargets[i] = 0.;
 			_alphaTargets[i] = 1.;
 		}
+		updateHoveredItem(-1);
 		startAnimation();
 	}
 }
@@ -155,6 +164,23 @@ void DynamicImagesStrip::startAnimation() {
 	if (!_animation.animating()) {
 		_animation.start();
 	}
+}
+
+void DynamicImagesStrip::updateHoveredItem(int index) {
+	if (index < 0) {
+		_hoveredItem.fire({ .index = -1, .globalPos = {} });
+		return;
+	}
+	const auto step = _userpicSize + _gap;
+	const auto shift = (height() - _userpicSize) / 2;
+	const auto x = index * step + shift;
+	const auto avatarRect = QRect(x, shift, _userpicSize, _userpicSize);
+	const auto globalRect = QRect(
+		mapToGlobal(avatarRect.topLeft()),
+		avatarRect.size());
+	_hoveredItem.fire({
+		.index = index,
+		.globalPos = globalRect.center() });
 }
 
 } // namespace Ui
