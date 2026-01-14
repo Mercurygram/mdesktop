@@ -38,7 +38,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_domain.h"
 #include "main/main_session.h"
 #include "storage/storage_domain.h"
-#include "settings/settings_active_sessions.h"
+#include "settings/sections/settings_active_sessions.h"
 #include "settings/sections/settings_advanced.h"
 #include "settings/settings_blocked_peers.h"
 #include "settings/settings_business.h"

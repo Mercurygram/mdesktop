@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "settings/settings_common_session.h"
+#include "settings/settings_type.h"
 
 namespace Ui {
 class VerticalLayout;
@@ -38,4 +39,9 @@ void AddSessionInfoRow(
 	const QString &value,
 	const style::icon &icon);
 
+namespace Builder {
+
+extern SectionBuildMethod SessionsSection;
+
+} // namespace Builder
 } // namespace Settings

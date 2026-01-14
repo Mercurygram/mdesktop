@@ -5,40 +5,45 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "settings/settings_active_sessions.h"
+#include "settings/sections/settings_active_sessions.h"
 
-#include "apiwrap.h"
 #include "api/api_authorizations.h"
-#include "base/timer.h"
-#include "base/unixtime.h"
+#include "apiwrap.h"
 #include "base/algorithm.h"
 #include "base/platform/base_platform_info.h"
-#include "boxes/self_destruction_box.h"
+#include "base/timer.h"
+#include "base/unixtime.h"
 #include "boxes/peer_lists_box.h"
-#include "ui/boxes/confirm_box.h"
+#include "boxes/self_destruction_box.h"
+#include "core/application.h"
+#include "core/core_settings.h"
 #include "lang/lang_keys.h"
+#include "lottie/lottie_icon.h"
 #include "main/main_session.h"
+#include "settings/sections/settings_privacy_security.h"
+#include "settings/settings_builder.h"
+#include "ui/boxes/confirm_box.h"
+#include "ui/layers/generic_box.h"
+#include "ui/painter.h"
+#include "ui/vertical_list.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/labels.h"
 #include "ui/widgets/scroll_area.h"
-#include "ui/wrap/slide_wrap.h"
 #include "ui/wrap/padding_wrap.h"
+#include "ui/wrap/slide_wrap.h"
 #include "ui/wrap/vertical_layout.h"
-#include "ui/layers/generic_box.h"
-#include "ui/painter.h"
-#include "ui/vertical_list.h"
-#include "lottie/lottie_icon.h"
-#include "core/application.h"
-#include "core/core_settings.h"
 #include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
 #include "styles/style_info.h"
 #include "styles/style_layers.h"
-#include "styles/style_settings.h"
 #include "styles/style_menu_icons.h"
+#include "styles/style_settings.h"
 
+namespace Settings {
 namespace {
+
+using namespace Builder;
 
 constexpr auto kShortPollTimeout = 60 * crl::time(1000);
 constexpr auto kMaxDeviceModelLength = 32;
@@ -233,27 +238,21 @@ void RenameBox(not_null<Ui::GenericBox*> box) {
 		case Type::Windows:
 		case Type::Mac:
 		case Type::Other:
-			// Blue.
 			return { st::historyPeer4UserpicBg, st::historyPeer4UserpicBg2 };
 		case Type::Ubuntu:
-			// Orange.
 			return { st::historyPeer8UserpicBg, st::historyPeer8UserpicBg2 };
 		case Type::Linux:
-			// Purple.
 			return { st::historyPeer5UserpicBg, st::historyPeer5UserpicBg2 };
 		case Type::iPhone:
 		case Type::iPad:
-			// Sea.
 			return { st::historyPeer7UserpicBg, st::historyPeer7UserpicBg2 };
 		case Type::Android:
-			// Green.
 			return { st::historyPeer2UserpicBg, st::historyPeer2UserpicBg2 };
 		case Type::Web:
 		case Type::Chrome:
 		case Type::Edge:
 		case Type::Firefox:
 		case Type::Safari:
-			// Pink.
 			return { st::historyPeer6UserpicBg, st::historyPeer6UserpicBg2 };
 		}
 		Unexpected("Type in GradientForType.");
@@ -444,7 +443,6 @@ void SessionInfoBox(
 		style::margins(0, 0, 0, st::sessionDateSkip),
 		style::al_top);
 
-	using namespace Settings;
 	const auto container = box->verticalLayout();
 	Ui::AddDivider(container);
 	Ui::AddSkip(container, st::sessionSubtitleSkip);
@@ -648,9 +646,9 @@ class SessionsContent::ListController final
 	, public RowDelegate
 	, public base::has_weak_ptr {
 public:
-	explicit ListController(not_null<Main::Session*> session);
+	explicit ListController(not_null<::Main::Session*> session);
 
-	Main::Session &session() const override;
+	::Main::Session &session() const override;
 	void prepare() override;
 	void rowClicked(not_null<PeerListRow*> row) override;
 	void rowElementClicked(not_null<PeerListRow*> row, int element) override;
@@ -664,11 +662,11 @@ public:
 
 	[[nodiscard]] static std::unique_ptr<ListController> Add(
 		not_null<Ui::VerticalLayout*> container,
-		not_null<Main::Session*> session,
+		not_null<::Main::Session*> session,
 		style::margins margins = {});
 
 private:
-	const not_null<Main::Session*> _session;
+	const not_null<::Main::Session*> _session;
 
 	rpl::event_stream<uint64> _terminateRequests;
 	rpl::event_stream<int> _itemsCount;
@@ -702,8 +700,6 @@ private:
 	rpl::variable<int> _ttlDays;
 
 };
-
-//, location(st::sessionInfoStyle, LocationAndDate(entry))
 
 SessionsContent::SessionsContent(
 	QWidget*,
@@ -898,7 +894,6 @@ SessionsContent::Inner::Inner(
 }
 
 void SessionsContent::Inner::setupContent() {
-	using namespace Settings;
 	using namespace rpl::mappers;
 
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
@@ -1042,11 +1037,11 @@ rpl::producer<EntryData> SessionsContent::Inner::showRequests() const {
 }
 
 SessionsContent::ListController::ListController(
-	not_null<Main::Session*> session)
+	not_null<::Main::Session*> session)
 : _session(session) {
 }
 
-Main::Session &SessionsContent::ListController::session() const {
+::Main::Session &SessionsContent::ListController::session() const {
 	return *_session;
 }
 
@@ -1119,7 +1114,7 @@ rpl::producer<EntryData> SessionsContent::ListController::showRequests() const {
 
 auto SessionsContent::ListController::Add(
 	not_null<Ui::VerticalLayout*> container,
-	not_null<Main::Session*> session,
+	not_null<::Main::Session*> session,
 	style::margins margins)
 -> std::unique_ptr<ListController> {
 	auto &lifetime = container->lifetime();
@@ -1138,9 +1133,54 @@ auto SessionsContent::ListController::Add(
 	return controller;
 }
 
-} // namespace
+void BuildSessionsSection(SectionBuilder &builder) {
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"sessions/current"_q,
+			.title = tr::lng_sessions_header(tr::now),
+			.keywords = { u"current"_q, u"device"_q, u"session"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"sessions/terminate-all"_q,
+			.title = tr::lng_sessions_terminate_all(tr::now),
+			.keywords = { u"terminate"_q, u"logout"_q, u"sign out"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"sessions/incomplete"_q,
+			.title = tr::lng_sessions_incomplete(tr::now),
+			.keywords = { u"incomplete"_q, u"unconfirmed"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"sessions/other"_q,
+			.title = tr::lng_sessions_other_header(tr::now),
+			.keywords = { u"other"_q, u"active"_q, u"sessions"_q },
+		};
+	});
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"sessions/auto-terminate"_q,
+			.title = tr::lng_settings_terminate_if(tr::now),
+			.keywords = { u"auto"_q, u"terminate"_q, u"inactive"_q, u"timeout"_q },
+		};
+	});
+}
 
-namespace Settings {
+const auto kMeta = BuildHelper({
+	.id = Sessions::Id(),
+	.parentId = PrivacySecurity::Id(),
+	.title = &tr::lng_settings_sessions_title,
+	.icon = &st::menuIconDevices,
+}, [](SectionBuilder &builder) {
+	BuildSessionsSection(builder);
+});
+
+} // namespace
 
 Sessions::Sessions(
 	QWidget *parent,
@@ -1154,12 +1194,14 @@ rpl::producer<QString> Sessions::title() {
 }
 
 void Sessions::showFinished() {
-	controller()->checkHighlightControl(u"devices/terminate-sessions"_q, _terminateAll);
-	controller()->checkHighlightControl(u"devices/auto-terminate"_q, _autoTerminate);
+	Section::showFinished();
+	controller()->checkHighlightControl(u"sessions/terminate-all"_q, _terminateAll);
+	controller()->checkHighlightControl(u"sessions/auto-terminate"_q, _autoTerminate);
 }
 
 void Sessions::setupContent() {
 	const auto container = Ui::CreateChild<Ui::VerticalLayout>(this);
+
 	AddSkip(container, st::settingsPrivacySkip);
 	const auto content = container->add(
 		object_ptr<SessionsContent>(container, controller()));
@@ -1167,6 +1209,8 @@ void Sessions::setupContent() {
 
 	_terminateAll = content->terminateAllButton();
 	_autoTerminate = content->autoTerminateButton();
+
+	build(container, Builder::SessionsSection);
 
 	Ui::ResizeFitChild(this, container);
 }
@@ -1208,4 +1252,9 @@ void AddSessionInfoRow(
 	}, widget->lifetime());
 }
 
+namespace Builder {
+
+SectionBuildMethod SessionsSection = kMeta.build;
+
+} // namespace Builder
 } // namespace Settings

@@ -43,7 +43,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/cloud_password/settings_cloud_password_input.h"
 #include "settings/cloud_password/settings_cloud_password_start.h"
 #include "settings/sections/settings_main.h"
-#include "settings/settings_active_sessions.h"
+#include "settings/sections/settings_active_sessions.h"
 #include "settings/settings_blocked_peers.h"
 #include "settings/sections/settings_global_ttl.h"
 #include "settings/sections/settings_local_passcode.h"
