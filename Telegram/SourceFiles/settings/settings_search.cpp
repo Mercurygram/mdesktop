@@ -34,7 +34,8 @@ namespace {
 
 struct SearchResult {
 	Builder::SearchEntry entry;
-	int score = 0;
+	int matchCount = 0;
+	int depth = 0;
 };
 
 [[nodiscard]] QStringList PrepareEntryWords(const Builder::SearchEntry &entry) {
@@ -56,35 +57,54 @@ struct SearchResult {
 	return false;
 }
 
-[[nodiscard]] int CalculateScore(
+[[nodiscard]] int CalculateMatchCount(
 		const Builder::SearchEntry &entry,
 		const QStringList &queryWords) {
 	if (queryWords.isEmpty()) {
 		return 0;
 	}
 	const auto entryWords = PrepareEntryWords(entry);
+	auto matched = 0;
 	for (const auto &queryWord : queryWords) {
-		if (!MatchesWord(entryWords, queryWord)) {
-			return 0;
+		if (MatchesWord(entryWords, queryWord)) {
+			++matched;
 		}
 	}
-	return 100;
+	return matched;
+}
+
+[[nodiscard]] int CalculateDepth(
+		Type sectionId,
+		const Builder::SearchRegistry &registry) {
+	const auto path = registry.sectionPath(sectionId);
+	if (path.isEmpty()) {
+		return 0;
+	}
+	return path.count(u" > "_q) + 1;
 }
 
 [[nodiscard]] std::vector<SearchResult> FilterAndSort(
 		const std::vector<Builder::SearchEntry> &entries,
 		const QString &query) {
 	const auto queryWords = TextUtilities::PrepareSearchWords(query);
+	const auto &registry = Builder::SearchRegistry::Instance();
 	auto results = std::vector<SearchResult>();
 	for (const auto &entry : entries) {
-		const auto score = CalculateScore(entry, queryWords);
-		if (score > 0) {
-			results.push_back({ entry, score });
+		const auto matchCount = CalculateMatchCount(entry, queryWords);
+		if (matchCount > 0) {
+			results.push_back({
+				entry,
+				matchCount,
+				CalculateDepth(entry.section, registry),
+			});
 		}
 	}
 	ranges::sort(results, [](const SearchResult &a, const SearchResult &b) {
-		if (a.score != b.score) {
-			return a.score > b.score;
+		if (a.matchCount != b.matchCount) {
+			return a.matchCount > b.matchCount;
+		}
+		if (a.depth != b.depth) {
+			return a.depth < b.depth;
 		}
 		return a.entry.title < b.entry.title;
 	});
