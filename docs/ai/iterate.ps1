@@ -33,6 +33,23 @@ $BuildOutputDir = Join-Path $RepoRoot "out\Debug"
 $TelegramExe = Join-Path $BuildOutputDir "Telegram.exe"
 $TelegramPdb = Join-Path $BuildOutputDir "Telegram.pdb"
 
+function Format-Duration {
+    param([int]$Seconds)
+
+    if ($Seconds -lt 60) {
+        return "${Seconds}s"
+    } elseif ($Seconds -lt 3600) {
+        $min = [math]::Floor($Seconds / 60)
+        $sec = $Seconds % 60
+        return "${min}m ${sec}s"
+    } else {
+        $hr = [math]::Floor($Seconds / 3600)
+        $min = [math]::Floor(($Seconds % 3600) / 60)
+        $sec = $Seconds % 60
+        return "${hr}h ${min}m ${sec}s"
+    }
+}
+
 function Test-BuildFilesUnlocked {
     $filesToCheck = @($TelegramExe, $TelegramPdb)
 
@@ -153,7 +170,7 @@ Do exactly ONE task per iteration.
 
 ## Steps
 
-1. Read tasks.json and find the next task to implement (respecting dependencies)
+1. Read tasks.json and find the most suitable task to implement (it can be first uncompleted task or it can be some task in the middle, if it is better suited to be implemented right now, respecting dependencies)
 2. Use /ultrathink to plan the implementation carefully
 3. Implement that ONE task only
 4. After successful implementation:
@@ -214,6 +231,9 @@ if ($DryRun) {
 
 Push-Location $RepoRoot
 
+$ScriptStartTime = Get-Date
+$IterationTimes = @()
+
 try {
     for ($i = 1; $i -le $MaxIterations; $i++) {
         Write-Host ""
@@ -226,9 +246,16 @@ try {
             exit 1
         }
 
+        $IterationStartTime = Get-Date
+
         claude --dangerously-skip-permissions --verbose -p $Prompt --output-format stream-json 2>&1 | ForEach-Object {
             Show-ClaudeStream $_
         }
+
+        $IterationEndTime = Get-Date
+        $IterationDuration = [int]($IterationEndTime - $IterationStartTime).TotalSeconds
+        $IterationTimes += $IterationDuration
+        Write-Host "Iteration time: $(Format-Duration $IterationDuration)" -ForegroundColor DarkCyan
 
         # Check task status after each run
         $tasks = Get-Content $TasksJson | ConvertFrom-Json
@@ -236,32 +263,27 @@ try {
         $inProgress = @($tasks.tasks | Where-Object { $_.started -and -not $_.completed })
 
         if ($incomplete.Count -eq 0) {
-            Write-Host ""
-            Write-Host "========================================" -ForegroundColor Green
-            Write-Host "  ALL TASKS COMPLETE!" -ForegroundColor Green
-            Write-Host "  Feature: $FeatureName" -ForegroundColor Green
-            Write-Host "  Finished after $i iterations" -ForegroundColor Green
-            Write-Host "========================================" -ForegroundColor Green
-            Write-Host ""
-
             if ($SingleCommit) {
                 $i++
                 if ($i -le $MaxIterations) {
+                    Write-Host ""
                     Write-Host "========================================" -ForegroundColor Yellow
                     Write-Host "  Final commit iteration" -ForegroundColor Yellow
                     Write-Host "========================================" -ForegroundColor Yellow
                     Write-Host ""
 
+                    $CommitStartTime = Get-Date
+
                     claude --dangerously-skip-permissions --verbose -p $CommitPrompt --output-format stream-json 2>&1 | ForEach-Object {
                         Show-ClaudeStream $_
                     }
 
-                    Write-Host ""
-                    Write-Host "========================================" -ForegroundColor Green
-                    Write-Host "  Commit complete!" -ForegroundColor Green
-                    Write-Host "========================================" -ForegroundColor Green
-                    Write-Host ""
+                    $CommitEndTime = Get-Date
+                    $CommitDuration = [int]($CommitEndTime - $CommitStartTime).TotalSeconds
+                    $IterationTimes += $CommitDuration
+                    Write-Host "Commit time: $(Format-Duration $CommitDuration)" -ForegroundColor DarkCyan
                 } else {
+                    Write-Host ""
                     Write-Host "========================================" -ForegroundColor Red
                     Write-Host "  Max iterations reached before commit" -ForegroundColor Red
                     Write-Host "  Run manually: git add . && git commit" -ForegroundColor Red
@@ -270,6 +292,19 @@ try {
                     exit 1
                 }
             }
+
+            $TotalTime = [int]((Get-Date) - $ScriptStartTime).TotalSeconds
+            $AvgTime = if ($IterationTimes.Count -gt 0) { [int](($IterationTimes | Measure-Object -Sum).Sum / $IterationTimes.Count) } else { 0 }
+
+            Write-Host ""
+            Write-Host "========================================" -ForegroundColor Green
+            Write-Host "  ALL TASKS COMPLETE!" -ForegroundColor Green
+            Write-Host "  Feature: $FeatureName" -ForegroundColor Green
+            Write-Host "  Iterations: $($IterationTimes.Count)" -ForegroundColor Green
+            Write-Host "  Total time: $(Format-Duration $TotalTime)" -ForegroundColor Green
+            Write-Host "  Avg per iteration: $(Format-Duration $AvgTime)" -ForegroundColor Green
+            Write-Host "========================================" -ForegroundColor Green
+            Write-Host ""
 
             exit 0
         }
@@ -288,10 +323,15 @@ try {
         }
     }
 
+    $TotalTime = [int]((Get-Date) - $ScriptStartTime).TotalSeconds
+    $AvgTime = if ($IterationTimes.Count -gt 0) { [int](($IterationTimes | Measure-Object -Sum).Sum / $IterationTimes.Count) } else { 0 }
+
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Red
     Write-Host "  Max iterations ($MaxIterations) reached" -ForegroundColor Red
     Write-Host "  Check tasks.json for remaining tasks" -ForegroundColor Red
+    Write-Host "  Total time: $(Format-Duration $TotalTime)" -ForegroundColor Red
+    Write-Host "  Avg per iteration: $(Format-Duration $AvgTime)" -ForegroundColor Red
     Write-Host "========================================" -ForegroundColor Red
     Write-Host ""
     exit 1
