@@ -594,7 +594,7 @@ void Shortcuts::showFinished() {
 
 const auto kMeta = BuildHelper({
 	.id = Shortcuts::Id(),
-	.parentId = Chat::Id(),
+	.parentId = ChatId(),
 	.title = &tr::lng_settings_shortcuts,
 	.icon = &st::menuIconShortcut,
 }, [](SectionBuilder &builder) {
