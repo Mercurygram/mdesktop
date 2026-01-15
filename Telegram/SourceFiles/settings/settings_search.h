@@ -9,6 +9,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <any>
 
+#include "base/flat_map.h"
+#include "settings/settings_builder.h"
 #include "settings/settings_common_session.h"
 
 namespace Window {
@@ -40,6 +42,12 @@ public:
 		not_null<QWidget*> parent) override;
 
 private:
+	struct IndexedEntry {
+		Builder::SearchEntry entry;
+		QStringList terms;
+		int depth = 0;
+	};
+
 	struct ResultCustomization {
 		Fn<void(not_null<Ui::SettingsButton*>)> hook;
 		const style::SettingsButton *st = nullptr;
@@ -47,6 +55,7 @@ private:
 
 	void setupContent();
 	void setupCustomizations();
+	void buildIndex();
 	void rebuildResults(const QString &query);
 
 	std::unique_ptr<Ui::SearchFieldController> _searchController;
@@ -54,6 +63,8 @@ private:
 	Ui::VerticalLayout *_resultsContainer = nullptr;
 	base::flat_map<QString, ResultCustomization> _customizations;
 	std::any *_stepData = nullptr;
+	std::vector<IndexedEntry> _entries;
+	base::flat_map<QChar, base::flat_set<int>> _firstLetterIndex;
 
 };
 

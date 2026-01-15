@@ -32,10 +32,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Settings {
 namespace {
 
-struct SearchResult {
-	Builder::SearchEntry entry;
+struct SearchResultItem {
+	int index = 0;
 	int matchCount = 0;
-	int depth = 0;
 };
 
 [[nodiscard]] QStringList PrepareEntryWords(const Builder::SearchEntry &entry) {
@@ -46,33 +45,6 @@ struct SearchResult {
 	return TextUtilities::PrepareSearchWords(combined);
 }
 
-[[nodiscard]] bool MatchesWord(
-		const QStringList &entryWords,
-		const QString &queryWord) {
-	for (const auto &entryWord : entryWords) {
-		if (entryWord.startsWith(queryWord)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-[[nodiscard]] int CalculateMatchCount(
-		const Builder::SearchEntry &entry,
-		const QStringList &queryWords) {
-	if (queryWords.isEmpty()) {
-		return 0;
-	}
-	const auto entryWords = PrepareEntryWords(entry);
-	auto matched = 0;
-	for (const auto &queryWord : queryWords) {
-		if (MatchesWord(entryWords, queryWord)) {
-			++matched;
-		}
-	}
-	return matched;
-}
-
 [[nodiscard]] int CalculateDepth(
 		Type sectionId,
 		const Builder::SearchRegistry &registry) {
@@ -81,34 +53,6 @@ struct SearchResult {
 		return 0;
 	}
 	return path.count(u" > "_q) + 1;
-}
-
-[[nodiscard]] std::vector<SearchResult> FilterAndSort(
-		const std::vector<Builder::SearchEntry> &entries,
-		const QString &query) {
-	const auto queryWords = TextUtilities::PrepareSearchWords(query);
-	const auto &registry = Builder::SearchRegistry::Instance();
-	auto results = std::vector<SearchResult>();
-	for (const auto &entry : entries) {
-		const auto matchCount = CalculateMatchCount(entry, queryWords);
-		if (matchCount > 0) {
-			results.push_back({
-				entry,
-				matchCount,
-				CalculateDepth(entry.section, registry),
-			});
-		}
-	}
-	ranges::sort(results, [](const SearchResult &a, const SearchResult &b) {
-		if (a.matchCount != b.matchCount) {
-			return a.matchCount > b.matchCount;
-		}
-		if (a.depth != b.depth) {
-			return a.depth < b.depth;
-		}
-		return a.entry.title < b.entry.title;
-	});
-	return results;
 }
 
 void SetupCheckIcon(
@@ -233,6 +177,7 @@ void Search::setupContent() {
 		object_ptr<Ui::VerticalLayout>(content));
 
 	setupCustomizations();
+	buildIndex();
 	rebuildResults(QString());
 
 	Ui::ResizeFitChild(this, content);
@@ -260,22 +205,91 @@ void Search::setupCustomizations() {
 	});
 }
 
+void Search::buildIndex() {
+	const auto &registry = Builder::SearchRegistry::Instance();
+	const auto rawEntries = registry.collectAll(&controller()->session());
+
+	_entries.reserve(rawEntries.size());
+	for (const auto &entry : rawEntries) {
+		auto indexed = IndexedEntry{
+			.entry = entry,
+			.terms = PrepareEntryWords(entry),
+			.depth = CalculateDepth(entry.section, registry),
+		};
+		_entries.push_back(std::move(indexed));
+	}
+
+	for (auto i = 0; i < int(_entries.size()); ++i) {
+		for (const auto &term : _entries[i].terms) {
+			if (!term.isEmpty()) {
+				_firstLetterIndex[term[0]].insert(i);
+			}
+		}
+	}
+}
+
 void Search::rebuildResults(const QString &query) {
 	while (_resultsContainer->count() > 0) {
 		delete _resultsContainer->widgetAt(0);
 	}
 
-	const auto entries = Builder::SearchRegistry::Instance().collectAll(
-		&controller()->session());
-	const auto results = query.trimmed().isEmpty()
-		? ranges::views::all(entries)
-			| ranges::views::transform([](const auto &e) {
-				return SearchResult{ e, 0 };
-			})
-			| ranges::to<std::vector<SearchResult>>()
-		: FilterAndSort(entries, query);
+	const auto queryWords = TextUtilities::PrepareSearchWords(query);
+	auto results = std::vector<SearchResultItem>();
 
-	if (results.empty()) {
+	if (queryWords.isEmpty()) {
+		for (auto i = 0; i < int(_entries.size()); ++i) {
+			results.push_back({ .index = i, .matchCount = 0 });
+		}
+	} else {
+		auto toFilter = (const base::flat_set<int>*)nullptr;
+		for (const auto &word : queryWords) {
+			if (word.isEmpty()) {
+				continue;
+			}
+			const auto it = _firstLetterIndex.find(word[0]);
+			if (it == _firstLetterIndex.end() || it->second.empty()) {
+				toFilter = nullptr;
+				break;
+			} else if (!toFilter || it->second.size() < toFilter->size()) {
+				toFilter = &it->second;
+			}
+		}
+
+		if (toFilter) {
+			for (const auto entryIndex : *toFilter) {
+				const auto &indexed = _entries[entryIndex];
+				auto matched = 0;
+				for (const auto &queryWord : queryWords) {
+					for (const auto &term : indexed.terms) {
+						if (term.startsWith(queryWord)) {
+							++matched;
+							break;
+						}
+					}
+				}
+				if (matched > 0) {
+					results.push_back({
+						.index = entryIndex,
+						.matchCount = matched,
+					});
+				}
+			}
+
+			ranges::sort(results, [&](const auto &a, const auto &b) {
+				if (a.matchCount != b.matchCount) {
+					return a.matchCount > b.matchCount;
+				}
+				const auto &entryA = _entries[a.index];
+				const auto &entryB = _entries[b.index];
+				if (entryA.depth != entryB.depth) {
+					return entryA.depth < entryB.depth;
+				}
+				return entryA.entry.title < entryB.entry.title;
+			});
+		}
+	}
+
+	if (results.empty() && !queryWords.isEmpty()) {
 		_resultsContainer->add(
 			object_ptr<Ui::FlatLabel>(
 				_resultsContainer,
@@ -287,7 +301,7 @@ void Search::rebuildResults(const QString &query) {
 		const auto &registry = Builder::SearchRegistry::Instance();
 
 		for (const auto &result : results) {
-			const auto &entry = result.entry;
+			const auto &entry = _entries[result.index].entry;
 			const auto parentsOnly = entry.id.isEmpty();
 			const auto subtitle = registry.sectionPath(
 				entry.section,
