@@ -460,7 +460,7 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"profile-photo"_q,
-		.action = AliasTo{ u"edit"_q, u"set-photo"_q },
+		.action = AliasTo{ u"settings"_q, u"edit/set-photo"_q },
 	});
 
 	router.add(u"settings"_q, {

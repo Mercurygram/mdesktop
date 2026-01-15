@@ -749,12 +749,10 @@ const auto kMeta = BuildHelper({
 	builder.addDivider();
 	builder.addSkip();
 
-	builder.add([](const WidgetContext &) {
-		return SectionBuilder::WidgetToAdd{};
-	}, [] {
+	builder.add(nullptr, [] {
 		return SearchEntry{
 			.id = u"main/profile-photo"_q,
-			.title = u"Profile Photo"_q,
+			.title = tr::lng_profile_set_photo_for(tr::now),
 			.keywords = { u"photo"_q, u"avatar"_q, u"picture"_q, u"profile"_q },
 			.icon = { &st::menuIconProfile },
 			.deeplink = u"tg://settings/profile-photo"_q,

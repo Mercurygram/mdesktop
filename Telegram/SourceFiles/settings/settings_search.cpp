@@ -287,7 +287,7 @@ void Search::rebuildResults(const QString &query) {
 			const auto deeplink = entry.deeplink;
 			button->addClickHandler([=] {
 				if (!deeplink.isEmpty()) {
-					Core::App().openInternalUrl(
+					Core::App().openLocalUrl(
 						deeplink,
 						QVariant::fromValue(ClickHandlerContext{
 							.sessionWindow = base::make_weak(controller()),
