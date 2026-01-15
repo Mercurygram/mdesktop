@@ -673,6 +673,8 @@ void Main::setupContent() {
 			not_null<Window::SessionController*> controller,
 			Fn<void(Type)> showOther,
 			rpl::producer<> showFinished) {
+		auto &lifetime = container->lifetime();
+		const auto highlights = lifetime.make_state<HighlightRegistry>();
 		const auto isPaused = Window::PausedIn(
 			controller,
 			Window::GifPauseReason::Layer);
@@ -681,6 +683,7 @@ void Main::setupContent() {
 			.controller = controller,
 			.showOther = std::move(showOther),
 			.isPaused = isPaused,
+			.highlights = highlights,
 		});
 		builder.addDivider();
 		builder.addSkip();
@@ -690,6 +693,17 @@ void Main::setupContent() {
 		BuildInterfaceScale(builder);
 		BuildPremiumSection(builder);
 		BuildHelpSection(builder);
+
+		std::move(showFinished) | rpl::on_next([=] {
+			for (const auto &[id, entry] : *highlights) {
+				if (entry.widget) {
+					controller->checkHighlightControl(
+						id,
+						entry.widget,
+						base::duplicate(entry.args));
+				}
+			}
+		}, lifetime);
 	};
 	build(content, buildMethod);
 
