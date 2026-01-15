@@ -82,6 +82,10 @@ struct InformationHighlightTargets {
 	QPointer<Ui::RpWidget> colorButton;
 	QPointer<Ui::RpWidget> channelButton;
 	QPointer<Ui::RpWidget> addAccount;
+	QPointer<Ui::RpWidget> name;
+	QPointer<Ui::RpWidget> phone;
+	QPointer<Ui::RpWidget> username;
+	QPointer<Ui::RpWidget> birthday;
 };
 
 constexpr auto kSaveBioTimeout = 1000;
@@ -383,7 +387,8 @@ not_null<Ui::SettingsButton*> AddRow(
 void SetupBirthday(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> controller,
-		not_null<UserData*> self) {
+		not_null<UserData*> self,
+		InformationHighlightTargets *targets) {
 	const auto session = &self->session();
 
 	Ui::AddSkip(container);
@@ -402,13 +407,16 @@ void SetupBirthday(
 				.sessionWindow = base::make_weak(controller),
 			}));
 	};
-	AddRow(
+	const auto birthdayButton = AddRow(
 		container,
 		tr::lng_settings_birthday_label(),
 		std::move(value),
 		tr::lng_mediaview_copy(tr::now),
 		edit,
 		{ &st::menuIconGiftPremium });
+	if (targets) {
+		targets->birthday = birthdayButton;
+	}
 
 	const auto key = Api::UserPrivacy::Key::Birthday;
 	session->api().userPrivacy().reload(key);
@@ -481,7 +489,8 @@ void SetupPersonalChannel(
 void SetupRows(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> controller,
-		not_null<UserData*> self) {
+		not_null<UserData*> self,
+		InformationHighlightTargets *targets) {
 	const auto session = &self->session();
 
 	Ui::AddSkip(container);
@@ -492,26 +501,32 @@ void SetupRows(
 		}
 		controller->show(Box<EditNameBox>(self));
 	};
-	AddRow(
+	const auto nameButton = AddRow(
 		container,
 		tr::lng_settings_name_label(),
 		Info::Profile::NameValue(self) | rpl::map(tr::marked),
 		tr::lng_profile_copy_fullname(tr::now),
 		showEditName,
 		{ &st::menuIconProfile });
+	if (targets) {
+		targets->name = nameButton;
+	}
 
 	const auto showChangePhone = [=] {
 		controller->show(
 			Ui::MakeInformBox(tr::lng_change_phone_error()));
 		controller->window().activate();
 	};
-	AddRow(
+	const auto phoneButton = AddRow(
 		container,
 		tr::lng_settings_phone_label(),
 		Info::Profile::PhoneValue(self),
 		tr::lng_profile_copy_phone(tr::now),
 		showChangePhone,
 		{ &st::menuIconPhone });
+	if (targets) {
+		targets->phone = phoneButton;
+	}
 
 	auto username = Info::Profile::UsernameValue(self);
 	auto empty = base::duplicate(
@@ -541,7 +556,7 @@ void SetupRows(
 		return result;
 	});
 	session->api().usernames().requestToCache(session->user());
-	AddRow(
+	const auto usernameButton = AddRow(
 		container,
 		std::move(label),
 		std::move(usernameValue),
@@ -558,6 +573,9 @@ void SetupRows(
 			}, box->lifetime());
 		},
 		{ &st::menuIconUsername });
+	if (targets) {
+		targets->username = usernameButton;
+	}
 
 	Ui::AddSkip(container);
 	Ui::AddDividerText(container, tr::lng_settings_username_about());
@@ -1159,6 +1177,10 @@ private:
 	QPointer<Ui::RpWidget> _colorButton;
 	QPointer<Ui::RpWidget> _channelButton;
 	QPointer<Ui::RpWidget> _addAccount;
+	QPointer<Ui::RpWidget> _name;
+	QPointer<Ui::RpWidget> _phone;
+	QPointer<Ui::RpWidget> _username;
+	QPointer<Ui::RpWidget> _birthday;
 
 };
 
@@ -1186,7 +1208,11 @@ void Information::setupContent() {
 		bio = &_bio,
 		colorButton = &_colorButton,
 		channelButton = &_channelButton,
-		addAccount = &_addAccount
+		addAccount = &_addAccount,
+		name = &_name,
+		phone = &_phone,
+		username = &_username,
+		birthday = &_birthday
 	](
 			not_null<Ui::VerticalLayout*> container,
 			not_null<Window::SessionController*> controller,
@@ -1211,9 +1237,9 @@ void Information::setupContent() {
 
 		SetupPhoto(container, controller, self, &targets);
 		SetupBio(container, self, &targets);
-		SetupRows(container, controller, self);
+		SetupRows(container, controller, self, &targets);
 		SetupPersonalChannel(container, controller, self, &targets);
-		SetupBirthday(container, controller, self);
+		SetupBirthday(container, controller, self, &targets);
 		SetupAccountsWrap(container, controller, &targets);
 
 		*photo = targets.photo;
@@ -1222,6 +1248,10 @@ void Information::setupContent() {
 		*colorButton = targets.colorButton;
 		*channelButton = targets.channelButton;
 		*addAccount = targets.addAccount;
+		*name = targets.name;
+		*phone = targets.phone;
+		*username = targets.username;
+		*birthday = targets.birthday;
 
 		if (highlights) {
 			if (*photo) {
@@ -1258,6 +1288,30 @@ void Information::setupContent() {
 				highlights->push_back({
 					u"edit/add-account"_q,
 					{ addAccount->data(), { .rippleShape = true } },
+				});
+			}
+			if (*name) {
+				highlights->push_back({
+					u"edit/name"_q,
+					{ name->data(), { .rippleShape = true } },
+				});
+			}
+			if (*phone) {
+				highlights->push_back({
+					u"edit/phone"_q,
+					{ phone->data(), { .rippleShape = true } },
+				});
+			}
+			if (*username) {
+				highlights->push_back({
+					u"edit/username"_q,
+					{ username->data(), { .rippleShape = true } },
+				});
+			}
+			if (*birthday) {
+				highlights->push_back({
+					u"edit/birthday"_q,
+					{ birthday->data(), { .rippleShape = true } },
 				});
 			}
 		}

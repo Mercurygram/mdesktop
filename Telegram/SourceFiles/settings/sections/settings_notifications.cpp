@@ -92,7 +92,7 @@ private:
 
 };
 
-void AddTypeButton(
+[[nodiscard]] not_null<Ui::SettingsButton*> AddTypeButton(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> controller,
 		Data::DefaultNotify type,
@@ -244,6 +244,7 @@ void AddTypeButton(
 			}));
 		}
 	}, toggleButton->lifetime());
+	return button;
 }
 
 NotificationsCount::NotificationsCount(
@@ -1088,9 +1089,35 @@ void BuildNotifyTypeSection(SectionBuilder &builder) {
 	}
 
 	builder.add([controller, showOther](const WidgetContext &ctx) {
-		AddTypeButton(ctx.container, controller, Data::DefaultNotify::User, showOther);
-		AddTypeButton(ctx.container, controller, Data::DefaultNotify::Group, showOther);
-		AddTypeButton(ctx.container, controller, Data::DefaultNotify::Broadcast, showOther);
+		const auto privateChats = AddTypeButton(
+			ctx.container,
+			controller,
+			Data::DefaultNotify::User,
+			showOther);
+		const auto groups = AddTypeButton(
+			ctx.container,
+			controller,
+			Data::DefaultNotify::Group,
+			showOther);
+		const auto channels = AddTypeButton(
+			ctx.container,
+			controller,
+			Data::DefaultNotify::Broadcast,
+			showOther);
+		if (ctx.highlights) {
+			ctx.highlights->push_back({
+				u"notifications/private"_q,
+				{ privateChats.get(), { .rippleShape = true } },
+			});
+			ctx.highlights->push_back({
+				u"notifications/groups"_q,
+				{ groups.get(), { .rippleShape = true } },
+			});
+			ctx.highlights->push_back({
+				u"notifications/channels"_q,
+				{ channels.get(), { .rippleShape = true } },
+			});
+		}
 		return SectionBuilder::WidgetToAdd{};
 	}, [] {
 		return SearchEntry{
@@ -1305,7 +1332,7 @@ void BuildSystemIntegrationAndAdvancedSection(SectionBuilder &builder) {
 
 	const auto &settings = Core::App().settings();
 	const auto native = nativeText ? builder.addButton({
-		.id = u"notifications/native"_q,
+		.id = u"notifications/use-native"_q,
 		.title = std::move(nativeText),
 		.st = &st::settingsButtonNoIcon,
 		.toggled = rpl::single(settings.nativeNotifications()),

@@ -396,6 +396,7 @@ void BuildOtherSection(SectionBuilder &builder) {
 		.toggled = authorizations->callsDisabledHereValue()
 			| rpl::map(!rpl::mappers::_1),
 		.keywords = { u"accept"_q, u"receive"_q, u"incoming"_q },
+		.highlight = { .rippleShape = true },
 	});
 
 	if (acceptCalls) {
@@ -420,6 +421,7 @@ void BuildOtherSection(SectionBuilder &builder) {
 			}
 		},
 		.keywords = { u"system"_q, u"preferences"_q, u"audio"_q },
+		.highlight = { .rippleShape = true },
 	});
 
 	builder.addSkip();

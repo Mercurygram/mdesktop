@@ -808,10 +808,9 @@ void BuildThemeOptionsSection(SectionBuilder &builder) {
 
 void BuildThemeSettingsSection(SectionBuilder &builder) {
 	const auto controller = builder.controller();
-	const auto highlights = builder.highlights();
 
-	builder.add([controller, highlights](const WidgetContext &ctx) {
-		SetupThemeSettings(controller, ctx.container.get(), highlights);
+	builder.add([controller](const WidgetContext &ctx) {
+		SetupThemeSettings(controller, ctx.container.get(), ctx.highlights);
 		return SectionBuilder::WidgetToAdd{};
 	}, [] {
 		return SearchEntry{
@@ -905,7 +904,7 @@ void BuildChatListQuickActionSection(SectionBuilder &builder) {
 	const auto controller = builder.controller();
 
 	builder.add([controller](const WidgetContext &ctx) {
-		SetupChatListQuickAction(controller, ctx.container.get());
+		SetupChatListQuickAction(controller, ctx.container.get(), ctx.highlights);
 		return SectionBuilder::WidgetToAdd{};
 	}, [] {
 		return SearchEntry{
@@ -1090,11 +1089,10 @@ void BuildArchiveSection(SectionBuilder &builder) {
 
 	builder.addSkip();
 
-	builder.addButton({
-		.id = u"chat/shortcuts"_q,
+	builder.addSectionButton({
 		.title = tr::lng_settings_shortcuts(),
+		.targetSection = ShortcutsId(),
 		.icon = { &st::menuIconShortcut },
-		.onClick = [showOther] { showOther(ShortcutsId()); },
 		.keywords = { u"shortcuts"_q, u"keyboard"_q, u"hotkeys"_q },
 	});
 
@@ -1438,18 +1436,24 @@ void SetupStickersEmoji(
 		} });
 	}
 
-	add(
+	const auto replaceEmoji = addWithReturn(
 		tr::lng_settings_replace_emojis(tr::now),
 		Core::App().settings().replaceEmoji(),
 		[=](bool checked) {
 			Core::App().settings().setReplaceEmoji(checked);
 			Core::App().saveSettingsDelayed();
 		});
+	if (highlights) {
+		highlights->push_back({ u"chat/replace-emoji"_q, {
+			replaceEmoji,
+			{ .radius = st::boxRadius },
+		} });
+	}
 
 	const auto suggestEmoji = inner->lifetime().make_state<
 		rpl::variable<bool>
 	>(Core::App().settings().suggestEmoji());
-	add(
+	const auto suggestEmojiCheckbox = addWithReturn(
 		tr::lng_settings_suggest_emoji(tr::now),
 		Core::App().settings().suggestEmoji(),
 		[=](bool checked) {
@@ -1457,6 +1461,12 @@ void SetupStickersEmoji(
 			Core::App().settings().setSuggestEmoji(checked);
 			Core::App().saveSettingsDelayed();
 		});
+	if (highlights) {
+		highlights->push_back({ u"chat/suggest-emoji"_q, {
+			suggestEmojiCheckbox,
+			{ .radius = st::boxRadius },
+		} });
+	}
 
 	using namespace rpl::mappers;
 	const auto suggestAnimated = addSliding(
@@ -1491,33 +1501,51 @@ void SetupStickersEmoji(
 		} });
 	}
 
-	add(
+	const auto loopStickers = addWithReturn(
 		tr::lng_settings_loop_stickers(tr::now),
 		Core::App().settings().loopAnimatedStickers(),
 		[=](bool checked) {
 			Core::App().settings().setLoopAnimatedStickers(checked);
 			Core::App().saveSettingsDelayed();
 		});
+	if (highlights) {
+		highlights->push_back({ u"chat/loop-stickers"_q, {
+			loopStickers,
+			{ .radius = st::boxRadius },
+		} });
+	}
 
-	AddButtonWithIcon(
+	const auto stickersButton = AddButtonWithIcon(
 		container,
 		tr::lng_stickers_you_have(),
 		st::settingsButton,
-		{ &st::menuIconStickers }
-	)->addClickHandler([=] {
+		{ &st::menuIconStickers });
+	stickersButton->addClickHandler([=] {
 		controller->show(Box<StickersBox>(
 			controller->uiShow(),
 			StickersBox::Section::Installed));
 	});
+	if (highlights) {
+		highlights->push_back({ u"chat/my-stickers"_q, {
+			stickersButton.get(),
+			{ .rippleShape = true },
+		} });
+	}
 
-	AddButtonWithIcon(
+	const auto emojiSetsButton = AddButtonWithIcon(
 		container,
 		tr::lng_emoji_manage_sets(),
 		st::settingsButton,
-		{ &st::menuIconEmoji }
-	)->addClickHandler([=] {
+		{ &st::menuIconEmoji });
+	emojiSetsButton->addClickHandler([=] {
 		controller->show(Box<Ui::Emoji::ManageSetsBox>(session));
 	});
+	if (highlights) {
+		highlights->push_back({ u"chat/emoji-sets"_q, {
+			emojiSetsButton.get(),
+			{ .rippleShape = true },
+		} });
+	}
 
 	Ui::AddSkip(container, st::settingsCheckboxesSkip);
 }
@@ -1529,7 +1557,15 @@ void SetupMessages(
 	Ui::AddDivider(container);
 	Ui::AddSkip(container);
 
-	Ui::AddSubsectionTitle(container, tr::lng_settings_messages());
+	const auto title = Ui::AddSubsectionTitle(
+		container,
+		tr::lng_settings_messages());
+	if (highlights) {
+		highlights->push_back({ u"chat/messages"_q, {
+			title.get(),
+			SubsectionTitleHighlight(),
+		} });
+	}
 
 	Ui::AddSkip(container, st::settingsSendTypeSkip);
 
@@ -1548,7 +1584,7 @@ void SetupMessages(
 	const auto groupSend = std::make_shared<Ui::RadioenumGroup<SendByType>>(
 		Core::App().settings().sendSubmitWay());
 	const auto addSend = [&](SendByType value, const QString &text) {
-		inner->add(
+		return inner->add(
 			object_ptr<Ui::Radioenum<SendByType>>(
 				inner,
 				groupSend,
@@ -1557,7 +1593,15 @@ void SetupMessages(
 				st::settingsSendType),
 			st::settingsSendTypePadding);
 	};
-	addSend(SendByType::Enter, tr::lng_settings_send_enter(tr::now));
+	const auto sendEnter = addSend(
+		SendByType::Enter,
+		tr::lng_settings_send_enter(tr::now));
+	if (highlights) {
+		highlights->push_back({ u"chat/send-enter"_q, {
+			sendEnter,
+			{ .radius = st::boxRadius },
+		} });
+	}
 	addSend(
 		SendByType::CtrlEnter,
 		(Platform::IsMac()
@@ -1694,18 +1738,24 @@ void SetupMessages(
 
 	Ui::AddSkip(inner, st::settingsSendTypeSkip);
 
-	inner->add(
+	const auto cornerReaction = inner->add(
 		object_ptr<Ui::Checkbox>(
 			inner,
 			tr::lng_settings_chat_corner_reaction(tr::now),
 			Core::App().settings().cornerReaction(),
 			st::settingsCheckbox),
-		st::settingsCheckboxPadding
-	)->checkedChanges(
+		st::settingsCheckboxPadding);
+	cornerReaction->checkedChanges(
 	) | rpl::on_next([=](bool checked) {
 		Core::App().settings().setCornerReaction(checked);
 		Core::App().saveSettingsDelayed();
 	}, inner->lifetime());
+	if (highlights) {
+		highlights->push_back({ u"chat/corner-reaction"_q, {
+			cornerReaction,
+			{ .radius = st::boxRadius },
+		} });
+	}
 
 	Ui::AddSkip(inner);
 }
@@ -1992,11 +2042,18 @@ void SetupChatBackground(
 		Core::App().settings().setAdaptiveForWide(checked);
 		Core::App().saveSettingsDelayed();
 	}, adaptive->lifetime());
+	if (highlights) {
+		highlights->push_back({ u"chat/adaptive-layout"_q, {
+			adaptive->entity(),
+			{ .radius = st::boxRadius },
+		} });
+	}
 }
 
 void SetupChatListQuickAction(
 		not_null<Window::SessionController*> controller,
-		not_null<Ui::VerticalLayout*> container) {
+		not_null<Ui::VerticalLayout*> container,
+		HighlightRegistry *highlights) {
 	Ui::AddDivider(container);
 	Ui::AddSkip(container);
 	Ui::AddSubsectionTitle(
@@ -2215,6 +2272,12 @@ void SetupChatListQuickAction(
 			box->addButton(tr::lng_box_ok(), [=] { box->closeBox(); });
 		}));
 	});
+	if (highlights) {
+		highlights->push_back({
+			u"chat/quick-dialog-action"_q,
+			{ button, { .rippleShape = true } },
+		});
+	}
 	Ui::AddSkip(container);
 	Ui::AddDividerText(
 		container,
@@ -2462,6 +2525,12 @@ void SetupCloudThemes(
 	const auto title = AddSubsectionTitle(
 		inner,
 		tr::lng_settings_bg_cloud_themes());
+	if (highlights) {
+		highlights->push_back({ u"chat/cloud-themes"_q, {
+			title.get(),
+			SubsectionTitleHighlight(),
+		} });
+	}
 	const auto showAll = Ui::CreateChild<Ui::LinkButton>(
 		inner,
 		tr::lng_settings_bg_show_all(tr::now));
@@ -2542,7 +2611,15 @@ void SetupThemeSettings(
 	Ui::AddDivider(container);
 	Ui::AddSkip(container, st::settingsPrivacySkip);
 
-	Ui::AddSubsectionTitle(container, tr::lng_settings_theme_settings());
+	const auto title = Ui::AddSubsectionTitle(
+		container,
+		tr::lng_settings_theme_settings());
+	if (highlights) {
+		highlights->push_back({ u"chat/peer-color"_q, {
+			title.get(),
+			SubsectionTitleHighlight(),
+		} });
+	}
 
 	AddPeerColorButton(
 		container,
@@ -2575,9 +2652,10 @@ void SetupThemeSettings(
 			}
 		});
 		if (highlights) {
-			highlights->push_back({ u"chat/auto-night-mode"_q, {
-				button.get()
-			} });
+			highlights->push_back({
+				u"chat/auto-night-mode"_q,
+				{ button.get(), { .rippleShape = true } },
+			});
 		}
 	}
 
@@ -2591,13 +2669,13 @@ void SetupThemeSettings(
 			? tr::lng_font_system(tr::now)
 			: family;
 	});
-	AddButtonWithLabel(
+	const auto fontButton = AddButtonWithLabel(
 		container,
 		tr::lng_settings_font_family(),
 		std::move(label),
 		st::settingsButton,
-		{ &st::menuIconFont }
-	)->setClickedCallback([=] {
+		{ &st::menuIconFont });
+	fontButton->setClickedCallback([=] {
 		const auto save = [=](QString chosen) {
 			*family = chosen;
 			settings->setCustomFontFamily(chosen);
@@ -2626,6 +2704,12 @@ void SetupThemeSettings(
 		controller->show(
 			Box(Ui::ChooseFontBox, generateBg, family->current(), save));
 	});
+	if (highlights) {
+		highlights->push_back({
+			u"chat/font"_q,
+			{ fontButton.get(), { .rippleShape = true } },
+		});
+	}
 
 	Ui::AddSkip(container, st::settingsCheckboxesSkip);
 }

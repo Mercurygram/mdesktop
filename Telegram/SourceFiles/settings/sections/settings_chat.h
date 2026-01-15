@@ -71,7 +71,8 @@ void SetupChatBackground(
 
 void SetupChatListQuickAction(
 	not_null<Window::SessionController*> controller,
-	not_null<Ui::VerticalLayout*> container);
+	not_null<Ui::VerticalLayout*> container,
+	HighlightRegistry *highlights = nullptr);
 
 void SetupStickersEmoji(
 	not_null<Window::SessionController*> controller,

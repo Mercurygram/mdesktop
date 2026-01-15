@@ -79,6 +79,7 @@ struct Entry {
 struct BusinessState {
 	Fn<void(bool)> setPaused;
 	QPointer<Ui::SettingsButton> sponsoredButton;
+	base::flat_map<PremiumFeature, QPointer<Ui::SettingsButton>> featureButtons;
 };
 
 using Order = std::vector<QString>;
@@ -187,6 +188,7 @@ using Order = std::vector<QString>;
 void AddBusinessSummary(
 		not_null<Ui::VerticalLayout*> content,
 		not_null<Window::SessionController*> controller,
+		std::shared_ptr<BusinessState> state,
 		Fn<void(PremiumFeature)> buttonCallback) {
 	const auto &stDefault = st::settingsButton;
 	const auto &stLabel = st::defaultFlatLabel;
@@ -275,6 +277,10 @@ void AddBusinessSummary(
 
 		const auto feature = entry.feature;
 		button->setClickedCallback([=] { buttonCallback(feature); });
+
+		if (state) {
+			state->featureButtons[feature] = button;
+		}
 
 		iconContainers.push_back(dummy);
 	};
@@ -610,7 +616,7 @@ void BuildBusinessSectionContent(
 				owner->session().api().chatLinks().loadedUpdates()
 			) | rpl::on_next(check, content->lifetime());
 
-			AddBusinessSummary(content, controller, [=](PremiumFeature feature) {
+			AddBusinessSummary(content, controller, state, [=](PremiumFeature feature) {
 				if (!session->premium()) {
 					if (state && state->setPaused) {
 						state->setPaused(true);
@@ -871,6 +877,12 @@ base::weak_qptr<Ui::RpWidget> Business::createPinnedToTop(
 void Business::showFinished() {
 	_showFinished.fire({});
 	crl::on_main(this, [=] {
+		for (const auto &[feature, button] : _state->featureButtons) {
+			const auto id = FeatureSearchId(feature);
+			if (!id.isEmpty()) {
+				controller()->checkHighlightControl(id, button);
+			}
+		}
 		controller()->checkHighlightControl(
 			u"business/sponsored"_q,
 			_state->sponsoredButton);

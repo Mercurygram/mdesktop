@@ -389,10 +389,22 @@ void ExceptionsController::sort() {
 	Unexpected("Type in VolumeSubtitle.");
 }
 
+struct ChecksWidgets {
+	Ui::SettingsButton *enabled = nullptr;
+	Ui::SettingsButton *sound = nullptr;
+	Ui::SettingsButton *tone = nullptr;
+};
+
+struct ExceptionsWidgets {
+	Ui::SettingsButton *add = nullptr;
+	Ui::SettingsButton *deleteAll = nullptr;
+};
+
 void SetupChecks(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> controller,
-		Notify type) {
+		Notify type,
+		ChecksWidgets *widgets) {
 	Ui::AddSubsectionTitle(container, Title(type));
 
 	const auto session = &controller->session();
@@ -407,6 +419,10 @@ void SetupChecks(
 	enabled->toggleOn(
 		NotificationsEnabledForTypeValue(session, type),
 		true);
+
+	if (widgets) {
+		widgets->enabled = enabled;
+	}
 
 	enabled->setAcceptBoth();
 	MuteMenu::SetupMuteMenu(
@@ -449,6 +465,10 @@ void SetupChecks(
 		type
 	) | rpl::map([=] { return soundValue(); })));
 
+	if (widgets) {
+		widgets->sound = sound;
+	}
+
 	const auto toneWrap = soundInner->add(
 		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 			container,
@@ -485,6 +505,10 @@ void SetupChecks(
 		toneLabel->events_starting_with(label()),
 		st::settingsButton,
 		{ &st::menuIconSoundOn });
+
+	if (widgets) {
+		widgets->tone = tone;
+	}
 
 	{
 		auto controller = DefaultRingtonesVolumeController(session, type);
@@ -536,12 +560,16 @@ void SetupChecks(
 void SetupExceptions(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Window::SessionController*> window,
-		Notify type) {
+		Notify type,
+		ExceptionsWidgets *widgets) {
 	const auto add = AddButtonWithIcon(
 		container,
 		tr::lng_notification_exceptions_add(),
 		st::settingsButtonActive,
 		{ &st::menuIconInviteSettings });
+	if (widgets) {
+		widgets->add = add;
+	}
 
 	auto controller = std::make_unique<ExceptionsController>(window, type);
 	controller->setStyleOverrides(&st::settingsBlockedList);
@@ -586,6 +614,9 @@ void SetupExceptions(
 				tr::lng_notification_exceptions_clear(),
 				st::settingsAttentionButtonWithIcon,
 				{ &st::menuIconDeleteAttention })));
+	if (widgets) {
+		widgets->deleteAll = wrap->entity();
+	}
 	wrap->entity()->setClickedCallback([=] {
 		const auto clear = [=](Fn<void()> close) {
 			window->session().data().notifySettings().clearExceptions(type);
@@ -608,7 +639,28 @@ void BuildNotificationsTypeContent(SectionBuilder &builder, Notify type) {
 	builder.addSkip(st::settingsPrivacySkip);
 
 	builder.add([=](const WidgetContext &ctx) {
-		SetupChecks(ctx.container, ctx.controller, type);
+		ChecksWidgets widgets;
+		SetupChecks(ctx.container, ctx.controller, type, &widgets);
+		if (ctx.highlights) {
+			if (widgets.enabled) {
+				ctx.highlights->push_back({
+					u"notifications/type/show"_q,
+					{ widgets.enabled, { .rippleShape = true } },
+				});
+			}
+			if (widgets.sound) {
+				ctx.highlights->push_back({
+					u"notifications/type/sound"_q,
+					{ widgets.sound, { .rippleShape = true } },
+				});
+			}
+			if (widgets.tone) {
+				ctx.highlights->push_back({
+					u"notifications/type/tone"_q,
+					{ widgets.tone, { .rippleShape = true } },
+				});
+			}
+		}
 		return SectionBuilder::WidgetToAdd{};
 	}, [] {
 		return SearchEntry{
@@ -626,12 +678,35 @@ void BuildNotificationsTypeContent(SectionBuilder &builder, Notify type) {
 		};
 	});
 
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"notifications/type/tone"_q,
+			.title = tr::lng_notification_tone(tr::now),
+			.keywords = { u"tone"_q, u"ringtone"_q, u"notification"_q },
+		};
+	});
+
 	builder.addSkip();
 	builder.addDivider();
 	builder.addSkip();
 
 	builder.add([=](const WidgetContext &ctx) {
-		SetupExceptions(ctx.container, ctx.controller, type);
+		ExceptionsWidgets widgets;
+		SetupExceptions(ctx.container, ctx.controller, type, &widgets);
+		if (ctx.highlights) {
+			if (widgets.add) {
+				ctx.highlights->push_back({
+					u"notifications/type/add-exception"_q,
+					{ widgets.add, { .rippleShape = true } },
+				});
+			}
+			if (widgets.deleteAll) {
+				ctx.highlights->push_back({
+					u"notifications/type/delete-exceptions"_q,
+					{ widgets.deleteAll, { .rippleShape = true } },
+				});
+			}
+		}
 		return SectionBuilder::WidgetToAdd{};
 	}, [] {
 		return SearchEntry{

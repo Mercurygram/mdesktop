@@ -17,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Ui {
 class Checkbox;
+class SettingsButton;
 class VerticalLayout;
 template <typename Widget>
 class SlideWrap;
@@ -101,7 +102,7 @@ struct NotifyViewCheckboxes {
 	bool nameShown,
 	bool previewShown);
 
-void AddTypeButton(
+[[nodiscard]] not_null<Ui::SettingsButton*> AddTypeButton(
 	not_null<Ui::VerticalLayout*> container,
 	not_null<Window::SessionController*> controller,
 	Data::DefaultNotify type,

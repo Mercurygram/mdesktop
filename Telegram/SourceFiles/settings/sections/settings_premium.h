@@ -106,12 +106,6 @@ struct SubscribeButtonArgs final {
 [[nodiscard]] std::vector<PremiumFeature> PremiumFeaturesOrder(
 	not_null<::Main::Session*> session);
 
-void AddSummaryPremium(
-	not_null<Ui::VerticalLayout*> content,
-	not_null<Window::SessionController*> controller,
-	const QString &ref,
-	Fn<void(PremiumFeature)> buttonCallback);
-
 [[nodiscard]] std::unique_ptr<Ui::RpWidget> MakeEmojiStatusPreview(
 	not_null<QWidget*> parent,
 	not_null<DocumentData*> document);

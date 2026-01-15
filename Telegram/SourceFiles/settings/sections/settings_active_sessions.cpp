@@ -609,6 +609,9 @@ public:
 	void setupContent();
 	[[nodiscard]] Ui::RpWidget *terminateAllButton() const;
 	[[nodiscard]] Ui::RpWidget *autoTerminateButton() const;
+	[[nodiscard]] Ui::RpWidget *currentHeader() const;
+	[[nodiscard]] Ui::RpWidget *incompleteHeader() const;
+	[[nodiscard]] Ui::RpWidget *otherHeader() const;
 
 protected:
 	void resizeEvent(QResizeEvent *e) override;
@@ -689,6 +692,9 @@ public:
 	[[nodiscard]] rpl::producer<> terminateAll() const;
 	[[nodiscard]] Ui::RpWidget *terminateAllButton() const;
 	[[nodiscard]] Ui::RpWidget *autoTerminateButton() const;
+	[[nodiscard]] Ui::RpWidget *currentHeader() const;
+	[[nodiscard]] Ui::RpWidget *incompleteHeader() const;
+	[[nodiscard]] Ui::RpWidget *otherHeader() const;
 
 private:
 	void setupContent();
@@ -697,6 +703,9 @@ private:
 	std::unique_ptr<ListController> _current;
 	QPointer<Ui::SettingsButton> _terminateAll;
 	QPointer<Ui::SettingsButton> _autoTerminate;
+	QPointer<Ui::RpWidget> _currentHeader;
+	QPointer<Ui::RpWidget> _incompleteHeader;
+	QPointer<Ui::RpWidget> _otherHeader;
 	std::unique_ptr<ListController> _incomplete;
 	std::unique_ptr<ListController> _list;
 	rpl::variable<int> _ttlDays;
@@ -885,6 +894,18 @@ Ui::RpWidget *SessionsContent::autoTerminateButton() const {
 	return _inner ? _inner->autoTerminateButton() : nullptr;
 }
 
+Ui::RpWidget *SessionsContent::currentHeader() const {
+	return _inner ? _inner->currentHeader() : nullptr;
+}
+
+Ui::RpWidget *SessionsContent::incompleteHeader() const {
+	return _inner ? _inner->incompleteHeader() : nullptr;
+}
+
+Ui::RpWidget *SessionsContent::otherHeader() const {
+	return _inner ? _inner->otherHeader() : nullptr;
+}
+
 SessionsContent::Inner::Inner(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller,
@@ -900,7 +921,7 @@ void SessionsContent::Inner::setupContent() {
 
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	const auto header = AddSubsectionTitle(
+	_currentHeader = AddSubsectionTitle(
 		content,
 		tr::lng_sessions_header());
 	const auto rename = Ui::CreateChild<Ui::LinkButton>(
@@ -909,7 +930,7 @@ void SessionsContent::Inner::setupContent() {
 		st::defaultLinkButton);
 	rpl::combine(
 		content->sizeValue(),
-		header->positionValue()
+		_currentHeader->positionValue()
 	) | rpl::on_next([=](QSize outer, QPoint position) {
 		const auto x = st::sessionTerminateSkip
 			+ st::sessionTerminate.iconPosition.x();
@@ -947,7 +968,7 @@ void SessionsContent::Inner::setupContent() {
 			object_ptr<Ui::VerticalLayout>(content)))->setDuration(0);
 	const auto incompleteInner = incompleteWrap->entity();
 	AddSkip(incompleteInner, st::sessionSubtitleSkip);
-	AddSubsectionTitle(incompleteInner, tr::lng_sessions_incomplete());
+	_incompleteHeader = AddSubsectionTitle(incompleteInner, tr::lng_sessions_incomplete());
 	_incomplete = ListController::Add(incompleteInner, session);
 	AddSkip(incompleteInner);
 	AddDividerText(incompleteInner, tr::lng_sessions_incomplete_about());
@@ -958,7 +979,7 @@ void SessionsContent::Inner::setupContent() {
 			object_ptr<Ui::VerticalLayout>(content)))->setDuration(0);
 	const auto listInner = listWrap->entity();
 	AddSkip(listInner, st::sessionSubtitleSkip);
-	AddSubsectionTitle(listInner, tr::lng_sessions_other_header());
+	_otherHeader = AddSubsectionTitle(listInner, tr::lng_sessions_other_header());
 	_list = ListController::Add(listInner, session);
 	AddSkip(listInner);
 	AddDividerText(listInner, tr::lng_sessions_about_apps());
@@ -1023,6 +1044,18 @@ Ui::RpWidget *SessionsContent::Inner::terminateAllButton() const {
 
 Ui::RpWidget *SessionsContent::Inner::autoTerminateButton() const {
 	return _autoTerminate.data();
+}
+
+Ui::RpWidget *SessionsContent::Inner::currentHeader() const {
+	return _currentHeader.data();
+}
+
+Ui::RpWidget *SessionsContent::Inner::incompleteHeader() const {
+	return _incompleteHeader.data();
+}
+
+Ui::RpWidget *SessionsContent::Inner::otherHeader() const {
+	return _otherHeader.data();
 }
 
 rpl::producer<uint64> SessionsContent::Inner::terminateOne() const {
@@ -1235,8 +1268,20 @@ void Sessions::setupContent() {
 
 			if (ctx.highlights) {
 				ctx.highlights->push_back({
+					u"sessions/current"_q,
+					{ content->currentHeader(), SubsectionTitleHighlight() },
+				});
+				ctx.highlights->push_back({
 					u"sessions/terminate-all"_q,
 					{ content->terminateAllButton() },
+				});
+				ctx.highlights->push_back({
+					u"sessions/incomplete"_q,
+					{ content->incompleteHeader(), SubsectionTitleHighlight() },
+				});
+				ctx.highlights->push_back({
+					u"sessions/other"_q,
+					{ content->otherHeader(), SubsectionTitleHighlight() },
 				});
 				ctx.highlights->push_back({
 					u"sessions/auto-terminate"_q,

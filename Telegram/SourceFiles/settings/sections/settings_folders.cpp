@@ -1106,14 +1106,19 @@ void BuildViewSection(SectionBuilder &builder) {
 				parent,
 				object_ptr<Ui::VerticalLayout>(parent)));
 		wrap->toggleOn(controller->enoughSpaceForFiltersValue());
-		if (ctx.highlights) {
-			ctx.highlights->push_back({ u"folders/tab-view"_q, { wrap->entity() } });
-		}
 		const auto content = wrap->entity();
 
 		Ui::AddDivider(content);
 		Ui::AddSkip(content);
-		Ui::AddSubsectionTitle(content, tr::lng_filters_view_subtitle());
+		const auto title = Ui::AddSubsectionTitle(
+			content,
+			tr::lng_filters_view_subtitle());
+		if (ctx.highlights) {
+			ctx.highlights->push_back({
+				u"folders/tab-view"_q,
+				{ title.get(), SubsectionTitleHighlight() },
+			});
+		}
 
 		const auto group = std::make_shared<Ui::RadioenumGroup<bool>>(
 			Core::App().settings().chatFiltersHorizontal());
