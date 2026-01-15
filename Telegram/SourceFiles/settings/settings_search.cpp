@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_search.h"
 
+#include "core/application.h"
+#include "core/click_handler_types.h"
 #include "lang/lang_keys.h"
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
@@ -282,9 +284,18 @@ void Search::rebuildResults(const QString &query) {
 
 			const auto targetSection = entry.section;
 			const auto controlId = entry.id;
+			const auto deeplink = entry.deeplink;
 			button->addClickHandler([=] {
-				controller()->setHighlightControlId(controlId);
-				showOther(targetSection);
+				if (!deeplink.isEmpty()) {
+					Core::App().openInternalUrl(
+						deeplink,
+						QVariant::fromValue(ClickHandlerContext{
+							.sessionWindow = base::make_weak(controller()),
+						}));
+				} else {
+					controller()->setHighlightControlId(controlId);
+					showOther(targetSection);
+				}
 			});
 		}
 	}

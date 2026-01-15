@@ -66,6 +66,7 @@ struct SearchEntry {
 	Type section;
 	IconDescriptor icon;
 	SearchEntryCheckIcon checkIcon = SearchEntryCheckIcon::None;
+	QString deeplink;
 
 	explicit operator bool() const {
 		return !id.isEmpty();
