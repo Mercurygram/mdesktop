@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include <any>
+
 #include "settings/settings_common_session.h"
 
 namespace Window {
@@ -22,6 +24,10 @@ class VerticalLayout;
 
 namespace Settings {
 
+struct SearchSectionState {
+	QString query;
+};
+
 class Search : public Section<Search> {
 public:
 	Search(QWidget *parent, not_null<Window::SessionController*> controller);
@@ -29,6 +35,7 @@ public:
 	[[nodiscard]] rpl::producer<QString> title() override;
 
 	void setInnerFocus() override;
+	void setStepDataReference(std::any &data) override;
 	[[nodiscard]] base::weak_qptr<Ui::RpWidget> createPinnedToTop(
 		not_null<QWidget*> parent) override;
 
@@ -46,6 +53,7 @@ private:
 	Ui::InputField *_searchField = nullptr;
 	Ui::VerticalLayout *_resultsContainer = nullptr;
 	base::flat_map<QString, ResultCustomization> _customizations;
+	std::any *_stepData = nullptr;
 
 };
 

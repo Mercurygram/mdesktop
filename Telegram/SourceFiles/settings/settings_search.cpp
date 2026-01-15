@@ -217,6 +217,9 @@ base::weak_qptr<Ui::RpWidget> Search::createPinnedToTop(
 	}, searchContainer->lifetime());
 
 	_searchController->queryChanges() | rpl::on_next([=](QString &&query) {
+		if (_stepData) {
+			*_stepData = SearchSectionState{ query };
+		}
 		rebuildResults(std::move(query));
 	}, searchContainer->lifetime());
 
@@ -335,6 +338,16 @@ void Search::rebuildResults(const QString &query) {
 	}
 
 	_resultsContainer->resizeToWidth(_resultsContainer->width());
+}
+
+void Search::setStepDataReference(std::any &data) {
+	_stepData = &data;
+	if (_stepData->has_value() && _searchController) {
+		const auto state = std::any_cast<SearchSectionState>(_stepData);
+		if (state && !state->query.isEmpty()) {
+			_searchController->setQuery(state->query);
+		}
+	}
 }
 
 } // namespace Settings
