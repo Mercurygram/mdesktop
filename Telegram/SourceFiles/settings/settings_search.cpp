@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
 #include "ui/painter.h"
+#include "ui/text/text_entity.h"
 #include "ui/search_field_controller.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/buttons.h"
@@ -36,37 +37,47 @@ struct SearchResult {
 	int score = 0;
 };
 
+[[nodiscard]] QStringList PrepareEntryWords(const Builder::SearchEntry &entry) {
+	auto combined = entry.title;
+	for (const auto &keyword : entry.keywords) {
+		combined += ' ' + keyword;
+	}
+	return TextUtilities::PrepareSearchWords(combined);
+}
+
+[[nodiscard]] bool MatchesWord(
+		const QStringList &entryWords,
+		const QString &queryWord) {
+	for (const auto &entryWord : entryWords) {
+		if (entryWord.startsWith(queryWord)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 [[nodiscard]] int CalculateScore(
 		const Builder::SearchEntry &entry,
-		const QString &query) {
-	const auto queryLower = query.toLower();
-	const auto titleLower = entry.title.toLower();
-	if (titleLower.startsWith(queryLower)) {
-		return 100;
+		const QStringList &queryWords) {
+	if (queryWords.isEmpty()) {
+		return 0;
 	}
-	if (titleLower.contains(queryLower)) {
-		return 80;
-	}
-	for (const auto &keyword : entry.keywords) {
-		if (keyword.toLower().startsWith(queryLower)) {
-			return 60;
-		}
-		if (keyword.toLower().contains(queryLower)) {
-			return 40;
+	const auto entryWords = PrepareEntryWords(entry);
+	for (const auto &queryWord : queryWords) {
+		if (!MatchesWord(entryWords, queryWord)) {
+			return 0;
 		}
 	}
-	if (entry.id.toLower().contains(queryLower)) {
-		return 20;
-	}
-	return 0;
+	return 100;
 }
 
 [[nodiscard]] std::vector<SearchResult> FilterAndSort(
 		const std::vector<Builder::SearchEntry> &entries,
 		const QString &query) {
+	const auto queryWords = TextUtilities::PrepareSearchWords(query);
 	auto results = std::vector<SearchResult>();
 	for (const auto &entry : entries) {
-		const auto score = CalculateScore(entry, query);
+		const auto score = CalculateScore(entry, queryWords);
 		if (score > 0) {
 			results.push_back({ entry, score });
 		}
