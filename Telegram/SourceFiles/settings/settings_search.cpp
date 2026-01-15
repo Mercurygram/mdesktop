@@ -254,7 +254,10 @@ void Search::rebuildResults(const QString &query) {
 
 		for (const auto &result : results) {
 			const auto &entry = result.entry;
-			const auto subtitle = registry.sectionPath(entry.section);
+			const auto parentsOnly = entry.id.isEmpty();
+			const auto subtitle = registry.sectionPath(
+				entry.section,
+				parentsOnly);
 			const auto hasIcon = entry.icon.icon != nullptr;
 			const auto hasCheckIcon = !hasIcon
 				&& (entry.checkIcon != Builder::SearchEntryCheckIcon::None);

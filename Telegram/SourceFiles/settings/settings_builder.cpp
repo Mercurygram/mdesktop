@@ -119,7 +119,7 @@ QString SearchRegistry::sectionTitle(Type sectionId) const {
 	return (it != _sections.end()) ? (*it->second->title)(tr::now) : QString();
 }
 
-QString SearchRegistry::sectionPath(Type sectionId) const {
+QString SearchRegistry::sectionPath(Type sectionId, bool parentsOnly) const {
 	auto parts = QStringList();
 	auto current = sectionId;
 	while (current) {
@@ -128,6 +128,9 @@ QString SearchRegistry::sectionPath(Type sectionId) const {
 		}
 		const auto it = _sections.find(current);
 		current = (it != _sections.end()) ? it->second->parentId : nullptr;
+	}
+	if (parts.size() > 1 && parentsOnly) {
+		parts.pop_back();
 	}
 	return parts.join(u" > "_q);
 }
