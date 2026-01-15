@@ -44,13 +44,6 @@ void BuildBlockedSection(SectionBuilder &builder) {
 			.keywords = { u"block"_q, u"ban"_q, u"add"_q },
 		};
 	});
-	builder.add(nullptr, [] {
-		return SearchEntry{
-			.id = u"blocked/list"_q,
-			.title = tr::lng_blocked_list_subtitle(tr::now, lt_count, 0),
-			.keywords = { u"blocked"_q, u"users"_q, u"list"_q },
-		};
-	});
 }
 
 class Blocked : public Section<Blocked> {

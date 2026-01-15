@@ -460,12 +460,6 @@ void BuildApplyToExisting(
 			st::defaultBoxDividerLabelPadding));
 
 		return SectionBuilder::WidgetToAdd{};
-	}, [] {
-		return SearchEntry{
-			.id = u"auto-delete/apply-existing"_q,
-			.title = tr::lng_settings_ttl_after_about_link(tr::now),
-			.keywords = { u"apply"_q, u"existing"_q, u"chats"_q },
-		};
 	});
 }
 
@@ -574,14 +568,6 @@ const auto kMeta = BuildHelper({
 			.id = u"auto-delete/set-custom"_q,
 			.title = tr::lng_settings_ttl_after_custom(tr::now),
 			.keywords = { u"custom"_q, u"ttl"_q, u"period"_q },
-		};
-	});
-
-	builder.add(nullptr, [] {
-		return SearchEntry{
-			.id = u"auto-delete/apply-existing"_q,
-			.title = tr::lng_settings_ttl_after_about_link(tr::now),
-			.keywords = { u"apply"_q, u"existing"_q, u"chats"_q },
 		};
 	});
 });

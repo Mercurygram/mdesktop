@@ -332,7 +332,6 @@ void BuildSectionButtons(SectionBuilder &builder) {
 
 	if (!session->supportMode()) {
 		builder.addSectionButton({
-			.id = u"main/account"_q,
 			.title = tr::lng_settings_my_account(),
 			.targetSection = InformationId(),
 			.icon = { &st::menuIconProfile },
@@ -341,7 +340,6 @@ void BuildSectionButtons(SectionBuilder &builder) {
 	}
 
 	builder.addSectionButton({
-		.id = u"main/notifications"_q,
 		.title = tr::lng_settings_section_notify(),
 		.targetSection = NotificationsId(),
 		.icon = { &st::menuIconNotifications },
@@ -349,7 +347,6 @@ void BuildSectionButtons(SectionBuilder &builder) {
 	});
 
 	builder.addSectionButton({
-		.id = u"main/privacy"_q,
 		.title = tr::lng_settings_section_privacy(),
 		.targetSection = PrivacySecurityId(),
 		.icon = { &st::menuIconLock },
@@ -357,7 +354,6 @@ void BuildSectionButtons(SectionBuilder &builder) {
 	});
 
 	builder.addSectionButton({
-		.id = u"main/chat"_q,
 		.title = tr::lng_settings_section_chat_settings(),
 		.targetSection = ChatId(),
 		.icon = { &st::menuIconChatBubble },
@@ -390,7 +386,6 @@ void BuildSectionButtons(SectionBuilder &builder) {
 		}
 
 		builder.addButton({
-			.id = u"main/folders"_q,
 			.title = tr::lng_settings_section_filters(),
 			.icon = { &st::menuIconShowInFolder },
 			.onClick = [=] { showOther(FoldersId()); },
@@ -400,7 +395,6 @@ void BuildSectionButtons(SectionBuilder &builder) {
 	}
 
 	builder.addSectionButton({
-		.id = u"main/advanced"_q,
 		.title = tr::lng_settings_advanced(),
 		.targetSection = AdvancedId(),
 		.icon = { &st::menuIconManage },
@@ -408,7 +402,6 @@ void BuildSectionButtons(SectionBuilder &builder) {
 	});
 
 	builder.addSectionButton({
-		.id = u"main/devices"_q,
 		.title = tr::lng_settings_section_devices(),
 		.targetSection = CallsId(),
 		.icon = { &st::menuIconUnmute },

@@ -1085,20 +1085,6 @@ void AccountsList::rebuild() {
 void BuildInformationSection(SectionBuilder &builder) {
 	builder.add(nullptr, [] {
 		return SearchEntry{
-			.id = u"profile-photo"_q,
-			.title = tr::lng_settings_section_info(tr::now),
-			.keywords = { u"photo"_q, u"avatar"_q, u"picture"_q, u"profile"_q },
-		};
-	});
-	builder.add(nullptr, [] {
-		return SearchEntry{
-			.id = u"profile-photo/use-emoji"_q,
-			.title = tr::lng_attach_photo(tr::now),
-			.keywords = { u"upload"_q, u"emoji"_q, u"sticker"_q },
-		};
-	});
-	builder.add(nullptr, [] {
-		return SearchEntry{
 			.id = u"edit/bio"_q,
 			.title = tr::lng_bio_placeholder(tr::now),
 			.keywords = { u"bio"_q, u"about"_q, u"description"_q },

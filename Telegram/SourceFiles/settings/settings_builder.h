@@ -199,7 +199,7 @@ public:
 	Ui::SettingsButton *addButton(ButtonArgs &&args);
 
 	struct SectionArgs {
-		QString id;
+		//QString id; // Sections should register themselves in search.
 		rpl::producer<QString> title;
 		Type targetSection;
 		IconDescriptor icon;

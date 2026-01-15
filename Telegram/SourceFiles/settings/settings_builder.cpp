@@ -292,7 +292,6 @@ Ui::SettingsButton *SectionBuilder::addSectionButton(SectionArgs &&args) {
 	const auto showOther = wctx ? wctx->showOther : nullptr;
 	const auto target = args.targetSection;
 	return addButton({
-		.id = std::move(args.id),
 		.title = std::move(args.title),
 		.icon = std::move(args.icon),
 		.onClick = [=] { showOther(target); },
