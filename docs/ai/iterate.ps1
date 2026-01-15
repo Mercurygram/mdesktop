@@ -2,13 +2,14 @@
 # Iterative Task Runner
 # Runs Claude Code in a loop to complete tasks from a taskplanner-created folder
 #
-# Usage: .\docs\ai\iterate.ps1 <featurename> [-MaxIterations N] [-Interactive] [-DryRun]
+# Usage: .\docs\ai\iterate.ps1 <featurename> [-MaxIterations N] [-Interactive] [-DryRun] [-SingleCommit]
 #
 # Arguments:
 #   featurename     Name of the folder in docs/ai/work/ containing prompt.md and tasks.json
 #   -MaxIterations  Maximum iterations before stopping (default: 50)
 #   -Interactive    Pause between iterations for user confirmation (default: auto/no pause)
 #   -DryRun         Show what would be executed without running
+#   -SingleCommit   Don't commit after each task, commit all changes at the end
 
 param(
     [Parameter(Position=0, Mandatory=$true)]
@@ -16,7 +17,8 @@ param(
 
     [int]$MaxIterations = 50,
     [switch]$Interactive,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$SingleCommit
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,6 +28,36 @@ $RepoRoot = Resolve-Path (Join-Path $ScriptDir "..\..")
 $WorkDir = Join-Path $ScriptDir "work\$FeatureName"
 $PromptMd = Join-Path $WorkDir "prompt.md"
 $TasksJson = Join-Path $WorkDir "tasks.json"
+
+$BuildOutputDir = Join-Path $RepoRoot "out\Debug"
+$TelegramExe = Join-Path $BuildOutputDir "Telegram.exe"
+$TelegramPdb = Join-Path $BuildOutputDir "Telegram.pdb"
+
+function Test-BuildFilesUnlocked {
+    $filesToCheck = @($TelegramExe, $TelegramPdb)
+
+    foreach ($file in $filesToCheck) {
+        if (Test-Path $file) {
+            try {
+                Remove-Item $file -Force -ErrorAction Stop
+                Write-Host "Removed: $file" -ForegroundColor DarkGray
+            }
+            catch {
+                Write-Host ""
+                Write-Host "========================================" -ForegroundColor Red
+                Write-Host "  ERROR: Cannot delete build output" -ForegroundColor Red
+                Write-Host "  File is locked: $file" -ForegroundColor Red
+                Write-Host "" -ForegroundColor Red
+                Write-Host "  Please close Telegram.exe and any" -ForegroundColor Red
+                Write-Host "  debugger, then try again." -ForegroundColor Red
+                Write-Host "========================================" -ForegroundColor Red
+                Write-Host ""
+                return $false
+            }
+        }
+    }
+    return $true
+}
 
 function Show-ClaudeStream {
     param([string]$Line)
@@ -95,6 +127,21 @@ foreach ($file in @($PromptMd, $TasksJson)) {
     }
 }
 
+if ($SingleCommit) {
+    $AfterImplementation = @"
+   - Mark the task completed in tasks.json ("completed": true)
+   - If new tasks emerged, add them to tasks.json
+"@
+    $CommitRule = "- Do NOT commit changes after task is done, just mark it as done in tasks.json. Commit will be done when all tasks are complete, separately."
+} else {
+    $AfterImplementation = @"
+   - Mark the task completed in tasks.json ("completed": true)
+   - Commit your changes
+   - If new tasks emerged, add them to tasks.json
+"@
+    $CommitRule = ""
+}
+
 $Prompt = @"
 You are an autonomous coding agent working on: $FeatureName
 
@@ -110,9 +157,7 @@ Do exactly ONE task per iteration.
 2. Use /ultrathink to plan the implementation carefully
 3. Implement that ONE task only
 4. After successful implementation:
-   - Mark the task completed in tasks.json ("completed": true)
-   - Commit your changes
-   - If new tasks emerged, add them to tasks.json
+$AfterImplementation
 
 ## Critical Rules
 
@@ -120,11 +165,30 @@ Do exactly ONE task per iteration.
 - If stuck, document the issue in the task's notes field and move on
 - Do ONE task per iteration, then stop
 - NEVER commit files in docs/ai/ unless explicitly required by the task
+$CommitRule
 
 ## Completion Signal
 
 If ALL tasks in tasks.json have "completed": true, output exactly:
 ===ALL_TASKS_COMPLETE===
+"@
+
+$CommitPrompt = @"
+You are an autonomous coding agent. All tasks for "$FeatureName" are now complete.
+
+Your job: Create a single commit with all the changes.
+
+## Steps
+
+1. Run git status to see all modified files
+2. Run git diff to review the changes
+3. Create a commit with a short summary (aim for ~50 chars, max 76 chars) describing what was implemented
+4. The commit message should describe the overall feature/fix, not list individual changes
+
+## Critical Rules
+
+- NEVER commit files in docs/ai/
+- Use a concise commit message that captures the essence of the work done
 "@
 
 Write-Host ""
@@ -133,6 +197,7 @@ Write-Host "  Iterative Task Runner" -ForegroundColor Cyan
 Write-Host "  Feature: $FeatureName" -ForegroundColor Cyan
 Write-Host "  Max iterations: $MaxIterations" -ForegroundColor Cyan
 Write-Host "  Mode: $(if ($Interactive) { 'Interactive' } else { 'Auto' })" -ForegroundColor Cyan
+Write-Host "  Commit: $(if ($SingleCommit) { 'Single (at end)' } else { 'Per task' })" -ForegroundColor Cyan
 Write-Host "  Working directory: $RepoRoot" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
@@ -157,6 +222,10 @@ try {
         Write-Host "========================================" -ForegroundColor Yellow
         Write-Host ""
 
+        if (-not (Test-BuildFilesUnlocked)) {
+            exit 1
+        }
+
         claude --dangerously-skip-permissions --verbose -p $Prompt --output-format stream-json 2>&1 | ForEach-Object {
             Show-ClaudeStream $_
         }
@@ -174,6 +243,34 @@ try {
             Write-Host "  Finished after $i iterations" -ForegroundColor Green
             Write-Host "========================================" -ForegroundColor Green
             Write-Host ""
+
+            if ($SingleCommit) {
+                $i++
+                if ($i -le $MaxIterations) {
+                    Write-Host "========================================" -ForegroundColor Yellow
+                    Write-Host "  Final commit iteration" -ForegroundColor Yellow
+                    Write-Host "========================================" -ForegroundColor Yellow
+                    Write-Host ""
+
+                    claude --dangerously-skip-permissions --verbose -p $CommitPrompt --output-format stream-json 2>&1 | ForEach-Object {
+                        Show-ClaudeStream $_
+                    }
+
+                    Write-Host ""
+                    Write-Host "========================================" -ForegroundColor Green
+                    Write-Host "  Commit complete!" -ForegroundColor Green
+                    Write-Host "========================================" -ForegroundColor Green
+                    Write-Host ""
+                } else {
+                    Write-Host "========================================" -ForegroundColor Red
+                    Write-Host "  Max iterations reached before commit" -ForegroundColor Red
+                    Write-Host "  Run manually: git add . && git commit" -ForegroundColor Red
+                    Write-Host "========================================" -ForegroundColor Red
+                    Write-Host ""
+                    exit 1
+                }
+            }
+
             exit 0
         }
 
