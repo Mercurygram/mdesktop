@@ -163,15 +163,30 @@ WrapWidget::WrapWidget(
 }
 
 void WrapWidget::setupShortcuts() {
+	const auto isSettings = [=] {
+		return _controller->section().type() == Section::Type::Settings;
+	};
+	const auto isSearchSettings = [=] {
+		return isSettings()
+			&& (_controller->section().settingsType()
+				== ::Settings::Search::Id());
+	};
+
 	Shortcuts::Requests(
 	) | rpl::filter([=] {
-		return requireTopBarSearch()
-			&& (Core::App().activeWindow()
-				== &_controller->parentController()->window());
+		return (Core::App().activeWindow()
+				== &_controller->parentController()->window())
+			&& (requireTopBarSearch() || isSettings());
 	}) | rpl::on_next([=](not_null<Shortcuts::Request*> request) {
 		using Command = Shortcuts::Command;
 		request->check(Command::Search) && request->handle([=] {
-			_topBar->showSearch();
+			if (requireTopBarSearch()) {
+				_topBar->showSearch();
+			} else if (isSearchSettings()) {
+				_content->setInnerFocus();
+			} else if (isSettings()) {
+				_controller->showSettings(::Settings::Search::Id());
+			}
 			return true;
 		});
 	}, lifetime());
