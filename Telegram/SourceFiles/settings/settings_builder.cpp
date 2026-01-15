@@ -121,8 +121,7 @@ QString SearchRegistry::sectionTitle(Type sectionId) const {
 
 QString SearchRegistry::sectionPath(Type sectionId) const {
 	auto parts = QStringList();
-	const auto start = _sections.find(sectionId);
-	auto current = (start != _sections.end()) ? start->second->parentId : nullptr;
+	auto current = sectionId;
 	while (current) {
 		if (const auto title = sectionTitle(current); !title.isEmpty()) {
 			parts.prepend(title);
