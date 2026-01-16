@@ -1747,11 +1747,11 @@ menuTranscribeDummyButton: IconButton(defaultIconButton) {
 
 roundVideoFont: font(14px semibold);
 
-topPeersSelectorUserpicSize: 30px;
+topPeersSelectorUserpicSize: 31px;
 topPeersSelectorUserpicGap: 8px;
 topPeersSelectorPadding: 6px;
 topPeersSelectorUserpicExpand: 0.1;
-topPeersSelectorSkip: point(11px, -5px);
+topPeersSelectorSkip: point(9px, -5px);
 
 topPeersSelectorImportantTooltip: ImportantTooltip(defaultImportantTooltip) {
 	bg: scrollBarBgOver;

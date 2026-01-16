@@ -2312,8 +2312,12 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 		if (const auto item = _dragStateItem) {
 			const auto view = viewByItem(item);
 			const auto rightSize = view->rightActionSize().value_or(QSize());
+			const auto reactionsSkip = view->embedReactionsInBubble()
+				? 0
+				: view->reactionButtonParameters({}, {}).reactionsHeight;
 			const auto top = itemTop(view)
 				+ view->height()
+				- reactionsSkip
 				- _visibleAreaTop
 				- rightSize.height();
 			const auto right = rect::right(view->innerGeometry())

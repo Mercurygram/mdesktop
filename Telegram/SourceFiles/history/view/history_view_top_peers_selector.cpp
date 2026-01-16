@@ -120,8 +120,10 @@ void ShowTopPeersSelector(
 
 	const auto hideAll = [=] {
 		state->finishing = true;
+		if (state->tooltip) {
+			state->tooltip->toggleAnimated(false);
+		}
 		selector->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-		state->tooltip->toggleAnimated(false);
 		selector->hideAnimated();
 	};
 
