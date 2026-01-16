@@ -341,7 +341,7 @@ void Search::rebuildResults(const QString &query) {
 	} else {
 		const auto showOther = showOtherMethod();
 		const auto &registry = Builder::SearchRegistry::Instance();
-		const auto faqTitle = tr::lng_settings_faq(tr::now);
+		const auto faqSubtitle = tr::lng_settings_faq_subtitle(tr::now);
 		const auto weak = base::make_weak(controller());
 
 		for (const auto &result : results) {
@@ -361,7 +361,7 @@ void Search::rebuildResults(const QString &query) {
 
 			auto subtitle = QString();
 			if (isFaq) {
-				subtitle = faqTitle + u" > "_q + indexed.faqSection;
+				subtitle = faqSubtitle + u" > "_q + indexed.faqSection;
 			} else {
 				const auto parentsOnly = entry.id.isEmpty();
 				subtitle = registry.sectionPath(entry.section, parentsOnly);
@@ -449,7 +449,7 @@ void Search::rebuildFaqResults() {
 		return;
 	}
 
-	const auto faqTitle = tr::lng_settings_faq(tr::now);
+	const auto faqSubtitle = tr::lng_settings_faq_subtitle(tr::now);
 	const auto weak = base::make_weak(controller());
 
 	for (auto i = _faqStartIndex; i < int(_entries.size()); ++i) {
@@ -463,7 +463,7 @@ void Search::rebuildFaqResults() {
 			continue;
 		}
 
-		const auto subtitle = faqTitle + u" > "_q + indexed.faqSection;
+		const auto subtitle = faqSubtitle + u" > "_q + indexed.faqSection;
 		const auto button = CreateSearchResultButtonRaw(
 			this,
 			indexed.entry.title,
