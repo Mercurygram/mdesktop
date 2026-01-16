@@ -170,14 +170,17 @@ base::weak_qptr<Ui::RpWidget> Search::createPinnedToTop(
 		rebuildResults(std::move(query));
 	}, searchContainer->lifetime());
 
+	if (!_pendingQuery.isEmpty()) {
+		_searchController->setQuery(base::take(_pendingQuery));
+	}
+
 	return base::make_weak(not_null<Ui::RpWidget*>{ searchContainer });
 }
 
 void Search::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
 
-	_resultsContainer = content->add(
-		object_ptr<Ui::VerticalLayout>(content));
+	_list = content->add(object_ptr<Ui::VerticalLayout>(content));
 
 	setupCustomizations();
 	buildIndex();
@@ -241,15 +244,10 @@ void Search::buildIndex() {
 }
 
 void Search::rebuildResults(const QString &query) {
-	for (const auto &[index, button] : _buttonCache) {
-		button->setParent(this);
-		button->hide();
+	for (auto i = 0, count = _list->count(); i != count; ++i) {
+		_list->widgetAt(i)->hide();
 	}
-	for (const auto &button : _faqButtons) {
-		button->setParent(this);
-		button->hide();
-	}
-	_resultsContainer->clear();
+	_list->clear();
 
 	const auto queryWords = TextUtilities::PrepareSearchWords(query);
 
@@ -309,9 +307,9 @@ void Search::rebuildResults(const QString &query) {
 	}
 
 	if (results.empty() && !queryWords.isEmpty()) {
-		_resultsContainer->add(
+		_list->add(
 			object_ptr<Ui::FlatLabel>(
-				_resultsContainer,
+				_list,
 				tr::lng_search_tab_no_results(),
 				st::settingsSearchNoResults),
 			st::settingsSearchNoResultsPadding);
@@ -327,7 +325,7 @@ void Search::rebuildResults(const QString &query) {
 			if (cached != _buttonCache.end()) {
 				const auto button = cached->second;
 				button->show();
-				_resultsContainer->add(
+				_list->add(
 					object_ptr<Ui::SettingsButton>::fromRaw(button));
 				continue;
 			}
@@ -357,7 +355,9 @@ void Search::rebuildResults(const QString &query) {
 				subtitle,
 				st,
 				IconDescriptor{ entry.icon.icon },
-				hasCheckIcon ? entry.checkIcon : Builder::SearchEntryCheckIcon::None);
+				(hasCheckIcon
+					? entry.checkIcon
+					: Builder::SearchEntryCheckIcon::None));
 
 			if (custom && custom->hook) {
 				custom->hook(button);
@@ -380,20 +380,23 @@ void Search::rebuildResults(const QString &query) {
 			});
 
 			_buttonCache.emplace(entryIndex, button);
-			_resultsContainer->add(
-				object_ptr<Ui::SettingsButton>::fromRaw(button));
+			_list->add(object_ptr<Ui::SettingsButton>::fromRaw(button));
 		}
 	}
 
-	_resultsContainer->resizeToWidth(_resultsContainer->width());
+	_list->resizeToWidth(_list->width());
 }
 
 void Search::setStepDataReference(std::any &data) {
 	_stepData = &data;
-	if (_stepData->has_value() && _searchController) {
+	if (_stepData->has_value()) {
 		const auto state = std::any_cast<SearchSectionState>(_stepData);
 		if (state && !state->query.isEmpty()) {
-			_searchController->setQuery(state->query);
+			if (_searchController) {
+				_searchController->setQuery(state->query);
+			} else {
+				_pendingQuery = state->query;
+			}
 		}
 	}
 }
@@ -419,8 +422,8 @@ void Search::rebuildFaqResults() {
 				this,
 				entry.title,
 				subtitle,
-				st::settingsSearchResult,
-				IconDescriptor{ &st::menuIconFaq },
+				st::settingsSearchResultNoIcon,
+				IconDescriptor{},
 				Builder::SearchEntryCheckIcon::None);
 			_faqButtons.push_back(button);
 		}
@@ -436,12 +439,12 @@ void Search::rebuildFaqResults() {
 		});
 
 		button->show();
-		_resultsContainer->add(object_ptr<Ui::SettingsButton>::fromRaw(button));
+		_list->add(object_ptr<Ui::SettingsButton>::fromRaw(button));
 
 		++index;
 	}
 
-	_resultsContainer->resizeToWidth(_resultsContainer->width());
+	_list->resizeToWidth(_list->width());
 }
 
 } // namespace Settings

@@ -61,7 +61,7 @@ private:
 
 	std::unique_ptr<Ui::SearchFieldController> _searchController;
 	Ui::InputField *_searchField = nullptr;
-	Ui::VerticalLayout *_resultsContainer = nullptr;
+	Ui::VerticalLayout *_list = nullptr;
 	base::flat_map<QString, ResultCustomization> _customizations;
 	std::any *_stepData = nullptr;
 	QString _pendingQuery;

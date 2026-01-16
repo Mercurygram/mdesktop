@@ -151,6 +151,10 @@ void FaqSuggestions::parse(const MTPDwebPage &page) {
 		}, [&](const MTPDpageBlockHeader &) {
 			inToc = false;
 		}, [&](const auto &) {});
+
+		if (!inToc && !_entries.empty()) {
+			break;
+		}
 	}
 }
 

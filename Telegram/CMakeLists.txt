@@ -1580,6 +1580,8 @@ PRIVATE
     settings/sections/settings_main.h
     settings/settings_search.cpp
     settings/settings_search.h
+    settings/settings_faq_suggestions.cpp
+    settings/settings_faq_suggestions.h
     settings/settings_builder.cpp
     settings/settings_builder.h
     settings/sections/settings_notifications.cpp
