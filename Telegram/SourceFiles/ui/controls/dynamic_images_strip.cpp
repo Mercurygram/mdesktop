@@ -127,7 +127,14 @@ void DynamicImagesStrip::mouseMoveEvent(QMouseEvent *e) {
 }
 
 void DynamicImagesStrip::mousePressEvent(QMouseEvent *e) {
+	_pressed = true;
 	if (_hoveredIndex >= 0 && _clickCallback) {
+		_clickCallback(_hoveredIndex);
+	}
+}
+
+void DynamicImagesStrip::mouseReleaseEvent(QMouseEvent *e) {
+	if (!_pressed && _hoveredIndex >= 0 && _clickCallback) {
 		_clickCallback(_hoveredIndex);
 	}
 }

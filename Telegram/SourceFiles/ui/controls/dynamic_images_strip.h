@@ -36,6 +36,7 @@ protected:
 	void paintEvent(QPaintEvent *e) override;
 	void mouseMoveEvent(QMouseEvent *e) override;
 	void mousePressEvent(QMouseEvent *e) override;
+	void mouseReleaseEvent(QMouseEvent *e) override;
 	void leaveEventHook(QEvent *e) override;
 	void keyPressEvent(QKeyEvent *e) override;
 
@@ -56,6 +57,7 @@ private:
 	Animations::Basic _animation;
 	Fn<void(int)> _clickCallback;
 	rpl::event_stream<HoveredItemInfo> _hoveredItem;
+	bool _pressed = false;
 
 };
 
