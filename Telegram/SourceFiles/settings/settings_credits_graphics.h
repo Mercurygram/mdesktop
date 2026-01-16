@@ -122,6 +122,7 @@ struct CreditsEntryBoxStyleOverrides {
 	const style::icon *share = nullptr;
 	const style::icon *theme = nullptr;
 	const style::icon *transfer = nullptr;
+	const style::icon *craft = nullptr;
 	const style::icon *wear = nullptr;
 	const style::icon *takeoff = nullptr;
 	const style::icon *resell = nullptr;

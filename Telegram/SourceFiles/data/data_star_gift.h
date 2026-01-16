@@ -97,15 +97,18 @@ struct UniqueGift {
 	PeerData *releasedBy = nullptr;
 	PeerData *themeUser = nullptr;
 	int64 nanoTonForResale = -1;
+	int craftChancePermille = 0;
 	int starsForResale = -1;
 	int starsForTransfer = -1;
 	int starsMinOffer = -1;
 	int number = 0;
 	bool onlyAcceptTon = false;
 	bool canBeTheme = false;
+	bool crafted = false;
 	TimeId exportAt = 0;
 	TimeId canTransferAt = 0;
 	TimeId canResellAt = 0;
+	TimeId canCraftAt = 0;
 	UniqueGiftModel model;
 	UniqueGiftPattern pattern;
 	UniqueGiftBackdrop backdrop;

@@ -6925,6 +6925,7 @@ void HistoryItem::applyAction(const MTPMessageAction &action) {
 			.refunded = data.is_refunded(),
 			.upgrade = data.is_upgrade(),
 			.saved = data.is_saved(),
+			.craft = data.is_craft(),
 		};
 		if (auto gift = Api::FromTL(&history()->session(), data.vgift())) {
 			fields.stargiftId = gift->id;
@@ -6940,6 +6941,9 @@ void HistoryItem::applyAction(const MTPMessageAction &action) {
 				unique->exportAt = data.vcan_export_at().value_or_empty();
 				unique->canTransferAt = data.vcan_transfer_at().value_or_empty();
 				unique->canResellAt = data.vcan_resell_at().value_or_empty();
+				unique->canCraftAt = data.vcan_craft_at().value_or_empty();
+				unique->craftChancePermille
+					= data.vcraft_chance_permille().value_or_empty();
 			}
 		}
 		_media = std::make_unique<Data::MediaGiftBox>(

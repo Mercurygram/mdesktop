@@ -950,6 +950,7 @@ std::optional<Data::StarGift> FromTL(
 				.number = data.vnum().v,
 				.onlyAcceptTon = data.is_resale_ton_only(),
 				.canBeTheme = data.is_theme_available(),
+				.crafted = data.is_crafted(),
 				.model = *model,
 				.pattern = *pattern,
 				.value = (data.vvalue_amount()
@@ -999,6 +1000,9 @@ std::optional<Data::SavedStarGift> FromTL(
 		unique->exportAt = data.vcan_export_at().value_or_empty();
 		unique->canTransferAt = data.vcan_transfer_at().value_or_empty();
 		unique->canResellAt = data.vcan_resell_at().value_or_empty();
+		unique->canCraftAt = data.vcan_craft_at().value_or_empty();
+		unique->craftChancePermille
+			= data.vcraft_chance_permille().value_or_empty();
 	}
 	using Id = Data::SavedStarGiftId;
 	const auto hasUnique = parsed->unique != nullptr;
@@ -1045,7 +1049,17 @@ Data::UniqueGiftModel FromTL(
 		.document = session->data().processDocument(data.vdocument()),
 	};
 	result.name = qs(data.vname());
-	result.rarityPermille = data.vrarity_permille().v;
+	data.vrarity().match([&](const MTPDstarGiftAttributeRarity &data) {
+		result.rarityPermille = data.vpermille().v;
+	}, [](const auto &) {});
+	//MTPDstarGiftAttributeRarityRare &c_starGiftAttributeRarityRare() const;
+	//[[nodiscard]] const MTPDstarGiftAttributeRarityEpic &c_starGiftAttributeRarityEpic() const;
+	//[[nodiscard]] const MTPDstarGiftAttributeRarityLegendary &c_starGiftAttributeRarityLegendary() const;
+	//[[nodiscard]] const MTPDstarGiftAttributeRarityMythic &c_starGiftAttributeRarityMythic() const;
+	//	);
+	//data.vrarity().c_starGiftAttributeRarity();
+	//data.vrarity().c_()
+	//result.rarityPermille = data.vrarity_permille().v;
 	return result;
 }
 
@@ -1057,14 +1071,18 @@ Data::UniqueGiftPattern FromTL(
 	};
 	result.document->overrideEmojiUsesTextColor(true);
 	result.name = qs(data.vname());
-	result.rarityPermille = data.vrarity_permille().v;
+	data.vrarity().match([&](const MTPDstarGiftAttributeRarity &data) {
+		result.rarityPermille = data.vpermille().v;
+	}, [](const auto &) {});
 	return result;
 }
 
 Data::UniqueGiftBackdrop FromTL(const MTPDstarGiftAttributeBackdrop &data) {
 	auto result = Data::UniqueGiftBackdrop{ .id = data.vbackdrop_id().v };
 	result.name = qs(data.vname());
-	result.rarityPermille = data.vrarity_permille().v;
+	data.vrarity().match([&](const MTPDstarGiftAttributeRarity &data) {
+		result.rarityPermille = data.vpermille().v;
+	}, [](const auto &) {});
 	result.centerColor = Ui::ColorFromSerialized(
 		data.vcenter_color());
 	result.edgeColor = Ui::ColorFromSerialized(

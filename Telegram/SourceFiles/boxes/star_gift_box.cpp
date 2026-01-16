@@ -12,7 +12,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_global_privacy.h"
 #include "api/api_premium.h"
 #include "api/api_text_entities.h"
-//#include "base/call_delayed.h"
 #include "base/event_filter.h"
 #include "base/qt_signal_producer.h"
 #include "base/random.h"
@@ -85,6 +84,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/chat_theme.h"
 #include "ui/controls/button_labels.h"
 #include "ui/controls/emoji_button.h"
+#include "ui/controls/feature_list.h"
 #include "ui/controls/ton_common.h"
 #include "ui/controls/userpic_button.h"
 #include "ui/effects/path_shift_gradient.h"
@@ -5224,60 +5224,54 @@ void UpgradeBox(
 
 	AddSkip(container, st::defaultVerticalListSkip * 2);
 
-	const auto infoRow = [&](
-			rpl::producer<QString> title,
-			rpl::producer<QString> text,
-			not_null<const style::icon*> icon) {
-		auto raw = container->add(
-			object_ptr<Ui::VerticalLayout>(container));
-		raw->add(
-			object_ptr<Ui::FlatLabel>(
-				raw,
-				std::move(title) | rpl::map(tr::bold),
-				st::defaultFlatLabel),
-			st::settingsPremiumRowTitlePadding);
-		raw->add(
-			object_ptr<Ui::FlatLabel>(
-				raw,
-				std::move(text),
-				st::upgradeGiftSubtext),
-			st::settingsPremiumRowAboutPadding);
-		object_ptr<Info::Profile::FloatingIcon>(
-			raw,
-			*icon,
-			st::starrefInfoIconPosition);
+	const auto features = std::vector<Ui::FeatureListEntry>{
+		{
+			st::menuIconUnique,
+			tr::lng_gift_upgrade_unique_title(tr::now),
+			(args.savedId
+				? tr::lng_gift_upgrade_unique_about(tr::now, tr::marked)
+				: (args.peer->isBroadcast()
+					? tr::lng_gift_upgrade_unique_about_channel
+					: tr::lng_gift_upgrade_unique_about_user)(
+						tr::now,
+						lt_name,
+						tr::marked(args.peer->shortName()),
+						tr::marked)),
+		},
+		{
+			st::menuIconReplace,
+			tr::lng_gift_upgrade_transferable_title(tr::now),
+			(args.savedId
+				? tr::lng_gift_upgrade_transferable_about(
+					tr::now,
+					tr::marked)
+				: (args.peer->isBroadcast()
+					? tr::lng_gift_upgrade_transferable_about_channel
+					: tr::lng_gift_upgrade_transferable_about_user)(
+						tr::now,
+						lt_name,
+						tr::marked(args.peer->shortName()),
+						tr::marked)),
+		},
+		{
+			st::menuIconTradable,
+			tr::lng_gift_upgrade_tradable_title(tr::now),
+			(args.savedId
+				? tr::lng_gift_upgrade_tradable_about(tr::now, tr::marked)
+				: (args.peer->isBroadcast()
+					? tr::lng_gift_upgrade_tradable_about_channel
+					: tr::lng_gift_upgrade_tradable_about_user)(
+						tr::now,
+						lt_name,
+						tr::marked(args.peer->shortName()),
+						tr::marked)),
+		},
 	};
-
-	infoRow(
-		tr::lng_gift_upgrade_unique_title(),
-		(args.savedId
-			? tr::lng_gift_upgrade_unique_about()
-			: (args.peer->isBroadcast()
-				? tr::lng_gift_upgrade_unique_about_channel
-				: tr::lng_gift_upgrade_unique_about_user)(
-					lt_name,
-					rpl::single(args.peer->shortName()))),
-		&st::menuIconUnique);
-	infoRow(
-		tr::lng_gift_upgrade_transferable_title(),
-		(args.savedId
-			? tr::lng_gift_upgrade_transferable_about()
-			: (args.peer->isBroadcast()
-				? tr::lng_gift_upgrade_transferable_about_channel
-				: tr::lng_gift_upgrade_transferable_about_user)(
-					lt_name,
-					rpl::single(args.peer->shortName()))),
-		&st::menuIconReplace);
-	infoRow(
-		tr::lng_gift_upgrade_tradable_title(),
-		(args.savedId
-			? tr::lng_gift_upgrade_tradable_about()
-			: (args.peer->isBroadcast()
-				? tr::lng_gift_upgrade_tradable_about_channel
-				: tr::lng_gift_upgrade_tradable_about_user)(
-					lt_name,
-					rpl::single(args.peer->shortName()))),
-		&st::menuIconTradable);
+	for (const auto &feature : features) {
+		container->add(
+			Ui::MakeFeatureListEntry(container, feature),
+			st::boxRowPadding);
+	}
 
 	const auto gifting = !args.savedId
 		&& !args.giftPrepayUpgradeHash.isEmpty();

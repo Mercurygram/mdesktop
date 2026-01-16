@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/gift_premium_box.h"
 #include "boxes/share_box.h"
 #include "boxes/star_gift_box.h"
+#include "boxes/star_gift_craft_box.h"
 #include "boxes/star_gift_resale_box.h"
 #include "boxes/transfer_gift_box.h"
 #include "chat_helpers/stickers_gift_box_pack.h"
@@ -963,6 +964,25 @@ void ProcessReceivedSubscriptions(
 	// (owner->isChannel() && owner->asChannel()->canTransferGifts());
 }
 
+[[nodiscard]] bool CanCraftGift(
+		not_null<Main::Session*> session,
+		const Data::CreditsHistoryEntry &e) {
+	const auto unique = e.uniqueGift.get();
+	if (!unique || !unique->craftChancePermille) {
+		return false;
+	}
+	const auto owner = (unique && unique->ownerId)
+		? session->data().peer(unique->ownerId).get()
+		: nullptr;
+	return !owner
+		? false
+		: owner->isSelf()
+		? e.in
+		: false;
+	// Currently we're not crafting channel gifts.
+	// (owner->isChannel() && owner->asChannel()->canTransferGifts());
+}
+
 [[nodiscard]] bool ShowOfferBuyButton(
 		not_null<Main::Session*> session,
 		const Data::CreditsHistoryEntry &e) {
@@ -1118,6 +1138,14 @@ void FillUniqueGiftMenu(
 				ShowActionLocked(show, unique->slug);
 			} else if (const auto window = show->resolveWindow()) {
 				ShowTransferGiftBox(window, unique, savedId);
+			}
+		}, st.transfer ? st.transfer : &st::menuIconReplace);
+	}
+	if (CanCraftGift(&show->session(), e)) {
+		AssertIsDebug(icon and if we even put this here);
+		menu->addAction(tr::lng_gift_craft_title(tr::now), [=] {
+			if (const auto window = show->resolveWindow()) {
+				Ui::ShowGiftCraftInfoBox(window, unique, savedId);
 			}
 		}, st.transfer ? st.transfer : &st::menuIconReplace);
 	}

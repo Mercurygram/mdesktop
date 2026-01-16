@@ -139,6 +139,10 @@ giftBox: Box(defaultBox) {
 giftLimitedBox: Box(giftBox) {
 	buttonPadding: margins(22px, 48px, 22px, 12px);
 }
+giftCraftBox: Box(giftBox) {
+	buttonPadding: margins(0px, 0px, 0px, 0px);
+	buttonHeight: 0px;
+}
 giftLimitedPadding: margins(8px, 4px, 8px, 4px);
 giftBoxSubtitle: FlatLabel(defaultFlatLabel) {
 	style: TextStyle(defaultTextStyle) {
