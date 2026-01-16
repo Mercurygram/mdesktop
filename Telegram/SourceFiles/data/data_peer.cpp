@@ -463,7 +463,7 @@ void PeerData::paintUserpic(
 	const auto cloud = userpicCloudImage(view);
 	const auto ratio = style::DevicePixelRatio();
 	if (context.shape == Ui::PeerUserpicShape::Auto) {
-		context.shape = isForum()
+		context.shape = (isForum() && !isBot())
 			? Ui::PeerUserpicShape::Forum
 			: isMonoforum()
 			? Ui::PeerUserpicShape::Monoforum

@@ -96,7 +96,7 @@ void CameraBox(
 			done(std::move(image));
 		};
 		const auto useForumShape = forceForumShape
-			|| (peer && peer->isForum());
+			|| (peer && peer->isForum() && !peer->isBot());
 		PrepareProfilePhoto(
 			box,
 			controller,
@@ -929,7 +929,10 @@ void UserpicButton::processNewPeerPhoto() {
 
 bool UserpicButton::useForumShape() const {
 	return (_shape == PeerUserpicShape::Forum)
-		|| (_peer && _peer->isForum() && _shape == PeerUserpicShape::Auto);
+		|| (_peer
+			&& _peer->isForum()
+			&& _shape == PeerUserpicShape::Auto
+			&& !_peer->isBot());
 }
 
 void UserpicButton::grabOldUserpic() {
