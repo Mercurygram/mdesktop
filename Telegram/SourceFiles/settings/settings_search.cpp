@@ -191,7 +191,11 @@ void Search::setupContent() {
 		return loaded;
 	}) | rpl::take(1) | rpl::on_next([=] {
 		for (auto i = _faqStartIndex; i < int(_entries.size()); ++i) {
-			_buttonCache.erase(i);
+			const auto it = _buttonCache.find(i);
+			if (it != _buttonCache.end()) {
+				delete it->second;
+				_buttonCache.erase(it);
+			}
 		}
 		buildIndex();
 		const auto query = _searchController
