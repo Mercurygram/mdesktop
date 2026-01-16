@@ -9128,6 +9128,11 @@ void HistoryWidget::fullInfoUpdated() {
 	} else if (!_scroll->isHidden() && _unblock->isHidden() == isBlocked()) {
 		refresh = true;
 	}
+	if (_history
+			&& HistoryView::SubsectionTabs::UsedFor(_history)
+			&& !_subsectionTabs) {
+		validateSubsectionTabs();
+	}
 	if (refresh) {
 		updateControlsVisibility();
 		updateControlsGeometry();
