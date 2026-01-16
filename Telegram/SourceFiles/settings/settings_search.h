@@ -65,6 +65,7 @@ private:
 	std::any *_stepData = nullptr;
 	std::vector<IndexedEntry> _entries;
 	base::flat_map<QChar, base::flat_set<int>> _firstLetterIndex;
+	base::flat_map<int, Ui::SettingsButton*> _buttonCache;
 
 };
 

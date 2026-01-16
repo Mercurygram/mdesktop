@@ -93,23 +93,24 @@ void SetupCheckIcon(
 	}, check->widget.lifetime());
 }
 
-[[nodiscard]] not_null<Ui::SettingsButton*> CreateSearchResultButton(
-		not_null<Ui::VerticalLayout*> container,
+[[nodiscard]] not_null<Ui::SettingsButton*> CreateSearchResultButtonRaw(
+		not_null<QWidget*> parent,
 		const QString &title,
 		const QString &subtitle,
 		const style::SettingsButton &st,
 		IconDescriptor &&icon,
 		Builder::SearchEntryCheckIcon checkIcon) {
-	const auto button = AddButtonWithIcon(
-		container,
+	auto buttonObj = CreateButtonWithIcon(
+		parent,
 		rpl::single(title),
 		st,
 		std::move(icon));
+	const auto button = buttonObj.release();
 	if (checkIcon != Builder::SearchEntryCheckIcon::None) {
 		SetupCheckIcon(button, checkIcon, st);
 	}
 	const auto details = Ui::CreateChild<Ui::FlatLabel>(
-		button.get(),
+		button,
 		subtitle,
 		st::settingsSearchResultDetails);
 	details->show();
@@ -229,6 +230,10 @@ void Search::buildIndex() {
 }
 
 void Search::rebuildResults(const QString &query) {
+	for (const auto &[index, button] : _buttonCache) {
+		button->setParent(this);
+		button->hide();
+	}
 	_resultsContainer->clear();
 
 	const auto queryWords = TextUtilities::PrepareSearchWords(query);
@@ -299,7 +304,18 @@ void Search::rebuildResults(const QString &query) {
 		const auto &registry = Builder::SearchRegistry::Instance();
 
 		for (const auto &result : results) {
-			const auto &entry = _entries[result.index].entry;
+			const auto entryIndex = result.index;
+			const auto &entry = _entries[entryIndex].entry;
+
+			const auto cached = _buttonCache.find(entryIndex);
+			if (cached != _buttonCache.end()) {
+				const auto button = cached->second;
+				button->show();
+				_resultsContainer->add(
+					object_ptr<Ui::SettingsButton>::fromRaw(button));
+				continue;
+			}
+
 			const auto parentsOnly = entry.id.isEmpty();
 			const auto subtitle = registry.sectionPath(
 				entry.section,
@@ -319,8 +335,8 @@ void Search::rebuildResults(const QString &query) {
 				? st::settingsSearchResult
 				: st::settingsSearchResultNoIcon;
 
-			const auto button = CreateSearchResultButton(
-				_resultsContainer,
+			const auto button = CreateSearchResultButtonRaw(
+				this,
 				entry.title,
 				subtitle,
 				st,
@@ -346,6 +362,10 @@ void Search::rebuildResults(const QString &query) {
 					showOther(targetSection);
 				}
 			});
+
+			_buttonCache.emplace(entryIndex, button);
+			_resultsContainer->add(
+				object_ptr<Ui::SettingsButton>::fromRaw(button));
 		}
 	}
 
