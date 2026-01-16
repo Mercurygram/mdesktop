@@ -94,9 +94,25 @@ void ShowTopPeersSelector(
 		+ 2 * st::topPeersSelectorPadding;
 	const auto selectorHeight = contentHeight
 		+ 2 * st::topPeersSelectorPadding;
-	const auto selector = Ui::CreateChild<Ui::PopupSelector>(
+
+	struct State {
+		base::unique_qptr<Ui::PopupSelector> selector;
+		base::unique_qptr<Ui::ImportantTooltip> tooltip;
+		Ui::Animations::Simple animation;
+		bool finishing = false;
+	};
+	const auto state = std::make_shared<State>();
+
+	state->selector = base::make_unique_q<Ui::PopupSelector>(
 		parent,
 		QSize(selectorWidth, selectorHeight));
+	const auto selector = state->selector.get();
+	selector->setHideFinishedCallback([=, state = std::weak_ptr(state)] {
+		if (const auto s = state.lock()) {
+			s->selector = nullptr;
+			s->tooltip = nullptr;
+		}
+	});
 	const auto userpicsWidget = Ui::CreateChild<Ui::DynamicImagesStrip>(
 		selector,
 		std::move(thumbnails),
@@ -110,13 +126,6 @@ void ShowTopPeersSelector(
 			+ Margins(int(st::topPeersSelectorUserpicSize
 				* st::topPeersSelectorUserpicExpand)));
 	userpicsWidget->setCursor(style::cur_pointer);
-
-	struct State {
-		base::unique_qptr<Ui::ImportantTooltip> tooltip;
-		Ui::Animations::Simple animation;
-		bool finishing = false;
-	};
-	const auto state = selector->lifetime().make_state<State>();
 
 	const auto hideAll = [=] {
 		state->finishing = true;

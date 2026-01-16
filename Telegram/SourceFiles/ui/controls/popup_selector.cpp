@@ -117,16 +117,23 @@ void PopupSelector::updateShowState(
 }
 
 void PopupSelector::hideAnimated() {
-	if (!isHidden() && !_hiding) {
+	if (/*!isHidden() && */!_hiding) {
 		_hiding = true;
 		_hideAnimation.start([=] {
 			const auto progress = 1. - _hideAnimation.value(0.);
 			updateShowState(progress, progress, false);
 			if (!_hideAnimation.animating()) {
 				_hiding = false;
+				if (_hideFinishedCallback) {
+					_hideFinishedCallback();
+				}
 			}
-		}, 1., 0., st::defaultPopupMenu.duration);
+		}, _appearProgress, 0., st::defaultPopupMenu.duration);
 	}
+}
+
+void PopupSelector::setHideFinishedCallback(Fn<void()> callback) {
+	_hideFinishedCallback = std::move(callback);
 }
 
 void PopupSelector::paintBackgroundToBuffer() {

@@ -31,6 +31,7 @@ public:
 		bool appearing);
 	void hideAnimated();
 	void popup(const QPoint &p);
+	void setHideFinishedCallback(Fn<void()> callback);
 
 	[[nodiscard]] QMargins marginsForShadow() const;
 
@@ -56,6 +57,7 @@ private:
 	bool _useTransparency = false;
 	bool _hiding = false;
 	Animations::Simple _hideAnimation;
+	Fn<void()> _hideFinishedCallback;
 
 };
 
