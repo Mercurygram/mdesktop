@@ -46,6 +46,8 @@ private:
 		Builder::SearchEntry entry;
 		QStringList terms;
 		int depth = 0;
+		QString faqUrl;
+		QString faqSection;
 	};
 
 	struct ResultCustomization {
@@ -68,7 +70,7 @@ private:
 	std::vector<IndexedEntry> _entries;
 	base::flat_map<QChar, base::flat_set<int>> _firstLetterIndex;
 	base::flat_map<int, Ui::SettingsButton*> _buttonCache;
-	std::vector<Ui::SettingsButton*> _faqButtons;
+	int _faqStartIndex = 0;
 
 };
 

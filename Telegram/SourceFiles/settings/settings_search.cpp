@@ -190,9 +190,14 @@ void Search::setupContent() {
 	) | rpl::filter([](bool loaded) {
 		return loaded;
 	}) | rpl::take(1) | rpl::on_next([=] {
-		if (!_searchController || _searchController->query().isEmpty()) {
-			rebuildResults(QString());
+		for (auto i = _faqStartIndex; i < int(_entries.size()); ++i) {
+			_buttonCache.erase(i);
 		}
+		buildIndex();
+		const auto query = _searchController
+			? _searchController->query()
+			: QString();
+		rebuildResults(query);
 	}, lifetime());
 
 	Ui::ResizeFitChild(this, content);
@@ -221,6 +226,9 @@ void Search::setupCustomizations() {
 }
 
 void Search::buildIndex() {
+	_entries.clear();
+	_firstLetterIndex.clear();
+
 	const auto &registry = Builder::SearchRegistry::Instance();
 	const auto rawEntries = registry.collectAll(&controller()->session());
 
@@ -230,6 +238,23 @@ void Search::buildIndex() {
 			.entry = entry,
 			.terms = PrepareEntryWords(entry),
 			.depth = CalculateDepth(entry.section, registry),
+		};
+		_entries.push_back(std::move(indexed));
+	}
+
+	_faqStartIndex = int(_entries.size());
+
+	const auto &faq = controller()->session().faqSuggestions();
+	for (const auto &faqEntry : faq.entries()) {
+		auto entry = Builder::SearchEntry{
+			.title = faqEntry.title,
+		};
+		auto indexed = IndexedEntry{
+			.entry = std::move(entry),
+			.terms = TextUtilities::PrepareSearchWords(faqEntry.title),
+			.depth = 1000,
+			.faqUrl = faqEntry.url,
+			.faqSection = faqEntry.section,
 		};
 		_entries.push_back(std::move(indexed));
 	}
@@ -316,10 +341,14 @@ void Search::rebuildResults(const QString &query) {
 	} else {
 		const auto showOther = showOtherMethod();
 		const auto &registry = Builder::SearchRegistry::Instance();
+		const auto faqTitle = tr::lng_settings_faq(tr::now);
+		const auto weak = base::make_weak(controller());
 
 		for (const auto &result : results) {
 			const auto entryIndex = result.index;
-			const auto &entry = _entries[entryIndex].entry;
+			const auto &indexed = _entries[entryIndex];
+			const auto &entry = indexed.entry;
+			const auto isFaq = !indexed.faqUrl.isEmpty();
 
 			const auto cached = _buttonCache.find(entryIndex);
 			if (cached != _buttonCache.end()) {
@@ -330,10 +359,13 @@ void Search::rebuildResults(const QString &query) {
 				continue;
 			}
 
-			const auto parentsOnly = entry.id.isEmpty();
-			const auto subtitle = registry.sectionPath(
-				entry.section,
-				parentsOnly);
+			auto subtitle = QString();
+			if (isFaq) {
+				subtitle = faqTitle + u" > "_q + indexed.faqSection;
+			} else {
+				const auto parentsOnly = entry.id.isEmpty();
+				subtitle = registry.sectionPath(entry.section, parentsOnly);
+			}
 			const auto hasIcon = entry.icon.icon != nullptr;
 			const auto hasCheckIcon = !hasIcon
 				&& (entry.checkIcon != Builder::SearchEntryCheckIcon::None);
@@ -363,21 +395,32 @@ void Search::rebuildResults(const QString &query) {
 				custom->hook(button);
 			}
 
-			const auto targetSection = entry.section;
-			const auto controlId = entry.id;
-			const auto deeplink = entry.deeplink;
-			button->addClickHandler([=] {
-				if (!deeplink.isEmpty()) {
-					Core::App().openLocalUrl(
-						deeplink,
+			if (isFaq) {
+				const auto url = indexed.faqUrl;
+				button->addClickHandler([=] {
+					UrlClickHandler::Open(
+						url,
 						QVariant::fromValue(ClickHandlerContext{
-							.sessionWindow = base::make_weak(controller()),
+							.sessionWindow = weak,
 						}));
-				} else {
-					controller()->setHighlightControlId(controlId);
-					showOther(targetSection);
-				}
-			});
+				});
+			} else {
+				const auto targetSection = entry.section;
+				const auto controlId = entry.id;
+				const auto deeplink = entry.deeplink;
+				button->addClickHandler([=] {
+					if (!deeplink.isEmpty()) {
+						Core::App().openLocalUrl(
+							deeplink,
+							QVariant::fromValue(ClickHandlerContext{
+								.sessionWindow = base::make_weak(controller()),
+							}));
+					} else {
+						controller()->setHighlightControlId(controlId);
+						showOther(targetSection);
+					}
+				});
+			}
 
 			_buttonCache.emplace(entryIndex, button);
 			_list->add(object_ptr<Ui::SettingsButton>::fromRaw(button));
@@ -402,35 +445,35 @@ void Search::setStepDataReference(std::any &data) {
 }
 
 void Search::rebuildFaqResults() {
-	const auto &faq = controller()->session().faqSuggestions();
-	const auto &entries = faq.entries();
-	if (entries.empty()) {
+	if (_faqStartIndex >= int(_entries.size())) {
 		return;
 	}
 
 	const auto faqTitle = tr::lng_settings_faq(tr::now);
-	auto index = 0;
-	for (const auto &entry : entries) {
-		const auto subtitle = faqTitle + u" > "_q + entry.section;
+	const auto weak = base::make_weak(controller());
 
-		const auto reuse = (index < int(_faqButtons.size()));
-		auto button = (Ui::SettingsButton*)nullptr;
-		if (reuse) {
-			button = _faqButtons[index];
-		} else {
-			button = CreateSearchResultButtonRaw(
-				this,
-				entry.title,
-				subtitle,
-				st::settingsSearchResultNoIcon,
-				IconDescriptor{},
-				Builder::SearchEntryCheckIcon::None);
-			_faqButtons.push_back(button);
+	for (auto i = _faqStartIndex; i < int(_entries.size()); ++i) {
+		const auto &indexed = _entries[i];
+
+		const auto cached = _buttonCache.find(i);
+		if (cached != _buttonCache.end()) {
+			const auto button = cached->second;
+			button->show();
+			_list->add(object_ptr<Ui::SettingsButton>::fromRaw(button));
+			continue;
 		}
 
-		const auto url = entry.url;
-		const auto weak = base::make_weak(controller());
-		button->setClickedCallback([=] {
+		const auto subtitle = faqTitle + u" > "_q + indexed.faqSection;
+		const auto button = CreateSearchResultButtonRaw(
+			this,
+			indexed.entry.title,
+			subtitle,
+			st::settingsSearchResultNoIcon,
+			IconDescriptor{},
+			Builder::SearchEntryCheckIcon::None);
+
+		const auto url = indexed.faqUrl;
+		button->addClickHandler([=] {
 			UrlClickHandler::Open(
 				url,
 				QVariant::fromValue(ClickHandlerContext{
@@ -438,10 +481,8 @@ void Search::rebuildFaqResults() {
 				}));
 		});
 
-		button->show();
+		_buttonCache.emplace(i, button);
 		_list->add(object_ptr<Ui::SettingsButton>::fromRaw(button));
-
-		++index;
 	}
 
 	_list->resizeToWidth(_list->width());
