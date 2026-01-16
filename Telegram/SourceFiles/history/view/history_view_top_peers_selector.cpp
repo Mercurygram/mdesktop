@@ -109,31 +109,45 @@ void ShowTopPeersSelector(
 		QRect(x, y, contentWidth, contentHeight)
 			+ Margins(int(st::topPeersSelectorUserpicSize
 				* st::topPeersSelectorUserpicExpand)));
-	userpicsWidget->setClickCallback([=](int index) {
-		send(peers[index]);
-		selector->hideAnimated();
-	});
 	userpicsWidget->setCursor(style::cur_pointer);
 
 	struct State {
 		base::unique_qptr<Ui::ImportantTooltip> tooltip;
 		Ui::Animations::Simple animation;
+		bool finishing = false;
 	};
 	const auto state = selector->lifetime().make_state<State>();
 
+	const auto hideAll = [=] {
+		state->finishing = true;
+		selector->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+		state->tooltip->toggleAnimated(false);
+		selector->hideAnimated();
+	};
+
+	userpicsWidget->setClickCallback([=](int index) {
+		if (state->finishing) {
+			return;
+		}
+		send(peers[index]);
+		hideAll();
+	});
 	userpicsWidget->hoveredItemValue(
 	) | rpl::on_next([=](Ui::HoveredItemInfo info) {
 		if (info.index < 0) {
 			state->tooltip = nullptr;
 			return;
 		}
+		using namespace Info::Profile;
 		state->tooltip = base::make_unique_q<Ui::ImportantTooltip>(
 			parent,
 			object_ptr<Ui::PaddingWrap<Ui::FlatLabel>>(
 				selector,
 				Ui::MakeNiceTooltipLabel(
 					parent,
-					Info::Profile::NameValue(peers[info.index]) | rpl::map(tr::rich),
+					peers[info.index]->isSelf()
+						? tr::lng_saved_messages(tr::rich)
+						: NameValue(peers[info.index]) | rpl::map(tr::rich),
 					userpicsWidget->width(),
 					st::topPeersSelectorImportantTooltipLabel),
 				st::topPeersSelectorImportantTooltip.padding),
@@ -165,6 +179,20 @@ void ShowTopPeersSelector(
 	selector->popup((!globalPos.isNull() ? globalPos : QCursor::pos())
 		- QPoint(selector->width() / 2, selector->height())
 		+ st::topPeersSelectorSkip);
+	selector->events(
+	) | rpl::on_next([=](not_null<QEvent*> e) {
+		if (e->type() == QEvent::KeyPress) {
+			const auto key = static_cast<QKeyEvent*>(e.get());
+			if (key->key() == Qt::Key_Escape) {
+				hideAll();
+			} else {
+				userpicsWidget->handleKeyPressEvent(key);
+			}
+		}
+	}, selector->lifetime());
+	crl::on_main(selector, [=] {
+		selector->setFocus();
+	});
 
 	constexpr auto kShift = 0.15;
 	state->animation.start([=](float64 value) {

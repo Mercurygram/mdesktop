@@ -30,15 +30,19 @@ public:
 	void setClickCallback(Fn<void(int)> callback);
 	[[nodiscard]] rpl::producer<HoveredItemInfo> hoveredItemValue() const;
 
+	void handleKeyPressEvent(QKeyEvent *e);
+
 protected:
 	void paintEvent(QPaintEvent *e) override;
 	void mouseMoveEvent(QMouseEvent *e) override;
 	void mousePressEvent(QMouseEvent *e) override;
 	void leaveEventHook(QEvent *e) override;
+	void keyPressEvent(QKeyEvent *e) override;
 
 private:
 	void startAnimation();
 	void updateHoveredItem(int index);
+	void setSelectedIndex(int index);
 
 	std::vector<std::shared_ptr<DynamicImage>> _thumbnails;
 	int _userpicSize = 0;

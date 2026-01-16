@@ -67,6 +67,10 @@ rpl::producer<HoveredItemInfo> DynamicImagesStrip::hoveredItemValue() const {
 	return _hoveredItem.events();
 }
 
+void DynamicImagesStrip::handleKeyPressEvent(QKeyEvent *e) {
+	keyPressEvent(e);
+}
+
 void DynamicImagesStrip::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 	{
@@ -119,27 +123,7 @@ void DynamicImagesStrip::mouseMoveEvent(QMouseEvent *e) {
 			break;
 		}
 	}
-	if (_hoveredIndex != newIndex) {
-		const auto prev = _hoveredIndex;
-		_hoveredIndex = newIndex;
-		if (prev >= 0) {
-			_scaleTargets[prev] = 0.;
-			_alphaTargets[prev] = kDimmedAlpha;
-		}
-		if (newIndex >= 0) {
-			_scaleTargets[newIndex] = 1.;
-			_alphaTargets[newIndex] = 1.;
-			for (auto i = 0; i < count; ++i) {
-				if (i != newIndex && _alphaTargets[i] > kDimmedAlpha) {
-					_alphaTargets[i] = kDimmedAlpha;
-				}
-			}
-			updateHoveredItem(newIndex);
-		} else {
-			updateHoveredItem(-1);
-		}
-		startAnimation();
-	}
+	setSelectedIndex(newIndex);
 }
 
 void DynamicImagesStrip::mousePressEvent(QMouseEvent *e) {
@@ -149,15 +133,7 @@ void DynamicImagesStrip::mousePressEvent(QMouseEvent *e) {
 }
 
 void DynamicImagesStrip::leaveEventHook(QEvent *e) {
-	if (_hoveredIndex >= 0) {
-		_hoveredIndex = -1;
-		for (auto i = 0; i < int(_thumbnails.size()); ++i) {
-			_scaleTargets[i] = 0.;
-			_alphaTargets[i] = 1.;
-		}
-		updateHoveredItem(-1);
-		startAnimation();
-	}
+	setSelectedIndex(-1);
 }
 
 void DynamicImagesStrip::startAnimation() {
@@ -180,7 +156,62 @@ void DynamicImagesStrip::updateHoveredItem(int index) {
 		avatarRect.size());
 	_hoveredItem.fire({
 		.index = index,
-		.globalPos = globalRect.center() });
+		.globalPos = globalRect.center(),
+	});
+}
+
+void DynamicImagesStrip::keyPressEvent(QKeyEvent *e) {
+	const auto count = int(_thumbnails.size());
+	if (count == 0) {
+		return;
+	}
+	const auto key = e->key();
+	if (key == Qt::Key_Left || key == Qt::Key_Up) {
+		const auto newIndex = (_hoveredIndex < 0)
+			? (count - 1)
+			: ((_hoveredIndex - 1 + count) % count);
+		setSelectedIndex(newIndex);
+	} else if (key == Qt::Key_Right || key == Qt::Key_Down) {
+		const auto newIndex = (_hoveredIndex < 0)
+			? 0
+			: ((_hoveredIndex + 1) % count);
+		setSelectedIndex(newIndex);
+	} else if ((key == Qt::Key_Return
+			|| key == Qt::Key_Enter
+			|| key == Qt::Key_Space)
+		&& _hoveredIndex >= 0 && _clickCallback) {
+		_clickCallback(_hoveredIndex);
+	}
+}
+
+void DynamicImagesStrip::setSelectedIndex(int index) {
+	if (_hoveredIndex == index) {
+		return;
+	}
+	const auto prev = _hoveredIndex;
+	const auto count = int(_thumbnails.size());
+	_hoveredIndex = index;
+	if (prev >= 0) {
+		_scaleTargets[prev] = 0.;
+		_alphaTargets[prev] = kDimmedAlpha;
+	}
+	if (index >= 0) {
+		_scaleTargets[index] = 1.;
+		_alphaTargets[index] = 1.;
+		for (auto i = 0; i < count; ++i) {
+			if (i != index && _alphaTargets[i] > kDimmedAlpha) {
+				_alphaTargets[i] = kDimmedAlpha;
+			}
+		}
+		updateHoveredItem(index);
+	} else {
+		for (auto i = 0; i < count; ++i) {
+			_scaleTargets[i] = 0.;
+			_alphaTargets[i] = 1.;
+		}
+		updateHoveredItem(-1);
+	}
+	startAnimation();
 }
 
 } // namespace Ui
