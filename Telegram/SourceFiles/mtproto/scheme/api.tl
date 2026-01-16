@@ -2660,6 +2660,7 @@ channels.toggleAutotranslation#167fc0a1 channel:InputChannel enabled:Bool = Upda
 channels.getMessageAuthor#ece2a0e6 channel:InputChannel id:int = User;
 channels.checkSearchPostsFlood#22567115 flags:# query:flags.0?string = SearchPostsFlood;
 channels.setMainProfileTab#3583fcb1 channel:InputChannel tab:ProfileTab = Bool;
+channels.getFutureCreatorAfterLeave#a00918af channel:InputChannel = User;
 
 bots.sendCustomRequest#aa2769ed custom_method:string params:DataJSON = DataJSON;
 bots.answerWebhookJSONQuery#e6213f4d query_id:long data:DataJSON = Bool;
