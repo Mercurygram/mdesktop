@@ -57,15 +57,18 @@ private:
 	void setupCustomizations();
 	void buildIndex();
 	void rebuildResults(const QString &query);
+	void rebuildFaqResults();
 
 	std::unique_ptr<Ui::SearchFieldController> _searchController;
 	Ui::InputField *_searchField = nullptr;
 	Ui::VerticalLayout *_resultsContainer = nullptr;
 	base::flat_map<QString, ResultCustomization> _customizations;
 	std::any *_stepData = nullptr;
+	QString _pendingQuery;
 	std::vector<IndexedEntry> _entries;
 	base::flat_map<QChar, base::flat_set<int>> _firstLetterIndex;
 	base::flat_map<int, Ui::SettingsButton*> _buttonCache;
+	std::vector<Ui::SettingsButton*> _faqButtons;
 
 };
 

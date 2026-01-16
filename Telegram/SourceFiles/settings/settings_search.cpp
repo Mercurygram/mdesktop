@@ -10,8 +10,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/application.h"
 #include "core/click_handler_types.h"
 #include "lang/lang_keys.h"
+#include "main/main_session.h"
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
+#include "settings/settings_faq_suggestions.h"
 #include "ui/painter.h"
 #include "ui/text/text_entity.h"
 #include "ui/search_field_controller.h"
@@ -181,6 +183,15 @@ void Search::setupContent() {
 	buildIndex();
 	rebuildResults(QString());
 
+	controller()->session().faqSuggestions().loadedValue(
+	) | rpl::filter([](bool loaded) {
+		return loaded;
+	}) | rpl::take(1) | rpl::on_next([=] {
+		if (!_searchController || _searchController->query().isEmpty()) {
+			rebuildResults(QString());
+		}
+	}, lifetime());
+
 	Ui::ResizeFitChild(this, content);
 }
 
@@ -234,16 +245,21 @@ void Search::rebuildResults(const QString &query) {
 		button->setParent(this);
 		button->hide();
 	}
+	for (const auto &button : _faqButtons) {
+		button->setParent(this);
+		button->hide();
+	}
 	_resultsContainer->clear();
 
 	const auto queryWords = TextUtilities::PrepareSearchWords(query);
-	auto results = std::vector<SearchResultItem>();
 
 	if (queryWords.isEmpty()) {
-		for (auto i = 0; i < int(_entries.size()); ++i) {
-			results.push_back({ .index = i });
-		}
-	} else {
+		rebuildFaqResults();
+		return;
+	}
+
+	auto results = std::vector<SearchResultItem>();
+	{
 		auto toFilter = (const base::flat_set<int>*)nullptr;
 		for (const auto &word : queryWords) {
 			if (word.isEmpty()) {
@@ -380,6 +396,52 @@ void Search::setStepDataReference(std::any &data) {
 			_searchController->setQuery(state->query);
 		}
 	}
+}
+
+void Search::rebuildFaqResults() {
+	const auto &faq = controller()->session().faqSuggestions();
+	const auto &entries = faq.entries();
+	if (entries.empty()) {
+		return;
+	}
+
+	const auto faqTitle = tr::lng_settings_faq(tr::now);
+	auto index = 0;
+	for (const auto &entry : entries) {
+		const auto subtitle = faqTitle + u" > "_q + entry.section;
+
+		const auto reuse = (index < int(_faqButtons.size()));
+		auto button = (Ui::SettingsButton*)nullptr;
+		if (reuse) {
+			button = _faqButtons[index];
+		} else {
+			button = CreateSearchResultButtonRaw(
+				this,
+				entry.title,
+				subtitle,
+				st::settingsSearchResult,
+				IconDescriptor{ &st::menuIconFaq },
+				Builder::SearchEntryCheckIcon::None);
+			_faqButtons.push_back(button);
+		}
+
+		const auto url = entry.url;
+		const auto weak = base::make_weak(controller());
+		button->setClickedCallback([=] {
+			UrlClickHandler::Open(
+				url,
+				QVariant::fromValue(ClickHandlerContext{
+					.sessionWindow = weak,
+				}));
+		});
+
+		button->show();
+		_resultsContainer->add(object_ptr<Ui::SettingsButton>::fromRaw(button));
+
+		++index;
+	}
+
+	_resultsContainer->resizeToWidth(_resultsContainer->width());
 }
 
 } // namespace Settings
