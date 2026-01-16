@@ -229,16 +229,14 @@ void Search::buildIndex() {
 }
 
 void Search::rebuildResults(const QString &query) {
-	while (_resultsContainer->count() > 0) {
-		delete _resultsContainer->widgetAt(0);
-	}
+	_resultsContainer->clear();
 
 	const auto queryWords = TextUtilities::PrepareSearchWords(query);
 	auto results = std::vector<SearchResultItem>();
 
 	if (queryWords.isEmpty()) {
 		for (auto i = 0; i < int(_entries.size()); ++i) {
-			results.push_back({ .index = i, .matchCount = 0 });
+			results.push_back({ .index = i });
 		}
 	} else {
 		auto toFilter = (const base::flat_set<int>*)nullptr;

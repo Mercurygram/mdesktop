@@ -450,6 +450,7 @@ void WrapWidget::setupTopBarMenuToggle() {
 				});
 			}
 		}
+		setupShortcuts();
 	} else if (key.storiesPeer()
 		&& key.storiesPeer()->isSelf()
 		&& key.storiesAlbumId() != Stories::ArchiveId()) {
