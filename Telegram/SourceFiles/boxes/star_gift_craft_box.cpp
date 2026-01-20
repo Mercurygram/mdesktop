@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_user.h"
 #include "info/peer_gifts/info_peer_gifts_common.h"
 #include "lang/lang_keys.h"
+#include "main/main_app_config.h"
 #include "main/main_session.h"
 #include "ui/boxes/about_cocoon_box.h" // AddUniqueCloseButton.
 #include "ui/controls/button_labels.h"
@@ -60,10 +61,10 @@ using namespace Info::PeerGifts;
 		return result;
 	};
 	return {
-		hardcoded({ 0x1b2d39, 0x141d2e, 0x121823 }),
-		hardcoded({ 0x562f12, 0x2a160d, 0x1f130e }),
-		hardcoded({ 0x1f363e, 0x121929, 0x10141c }),
-		hardcoded({ 0x1b4140, 0x192e37, 0x183237 }),
+		hardcoded({ 0x2C4359, 0x232E3F, 0x040C1A }),
+		hardcoded({ 0x2C4359, 0x232E3F, 0x040C1A }),
+		hardcoded({ 0x2C4359, 0x232E3F, 0x040C1A }),
+		hardcoded({ 0x1C4843, 0x1A2E37, 0x040C1A }),
 	};
 }
 
@@ -99,6 +100,7 @@ struct CraftingView {
 	struct State {
 		State(const style::CraftRadialPercent &st, Fn<void()> callback)
 		: numbers(st.font, std::move(callback)) {
+			numbers.setDisabledMonospace(true);
 		}
 
 		Animations::Simple animation;
@@ -355,7 +357,7 @@ AbstractButton *MakeRemoveButton(
 				auto hq = PainterHighQualityEnabler(p);
 				const auto radius = st::boxRadius;
 				p.setPen(Qt::NoPen);
-				p.setBrush(QColor(255, 255, 255, 32));
+				p.setBrush(QColor(0xBA, 0xDF, 0xFF, 32));
 
 				const auto rect = QRect(QPoint(), geometry.size());
 				p.drawRoundedRect(rect, radius, radius);
@@ -425,7 +427,7 @@ AbstractButton *MakeRemoveButton(
 		const auto radius = st::boxRadius;
 
 		p.setPen(Qt::NoPen);
-		p.setBrush(QColor(255, 255, 255, 32));
+		p.setBrush(QColor(0xBA, 0xDF, 0xFF, 32));
 
 		p.drawRoundedRect(center, radius, radius);
 
@@ -559,6 +561,194 @@ void ShowSelectGiftBox(
 	}));
 }
 
+[[nodiscard]] object_ptr<RpWidget> MakeRarityExpectancyPreview(
+		not_null<RpWidget*> parent,
+		not_null<Main::Session*> session,
+		rpl::producer<std::vector<GiftForCraft>> gifts) {
+	auto result = object_ptr<RpWidget>(parent);
+	const auto raw = result.data();
+
+	struct State {
+		rpl::variable<int> backdropPermille;
+		rpl::variable<int> patternPermille;
+
+		Animations::Simple backdropAnimation;
+		Data::UniqueGiftBackdrop wasBackdrop;
+		Data::UniqueGiftBackdrop nowBackdrop;
+		QImage wasFrame;
+		QImage nowFrame;
+
+		Animations::Simple patternAnimation;
+		DocumentData *wasPattern = nullptr;
+		DocumentData *nowPattern = nullptr;
+		std::unique_ptr<Text::CustomEmoji> wasEmoji;
+		std::unique_ptr<Text::CustomEmoji> nowEmoji;
+	};
+
+	const auto state = raw->lifetime().make_state<State>();
+
+	const auto permilles = session->appConfig().craftAttributePermilles();
+	const auto permille = [=](int count) {
+		Expects(count > 0);
+
+		return (count <= permilles.size()) ? permilles[count - 1] : 1000;
+	};
+
+	std::move(
+		gifts
+	) | rpl::on_next([=](const std::vector<GiftForCraft> &list) {
+		struct Backdrop {
+			Data::UniqueGiftBackdrop fields;
+			int count = 0;
+		};
+		struct Pattern {
+			not_null<DocumentData*> document;
+			int count = 0;
+		};
+		auto backdrops = std::vector<Backdrop>();
+		auto patterns = std::vector<Pattern>();
+		for (const auto &gift : list) {
+			const auto &backdrop = gift.unique->backdrop;
+			const auto &pattern = gift.unique->pattern.document;
+			const auto proj1 = &Backdrop::fields;
+			const auto i = ranges::find(backdrops, backdrop, proj1);
+			if (i != end(backdrops)) {
+				++i->count;
+			} else {
+				backdrops.push_back({ backdrop, 1 });
+			}
+			const auto proj2 = &Pattern::document;
+			const auto j = ranges::find(patterns, pattern, proj2);
+			if (j != end(patterns)) {
+				++j->count;
+			} else {
+				patterns.push_back({ pattern, 1 });
+			}
+		}
+		ranges::sort(backdrops, ranges::greater(), &Backdrop::count);
+		ranges::sort(patterns, ranges::greater(), &Pattern::count);
+
+		const auto &backdrop = backdrops.front();
+		state->backdropPermille = permille(backdrop.count);
+		if (state->nowBackdrop != backdrop.fields) {
+			if (!state->nowFrame.isNull()) {
+				state->wasBackdrop = state->nowBackdrop;
+				state->wasFrame = base::take(state->nowFrame);
+				state->backdropAnimation.stop();
+				state->backdropAnimation.start([=] {
+					raw->update();
+				}, 0., 1., st::fadeWrapDuration);
+			}
+			state->nowBackdrop = backdrop.fields;
+		}
+
+		const auto &pattern = patterns.front();
+		state->patternPermille = permille(pattern.count);
+		if (state->nowPattern != pattern.document) {
+			if (state->nowEmoji) {
+				state->wasPattern = state->nowPattern;
+				state->wasEmoji = base::take(state->nowEmoji);
+				state->patternAnimation.stop();
+				state->patternAnimation.start([=] {
+					raw->update();
+				}, 0., 1., st::fadeWrapDuration);
+			}
+			state->nowPattern = pattern.document;
+		}
+	}, raw->lifetime());
+
+	const auto single = st::craftAttributeSize;
+	const auto width = 2 * single + st::craftAttributeSkip;
+	MakeRadialPercent(
+		raw,
+		st::craftAttributePercent,
+		state->backdropPermille.value()
+	)->setGeometry(0, 0, single, single);
+	MakeRadialPercent(
+		raw,
+		st::craftAttributePercent,
+		state->patternPermille.value()
+	)->setGeometry(width - single, 0, single, single);
+
+	raw->setNaturalWidth(width);
+	raw->resize(width, single);
+	raw->paintOn([=](QPainter &p) {
+		const auto sub = st::craftAttributePadding;
+		const auto backdrop = QRect(0, 0, single, single).marginsRemoved(
+			{ sub, sub, sub, sub });
+		const auto backdropProgress = state->backdropAnimation.value(1.);
+		if (backdropProgress < 1.) {
+			p.drawImage(backdrop.topLeft(), state->wasFrame);
+			p.setOpacity(backdropProgress);
+		}
+		if (state->nowFrame.isNull()) {
+			const auto ratio = style::DevicePixelRatio();
+			state->nowFrame = QImage(
+				backdrop.size() * ratio,
+				QImage::Format_ARGB32_Premultiplied);
+			state->nowFrame.fill(Qt::transparent);
+			state->nowFrame.setDevicePixelRatio(ratio);
+			auto q = QPainter(&state->nowFrame);
+			auto hq = PainterHighQualityEnabler(q);
+			auto gradient = QLinearGradient(
+				QPointF(backdrop.width(), 0),
+				QPointF(0, backdrop.height()));
+			gradient.setColorAt(0., state->nowBackdrop.centerColor);
+			gradient.setColorAt(1., state->nowBackdrop.edgeColor);
+			q.setPen(Qt::NoPen);
+			q.setBrush(gradient);
+			q.drawEllipse(0, 0, backdrop.width(), backdrop.height());
+
+			q.setCompositionMode(QPainter::CompositionMode_Source);
+			q.setBrush(Qt::transparent);
+			const auto max = u"100%"_q;
+			const auto &font = st::craftAttributePercent.font;
+			const auto width = font->width(max);
+			q.drawRoundedRect(
+				(backdrop.width() - width) / 2,
+				backdrop.height() + sub - font->height,
+				width,
+				font->height,
+				font->height / 2.,
+				font->height / 2.);
+		}
+		p.drawImage(backdrop.topLeft(), state->nowFrame);
+		p.setOpacity(1);
+
+		const auto pattern = QRect(width - single, 0, single, single);
+		const auto center = pattern.center();
+		const auto shift = (single - Emoji::GetCustomSizeNormal()) / 2;
+		const auto position = pattern.topLeft() + QPoint(shift, shift);
+		const auto patternProgress = state->patternAnimation.value(1.);
+		if (patternProgress < 1.) {
+			p.translate(center);
+			p.save();
+			p.setOpacity(1. - patternProgress);
+			p.scale(1. - patternProgress, 1. - patternProgress);
+			p.translate(-center);
+			state->wasEmoji->paint(p, {
+				.textColor = st::white->c,
+				.position = position,
+			});
+			p.restore();
+			p.scale(patternProgress, patternProgress);
+			p.setOpacity(patternProgress);
+			p.translate(-center);
+		}
+		if (!state->nowEmoji) {
+			state->nowEmoji = session->data().customEmojiManager().create(
+				state->nowPattern,
+				[=] { raw->update(); });
+		}
+		state->nowEmoji->paint(p, {
+			.textColor = st::white->c,
+			.position = position,
+		});
+	});
+
+	return result;
+}
+
 void Craft(
 		not_null<Window::SessionController*> controller,
 		std::vector<GiftForCraft> gifts) {
@@ -685,6 +875,7 @@ void MakeCraftContent(
 		session,
 		state->chosen.value(),
 		state->coverEdgeColor.value());
+	const auto craftingHeight = crafting.widget->height();
 	raw->add(std::move(crafting.widget));
 	std::move(crafting.removeRequests) | rpl::on_next([=](int index) {
 		auto chosen = state->chosen.current();
@@ -763,6 +954,10 @@ void MakeCraftContent(
 	about->setTextColorOverride(st::white->c);
 	about->setTryMakeSimilarLines(true);
 
+	raw->add(
+		MakeRarityExpectancyPreview(raw, session, state->chosen.value()),
+		style::al_top);
+
 	raw->paintOn([=](QPainter &p) {
 		const auto width = raw->width();
 		const auto getBackdrop = [&](BackdropView &backdrop) {
@@ -789,7 +984,7 @@ void MakeCraftContent(
 				pattern.emojis[key],
 				pattern.emoji.get(),
 				color,
-				QRect(0, 0, width, st::uniqueGiftSubtitleTop),
+				QRect(0, 0, width, st::boxTitleHeight + craftingHeight),
 				shown);
 		};
 		auto animating = false;

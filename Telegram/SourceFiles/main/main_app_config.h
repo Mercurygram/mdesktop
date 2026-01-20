@@ -137,6 +137,8 @@ public:
 	using StarsColoring = Calls::Group::Ui::StarsColoring;
 	[[nodiscard]] std::vector<StarsColoring> groupCallColorings() const;
 
+	[[nodiscard]] std::vector<int> craftAttributePermilles() const;
+
 	void refresh(bool force = false);
 
 private:

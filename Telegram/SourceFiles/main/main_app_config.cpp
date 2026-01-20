@@ -644,4 +644,10 @@ auto AppConfig::groupCallColorings() const -> std::vector<StarsColoring> {
 	return _groupCallColorings;
 }
 
+std::vector<int> AppConfig::craftAttributePermilles() const {
+	return getIntArray(
+		u"stargift_craft_attribute_permillages"_q,
+		std::vector<int>{ 60, 180, 450, 1000 });
+}
+
 } // namespace Main

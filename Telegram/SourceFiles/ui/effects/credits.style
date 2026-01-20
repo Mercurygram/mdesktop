@@ -611,13 +611,16 @@ craftForgePercent: CraftRadialPercent {
 	stroke: 4px;
 	font: font(14px semibold);
 }
-craftForgeAttribute: CraftRadialPercent {
-	stroke: 3px;
-	font: font(12px semibold);
-}
 craftPercentLabel: FlatLabel(defaultFlatLabel) {
 	style: TextStyle(defaultTextStyle) {
-		font: font(10px semibold);
+		font: font(11px semibold);
 	}
 	margin: margins(5px, 2px, 5px, 2px);
+}
+craftAttributeSkip: 12px;
+craftAttributePadding: 7px;
+craftAttributeSize: 48px;
+craftAttributePercent: CraftRadialPercent {
+	stroke: 3px;
+	font: font(10px semibold);
 }
