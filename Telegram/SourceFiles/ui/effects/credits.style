@@ -196,6 +196,7 @@ giftBoxPadding: margins(11px, 4px, 11px, 24px);
 giftBoxGiftSkip: point(10px, 8px);
 giftBoxGiftHeight: 164px;
 giftBoxGiftSmall: 108px;
+giftBoxGiftTiny: 72px;
 giftBoxGiftRadius: 12px;
 giftBoxGiftBadgeFont: font(10px semibold);
 giftBoxByStarsStyle: TextStyle(defaultTextStyle) {
@@ -221,6 +222,7 @@ giftBoxStickerStarTop: 24px;
 giftBoxSmallStickerTop: 16px;
 giftBoxStickerTopByStars: -4px;
 giftBoxStickerSize: size(80px, 80px);
+giftBoxStickerTiny: size(48px, 48px);
 giftBoxSelectSkip: 5px;
 giftBoxUserpicSize: 24px;
 giftBoxUserpicSkip: 2px;
@@ -584,3 +586,19 @@ auctionListRaise: RoundButton(defaultActiveButton) {
 	width: 0px;
 }
 auctionListRaisePadding: margins(0px, 8px, 0px, 0px);
+
+craftTitleMargin: margins(64px, 16px, 64px, 4px);
+craftAbout: FlatLabel(defaultFlatLabel) {
+	align: align(top);
+	minWidth: 128px;
+}
+craftAboutMargin: margins(24px, 16px, 24px, 4px);
+craftPattern: IconEmoji {
+	icon: icon{{ "chat/filled_forge-36x36", windowFg }};
+	padding: margins(0px, 0px, 0px, 0px);
+}
+craftAddIcon: icon {{ "settings/plus", windowFgActive }};
+craftPreviewPadding: margins(24px, 12px, 18px, 8px);
+craftForge: icon{{ "chat/filled_forge-48x48", windowFg }};
+craftForgePadding: 12px;
+craftForgeTextBottom: 12px;

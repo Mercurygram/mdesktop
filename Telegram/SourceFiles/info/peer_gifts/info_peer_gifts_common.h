@@ -140,6 +140,7 @@ enum class GiftButtonMode : uint8 {
 	Full,
 	Minimal,
 	Selection,
+	CraftPreview,
 };
 
 enum class GiftSelectionMode : uint8 {
@@ -203,6 +204,7 @@ private:
 
 	void refreshLocked();
 	void setDocument(not_null<DocumentData*> document);
+	[[nodiscard]] QSize stickerSize() const;
 	[[nodiscard]] QMargins currentExtend() const;
 	[[nodiscard]] bool small() const;
 

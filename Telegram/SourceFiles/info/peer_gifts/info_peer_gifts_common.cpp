@@ -403,18 +403,18 @@ void GiftButton::setDocument(not_null<DocumentData*> document) {
 				ChatHelpers::LottiePlayerFromDocument(
 					media.get(),
 					ChatHelpers::StickerLottieSize::InlineResults,
-					st::giftBoxStickerSize,
+					stickerSize(),
 					Lottie::Quality::High));
 		} else if (sticker->isWebm()) {
 			result = std::make_unique<HistoryView::WebmPlayer>(
 				media->owner()->location(),
 				media->bytes(),
-				st::giftBoxStickerSize);
+				stickerSize());
 		} else {
 			result = std::make_unique<HistoryView::StaticStickerPlayer>(
 				media->owner()->location(),
 				media->bytes(),
-				st::giftBoxStickerSize);
+				stickerSize());
 		}
 		result->setRepaintCallback([=] { update(); });
 		_playerDocument = media->owner();
@@ -736,7 +736,7 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 	if (_player && _player->ready()) {
 		const auto paused = !isOver();
 		auto info = _player->frame(
-			st::giftBoxStickerSize,
+			stickerSize(),
 			QColor(0, 0, 0, 0),
 			false,
 			crl::now(),
@@ -763,7 +763,7 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 	}
 	if (hidden) {
 		const auto topleft = QPoint(
-			(width - st::giftBoxStickerSize.width()) / 2,
+			(width - stickerSize().width()) / 2,
 			(small()
 				? st::giftBoxSmallStickerTop
 				: _text.isEmpty()
@@ -776,7 +776,7 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 			frame,
 			_hiddenBgCache,
 			topleft,
-			st::giftBoxStickerSize,
+			stickerSize(),
 			width);
 	}
 
@@ -999,6 +999,12 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 	}
 }
 
+QSize GiftButton::stickerSize() const {
+	return (_mode == GiftButtonMode::CraftPreview)
+		? st::giftBoxStickerTiny
+		: st::giftBoxStickerSize;
+}
+
 Delegate::Delegate(not_null<Main::Session*> session, GiftButtonMode mode)
 : _session(session)
 , _hiddenMark(std::make_unique<StickerPremiumMark>(
@@ -1046,9 +1052,14 @@ QSize Delegate::buttonSize() {
 	const auto singlew = (available - 2 * st::giftBoxGiftSkip.x())
 		/ kGiftsPerRow;
 	const auto minimal = (_mode != GiftButtonMode::Full);
+	const auto tiny = (_mode == GiftButtonMode::CraftPreview);
 	_single = QSize(
-		singlew,
-		minimal ? st::giftBoxGiftSmall : st::giftBoxGiftHeight);
+		tiny ? st::giftBoxGiftTiny : singlew,
+		(tiny
+			? st::giftBoxGiftTiny
+			: minimal
+			? st::giftBoxGiftSmall
+			: st::giftBoxGiftHeight));
 	return _single;
 }
 
