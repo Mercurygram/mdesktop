@@ -16,6 +16,9 @@ class GradientButton final : public Ui::RippleButton {
 public:
 	GradientButton(QWidget *widget, QGradientStops stops);
 
+	void setStops(QGradientStops stops);
+	void setFullRadius(bool enabled);
+
 	void startGlareAnimation();
 	void setGlarePaused(bool paused);
 
@@ -25,10 +28,13 @@ private:
 	void validateBg();
 	void validateGlare();
 
+	QImage prepareRippleMask() const override;
+
 	QGradientStops _stops;
 	QImage _bg;
 
 	GlareEffect _glare;
+	bool _fullRadius = false;
 
 };
 

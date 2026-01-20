@@ -27,6 +27,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/effects/numbers_animation.h"
 #include "ui/layers/generic_box.h"
 #include "ui/widgets/buttons.h"
+#include "ui/widgets/gradient_round_button.h"
 #include "ui/painter.h"
 #include "ui/top_background_gradient.h"
 #include "ui/vertical_list.h"
@@ -41,30 +42,40 @@ namespace {
 
 using namespace Info::PeerGifts;
 
-[[nodiscard]] std::array<Data::UniqueGiftBackdrop, 4> CraftBackdrops() {
+struct ColorScheme {
+	Data::UniqueGiftBackdrop backdrop;
+	QColor button1;
+	QColor button2;
+};
+
+[[nodiscard]] std::array<ColorScheme, 4> CraftBackdrops() {
 	struct Colors {
 		int center = 0;
 		int edge = 0;
 		int pattern = 0;
+		int button1 = 0;
+		int button2 = 0;
 	};
 	const auto hardcoded = [](Colors colors) {
-		auto result = Data::UniqueGiftBackdrop();
+		auto result = ColorScheme();
 		const auto color = [](int value) {
 			return QColor(
 				(uint32(value) >> 16) & 0xFF,
 				(uint32(value) >> 8) & 0xFF,
 				(uint32(value)) & 0xFF);
 		};
-		result.centerColor = color(colors.center);
-		result.edgeColor = color(colors.edge);
-		result.patternColor = color(colors.pattern);
+		result.backdrop.centerColor = color(colors.center);
+		result.backdrop.edgeColor = color(colors.edge);
+		result.backdrop.patternColor = color(colors.pattern);
+		result.button1 = color(colors.button1);
+		result.button2 = color(colors.button2);
 		return result;
 	};
 	return {
-		hardcoded({ 0x2C4359, 0x232E3F, 0x040C1A }),
-		hardcoded({ 0x2C4359, 0x232E3F, 0x040C1A }),
-		hardcoded({ 0x2C4359, 0x232E3F, 0x040C1A }),
-		hardcoded({ 0x1C4843, 0x1A2E37, 0x040C1A }),
+		hardcoded({ 0x2C4359, 0x232E3F, 0x040C1A, 0x10A5DF, 0x2091E9 }),
+		hardcoded({ 0x2C4359, 0x232E3F, 0x040C1A, 0x10A5DF, 0x2091E9 }),
+		hardcoded({ 0x2C4359, 0x232E3F, 0x040C1A, 0x10A5DF, 0x2091E9 }),
+		hardcoded({ 0x1C4843, 0x1A2E37, 0x040C1A, 0x3ACA49, 0x007D9E }),
 	};
 }
 
@@ -507,6 +518,20 @@ void ShowSelectGiftBox(
 		const auto session = &controller->session();
 		const auto state = box->lifetime().make_state<State>(session);
 
+		AddSubsectionTitle(
+			box->verticalLayout(),
+			tr::lng_gift_craft_select_your());
+
+		if (list.empty()) {
+			box->addRow(
+				object_ptr<FlatLabel>(
+					box,
+					tr::lng_gift_craft_select_none(),
+					st::craftYourListEmpty),
+				style::al_top
+			)->setTryMakeSimilarLines(true);
+		}
+
 		const auto single = state->delegate.buttonSize();
 		const auto extend = state->delegate.buttonExtend();
 		const auto full = single.grownBy(extend).height();
@@ -786,6 +811,8 @@ void MakeCraftContent(
 	struct Cover {
 		BackdropView backdrop;
 		PatternView pattern;
+		QColor button1;
+		QColor button2;
 		Ui::Animations::Simple shownAnimation;
 		bool shown = false;
 	};
@@ -797,6 +824,9 @@ void MakeCraftContent(
 		Delegate delegate;
 		std::array<Cover, 4> covers;
 		rpl::variable<QColor> coverEdgeColor;
+		QColor coverButton1;
+		QColor coverButton2;
+		GradientButton *button = nullptr;
 		bool coversAnimate = false;
 
 		rpl::variable<std::vector<GiftForCraft>> chosen;
@@ -816,8 +846,10 @@ void MakeCraftContent(
 		const auto emoji = Text::IconEmoji(&st::craftPattern);
 		const auto data = emoji.entities.front().data();
 		for (auto i = 0; i != backdrops.size(); ++i) {
-			state->covers[i].backdrop.colors = backdrops[i];
+			state->covers[i].backdrop.colors = backdrops[i].backdrop;
 			state->covers[i].pattern.emoji = Text::TryMakeSimpleEmoji(data);
+			state->covers[i].button1 = backdrops[i].button1;
+			state->covers[i].button2 = backdrops[i].button2;
 		}
 	}
 
@@ -934,7 +966,7 @@ void MakeCraftContent(
 		const auto unique = list.front().unique.get();
 		return Data::SingleCustomEmoji(
 			unique->model.document
-		).append(' ').append(Data::UniqueGiftName(*unique));
+		).append(' ').append(tr::bold(Data::UniqueGiftName(*unique)));
 	});
 	auto aboutText = rpl::combine(
 		tr::lng_gift_craft_about1(lt_gift, fullName, tr::rich),
@@ -989,6 +1021,8 @@ void MakeCraftContent(
 		};
 		auto animating = false;
 		auto edgeColor = std::optional<QColor>();
+		auto button1 = QColor();
+		auto button2 = QColor();
 		for (auto i = 0; i != 4; ++i) {
 			auto &cover = state->covers[i];
 			if (cover.shownAnimation.animating()) {
@@ -1013,26 +1047,31 @@ void MakeCraftContent(
 				const auto edge = cover.backdrop.colors.edgeColor;
 				if (!edgeColor) {
 					edgeColor = edge;
+					button1 = cover.button1;
+					button2 = cover.button2;
 				} else {
 					edgeColor = anim::color(*edgeColor, edge, shown);
+					button1 = anim::color(button1, cover.button1, shown);
+					button2 = anim::color(button2, cover.button2, shown);
 				}
 			}
 		}
 		if (edgeColor) {
 			state->coverEdgeColor = *edgeColor;
+			state->coverButton1 = button1;
+			state->coverButton2 = button2;
+			state->button->setStops({ { 0., button1 }, { 1., button2 } });
 		}
 		if (!animating) {
 			state->coversAnimate = false;
 		}
 	});
 
-	const auto button = raw->add(
-		object_ptr<RoundButton>(
-			raw,
-			rpl::single(QString()),
-			st::giftBox.button),
+	const auto button = state->button = raw->add(
+		object_ptr<GradientButton>(raw, QGradientStops()),
 		st::giftBox.buttonPadding);
 	button->setFullRadius(true);
+	button->startGlareAnimation();
 
 	button->setClickedCallback([=] {
 		if (state->crafting) {
@@ -1044,6 +1083,7 @@ void MakeCraftContent(
 
 	SetButtonTwoLabels(
 		button,
+		st::giftBox.button.textTop,
 		tr::lng_gift_craft_button(
 			lt_gift,
 			state->name.value() | rpl::map(tr::marked),
@@ -1057,7 +1097,8 @@ void MakeCraftContent(
 
 	raw->widthValue() | rpl::on_next([=](int width) {
 		const auto padding = st::giftBox.buttonPadding;
-		button->setFullWidth(width - padding.left() - padding.right());
+		button->setNaturalWidth(width - padding.left() - padding.right());
+		button->resize(button->naturalWidth(), st::giftBox.button.height);
 	}, raw->lifetime());
 }
 

@@ -750,7 +750,14 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 		p.drawImage(
 			QRect(
 				(width - size.width()) / 2,
-				(small()
+				((_mode == GiftButtonMode::CraftPreview
+					|| _mode == GiftButtonMode::Minimal)
+					? (extend.top()
+						+ ((height()
+							- extend.top()
+							- extend.bottom()
+							- size.height()) / 2))
+					: small()
 					? st::giftBoxSmallStickerTop
 					: _text.isEmpty()
 					? st::giftBoxStickerStarTop
