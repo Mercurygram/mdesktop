@@ -1848,8 +1848,6 @@ ServiceAction ParseServiceAction(
 		content.offerExpired = data.is_expired();
 		content.offerPrice = CreditsAmountFromTL(data.vprice());
 		result.content = content;
-	}, [&](const MTPDmessageActionStarGiftCraftFail &data) {
-		AssertIsDebug();
 	}, [](const MTPDmessageActionEmpty &data) {});
 	return result;
 }

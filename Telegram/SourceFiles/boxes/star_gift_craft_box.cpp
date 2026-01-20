@@ -23,12 +23,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/boxes/about_cocoon_box.h" // AddUniqueCloseButton.
 #include "ui/controls/button_labels.h"
 #include "ui/controls/feature_list.h"
+#include "ui/effects/numbers_animation.h"
 #include "ui/layers/generic_box.h"
 #include "ui/widgets/buttons.h"
 #include "ui/painter.h"
 #include "ui/top_background_gradient.h"
 #include "ui/vertical_list.h"
 #include "window/window_session_controller.h"
+#include "styles/style_chat_helpers.h" // stickerPanDeleteIconFg
 #include "styles/style_credits.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
@@ -83,10 +85,191 @@ struct CraftingView {
 	rpl::producer<int> removeRequests;
 };
 
+[[nodiscard]] QString FormatPercent(int permille) {
+	const auto rounded = (permille + 5) / 10;
+	return QString::number(rounded) + '%';
+}
+
+[[nodiscard]] not_null<RpWidget*> MakeRadialPercent(
+		not_null<RpWidget*> parent,
+		const style::CraftRadialPercent &st,
+		rpl::producer<int> permille) {
+	auto raw = CreateChild<RpWidget>(parent);
+
+	struct State {
+		State(const style::CraftRadialPercent &st, Fn<void()> callback)
+		: numbers(st.font, std::move(callback)) {
+		}
+
+		Animations::Simple animation;
+		NumbersAnimation numbers;
+		int permille = 0;
+	};
+	const auto state = raw->lifetime().make_state<State>(
+		st,
+		[=] { raw->update(); });
+
+	std::move(permille) | rpl::on_next([=](int value) {
+		if (state->permille == value) {
+			return;
+		}
+		state->animation.start([=] {
+			raw->update();
+		}, state->permille, value, st::slideWrapDuration);
+		state->permille = value;
+		state->numbers.setText(FormatPercent(value), value);
+	}, raw->lifetime());
+	state->animation.stop();
+	state->numbers.finishAnimating();
+
+	raw->show();
+	raw->setAttribute(Qt::WA_TransparentForMouseEvents);
+	raw->paintOn([=, &st](QPainter &p) {
+		static constexpr auto kArcSkip = arc::kFullLength / 4;
+		static constexpr auto kArcStart = -(arc::kHalfLength - kArcSkip) / 2;
+		static constexpr auto kArcLength = arc::kFullLength - kArcSkip;
+
+		const auto paint = [&](QColor color, float64 permille) {
+			p.setPen(QPen(color, st.stroke, Qt::SolidLine, Qt::RoundCap));
+			p.setBrush(Qt::NoBrush);
+			const auto part = kArcLength * (permille / 1000.);
+			const auto length = int(base::SafeRound(part));
+			const auto inner = raw->rect().marginsRemoved(
+				{ st.stroke, st.stroke, st.stroke, st.stroke });
+			p.drawArc(inner, kArcStart + kArcLength - length, length);
+		};
+
+		auto hq = PainterHighQualityEnabler(p);
+
+		auto inactive = QColor(255, 255, 255, 64);
+		paint(inactive, 1000.);
+		paint(st::white->c, state->animation.value(state->permille));
+
+		state->numbers.paint(
+			p,
+			(raw->width() - state->numbers.countWidth()) / 2,
+			raw->height() - st.font->height,
+			raw->width());
+	});
+
+	return raw;
+}
+
+AbstractButton *MakeCornerButton(
+		not_null<RpWidget*> parent,
+		not_null<GiftButton*> button,
+		object_ptr<RpWidget> content,
+		style::align align,
+		const GiftForCraft &gift,
+		rpl::producer<QColor> edgeColor) {
+	Expects(content != nullptr);
+
+	const auto result = CreateChild<AbstractButton>(parent);
+	result->show();
+
+	const auto inner = content.release();
+	inner->setParent(result);
+	inner->show();
+	inner->sizeValue() | rpl::on_next([=](QSize size) {
+		result->resize(size);
+	}, result->lifetime());
+	inner->move(0, 0);
+
+	rpl::combine(
+		button->geometryValue(),
+		result->sizeValue()
+	) | rpl::on_next([=](QRect geometry, QSize size) {
+		const auto extend = st::defaultDropdownMenu.wrap.shadow.extend;
+		geometry = geometry.marginsRemoved(extend);
+		const auto out = QPoint(size.width(), size.height()) / 3;
+		const auto left = (align == style::al_left)
+			? (geometry.x() - out.x())
+			: (geometry.x() + geometry.width() - size.width() + out.x());
+		const auto top = geometry.y() - out.y();
+		result->move(left, top);
+	}, result->lifetime());
+
+	struct State {
+		rpl::variable<QColor> edgeColor;
+		QColor buttonEdgeColor;
+	};
+	const auto state = result->lifetime().make_state<State>();
+	state->edgeColor = std::move(edgeColor);
+	state->buttonEdgeColor = gift.unique->backdrop.edgeColor;
+	result->paintOn([=](QPainter &p) {
+		const auto right = result->width();
+		const auto bottom = result->height();
+		const auto add = QPoint(right, bottom) / 3;
+		const auto radius = bottom / 2.;
+		auto gradient = QLinearGradient(
+			(align == style::al_left) ? -add.x() : (right + add.x()),
+			-add.y(),
+			(align == style::al_left) ? (right + add.x()) : -add.x(),
+			bottom + add.y());
+		gradient.setColorAt(0, state->edgeColor.current());
+		gradient.setColorAt(1, state->buttonEdgeColor);
+		auto hq = PainterHighQualityEnabler(p);
+		p.setPen(Qt::NoPen);
+		p.setBrush(gradient);
+		p.drawRoundedRect(result->rect(), radius, radius);
+	});
+
+	return result;
+}
+
+AbstractButton *MakePercentButton(
+		not_null<RpWidget*> parent,
+		not_null<GiftButton*> button,
+		const GiftForCraft &gift,
+		rpl::producer<QColor> edgeColor) {
+	auto label = object_ptr<FlatLabel>(
+		parent,
+		FormatPercent(gift.unique->craftChancePermille),
+		st::craftPercentLabel);
+	label->setTextColorOverride(st::white->c);
+	const auto result = MakeCornerButton(
+		parent,
+		button,
+		std::move(label),
+		style::al_left,
+		gift,
+		std::move(edgeColor));
+	result->setAttribute(Qt::WA_TransparentForMouseEvents);
+	return result;
+}
+
+AbstractButton *MakeRemoveButton(
+		not_null<RpWidget*> parent,
+		not_null<GiftButton*> button,
+		int size,
+		const GiftForCraft &gift,
+		Fn<void()> onClick,
+		rpl::producer<QColor> edgeColor) {
+	auto remove = object_ptr<RpWidget>(parent);
+	const auto &icon = st::stickerPanDeleteIconFg;
+	const auto add = (size - icon.width()) / 2;
+	remove->resize(icon.size() + QSize(add, add) * 2);
+	remove->paintOn([=](QPainter &p) {
+		const auto &icon = st::stickerPanDeleteIconFg;
+		icon.paint(p, add, add, add * 2 + icon.width(), st::white->c);
+	});
+	remove->setAttribute(Qt::WA_TransparentForMouseEvents);
+	const auto result = MakeCornerButton(
+		parent,
+		button,
+		std::move(remove),
+		style::al_right,
+		gift,
+		std::move(edgeColor));
+	result->setClickedCallback(std::move(onClick));
+	return result;
+}
+
 [[nodiscard]] CraftingView MakeCraftingView(
 		not_null<RpWidget*> parent,
 		not_null<Main::Session*> session,
-		rpl::producer<std::vector<GiftForCraft>> chosen) {
+		rpl::producer<std::vector<GiftForCraft>> chosen,
+		rpl::producer<QColor> edgeColor) {
 	const auto width = st::boxWidth;
 
 	const auto buttonPadding = st::craftPreviewPadding;
@@ -114,8 +297,11 @@ struct CraftingView {
 		Fn<void(int)> refreshButton;
 		rpl::event_stream<int> editRequests;
 		rpl::event_stream<int> removeRequests;
+		rpl::variable<int> chancePermille;
+		rpl::variable<QColor> edgeColor;
 	};
 	const auto state = raw->lifetime().make_state<State>(session);
+	state->edgeColor = std::move(edgeColor);
 
 	state->refreshButton = [=](int index) {
 		Expects(index >= 0 && index < state->entries.size());
@@ -156,6 +342,12 @@ struct CraftingView {
 			entry.button->setGeometry(
 				geometry,
 				state->delegate.buttonExtend());
+
+			entry.percent = MakePercentButton(
+				raw,
+				entry.button,
+				entry.gift,
+				state->edgeColor.value());
 		} else {
 			entry.add = CreateChild<AbstractButton>(raw);
 			entry.add->show();
@@ -176,42 +368,80 @@ struct CraftingView {
 			});
 			entry.add->setGeometry(geometry);
 		}
+
+		const auto count = 4 - ranges::count(
+			state->entries,
+			nullptr,
+			&Entry::button);
+		const auto canRemove = (count > 1);
+		for (auto i = 0; i != 4; ++i) {
+			auto &entry = state->entries[i];
+			if (entry.button) {
+				if (!canRemove) {
+					delete base::take(entry.remove);
+				} else if (!entry.remove) {
+					entry.remove = MakeRemoveButton(
+						raw,
+						entry.button,
+						entry.percent->height(),
+						entry.gift,
+						[=] { state->removeRequests.fire_copy(i); },
+						state->edgeColor.value());
+				}
+			}
+		}
 	};
 
 	std::move(
 		chosen
 	) | rpl::on_next([=](const std::vector<GiftForCraft> &gifts) {
+		auto chance = 0;
 		for (auto i = 0; i != 4; ++i) {
 			auto &entry = state->entries[i];
 			const auto gift = (i < gifts.size()) ? gifts[i] : GiftForCraft();
+			chance += gift.unique ? gift.unique->craftChancePermille : 0;
 			if (entry.gift == gift && (entry.button || entry.add)) {
 				continue;
 			}
 			entry.gift = gift;
 			state->refreshButton(i);
 		}
+		state->chancePermille = chance;
 	}, raw->lifetime());
 
+	const auto center = [&] {
+		const auto buttonPadding = st::craftPreviewPadding;
+		const auto buttonSize = st::giftBoxGiftTiny;
+		const auto left = buttonPadding.left()
+			+ buttonSize
+			+ buttonPadding.right();
+		const auto center = (width - 2 * left);
+		const auto top = (height - center) / 2;
+		return QRect(left, top, center, center);
+	}();
 	raw->paintOn([=](QPainter &p) {
 		auto hq = PainterHighQualityEnabler(p);
 
 		const auto radius = st::boxRadius;
-		const auto buttonPadding = st::craftPreviewPadding;
-		const auto buttonSize = st::giftBoxGiftTiny;
-		const auto one = buttonPadding.left()
-			+ buttonSize
-			+ buttonPadding.right();
-		const auto center = (width - 2 * one);
-		const auto top = (height - center) / 2;
 
 		p.setPen(Qt::NoPen);
 		p.setBrush(QColor(255, 255, 255, 32));
 
-		const auto rect = QRect(one, top, center, center);
-		p.drawRoundedRect(rect, radius, radius);
+		p.drawRoundedRect(center, radius, radius);
 
-		st::craftForge.paintInCenter(p, rect, st::white->c);
+		st::craftForge.paintInCenter(p, center, st::white->c);
 	});
+
+	MakeRadialPercent(
+		raw,
+		st::craftForgePercent,
+		state->chancePermille.value()
+	)->setGeometry(center.marginsRemoved({
+		st::craftForgePadding,
+		st::craftForgePadding,
+		st::craftForgePadding,
+		st::craftForgePadding,
+	}));
 
 	return {
 		.widget = std::move(widget),
@@ -367,6 +597,8 @@ void MakeCraftContent(
 
 		Delegate delegate;
 		std::array<Cover, 4> covers;
+		rpl::variable<QColor> coverEdgeColor;
+		bool coversAnimate = false;
 
 		rpl::variable<std::vector<GiftForCraft>> chosen;
 		rpl::variable<QString> name;
@@ -378,6 +610,7 @@ void MakeCraftContent(
 	};
 	const auto session = &controller->session();
 	const auto state = box->lifetime().make_state<State>(session);
+	state->coversAnimate = true;
 
 	{
 		auto backdrops = CraftBackdrops();
@@ -407,11 +640,27 @@ void MakeCraftContent(
 		return result;
 	});
 	state->successPercentText = state->successPercentPermille.value(
-	) | rpl::map([](int permille) {
-		return QString::number(permille / 10.) + '%';
-	});
+	) | rpl::map(FormatPercent);
 
 	const auto raw = box->verticalLayout();
+
+	state->chosen.value(
+	) | rpl::on_next([=](const std::vector<GiftForCraft> &gifts) {
+		const auto count = int(gifts.size());
+		for (auto i = 4; i != 0;) {
+			auto &cover = state->covers[--i];
+			const auto shown = (i < count);
+			if (cover.shown != shown) {
+				cover.shown = shown;
+				const auto from = shown ? 0. : 1.;
+				const auto to = shown ? 1. : 0.;
+				cover.shownAnimation.start([=] {
+					raw->update();
+				}, from, to, st::fadeWrapDuration);
+				state->coversAnimate = true;
+			}
+		}
+	}, box->lifetime());
 
 	const auto title = raw->add(
 		object_ptr<Ui::FlatLabel>(
@@ -422,7 +671,11 @@ void MakeCraftContent(
 		style::al_top);
 	title->setTextColorOverride(QColor(255, 255, 255));
 
-	auto crafting = MakeCraftingView(raw, session, state->chosen.value());
+	auto crafting = MakeCraftingView(
+		raw,
+		session,
+		state->chosen.value(),
+		state->coverEdgeColor.value());
 	raw->add(std::move(crafting.widget));
 	std::move(crafting.removeRequests) | rpl::on_next([=](int index) {
 		auto chosen = state->chosen.current();
@@ -471,21 +724,7 @@ void MakeCraftContent(
 				} else {
 					copy.push_back(chosen);
 				}
-				const auto count = int(copy.size());
 				state->chosen = std::move(copy);
-
-				for (auto i = 4; i != 0;) {
-					auto &cover = state->covers[--i];
-					const auto shown = (i < count);
-					if (cover.shown != shown) {
-						cover.shown = shown;
-						const auto from = shown ? 0. : 1.;
-						const auto to = shown ? 1. : 0.;
-						cover.shownAnimation.start([=] {
-							raw->update();
-						}, from, to, st::fadeWrapDuration);
-					}
-				}
 			});
 		}).send();
 	}, raw->lifetime());
@@ -544,8 +783,13 @@ void MakeCraftContent(
 				QRect(0, 0, width, st::uniqueGiftSubtitleTop),
 				shown);
 		};
+		auto animating = false;
+		auto edgeColor = std::optional<QColor>();
 		for (auto i = 0; i != 4; ++i) {
 			auto &cover = state->covers[i];
+			if (cover.shownAnimation.animating()) {
+				animating = true;
+			}
 			const auto finalValue = cover.shown ? 1. : 0.;
 			const auto shown = cover.shownAnimation.value(finalValue);
 			if (shown <= 0.) {
@@ -561,6 +805,20 @@ void MakeCraftContent(
 			p.setOpacity(shown);
 			p.drawImage(0, 0, getBackdrop(cover.backdrop));
 			paintPattern(p, cover.pattern, cover.backdrop, 1.);
+			if (state->coversAnimate) {
+				const auto edge = cover.backdrop.colors.edgeColor;
+				if (!edgeColor) {
+					edgeColor = edge;
+				} else {
+					edgeColor = anim::color(*edgeColor, edge, shown);
+				}
+			}
+		}
+		if (edgeColor) {
+			state->coverEdgeColor = *edgeColor;
+		}
+		if (!animating) {
+			state->coversAnimate = false;
 		}
 	});
 

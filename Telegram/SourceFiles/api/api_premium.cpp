@@ -945,6 +945,8 @@ std::optional<Data::StarGift> FromTL(
 				.releasedBy = releasedBy,
 				.themeUser = themeUser,
 				.nanoTonForResale = FindTonForResale(data.vresell_amount()),
+				.craftChancePermille
+					= data.vcraft_chance_permille().value_or_empty(),
 				.starsForResale = FindStarsForResale(data.vresell_amount()),
 				.starsMinOffer = data.voffer_min_stars().value_or(-1),
 				.number = data.vnum().v,
@@ -1001,8 +1003,6 @@ std::optional<Data::SavedStarGift> FromTL(
 		unique->canTransferAt = data.vcan_transfer_at().value_or_empty();
 		unique->canResellAt = data.vcan_resell_at().value_or_empty();
 		unique->canCraftAt = data.vcan_craft_at().value_or_empty();
-		unique->craftChancePermille
-			= data.vcraft_chance_permille().value_or_empty();
 	}
 	using Id = Data::SavedStarGiftId;
 	const auto hasUnique = parsed->unique != nullptr;

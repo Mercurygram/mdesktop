@@ -6597,13 +6597,6 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 		return result;
 	};
 
-	auto prepareStarGiftCraftFail = [&](
-			const MTPDmessageActionStarGiftCraftFail &action) {
-		auto result = PreparedServiceText{};
-		result.text.text = u"Failed craft"_q; AssertIsDebug();
-		return result;
-	};
-
 	setServiceText(action.match(
 		prepareChatAddUserText,
 		prepareChatJoinedByLink,
@@ -6663,7 +6656,6 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 		prepareSuggestBirthday,
 		prepareStarGiftPurchaseOffer,
 		prepareStarGiftPurchaseOfferDeclined,
-		prepareStarGiftCraftFail,
 		PrepareEmptyText<MTPDmessageActionRequestedPeerSentMe>,
 		PrepareErrorText<MTPDmessageActionEmpty>));
 
@@ -6942,8 +6934,6 @@ void HistoryItem::applyAction(const MTPMessageAction &action) {
 				unique->canTransferAt = data.vcan_transfer_at().value_or_empty();
 				unique->canResellAt = data.vcan_resell_at().value_or_empty();
 				unique->canCraftAt = data.vcan_craft_at().value_or_empty();
-				unique->craftChancePermille
-					= data.vcraft_chance_permille().value_or_empty();
 			}
 		}
 		_media = std::make_unique<Data::MediaGiftBox>(

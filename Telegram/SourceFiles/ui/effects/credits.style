@@ -587,6 +587,11 @@ auctionListRaise: RoundButton(defaultActiveButton) {
 }
 auctionListRaisePadding: margins(0px, 8px, 0px, 0px);
 
+CraftRadialPercent {
+	stroke: pixels;
+	font: font;
+}
+
 craftTitleMargin: margins(64px, 16px, 64px, 4px);
 craftAbout: FlatLabel(defaultFlatLabel) {
 	align: align(top);
@@ -601,4 +606,17 @@ craftAddIcon: icon {{ "settings/plus", windowFgActive }};
 craftPreviewPadding: margins(24px, 12px, 18px, 8px);
 craftForge: icon{{ "chat/filled_forge-48x48", windowFg }};
 craftForgePadding: 12px;
-craftForgeTextBottom: 12px;
+craftForgePercent: CraftRadialPercent {
+	stroke: 4px;
+	font: font(14px semibold);
+}
+craftForgeAttribute: CraftRadialPercent {
+	stroke: 3px;
+	font: font(12px semibold);
+}
+craftPercentLabel: FlatLabel(defaultFlatLabel) {
+	style: TextStyle(defaultTextStyle) {
+		font: font(10px semibold);
+	}
+	margin: margins(5px, 2px, 5px, 2px);
+}

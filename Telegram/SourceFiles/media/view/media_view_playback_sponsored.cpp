@@ -179,7 +179,6 @@ void Close::paintEvent(QPaintEvent *e) {
 			(height() - st::mediaSponsoredCloseDiameter) / 2,
 			st::mediaSponsoredCloseDiameter,
 			st::mediaSponsoredCloseDiameter);
-		p.setFont(st::mediaSponsoredCloseFont);
 		_countdown.paint(
 			p,
 			inner.x() + (inner.width() - _countdown.countWidth()) / 2,
