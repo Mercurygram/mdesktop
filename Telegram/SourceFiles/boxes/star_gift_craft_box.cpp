@@ -450,7 +450,6 @@ AbstractButton *MakeRemoveButton(
 	};
 }
 
-
 [[nodiscard]] QImage CreateBgGradient(
 		QSize size,
 		const Data::UniqueGiftBackdrop &backdrop) {
@@ -479,7 +478,8 @@ AbstractButton *MakeRemoveButton(
 void ShowSelectGiftBox(
 		not_null<Window::SessionController*> controller,
 		std::vector<Data::SavedStarGift> list,
-		Fn<void(GiftForCraft)> chosen) {
+		Fn<void(GiftForCraft)> chosen,
+		std::vector<GiftForCraft> selected) {
 	controller->show(Box([=](not_null<Ui::GenericBox*> box) {
 		box->setTitle(tr::lng_gift_craft_select_title());
 		box->setWidth(st::boxWideWidth);
@@ -523,10 +523,19 @@ void ShowSelectGiftBox(
 					&state->delegate),
 			});
 			const auto button = state->entries.back().button;
-			button->setClickedCallback([=] {
-				chosen({ gift.info.unique, gift.manageId });
-				box->closeBox();
-			});
+			const auto proj = &GiftForCraft::manageId;
+			if (ranges::contains(selected, gift.manageId, proj)) {
+				button->toggleSelected(
+					true,
+					GiftSelectionMode::Inset,
+					anim::type::instant);
+				button->setAttribute(Qt::WA_TransparentForMouseEvents);
+			} else {
+				button->setClickedCallback([=] {
+					chosen({ gift.info.unique, gift.manageId });
+					box->closeBox();
+				});
+			}
 			button->show();
 			button->setDescriptor(GiftTypeStars{
 				.info = {
@@ -534,7 +543,7 @@ void ShowSelectGiftBox(
 					.unique = gift.info.unique,
 					.document = gift.info.unique->model.document,
 				},
-			}, GiftButton::Mode::CraftPreview);
+			}, GiftButton::Mode::Minimal);
 			const auto width = (st::boxWideWidth - 2 * skip - st::boxRowPadding.left() - st::boxRowPadding.right()) / 3;
 			const auto left = st::boxRowPadding.left() + (width + skip) * col;
 			button->setGeometry(QRect(left, extend.top(), width, single.height()), extend);
@@ -725,7 +734,7 @@ void MakeCraftContent(
 					copy.push_back(chosen);
 				}
 				state->chosen = std::move(copy);
-			});
+			}, state->chosen.current());
 		}).send();
 	}, raw->lifetime());
 
