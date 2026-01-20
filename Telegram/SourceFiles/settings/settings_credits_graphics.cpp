@@ -1141,14 +1141,6 @@ void FillUniqueGiftMenu(
 			}
 		}, st.transfer ? st.transfer : &st::menuIconReplace);
 	}
-	if (CanCraftGift(&show->session(), e)) {
-		AssertIsDebug(icon and if we even put this here);
-		menu->addAction(tr::lng_gift_craft_title(tr::now), [=] {
-			if (const auto window = show->resolveWindow()) {
-				Ui::ShowGiftCraftInfoBox(window, unique, savedId);
-			}
-		}, st.transfer ? st.transfer : &st::menuIconReplace);
-	}
 	const auto wear = host->isSelf()
 		? e.in
 		: (host->isChannel() && host->asChannel()->canEditEmoji());
@@ -1582,10 +1574,18 @@ void GenericCreditsEntryBody(
 	if (uniqueGift) {
 		AddSkip(content, st::defaultVerticalListSkip * 2);
 
+		const auto canCraft = CanCraftGift(session, e);
+		const auto craft = canCraft ? [=] {
+			const auto unique = e.uniqueGift;
+			const auto savedId = EntryToSavedStarGiftId(&show->session(), e);
+			if (const auto window = show->resolveWindow()) {
+				Ui::ShowGiftCraftInfoBox(window, unique, savedId);
+			}
+		} : Fn<void()>();
 		AddUniqueCloseMoreButton(box, st, [=](not_null<Ui::PopupMenu*> menu) {
 			const auto type = SavedStarGiftMenuType::View;
 			FillUniqueGiftMenu(show, menu, e, type, st);
-		});
+		}, craft);
 
 		if (CanResellGift(session, e)) {
 			Ui::PreloadUniqueGiftResellPrices(session);
@@ -3603,12 +3603,16 @@ void MaybeRequestBalanceIncrease(
 void AddUniqueCloseMoreButton(
 		not_null<Ui::GenericBox*> box,
 		Settings::CreditsEntryBoxStyleOverrides st,
-		Fn<void(not_null<Ui::PopupMenu*>)> fillMenu) {
+		Fn<void(not_null<Ui::PopupMenu*>)> fillMenu,
+		Fn<void()> launchCraft) {
 	const auto close = Ui::CreateChild<Ui::IconButton>(
 		box,
 		st::uniqueCloseButton);
 	const auto menu = fillMenu
 		? Ui::CreateChild<Ui::IconButton>(box, st::uniqueMenuButton)
+		: nullptr;
+	const auto craft = launchCraft
+		? Ui::CreateChild<Ui::IconButton>(box, st::uniqueCraftButton)
 		: nullptr;
 	close->show();
 	close->raise();
@@ -3616,12 +3620,23 @@ void AddUniqueCloseMoreButton(
 		menu->show();
 		menu->raise();
 	}
+	if (craft) {
+		craft->show();
+		craft->raise();
+	}
 	box->widthValue() | rpl::on_next([=](int width) {
-		close->moveToRight(0, 0, width);
+		auto right = 0;
+		close->moveToRight(right, 0, width);
 		close->raise();
+		right += close->width();
 		if (menu) {
-			menu->moveToRight(close->width(), 0, width);
+			menu->moveToRight(right, 0, width);
 			menu->raise();
+			right += menu->width();
+		}
+		if (craft) {
+			craft->moveToRight(right, 0, width);
+			craft->raise();
 		}
 	}, close->lifetime());
 	close->setClickedCallback([=] {
@@ -3644,6 +3659,9 @@ void AddUniqueCloseMoreButton(
 				(*state)->popup(QCursor::pos());
 			}
 		});
+	}
+	if (craft) {
+		craft->setClickedCallback(std::move(launchCraft));
 	}
 }
 

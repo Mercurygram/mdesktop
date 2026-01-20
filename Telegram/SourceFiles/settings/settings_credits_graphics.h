@@ -321,6 +321,7 @@ void AddMiniStars(
 void AddUniqueCloseMoreButton(
 	not_null<Ui::GenericBox*> box,
 	Settings::CreditsEntryBoxStyleOverrides st,
-	Fn<void(not_null<Ui::PopupMenu*>)> fillMenu = nullptr);
+	Fn<void(not_null<Ui::PopupMenu*>)> fillMenu = nullptr,
+	Fn<void()> launchCraft = nullptr);
 
 } // namespace Settings
