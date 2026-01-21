@@ -777,7 +777,7 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 		buttons.push_back(message);
 		_actions->add(message);
 	}
-	{
+	if (!peer->isSelf()) {
 		const auto notifications = Ui::CreateChild<TopBarActionButton>(
 			this,
 			tr::lng_profile_action_short_mute(tr::now),
