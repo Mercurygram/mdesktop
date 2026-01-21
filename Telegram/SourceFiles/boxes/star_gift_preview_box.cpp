@@ -1241,12 +1241,30 @@ int AttributesList::resizeGetHeight(int width) {
 void StarGiftPreviewBox(
 		not_null<GenericBox*> box,
 		const QString &title,
-		const Data::UniqueGiftAttributes &attributes,
+		Data::UniqueGiftAttributes attributes,
 		Data::GiftAttributeIdType tab,
 		std::shared_ptr<Data::UniqueGift> selected) {
 	Expects(!attributes.models.empty());
 	Expects(!attributes.patterns.empty());
 	Expects(!attributes.backdrops.empty());
+
+	// If we have selected gift, remove all attributes not of the same type.
+	// If we don't have selected gift, remove non-default-type attributes.
+	const auto filter = [&](auto &list, auto attribute) {
+		const auto rarity = selected
+			? ((*selected).*attribute).rarityType()
+			: Data::UniqueGiftRarity::Default;
+		const auto rarityProj = &Data::UniqueGiftAttribute::rarityType;
+		if (ranges::contains(list, rarity, rarityProj)) {
+			list.erase(ranges::remove_if(list, [&](const auto &attribute) {
+				return attribute.rarityType() != rarity;
+			}), end(list));
+			Assert(!list.empty());
+		}
+	};
+	filter(attributes.models, &Data::UniqueGift::model);
+	filter(attributes.patterns, &Data::UniqueGift::pattern);
+	filter(attributes.backdrops, &Data::UniqueGift::backdrop);
 
 	box->setStyle(st::uniqueAttributesBox);
 	box->setWidth(st::boxWideWidth);
