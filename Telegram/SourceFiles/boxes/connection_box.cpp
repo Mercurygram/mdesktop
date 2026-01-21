@@ -790,7 +790,8 @@ void ProxiesBox::setupTopButton() {
 		*menu = base::make_unique_q<Ui::PopupMenu>(
 			top,
 			st::popupMenuWithIcons);
-		const auto addAction = Ui::Menu::CreateAddActionCallback(*menu);
+		const auto raw = menu->get();
+		const auto addAction = Ui::Menu::CreateAddActionCallback(raw);
 		addAction({
 			.text = tr::lng_proxy_add_from_clipboard(tr::now),
 			.handler = [=] { AddProxyFromClipboard(_controller, uiShow()); },
@@ -804,7 +805,16 @@ void ProxiesBox::setupTopButton() {
 				.isAttention = true,
 			});
 		}
-		(*menu)->popup(QCursor::pos());
+		raw->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
+		top->setForceRippled(true);
+		raw->setDestroyedCallback([=] {
+			if (const auto strong = top.data()) {
+				strong->setForceRippled(false);
+			}
+		});
+		raw->popup(
+			top->mapToGlobal(
+				QPoint(top->width(), top->height() - st::lineWidth * 3)));
 		return true;
 	});
 }
