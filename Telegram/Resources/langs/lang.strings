@@ -3817,6 +3817,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_limited_of_count" = "1 of {amount}";
 "lng_gift_collectible_tag" = "gift";
 "lng_gift_crafted_tag" = "crafted";
+"lng_gift_rare_tag" = "rare";
 "lng_gift_epic_tag" = "epic";
 "lng_gift_legendary_tag" = "legendary";
 "lng_gift_view_unpack" = "Unpack";

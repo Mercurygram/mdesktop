@@ -3385,7 +3385,7 @@ void AddUniqueGiftCover(
 					value.name);
 				state.percent = Ui::Text::String(
 					st::uniqueAttributePercent,
-					QString::number(value.rarityPermille / 10.) + '%');
+					Data::UniqueGiftAttributeText(value));
 			};
 			set(astate->model, gift.model);
 			set(astate->pattern, gift.pattern);

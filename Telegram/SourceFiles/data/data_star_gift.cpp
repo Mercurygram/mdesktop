@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_document.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
+#include "lang/lang_keys.h"
 #include "lang/lang_tag.h"
 #include "main/main_session.h"
 #include "ui/controls/ton_common.h"
@@ -64,6 +65,48 @@ QString UniqueGiftName(const UniqueGift &gift) {
 
 QString UniqueGiftName(const QString &title, int number) {
 	return title + u" #"_q + QString::number(number);
+}
+
+QString UniqueGiftRarityText(UniqueGiftRarity type) {
+	switch (type) {
+	case UniqueGiftRarity::Rare:
+		return tr::lng_gift_rare_tag(tr::now);
+	case UniqueGiftRarity::Epic:
+		return tr::lng_gift_epic_tag(tr::now);
+	case UniqueGiftRarity::Legendary:
+		return tr::lng_gift_legendary_tag(tr::now);
+	}
+	return QString();
+}
+
+UniqueGiftRarityColors UniqueGiftRarityBadgeColors(UniqueGiftRarity type) {
+	constexpr auto kBgOpacity = 0.15;
+	const auto base = [&] {
+		switch (type) {
+		case UniqueGiftRarity::Rare: return st::historyPeer2NameFg->c;
+		case UniqueGiftRarity::Epic: return st::historyPeer5NameFg->c;
+		case UniqueGiftRarity::Legendary: return st::historyPeer3NameFg->c;
+		}
+		Unexpected("Invalid rarity type.");
+	}();
+	auto bg = base;
+	bg.setAlphaF(kBgOpacity);
+	return { bg, base };
+}
+
+QString UniqueGiftAttributeText(const UniqueGiftAttribute &attribute) {
+	const auto type = attribute.rarityType();
+	if (type != UniqueGiftRarity::Default) {
+		return UniqueGiftRarityText(type);
+	}
+	const auto permille = attribute.rarityPermille();
+	return (permille > 0)
+		? (QString::number(permille / 10.) + '%')
+		: u"< 0.1%"_q;
+}
+
+bool UniqueGiftAttributeHasSpecialRarity(const UniqueGiftAttribute &attribute) {
+	return attribute.rarityType() != UniqueGiftRarity::Default;
 }
 
 CreditsAmount UniqueGiftResaleStars(const UniqueGift &gift) {

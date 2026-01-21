@@ -952,7 +952,7 @@ void AuctionBidBox(not_null<GenericBox*> box, AuctionBidBoxArgs &&args) {
 			lt_gift,
 			tr::bold(name),
 			tr::marked),
-		helper.context());
+		helper.context()).widget;
 }
 
 [[nodiscard]] object_ptr<TableLayout> AuctionInfoTable(

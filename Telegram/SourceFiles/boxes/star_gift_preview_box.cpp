@@ -309,7 +309,7 @@ void AttributeButton::setup() {
 		_name.setText(st::uniqueAttributeName, data.name);
 		_percent.setText(
 			st::uniqueAttributePercent,
-			QString::number(data.rarityPermille / 10.) + '%');
+			Data::UniqueGiftAttributeText(data));
 	});
 
 	v::match(_descriptor, [&](const GiftBackdrop &data) {

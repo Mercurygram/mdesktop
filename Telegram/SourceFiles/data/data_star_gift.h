@@ -17,14 +17,43 @@ struct ColorCollectible;
 
 namespace Data {
 
+enum class UniqueGiftRarity : int {
+	Default = 0,
+	Rare = -1,
+	Epic = -2,
+	Legendary = -3,
+};
+
 struct UniqueGiftAttribute {
 	QString name;
-	int rarityPermille = 0;
+	int rarityValue = 0;
+
+	[[nodiscard]] UniqueGiftRarity rarityType() const {
+		return (rarityValue >= 0)
+			? UniqueGiftRarity::Default
+			: UniqueGiftRarity(rarityValue);
+	}
+	[[nodiscard]] int rarityPermille() const {
+		return (rarityValue >= 0) ? rarityValue : 0;
+	}
 
 	friend inline bool operator==(
 		const UniqueGiftAttribute &,
 		const UniqueGiftAttribute &) = default;
 };
+
+struct UniqueGiftRarityColors {
+	QColor bg;
+	QColor fg;
+};
+
+[[nodiscard]] QString UniqueGiftRarityText(UniqueGiftRarity type);
+[[nodiscard]] UniqueGiftRarityColors UniqueGiftRarityBadgeColors(
+	UniqueGiftRarity type);
+[[nodiscard]] QString UniqueGiftAttributeText(
+	const UniqueGiftAttribute &attribute);
+[[nodiscard]] bool UniqueGiftAttributeHasSpecialRarity(
+	const UniqueGiftAttribute &attribute);
 
 struct UniqueGiftModel : UniqueGiftAttribute {
 	not_null<DocumentData*> document;

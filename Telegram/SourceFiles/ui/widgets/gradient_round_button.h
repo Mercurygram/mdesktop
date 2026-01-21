@@ -23,7 +23,7 @@ public:
 	void setGlarePaused(bool paused);
 
 private:
-	void paintEvent(QPaintEvent *e);
+	void paintEvent(QPaintEvent *e) override;
 	void paintGlare(QPainter &p);
 	void validateBg();
 	void validateGlare();
