@@ -8821,7 +8821,8 @@ void HistoryWidget::editMessage(
 			Window::PeerMenuEditTodoList(controller(), item);
 			return;
 		}
-	} else if (_composeSearch) {
+	}
+	if (_composeSearch) {
 		_composeSearch->hideAnimated();
 	}
 
