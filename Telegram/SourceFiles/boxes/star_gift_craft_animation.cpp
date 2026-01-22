@@ -365,7 +365,7 @@ struct GiftFlightPosition {
 }
 
 void ApplyRotationImpulse(CraftAnimationState &state, int cornerIndex) {
-	constexpr auto kImpulseStrength = 2.0;
+	constexpr auto kImpulseStrength = 3.0;
 
 	const auto impulseX = ((cornerIndex < 2) ? 1 : -1) * 0.5;
 	const auto impulseY = ((cornerIndex % 2) ? 1 : -1) * 1.;
@@ -725,7 +725,7 @@ void StartGiftFlight(
 		0.,
 		1.,
 		crl::time(400),
-		anim::easeInCirc);
+		anim::easeInCubic);
 
 	if (!animState->continuousAnimation.animating()) {
 		animState->lastRotationUpdate = 0;
