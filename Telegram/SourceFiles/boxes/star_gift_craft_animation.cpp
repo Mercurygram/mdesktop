@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "ui/wrap/vertical_layout.h"
 #include "styles/style_boxes.h"
+#include "styles/style_credits.h"
 #include "styles/style_layers.h"
 
 namespace Ui {
@@ -270,6 +271,29 @@ void PaintCubeFace(
 	return result;
 }
 
+void PaintCubeFirstFlight(
+		QPainter &p,
+		const CraftAnimationState &animState,
+		float64 progress) {
+	const auto &shared = animState.shared;
+
+	const auto overlayBg = shared->forgeBgOverlay;
+	auto sideBg = shared->forgeBg1;
+	sideBg.setAlphaF(progress);
+
+	auto hq = PainterHighQualityEnabler(p);
+	const auto offset = shared->craftingOffsetY;
+	const auto forge = shared->forgeRect.translated(0, offset);
+	const auto radius = (1. - progress) * st::boxRadius;
+	p.setPen(Qt::NoPen);
+	p.setBrush(overlayBg);
+	p.drawRoundedRect(forge, radius, radius);
+	p.setBrush(sideBg);
+	p.drawRoundedRect(forge, radius, radius);
+
+	st::craftForge.paintInCenter(p, forge, st::white->c);
+}
+
 void PaintCube(
 		QPainter &p,
 		const CraftAnimationState &animState,
@@ -291,7 +315,7 @@ void PaintCube(
 			continue;
 		}
 
-		auto faceImage = shared->forgeImage;
+		auto faceImage = shared->forgeImages[faceIndex];
 		auto faceRotation = 0;
 
 		for (auto i = 0; i < 4; ++i) {
@@ -538,17 +562,23 @@ void PaintSlideOutPhase(
 		p.setOpacity(1.);
 	}
 
-	const auto targetCenterY = state->containerHeight / 2.;
-	const auto craftingOffsetY = (targetCenterY - state->craftingAreaCenterY) * progress;
-
+	const auto offset = state->craftingOffsetY;
 	for (const auto &corner : state->corners) {
-		PaintSlideOutCorner(p, corner, craftingOffsetY, progress);
+		PaintSlideOutCorner(p, corner, offset, progress);
 	}
 
-	if (!state->forgeImage.isNull()) {
-		const auto forgePos = QPointF(state->forgeRect.topLeft()) + QPointF(0, craftingOffsetY);
-		p.drawImage(forgePos, state->forgeImage);
-	}
+	auto hq = PainterHighQualityEnabler(p);
+	const auto forge = state->forgeRect.translated(0, offset);
+	const auto radius = st::boxRadius;
+	p.setPen(Qt::NoPen);
+	p.setBrush(state->forgeBgOverlay);
+	p.drawRoundedRect(forge, radius, radius);
+	st::craftForge.paintInCenter(p, forge, st::white->c);
+	p.setOpacity(1. - progress);
+	p.drawImage(
+		forge.x() + st::craftForgePadding,
+		forge.y() + st::craftForgePadding,
+		state->forgePercent);
 }
 
 [[nodiscard]] std::pair<float64, float64> FindSnapTarget(
@@ -837,6 +867,21 @@ void CraftState::updateForGiftCount(int count) {
 	}
 }
 
+QImage CraftState::prepareForgeImage(int index) const {
+	const auto size = forgeRect.size();
+	const auto ratio = style::DevicePixelRatio();
+	auto result = QImage(size * ratio, QImage::Format_ARGB32_Premultiplied);
+	result.setDevicePixelRatio(ratio);
+
+	result.fill(anim::color(forgeBg1, forgeBg2, index / 5.));
+
+	auto p = QPainter(&result);
+	st::craftForge.paintInCenter(p, QRect(QPoint(), size), st::white->c);
+	p.end();
+
+	return result;
+}
+
 void StartCraftAnimation(
 		not_null<VerticalLayout*> container,
 		std::shared_ptr<CraftState> state) {
@@ -864,40 +909,50 @@ void StartCraftAnimation(
 		const auto slideProgress = animState->slideOutAnimation.value(1.);
 		shared->paint(p, raw->size(), craftingHeight, slideProgress);
 
-		const auto craftingOffsetY = (shared->containerHeight / 2.)
+		shared->craftingOffsetY = (shared->containerHeight / 2.)
 			- shared->craftingAreaCenterY;
-		const auto cubeSize = float64(shared->forgeRect.width());
-		const auto cubeCenter = QPointF(shared->forgeRect.topLeft())
-			+ QPointF(cubeSize, cubeSize) / 2.
-			+ QPointF(0, craftingOffsetY);
-
 		if (slideProgress < 1.) {
+			shared->craftingOffsetY *= slideProgress;
 			PaintSlideOutPhase(p, shared, raw->size(), slideProgress);
 		} else {
+			const auto cubeSize = float64(shared->forgeRect.width());
+			const auto cubeCenter = QPointF(shared->forgeRect.topLeft())
+				+ QPointF(cubeSize, cubeSize) / 2.
+				+ QPointF(0, shared->craftingOffsetY);
+
 			for (auto i = 0; i < 4; ++i) {
 				const auto &corner = shared->corners[i];
 				if (corner.giftButton && animState->giftToSide[i].face < 0) {
 					const auto giftTopLeft = QPointF(corner.originalRect.topLeft())
-						+ QPointF(0, craftingOffsetY);
+						+ QPointF(0, shared->craftingOffsetY);
 					p.drawImage(giftTopLeft, corner.gift(0));
 				}
 			}
 
-			PaintCube(p, *animState, cubeCenter, cubeSize);
+			const auto flying = animState->flightAnimation.animating()
+				? animState->currentlyFlying
+				: -1;
+			const auto firstFlyProgress = (flying == 0)
+				? animState->flightAnimation.value(1.)
+				: 1.;
+			if (firstFlyProgress < 1.) {
+				PaintCubeFirstFlight(p, *animState, firstFlyProgress);
+			} else {
+				PaintCube(p, *animState, cubeCenter, cubeSize);
+			}
 
-			if (animState->flightAnimation.animating()) {
-				const auto flying = animState->currentlyFlying;
-				if (flying >= 0 && flying < 4) {
-					const auto &corner = shared->corners[flying];
-					const auto progress = animState->flightAnimation.value(1.);
-					const auto position = ComputeGiftFlightPosition(
-						corner.originalRect,
-						cubeCenter,
-						cubeSize,
-						progress,
-						craftingOffsetY);
-					PaintFlyingGift(p, corner, position, progress);
-				}
+			if (flying >= 0) {
+				const auto &corner = shared->corners[flying];
+				const auto progress = (flying > 0)
+					? animState->flightAnimation.value(1.)
+					: firstFlyProgress;
+				const auto position = ComputeGiftFlightPosition(
+					corner.originalRect,
+					cubeCenter,
+					cubeSize,
+					progress,
+					shared->craftingOffsetY);
+				PaintFlyingGift(p, corner, position, progress);
 			}
 		}
 	});

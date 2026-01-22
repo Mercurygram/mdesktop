@@ -50,6 +50,10 @@ struct ColorScheme {
 	QColor button2;
 };
 
+[[nodiscard]] QColor ForgeBgOverlay() {
+	return QColor(0xBA, 0xDF, 0xFF, 32);
+}
+
 [[nodiscard]] std::array<ColorScheme, 4> CraftBackdrops() {
 	struct Colors {
 		int center = 0;
@@ -315,6 +319,7 @@ AbstractButton *MakeRemoveButton(
 		rpl::event_stream<int> removeRequests;
 		rpl::variable<int> chancePermille;
 		rpl::variable<QColor> edgeColor;
+		RpWidget *forgeRadial = nullptr;
 	};
 	const auto state = parent->lifetime().make_state<State>(session);
 	state->edgeColor = std::move(edgeColor);
@@ -371,7 +376,7 @@ AbstractButton *MakeRemoveButton(
 				auto hq = PainterHighQualityEnabler(p);
 				const auto radius = st::boxRadius;
 				p.setPen(Qt::NoPen);
-				p.setBrush(QColor(0xBA, 0xDF, 0xFF, 32));
+				p.setBrush(ForgeBgOverlay());
 
 				const auto rect = QRect(QPoint(), geometry.size());
 				p.drawRoundedRect(rect, radius, radius);
@@ -441,18 +446,18 @@ AbstractButton *MakeRemoveButton(
 		const auto radius = st::boxRadius;
 
 		p.setPen(Qt::NoPen);
-		p.setBrush(QColor(0xBA, 0xDF, 0xFF, 32));
+		p.setBrush(ForgeBgOverlay());
 
 		p.drawRoundedRect(center, radius, radius);
 
 		st::craftForge.paintInCenter(p, center, st::white->c);
 	});
 
-	MakeRadialPercent(
+	state->forgeRadial = MakeRadialPercent(
 		raw,
 		st::craftForgePercent,
-		state->chancePermille.value()
-	)->setGeometry(center.marginsRemoved({
+		state->chancePermille.value());
+	state->forgeRadial->setGeometry(center.marginsRemoved({
 		st::craftForgePadding,
 		st::craftForgePadding,
 		st::craftForgePadding,
@@ -461,9 +466,9 @@ AbstractButton *MakeRemoveButton(
 
 	auto grabForAnimation = [=](std::shared_ptr<CraftState> craftState) {
 		craftState->forgeRect = center;
+		craftState->forgePercent = GrabWidgetToImage(state->forgeRadial);
 
-		craftState->forgeImage = GrabWidgetToImage(raw, center);
-
+		auto giftsTotal = 0;
 		for (auto i = 0; i != 4; ++i) {
 			auto &entry = state->entries[i];
 			auto &corner = craftState->corners[i];
@@ -479,10 +484,26 @@ AbstractButton *MakeRemoveButton(
 				corner.giftButton.reset(entry.button);
 				entry.button->setParent(parent);
 				base::take(entry.button)->hide();
+
+				++giftsTotal;
 			} else if (entry.add) {
 				corner.addButton = GrabWidgetToImage(entry.add);
 				corner.originalRect = entry.add->geometry();
 			}
+		}
+
+		const auto overlayBg = craftState->forgeBgOverlay = ForgeBgOverlay();
+		const auto backdrop = CraftBackdrops()[giftsTotal - 1].backdrop;
+		craftState->forgeBg1 = anim::color(
+			backdrop.centerColor,
+			QColor(overlayBg.red(), overlayBg.green(), overlayBg.blue()),
+			overlayBg.alphaF());
+		craftState->forgeBg2 = anim::color(
+			backdrop.edgeColor,
+			QColor(overlayBg.red(), overlayBg.green(), overlayBg.blue()),
+			overlayBg.alphaF());
+		for (auto i = 0; i != 6; ++i) {
+			craftState->forgeImages[i] = craftState->prepareForgeImage(i);
 		}
 	};
 

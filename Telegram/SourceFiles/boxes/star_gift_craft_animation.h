@@ -67,16 +67,24 @@ struct CraftState {
 	};
 	std::array<CornerSnapshot, 4> corners;
 
-	QImage forgeImage;
 	QRect forgeRect;
+
+	QColor forgeBgOverlay;
+	QColor forgeBg1;
+	QColor forgeBg2;
+	QImage forgePercent;
+
+	std::array<QImage, 6> forgeImages;
 
 	int containerHeight = 0;
 	int craftingTop = 0;
 	int craftingBottom = 0;
 	int craftingAreaCenterY = 0;
+	int craftingOffsetY = 0;
 
 	void paint(QPainter &p, QSize size, int craftingHeight, float64 slideProgress = 0.);
 	void updateForGiftCount(int count);
+	[[nodiscard]] QImage prepareForgeImage(int index) const;
 
 };
 
