@@ -130,6 +130,7 @@ struct CraftAnimationState {
 	float64 targetRotationY = 0.;
 	int nextGiftTargetFace = -1;
 	bool usingPlannedTrajectory = false;
+	bool lastGiftTrajectory = false;
 
 };
 

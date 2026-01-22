@@ -28,6 +28,7 @@ constexpr auto kNextFlightDelay = crl::time(1000);
 constexpr auto kFlightDuration = crl::time(400);
 constexpr auto kNextLandTime = kNextFlightDelay + kFlightDuration;
 constexpr auto kCorrectionStrength = 1.;
+constexpr auto kLastGiftSettleTime = crl::time(2000);
 
 [[nodiscard]] int GetFrontFaceAtRotation(float64 rotationX, float64 rotationY) {
 	struct Vec3 {
@@ -1125,12 +1126,55 @@ void LandCurrentGift(CraftAnimationState *animState, crl::time now) {
 		animState->targetRotationX = targetX;
 		animState->targetRotationY = targetY;
 		animState->usingPlannedTrajectory = true;
+		animState->lastGiftTrajectory = false;
 
 		animState->velocityX = totalVelocityX;
 		animState->velocityY = totalVelocityY;
 	} else {
-		ApplyRotationImpulse(*animState, cornerIndex);
-		animState->usingPlannedTrajectory = false;
+		animState->landingTime = now;
+		animState->rotationXAtLanding = animState->rotationX;
+		animState->rotationYAtLanding = animState->rotationY;
+
+		constexpr auto kLastGiftImpulseStrength = 6.0;
+		const auto [baseImpulseX, baseImpulseY] = ComputeRotatedImpulse(
+			animState->rotationX,
+			animState->rotationY,
+			cornerIndex);
+		const auto impulseX = baseImpulseX * kLastGiftImpulseStrength;
+		const auto impulseY = baseImpulseY * kLastGiftImpulseStrength;
+
+		const auto totalVelocityX = animState->velocityX + impulseX;
+		const auto totalVelocityY = animState->velocityY + impulseY;
+
+		animState->baseVelocityX = totalVelocityX;
+		animState->baseVelocityY = totalVelocityY;
+
+		const auto [futureRotX, futureRotY] = SimulateRotationAtTime(
+			animState->rotationX,
+			animState->rotationY,
+			totalVelocityX,
+			totalVelocityY,
+			kLastGiftSettleTime);
+
+		const auto bestFace = FindBestFreeFaceAtRotation(*animState, futureRotX, futureRotY);
+
+		const auto [targetX, targetY] = ComputeTargetRotationForFace(
+			futureRotX,
+			futureRotY,
+			bestFace.face);
+
+		animState->targetRotationX = targetX;
+		animState->targetRotationY = targetY;
+		animState->usingPlannedTrajectory = true;
+		animState->lastGiftTrajectory = true;
+
+		animState->velocityX = totalVelocityX;
+		animState->velocityY = totalVelocityY;
+
+		if (!animState->continuousAnimation.animating()) {
+			animState->lastRotationUpdate = 0;
+			animState->continuousAnimation.start();
+		}
 	}
 
 	animState->nearlyStoppedSince = 0;
@@ -1266,6 +1310,16 @@ QImage CraftState::prepareForgeImage(int index) const {
 
 	auto p = QPainter(&result);
 	st::craftForge.paintInCenter(p, QRect(QPoint(), size), st::white->c);
+
+#if _DEBUG
+	p.setFont(st::semiboldFont);
+	p.setPen(st::white);
+	p.drawText(
+		size.width() / 10,
+		size.width() / 10 + st::semiboldFont->ascent,
+		QString::number(index));
+#endif // _DEBUG
+
 	p.end();
 
 	return result;
@@ -1387,6 +1441,9 @@ void StartCraftAnimation(
 		} else if (animState->usingPlannedTrajectory && animState->landingTime > 0) {
 			const auto elapsed = float64(now - animState->landingTime)
 				/ anim::SlowMultiplier();
+			const auto settleTime = animState->lastGiftTrajectory
+				? kLastGiftSettleTime
+				: kNextLandTime;
 
 			const auto [baseRotX, baseRotY] = SimulateRotationAtTime(
 				animState->rotationXAtLanding,
@@ -1396,7 +1453,7 @@ void StartCraftAnimation(
 				elapsed);
 
 			const auto correctionProgress = std::clamp(
-				elapsed / float64(kNextLandTime),
+				elapsed / float64(settleTime),
 				0.,
 				1.);
 			const auto eased = anim::linear(1., correctionProgress);
@@ -1461,14 +1518,28 @@ void StartCraftAnimation(
 			&& animState->giftsLanded >= animState->totalGifts
 			&& animState->totalGifts > 0) {
 
-			if (IsCubeNearlyStopped(*animState)) {
-				if (animState->nearlyStoppedSince == 0) {
-					animState->nearlyStoppedSince = now;
-				} else if (now - animState->nearlyStoppedSince >= kDelayBeforeNextFlight) {
-					StartSnapAnimation(animState, raw);
+			if (animState->usingPlannedTrajectory
+				&& animState->lastGiftTrajectory
+				&& animState->landingTime > 0) {
+				const auto elapsed = (now - animState->landingTime)
+					/ anim::SlowMultiplier();
+				if (elapsed >= kLastGiftSettleTime) {
+					animState->rotationX = animState->targetRotationX;
+					animState->rotationY = animState->targetRotationY;
+					animState->velocityX = 0.;
+					animState->velocityY = 0.;
+					animState->usingPlannedTrajectory = false;
 				}
-			} else {
-				animState->nearlyStoppedSince = 0;
+			} else if (!animState->usingPlannedTrajectory) {
+				if (IsCubeNearlyStopped(*animState)) {
+					if (animState->nearlyStoppedSince == 0) {
+						animState->nearlyStoppedSince = now;
+					} else if (now - animState->nearlyStoppedSince >= kDelayBeforeNextFlight) {
+						StartSnapAnimation(animState, raw);
+					}
+				} else {
+					animState->nearlyStoppedSince = 0;
+				}
 			}
 		}
 
@@ -1477,8 +1548,10 @@ void StartCraftAnimation(
 		const auto hasMoreFlights = (animState->giftsLanded < animState->totalGifts);
 		const auto isFlying = animState->flightAnimation.animating();
 		const auto isSnapping = animState->snapping;
+		const auto isSettling = animState->usingPlannedTrajectory
+			&& animState->lastGiftTrajectory;
 
-		return hasVelocity || hasMoreFlights || isFlying || isSnapping;
+		return hasVelocity || hasMoreFlights || isFlying || isSnapping || isSettling;
 	});
 
 	container->add(std::move(canvas));
