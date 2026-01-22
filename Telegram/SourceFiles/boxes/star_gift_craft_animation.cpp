@@ -600,6 +600,40 @@ struct GiftFlightPosition {
 	return { .face = bestFace, .rotation = rotation };
 }
 
+[[nodiscard]] std::array<QPointF, 4> InterpolateQuadCorners(
+		const std::array<QPointF, 4> &from,
+		const std::array<QPointF, 4> &to,
+		float64 progress) {
+	return {
+		from[0] + (to[0] - from[0]) * progress,
+		from[1] + (to[1] - from[1]) * progress,
+		from[2] + (to[2] - from[2]) * progress,
+		from[3] + (to[3] - from[3]) * progress,
+	};
+}
+
+[[nodiscard]] std::array<QPointF, 4> RectToCorners(QRectF rect) {
+	return {
+		rect.topLeft(),
+		rect.topRight(),
+		rect.bottomRight(),
+		rect.bottomLeft(),
+	};
+}
+
+void PaintFlyingGiftWithQuad(
+		QPainter &p,
+		const CraftState::CornerSnapshot &corner,
+		const std::array<QPointF, 4> &corners,
+		float64 progress) {
+	if (!corner.giftButton) {
+		return;
+	}
+
+	const auto frame = corner.gift(progress);
+	PaintCubeFace(p, frame, corners, 0);
+}
+
 void PaintFlyingGift(
 		QPainter &p,
 		const CraftState::CornerSnapshot &corner,
@@ -715,6 +749,21 @@ void PaintSlideOutPhase(
 		state->forgePercent);
 }
 
+[[nodiscard]] std::array<QPointF, 4> RotateCornersForFace(
+		std::array<QPointF, 4> corners,
+		int rotation) {
+	const auto steps = (rotation / 90) % 4;
+	for (auto i = 0; i < steps; ++i) {
+		corners = {
+			corners[1],
+			corners[2],
+			corners[3],
+			corners[0],
+		};
+	}
+	return corners;
+}
+
 void StartGiftFlight(
 		CraftAnimationState *animState,
 		not_null<RpWidget*> canvas,
@@ -735,12 +784,13 @@ void StartGiftFlight(
 
 	animState->currentlyFlying = nextGift;
 	animState->giftToSide[nextGift] = GetCameraFacingFreeFace(*animState);
+	animState->flightTargetCorners = std::nullopt;
 
 	animState->flightAnimation.start(
 		[=] { canvas->update(); },
 		0.,
 		1.,
-		crl::time(400),
+		kFlightDuration,
 		anim::easeInCubic);
 
 	if (!animState->continuousAnimation.animating()) {
@@ -752,7 +802,8 @@ void StartGiftFlightToFace(
 		CraftAnimationState *animState,
 		not_null<RpWidget*> canvas,
 		int targetFace) {
-	const auto &corners = animState->shared->corners;
+	const auto shared = animState->shared;
+	const auto &corners = shared->corners;
 
 	auto nextCorner = -1;
 	for (auto i = 0; i < 4; ++i) {
@@ -768,10 +819,41 @@ void StartGiftFlightToFace(
 
 	animState->currentlyFlying = nextCorner;
 
+	const auto faceRotation = animState->nextFaceRotation;
 	animState->giftToSide[nextCorner] = FacePlacement{
 		.face = targetFace,
-		.rotation = animState->nextFaceRotation,
+		.rotation = faceRotation,
 	};
+
+	if (animState->currentConfigIndex >= 0) {
+		const auto &config = kGiftAnimations[animState->currentConfigIndex];
+		const auto initial = Rotation{
+			animState->initialRotationX,
+			animState->initialRotationY,
+		};
+		const auto endRotation = config.rotation(initial, config.duration);
+
+		const auto cubeSize = float64(shared->forgeRect.width());
+		const auto cubeCenter = QPointF(shared->forgeRect.topLeft())
+			+ QPointF(cubeSize, cubeSize) / 2.
+			+ QPointF(0, shared->craftingOffsetY);
+
+		const auto targetCorners = ComputeCubeFaceCorners(
+			cubeCenter,
+			cubeSize,
+			endRotation.x,
+			endRotation.y,
+			targetFace);
+		if (targetCorners) {
+			animState->flightTargetCorners = RotateCornersForFace(
+				*targetCorners,
+				faceRotation);
+		} else {
+			animState->flightTargetCorners = std::nullopt;
+		}
+	} else {
+		animState->flightTargetCorners = std::nullopt;
+	}
 
 	animState->flightAnimation.start(
 		[=] { canvas->update(); },
@@ -1016,13 +1098,25 @@ void StartCraftAnimation(
 				const auto progress = (flying > 0)
 					? animState->flightAnimation.value(1.)
 					: firstFlyProgress;
-				const auto position = ComputeGiftFlightPosition(
-					corner.originalRect,
-					cubeCenter,
-					cubeSize,
-					progress,
-					shared->craftingOffsetY);
-				PaintFlyingGift(p, corner, position, progress);
+
+				if (animState->flightTargetCorners) {
+					const auto sourceRect = QRectF(corner.originalRect)
+						.translated(0, shared->craftingOffsetY);
+					const auto sourceCorners = RectToCorners(sourceRect);
+					const auto interpolatedCorners = InterpolateQuadCorners(
+						sourceCorners,
+						*animState->flightTargetCorners,
+						progress);
+					PaintFlyingGiftWithQuad(p, corner, interpolatedCorners, progress);
+				} else {
+					const auto position = ComputeGiftFlightPosition(
+						corner.originalRect,
+						cubeCenter,
+						cubeSize,
+						progress,
+						shared->craftingOffsetY);
+					PaintFlyingGift(p, corner, position, progress);
+				}
 			}
 		}
 	});

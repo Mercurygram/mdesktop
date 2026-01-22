@@ -116,6 +116,8 @@ struct CraftAnimationState {
 	int nextFaceIndex = 0;
 	int nextFaceRotation = 0;
 
+	std::optional<std::array<QPointF, 4>> flightTargetCorners;
+
 };
 
 void StartCraftAnimation(
