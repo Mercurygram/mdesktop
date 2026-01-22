@@ -188,6 +188,10 @@ public:
 	[[nodiscard]] rpl::producer<QPoint> contextMenuRequests() const;
 	[[nodiscard]] rpl::producer<QMouseEvent*> mouseEvents();
 
+	[[nodiscard]] bool makeCraftFrameIsFinal(
+		QImage &frame,
+		float64 progress);
+
 private:
 	void paintEvent(QPaintEvent *e) override;
 	void resizeEvent(QResizeEvent *e) override;
@@ -196,11 +200,21 @@ private:
 	void mouseMoveEvent(QMouseEvent *e) override;
 	void mouseReleaseEvent(QMouseEvent *e) override;
 
+	void paint(QPainter &p, float64 craftProgress = 0.);
 	void paintBackground(QPainter &p, const QImage &background);
 	void cacheUniqueBackground(
 		not_null<Data::UniqueGift*> unique,
 		int width,
 		int height);
+	void paintUniqueBackgroundGradient(
+		QPainter &p,
+		not_null<Data::UniqueGift*> unique,
+		QRect inner,
+		float64 radius);
+	void paintUniqueBackgroundPattern(
+		QPainter &p,
+		not_null<Data::UniqueGift*> unique,
+		QRect inner);
 
 	void refreshLocked();
 	void setDocument(not_null<DocumentData*> document);
@@ -234,6 +248,7 @@ private:
 	bool _patterned : 1 = false;
 	bool _selected : 1 = false;
 	bool _locked : 1 = false;
+	bool _playerFinished : 1 = false;
 
 	bool _mouseEventsAreListening = false;
 

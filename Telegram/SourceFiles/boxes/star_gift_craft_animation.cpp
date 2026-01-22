@@ -291,22 +291,21 @@ void PaintCube(
 			continue;
 		}
 
-		const QImage *faceImage = &shared->forgeImage;
+		auto faceImage = shared->forgeImage;
 		auto faceRotation = 0;
 
 		for (auto i = 0; i < 4; ++i) {
 			if (i != animState.currentlyFlying
 				&& animState.giftToSide[i].face == faceIndex
-				&& shared->corners[i].hasGift
-				&& !shared->corners[i].gift.isNull()) {
-				faceImage = &shared->corners[i].gift;
+				&& shared->corners[i].giftButton) {
+				faceImage = shared->corners[i].gift(1.);
 				faceRotation = animState.giftToSide[i].rotation;
 				break;
 			}
 		}
 
-		if (!faceImage->isNull()) {
-			PaintCubeFace(p, *faceImage, *corners, faceRotation);
+		if (!faceImage.isNull()) {
+			PaintCubeFace(p, faceImage, *corners, faceRotation);
 			painted = true;
 		}
 	}
@@ -446,18 +445,20 @@ void ApplyRotationImpulse(CraftAnimationState &state, int cornerIndex) {
 void PaintFlyingGift(
 		QPainter &p,
 		const CraftState::CornerSnapshot &corner,
-		const GiftFlightPosition &position) {
-	if (corner.gift.isNull()) {
+		const GiftFlightPosition &position,
+		float64 progress) {
+	if (!corner.giftButton) {
 		return;
 	}
 
 	const auto ratio = style::DevicePixelRatio();
-	const auto giftSize = QSizeF(corner.gift.size()) / ratio;
+	const auto frame = corner.gift(progress);
+	const auto giftSize = QSizeF(frame.size()) / ratio;
 	const auto scaledSize = giftSize * position.scale;
 	const auto giftTopLeft = position.origin;
 
 	auto hq = PainterHighQualityEnabler(p);
-	p.drawImage(QRectF(giftTopLeft, scaledSize), corner.gift);
+	p.drawImage(QRectF(giftTopLeft, scaledSize), frame);
 }
 
 void PaintSlideOutCorner(
@@ -472,17 +473,16 @@ void PaintSlideOutCorner(
 	const auto ratio = style::DevicePixelRatio();
 	const auto originalTopLeft = QPointF(corner.originalRect.topLeft());
 	const auto currentTopLeft = originalTopLeft + QPointF(0, offsetY);
-	const auto giftSize = QSizeF(corner.gift.size()) / ratio;
-	const auto giftTopLeft = currentTopLeft;
+	if (corner.giftButton) {
+		const auto frame = corner.gift(0.);
+		const auto giftSize = QSizeF(frame.size()) / ratio;
+		const auto giftTopLeft = currentTopLeft;
 
-	const auto &extend = st::defaultDropdownMenu.wrap.shadow.extend;
-	const auto innerTopLeft = giftTopLeft + QPointF(extend.left(), extend.top());
-	const auto innerWidth = giftSize.width() - extend.left() - extend.right();
+		const auto &extend = st::defaultDropdownMenu.wrap.shadow.extend;
+		const auto innerTopLeft = giftTopLeft + QPointF(extend.left(), extend.top());
+		const auto innerWidth = giftSize.width() - extend.left() - extend.right();
 
-	if (corner.hasGift) {
-		if (!corner.gift.isNull()) {
-			p.drawImage(giftTopLeft, corner.gift);
-		}
+		p.drawImage(giftTopLeft, frame);
 
 		const auto badgeFade = std::clamp(1. - progress / 0.7, 0., 1.);
 		if (!corner.percentBadge.isNull() && badgeFade > 0.) {
@@ -501,14 +501,12 @@ void PaintSlideOutCorner(
 			p.drawImage(removePos, corner.removeButton);
 			p.setOpacity(1.);
 		}
-	} else {
-		if (!corner.addButton.isNull()) {
-			const auto fadeProgress = std::clamp(progress * 1.5, 0., 1.);
-			const auto addTopLeft = currentTopLeft;
-			p.setOpacity(1. - fadeProgress);
-			p.drawImage(addTopLeft, corner.addButton);
-			p.setOpacity(1.);
-		}
+	} else if (!corner.addButton.isNull()) {
+		const auto fadeProgress = std::clamp(progress * 1.5, 0., 1.);
+		const auto addTopLeft = currentTopLeft;
+		p.setOpacity(1. - fadeProgress);
+		p.drawImage(addTopLeft, corner.addButton);
+		p.setOpacity(1.);
 	}
 }
 
@@ -677,7 +675,7 @@ void StartGiftFlight(
 
 	auto nextGift = -1;
 	for (auto i = startIndex; i < 4; ++i) {
-		if (corners[i].hasGift) {
+		if (corners[i].giftButton) {
 			nextGift = i;
 			break;
 		}
@@ -720,6 +718,20 @@ void LandCurrentGift(CraftAnimationState *animState) {
 }
 
 } // namespace
+
+QImage CraftState::CornerSnapshot::gift(float64 progress) const {
+	if (!giftButton) {
+		return QImage();
+	} else if (progress == 1. && giftFrameFinal) {
+		return giftFrame;
+	} else if (progress < 1.) {
+		giftFrameFinal = false;
+	}
+	if (giftButton->makeCraftFrameIsFinal(giftFrame, progress)) {
+		giftFrameFinal = true;
+	}
+	return giftFrame;
+}
 
 void CraftState::paint(QPainter &p, QSize size, int craftingHeight, float64 slideProgress) {
 	const auto width = size.width();
@@ -841,10 +853,11 @@ void StartCraftAnimation(
 
 	const auto animState = raw->lifetime().make_state<CraftAnimationState>();
 	animState->shared = std::move(state);
-	animState->totalGifts = ranges::count(
-		animState->shared->corners,
-		true,
-		&CraftState::CornerSnapshot::hasGift);
+	for (auto &corner : animState->shared->corners) {
+		if (corner.giftButton) {
+			++animState->totalGifts;
+		}
+	}
 
 	raw->paintOn([=](QPainter &p) {
 		const auto shared = animState->shared;
@@ -863,10 +876,10 @@ void StartCraftAnimation(
 		} else {
 			for (auto i = 0; i < 4; ++i) {
 				const auto &corner = shared->corners[i];
-				if (corner.hasGift && animState->giftToSide[i].face < 0) {
+				if (corner.giftButton && animState->giftToSide[i].face < 0) {
 					const auto giftTopLeft = QPointF(corner.originalRect.topLeft())
 						+ QPointF(0, craftingOffsetY);
-					p.drawImage(giftTopLeft, corner.gift);
+					p.drawImage(giftTopLeft, corner.gift(0));
 				}
 			}
 
@@ -883,7 +896,7 @@ void StartCraftAnimation(
 						cubeSize,
 						progress,
 						craftingOffsetY);
-					PaintFlyingGift(p, corner, position);
+					PaintFlyingGift(p, corner, position, progress);
 				}
 			}
 		}
@@ -957,7 +970,7 @@ void StartCraftAnimation(
 				} else if (now - animState->nearlyStoppedSince >= kDelayBeforeNextFlight) {
 					auto nextIndex = 0;
 					for (auto i = 0; i < 4; ++i) {
-						if (animState->shared->corners[i].hasGift
+						if (animState->shared->corners[i].giftButton
 							&& animState->giftToSide[i].face < 0) {
 							nextIndex = i;
 							break;

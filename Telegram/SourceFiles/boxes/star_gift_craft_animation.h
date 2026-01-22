@@ -7,9 +7,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "base/unique_qptr.h"
 #include "data/data_star_gift.h"
 #include "ui/effects/animations.h"
 #include "ui/text/text_custom_emoji.h"
+
+namespace Info::PeerGifts {
+class GiftButton;
+} // namespace Info::PeerGifts
 
 namespace Ui {
 
@@ -50,12 +55,15 @@ struct CraftState {
 	int bottomPartY = 0;
 
 	struct CornerSnapshot {
-		QImage gift;
+		base::unique_qptr<Info::PeerGifts::GiftButton> giftButton;
+		mutable QImage giftFrame;
 		QImage percentBadge;
 		QImage removeButton;
 		QImage addButton;
 		QRect originalRect;
-		bool hasGift = false;
+		mutable bool giftFrameFinal = false;
+
+		[[nodiscard]] QImage gift(float64 progress) const;
 	};
 	std::array<CornerSnapshot, 4> corners;
 

@@ -595,6 +595,24 @@ rpl::producer<QMouseEvent*> GiftButton::mouseEvents() {
 	return _mouseEvents.events();
 }
 
+bool GiftButton::makeCraftFrameIsFinal(
+		QImage &frame,
+		float64 progress) {
+	const auto ratio = style::DevicePixelRatio();
+	if (frame.size() != size() * ratio) {
+		frame = QImage(size() * ratio, QImage::Format_ARGB32_Premultiplied);
+		frame.setDevicePixelRatio(ratio);
+	}
+	if (progress < 1.) {
+		frame.fill(Qt::transparent);
+	}
+	auto p = QPainter(&frame);
+	paint(p, progress);
+	return (progress == 1.)
+		&& (!_uniquePatternEmoji || _uniquePatternEmoji->ready())
+		&& (!_player || (_player->ready() && _playerFinished));
+}
+
 void GiftButton::cacheUniqueBackground(
 		not_null<Data::UniqueGift*> unique,
 		int width,
@@ -620,34 +638,57 @@ void GiftButton::cacheUniqueBackground(
 
 		const auto radius = st::giftBoxGiftRadius;
 		auto p = QPainter(&_uniqueBackgroundCache);
-		auto hq = PainterHighQualityEnabler(p);
-		auto gradient = QRadialGradient(inner.center(), inner.width() / 2);
-		gradient.setStops({
-			{ 0., unique->backdrop.centerColor },
-			{ 1., unique->backdrop.edgeColor },
-		});
-		p.setBrush(gradient);
-		p.setPen(Qt::NoPen);
-		p.drawRoundedRect(inner, radius, radius);
+		paintUniqueBackgroundGradient(p, unique, inner, radius);
 		_patterned = false;
 	}
 	if (!_patterned && _uniquePatternEmoji->ready()) {
 		_patterned = true;
 		auto p = QPainter(&_uniqueBackgroundCache);
-		p.setClipRect(inner);
-		const auto skip = inner.width() / 3;
-		Ui::PaintBgPoints(
-			p,
-			Ui::PatternBgPointsSmall(),
-			_uniquePatternCache,
-			_uniquePatternEmoji.get(),
-			*unique,
-			QRect(-skip, 0, inner.width() + 2 * skip, inner.height()));
+		paintUniqueBackgroundPattern(p, unique, inner);
 	}
+}
+
+void GiftButton::paintUniqueBackgroundGradient(
+		QPainter &p,
+		not_null<Data::UniqueGift*> unique,
+		QRect inner,
+		float64 radius) {
+	auto hq = PainterHighQualityEnabler(p);
+	auto gradient = QRadialGradient(inner.center(), inner.width() / 2);
+	gradient.setStops({
+		{ 0., unique->backdrop.centerColor },
+		{ 1., unique->backdrop.edgeColor },
+	});
+	p.setBrush(gradient);
+	p.setPen(Qt::NoPen);
+	p.drawRoundedRect(inner, radius, radius);
+}
+
+void GiftButton::paintUniqueBackgroundPattern(
+		QPainter &p,
+		not_null<Data::UniqueGift*> unique,
+		QRect inner) {
+	p.setClipRect(inner);
+	const auto skip = inner.width() / 3;
+	Ui::PaintBgPoints(
+		p,
+		Ui::PatternBgPointsSmall(),
+		_uniquePatternCache,
+		_uniquePatternEmoji.get(),
+		*unique,
+		QRect(
+			inner.x() - skip,
+			inner.y(),
+			inner.width() + 2 * skip,
+			inner.height()));
 }
 
 void GiftButton::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
+	paint(p);
+}
+
+void GiftButton::paint(QPainter &p, float64 craftProgress) {
 	const auto stargift = std::get_if<GiftTypeStars>(&_descriptor);
 	const auto unique = stargift ? stargift->info.unique.get() : nullptr;
 	const auto onsale = unique && unique->starsForResale && small();
@@ -669,12 +710,36 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 	const auto extend = currentExtend();
 	const auto position = QPoint(extend.left(), extend.top());
 	const auto background = _delegate->background();
-	const auto width = this->width();
 	const auto dpr = int(background.devicePixelRatio());
-	paintBackground(p, background);
+	const auto width = this->width();
+	const auto height = background.height() / dpr;
+	const auto roundedRatio = (1. - craftProgress);
+	if (craftProgress == 0.) {
+		paintBackground(p, background);
+	} else if (craftProgress < 1.) {
+		p.setOpacity(roundedRatio);
+		paintBackground(p, background);
+		p.setOpacity(1.);
+	}
+
 	if (unique) {
-		cacheUniqueBackground(unique, width, background.height() / dpr);
-		p.drawImage(extend.left(), extend.top(), _uniqueBackgroundCache);
+		if (craftProgress > 0.) {
+			const auto outer = QRect(0, 0, width, height);
+			const auto inner = outer.marginsRemoved(extend * roundedRatio);
+			paintUniqueBackgroundGradient(
+				p,
+				unique,
+				inner,
+				int(base::SafeRound(st::giftBoxGiftRadius * roundedRatio)));
+
+			if (_uniquePatternEmoji->ready()) {
+				paintUniqueBackgroundPattern(p, unique, inner);
+				p.setClipping(false);
+			}
+		} else {
+			cacheUniqueBackground(unique, width, height);
+			p.drawImage(extend.left(), extend.top(), _uniqueBackgroundCache);
+		}
 	} else if (requirePremium || auction) {
 		auto hq = PainterHighQualityEnabler(p);
 		auto pen = st::creditsFg->p;
@@ -696,7 +761,6 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 			pen.setWidthF(progress * thickness);
 			p.setPen(pen);
 			p.setBrush(Qt::NoBrush);
-			const auto height = background.height() / dpr;
 			const auto outer = QRectF(0, 0, width, height);
 			const auto shift = progress * thickness * 2;
 			const auto extend = QMarginsF(currentExtend())
@@ -734,7 +798,7 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 
 	auto frame = QImage();
 	if (_player && _player->ready()) {
-		const auto paused = !isOver();
+		const auto paused = !isOver() || isHidden();
 		auto info = _player->frame(
 			stickerSize(),
 			QColor(0, 0, 0, 0),
@@ -742,8 +806,8 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 			crl::now(),
 			paused);
 		frame = info.image;
-		const auto finished = (info.index + 1 == _player->framesCount());
-		if (!finished || !paused) {
+		_playerFinished = (info.index + 1 == _player->framesCount());
+		if (!_playerFinished || !paused) {
 			_player->markFrameShown();
 		}
 		const auto size = frame.size() / style::DevicePixelRatio();
@@ -753,7 +817,7 @@ void GiftButton::paintEvent(QPaintEvent *e) {
 				((_mode == GiftButtonMode::CraftPreview
 					|| _mode == GiftButtonMode::Minimal)
 					? (extend.top()
-						+ ((height()
+						+ ((height
 							- extend.top()
 							- extend.bottom()
 							- size.height()) / 2))

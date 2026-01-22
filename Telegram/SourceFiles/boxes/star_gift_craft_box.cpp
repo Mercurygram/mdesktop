@@ -316,7 +316,7 @@ AbstractButton *MakeRemoveButton(
 		rpl::variable<int> chancePermille;
 		rpl::variable<QColor> edgeColor;
 	};
-	const auto state = raw->lifetime().make_state<State>(session);
+	const auto state = parent->lifetime().make_state<State>(session);
 	state->edgeColor = std::move(edgeColor);
 
 	state->refreshButton = [=](int index) {
@@ -465,12 +465,10 @@ AbstractButton *MakeRemoveButton(
 		craftState->forgeImage = GrabWidgetToImage(raw, center);
 
 		for (auto i = 0; i != 4; ++i) {
-			const auto &entry = state->entries[i];
+			auto &entry = state->entries[i];
 			auto &corner = craftState->corners[i];
 
 			if (entry.button) {
-				corner.hasGift = true;
-				corner.gift = GrabWidgetToImage(entry.button);
 				corner.originalRect = entry.button->geometry();
 				if (entry.percent) {
 					corner.percentBadge = GrabWidgetToImage(entry.percent);
@@ -478,8 +476,10 @@ AbstractButton *MakeRemoveButton(
 				if (entry.remove) {
 					corner.removeButton = GrabWidgetToImage(entry.remove);
 				}
+				corner.giftButton.reset(entry.button);
+				entry.button->setParent(parent);
+				base::take(entry.button)->hide();
 			} else if (entry.add) {
-				corner.hasGift = false;
 				corner.addButton = GrabWidgetToImage(entry.add);
 				corner.originalRect = entry.add->geometry();
 			}
@@ -791,11 +791,6 @@ void MakeCraftContent(
 		not_null<Window::SessionController*> controller,
 		GiftForCraft gift) {
 	struct State {
-		explicit State(not_null<Main::Session*> session)
-		: delegate(session, GiftButtonMode::CraftPreview) {
-		}
-
-		Delegate delegate;
 		std::shared_ptr<CraftState> craftState;
 		GradientButton *button = nullptr;
 
@@ -814,7 +809,7 @@ void MakeCraftContent(
 		bool crafting = false;
 	};
 	const auto session = &controller->session();
-	const auto state = box->lifetime().make_state<State>(session);
+	const auto state = box->lifetime().make_state<State>();
 
 	state->craftState = std::make_shared<CraftState>();
 	state->craftState->coversAnimate = true;
