@@ -1094,9 +1094,16 @@ void ShowGiftCraftBoxInternal(
 
 #if _DEBUG
 		if (autoStartCraft) {
+			static const auto full = gifts;
 			box->boxClosing() | rpl::on_next([=] {
 				base::call_delayed(1000, controller, [=] {
-					ShowGiftCraftBoxInternal(controller, gifts, true);
+					auto copy = gifts;
+					if (copy.size() > 1) {
+						copy.pop_back();
+					} else {
+						copy = full;
+					}
+					ShowGiftCraftBoxInternal(controller, copy, true);
 				});
 			}, box->lifetime());
 		}

@@ -1683,7 +1683,7 @@ SessionController::SessionController(
 	});
 
 #if _DEBUG // TEST: Auto-open craft box on startup
-	constexpr auto kGiftsCount = 3;
+	constexpr auto kGiftsCount = 4;
 	crl::on_main(this, [=] {
 		const auto user = session->user();
 		session->api().request(MTPpayments_GetSavedStarGifts(

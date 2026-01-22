@@ -58,6 +58,26 @@ using RotationFn = Fn<Rotation(Rotation initial, crl::time t)>;
 	};
 }
 
+[[nodiscard]] RotationFn DecayingRotationFinal(
+		Rotation impulse,
+		float64 decay,
+		Rotation target,
+		crl::time duration) {
+	const auto lambda = -std::log(decay) / kFrameDuration;
+	target = target * M_PI;
+	return [=](Rotation initial, crl::time t) {
+		const auto factor = (1. - std::exp(-lambda * t)) / lambda / 1000.;
+		const auto result = initial + impulse * factor;
+		if (t <= duration - 200) {
+			return result;
+		} else if (t >= duration) {
+			return target;
+		}
+		const auto progress = (duration - t) / 200.;
+		return result * progress + target * (1. - progress);
+	};
+}
+
 struct GiftAnimationConfig {
 	RotationFn rotation;
 	crl::time duration = 0;
@@ -66,20 +86,13 @@ struct GiftAnimationConfig {
 };
 
 const auto kGiftAnimations = std::array<GiftAnimationConfig, 7>{{
-	// Gift 1, last
-	{ DecayingRotation({ 3.2, -5.9 }, 0.98), 2200, 1, 0 },
-	// Gift 1, not last
-	{ DecayingRotation({ 3.2, -5.9 }, 0.97), 1200, 4, 0 }, // good
-	// Gift 2, last
-	{ DecayingRotation({ 3.0, 6.0 }, 0.98), 2200, 2, 0 },
-	// Gift 2, not last
-	{ DecayingRotation({ 4.0, 5.0 }, 0.97), 1200, 2, 0 },
-	// Gift 3, last
-	{ DecayingRotation({ 3.0, 6.0 }, 0.98), 2200, 3, 0 },
-	// Gift 3, not last
-	{ DecayingRotation({ 1.5, 3.0 }, 0.98), 1200, 3, 0 },
-	// Gift 4, always last
-	{ DecayingRotation({ 3.0, 6.0 }, 0.98), 2200, 4, 0 },
+	{ DecayingRotationFinal({ 4.1, -8.2 }, 0.98, { 1, -2 }, 2200), 2200, 1, 180 },
+	{ DecayingRotation({ 3.2, -5.9 }, 0.97), 1200, 4, 180 },
+	{ DecayingRotationFinal({ 6.2, 7.8 }, 0.98, { 2, 1 }, 2200), 2200, 1, 0 },
+	{ DecayingRotation({ 7.0, 4.5 }, 0.97), 1200, 5, 0 },
+	{ DecayingRotationFinal({ -6.5, 5.0 }, 0.98, { 0, 1 }, 2200), 2200, 1, 0 },
+	{ DecayingRotation({ -2.5, 3.5 }, 0.98), 1200, 2, 180 },
+	{ DecayingRotationFinal({ -4.4, -8.2 }, 0.98, { 0, -1.5 }, 2200), 2200, 3, 0 },
 }};
 
 [[nodiscard]] int GetFrontFaceAtRotation(float64 rotationX, float64 rotationY) {
@@ -794,13 +807,6 @@ void LandCurrentGift(CraftAnimationState *animState, crl::time now) {
 	animState->animationStartTime = now;
 	animState->nextFaceIndex = config.nextFaceIndex;
 	animState->nextFaceRotation = config.nextFaceRotation;
-
-	if (animState->giftsLanded > 2) {
-		animState->continuousAnimation.stop();
-	}
-	//if (!animState->continuousAnimation.animating()) {
-	//	animState->continuousAnimation.start();
-	//}
 }
 
 } // namespace
