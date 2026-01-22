@@ -21,6 +21,155 @@ namespace {
 
 using namespace Info::PeerGifts;
 
+constexpr auto kVelocityDecay = 0.98;
+constexpr auto kFrameDuration = 1000. / 60.;
+constexpr auto kLambda = 0.001213;
+constexpr auto kNextFlightDelay = crl::time(1000);
+constexpr auto kFlightDuration = crl::time(400);
+constexpr auto kNextLandTime = kNextFlightDelay + kFlightDuration;
+constexpr auto kCorrectionStrength = 1.;
+
+[[nodiscard]] int GetFrontFaceAtRotation(float64 rotationX, float64 rotationY) {
+	struct Vec3 {
+		float64 x, y, z;
+	};
+
+	const auto rotateY = [](Vec3 v, float64 angle) {
+		const auto c = std::cos(angle);
+		const auto s = std::sin(angle);
+		return Vec3{ v.x * c + v.z * s, v.y, -v.x * s + v.z * c };
+	};
+	const auto rotateX = [](Vec3 v, float64 angle) {
+		const auto c = std::cos(angle);
+		const auto s = std::sin(angle);
+		return Vec3{ v.x, v.y * c - v.z * s, v.y * s + v.z * c };
+	};
+
+	constexpr auto normals = std::array<Vec3, 6>{{
+		{ 0., 0., -1. },
+		{ 0., 0., 1. },
+		{ -1., 0., 0. },
+		{ 1., 0., 0. },
+		{ 0., -1., 0. },
+		{ 0., 1., 0. },
+	}};
+
+	auto bestFace = 0;
+	auto bestZ = 0.;
+	for (auto i = 0; i != 6; ++i) {
+		const auto transformed = rotateX(rotateY(normals[i], rotationY), rotationX);
+		if (i == 0 || transformed.z < bestZ) {
+			bestFace = i;
+			bestZ = transformed.z;
+		}
+	}
+	return bestFace;
+}
+
+[[nodiscard]] std::tuple<float64, float64, int> FindTargetRotationForFreeFace(
+		const CraftAnimationState &state) {
+	constexpr auto kPiOver2 = M_PI / 2.;
+
+	const auto isOccupied = [&](int faceIndex) {
+		for (const auto &placement : state.giftToSide) {
+			if (placement.face == faceIndex) {
+				return true;
+			}
+		}
+		return false;
+	};
+
+	const auto normalizeAngle = [](float64 angle) {
+		auto result = angle;
+		while (result > M_PI) {
+			result -= 2. * M_PI;
+		}
+		while (result <= -M_PI) {
+			result += 2. * M_PI;
+		}
+		return result;
+	};
+
+	struct FaceTarget {
+		int face;
+		float64 rotX;
+		float64 rotY;
+	};
+
+	auto candidates = std::vector<FaceTarget>();
+	for (auto ix = 0; ix < 4; ++ix) {
+		for (auto iy = 0; iy < 4; ++iy) {
+			const auto rotX = ix * kPiOver2;
+			const auto rotY = iy * kPiOver2;
+			const auto frontFace = GetFrontFaceAtRotation(rotX, rotY);
+			if (!isOccupied(frontFace)) {
+				candidates.push_back({ frontFace, rotX, rotY });
+			}
+		}
+	}
+
+	auto bestDistance = std::numeric_limits<float64>::max();
+	auto best = FaceTarget{ 0, 0., 0. };
+
+	for (const auto &c : candidates) {
+		const auto diffX = normalizeAngle(c.rotX - state.rotationX);
+		const auto diffY = normalizeAngle(c.rotY - state.rotationY);
+		const auto dist = diffX * diffX + diffY * diffY;
+		if (dist < bestDistance) {
+			bestDistance = dist;
+			best.face = c.face;
+			best.rotX = state.rotationX + diffX;
+			best.rotY = state.rotationY + diffY;
+		}
+	}
+
+	return { best.rotX, best.rotY, best.face };
+}
+
+[[nodiscard]] int ComputeFaceRotation(
+		float64 rotationX,
+		float64 rotationY,
+		int faceIndex) {
+	struct Vec3 {
+		float64 x, y, z;
+	};
+
+	const auto rotateY = [](Vec3 v, float64 angle) {
+		const auto c = std::cos(angle);
+		const auto s = std::sin(angle);
+		return Vec3{ v.x * c + v.z * s, v.y, -v.x * s + v.z * c };
+	};
+	const auto rotateX = [](Vec3 v, float64 angle) {
+		const auto c = std::cos(angle);
+		const auto s = std::sin(angle);
+		return Vec3{ v.x, v.y * c - v.z * s, v.y * s + v.z * c };
+	};
+
+	constexpr auto faceUpVectors = std::array<Vec3, 6>{{
+		{ 0., -1., 0. },
+		{ 0., -1., 0. },
+		{ 0., -1., 0. },
+		{ 0., -1., 0. },
+		{ 0., 0., -1. },
+		{ 0., 0., 1. },
+	}};
+
+	const auto faceUp = rotateX(
+		rotateY(faceUpVectors[faceIndex], rotationY),
+		rotationX);
+
+	const auto screenUpY = faceUp.y;
+	const auto screenUpX = faceUp.x;
+
+	auto rotation = 0;
+	if (std::abs(screenUpY) >= std::abs(screenUpX)) {
+		rotation = (screenUpY < 0.) ? 0 : 180;
+	} else {
+		rotation = (screenUpX < 0.) ? 90 : 270;
+	}
+	return rotation;
+}
+
 [[nodiscard]] QImage CreateBgGradient(
 		QSize size,
 		const Data::UniqueGiftBackdrop &backdrop) {
@@ -364,11 +513,31 @@ struct GiftFlightPosition {
 	};
 }
 
+[[nodiscard]] std::pair<float64, float64> ComputeRotatedImpulse(
+		float64 rotationX,
+		float64 rotationY,
+		int cornerIndex) {
+	const auto baseX = ((cornerIndex < 2) ? 1. : -1.) * 0.5;
+	const auto baseY = ((cornerIndex % 2) ? 1. : -1.) * 1.;
+
+	const auto cosX = std::cos(rotationX);
+	const auto sinX = std::sin(rotationX);
+	const auto cosY = std::cos(rotationY);
+	const auto sinY = std::sin(rotationY);
+
+	const auto adjustedImpulseX = baseX * cosY - baseY * sinX * sinY;
+	const auto adjustedImpulseY = baseY * cosX;
+
+	return { adjustedImpulseX, adjustedImpulseY };
+}
+
 void ApplyRotationImpulse(CraftAnimationState &state, int cornerIndex) {
 	constexpr auto kImpulseStrength = 3.0;
 
-	const auto impulseX = ((cornerIndex < 2) ? 1 : -1) * 0.5;
-	const auto impulseY = ((cornerIndex % 2) ? 1 : -1) * 1.;
+	const auto [impulseX, impulseY] = ComputeRotatedImpulse(
+		state.rotationX,
+		state.rotationY,
+		cornerIndex);
 
 	state.velocityX += impulseX * kImpulseStrength;
 	state.velocityY += impulseY * kImpulseStrength;
@@ -581,6 +750,133 @@ void PaintSlideOutPhase(
 		state->forgePercent);
 }
 
+[[nodiscard]] float64 LambdaFromDecay() {
+	static const auto result = -std::log(kVelocityDecay) / kFrameDuration;
+	return result;
+}
+
+[[nodiscard]] std::pair<float64, float64> SimulateRotationAtTime(
+		float64 startX,
+		float64 startY,
+		float64 velX,
+		float64 velY,
+		float64 timeMs) {
+	const auto lambda = LambdaFromDecay();
+	const auto factor = (1. - std::exp(-lambda * timeMs)) / lambda / 1000.;
+	return {
+		startX + velX * factor,
+		startY + velY * factor,
+	};
+}
+
+struct FreeFaceAtRotation {
+	int face = -1;
+	float64 zDepth = 0.;
+};
+
+[[nodiscard]] FreeFaceAtRotation FindBestFreeFaceAtRotation(
+		const CraftAnimationState &state,
+		float64 rotX,
+		float64 rotY) {
+	struct Vec3 {
+		float64 x, y, z;
+	};
+
+	const auto rotateY = [](Vec3 v, float64 angle) {
+		const auto c = std::cos(angle);
+		const auto s = std::sin(angle);
+		return Vec3{ v.x * c + v.z * s, v.y, -v.x * s + v.z * c };
+	};
+	const auto rotateX = [](Vec3 v, float64 angle) {
+		const auto c = std::cos(angle);
+		const auto s = std::sin(angle);
+		return Vec3{ v.x, v.y * c - v.z * s, v.y * s + v.z * c };
+	};
+
+	constexpr auto normals = std::array<Vec3, 6>{{
+		{ 0., 0., -1. },
+		{ 0., 0., 1. },
+		{ -1., 0., 0. },
+		{ 1., 0., 0. },
+		{ 0., -1., 0. },
+		{ 0., 1., 0. },
+	}};
+
+	const auto isOccupied = [&](int faceIndex) {
+		for (const auto &placement : state.giftToSide) {
+			if (placement.face == faceIndex) {
+				return true;
+			}
+		}
+		return false;
+	};
+
+	auto bestFace = -1;
+	auto bestZ = 0.;
+	for (auto i = 0; i != 6; ++i) {
+		if (isOccupied(i)) {
+			continue;
+		}
+		const auto transformed = rotateX(rotateY(normals[i], rotY), rotX);
+		if (bestFace < 0 || transformed.z < bestZ) {
+			bestFace = i;
+			bestZ = transformed.z;
+		}
+	}
+	return { bestFace, bestZ };
+}
+
+[[nodiscard]] std::pair<float64, float64> ComputeTargetRotationForFace(
+		float64 rotX,
+		float64 rotY,
+		int targetFace) {
+	constexpr auto kPiOver2 = M_PI / 2.;
+
+	struct Vec3 {
+		float64 x, y, z;
+	};
+
+	constexpr auto faceNormals = std::array<Vec3, 6>{{
+		{ 0., 0., -1. },
+		{ 0., 0., 1. },
+		{ -1., 0., 0. },
+		{ 1., 0., 0. },
+		{ 0., -1., 0. },
+		{ 0., 1., 0. },
+	}};
+
+	if (targetFace < 0 || targetFace >= 6) {
+		return { rotX, rotY };
+	}
+
+	const auto normalizeAngle = [](float64 angle) {
+		auto result = angle;
+		while (result > M_PI) {
+			result -= 2. * M_PI;
+		}
+		while (result <= -M_PI) {
+			result += 2. * M_PI;
+		}
+		return result;
+	};
+
+	const auto &faceNormal = faceNormals[targetFace];
+
+	if (std::abs(faceNormal.z) > 0.5) {
+		const auto targetY = (faceNormal.z < 0.) ? 0. : M_PI;
+		const auto diffY = normalizeAngle(targetY - rotY);
+		return { rotX, rotY + diffY };
+	} else if (std::abs(faceNormal.x) > 0.5) {
+		const auto targetY = (faceNormal.x < 0.) ? -kPiOver2 : kPiOver2;
+		const auto diffY = normalizeAngle(targetY - rotY);
+		return { rotX, rotY + diffY };
+	} else {
+		const auto targetX = (faceNormal.y < 0.) ? kPiOver2 : -kPiOver2;
+		const auto diffX = normalizeAngle(targetX - rotX);
+		return { rotX + diffX, rotY };
+	}
+}
+
 [[nodiscard]] std::pair<float64, float64> FindSnapTarget(
 		const CraftAnimationState &state) {
 	constexpr auto kPiOver2 = M_PI / 2.;
@@ -733,17 +1029,110 @@ void StartGiftFlight(
 	}
 }
 
-void LandCurrentGift(CraftAnimationState *animState) {
+void StartGiftFlightToFace(
+		CraftAnimationState *animState,
+		not_null<RpWidget*> canvas,
+		int targetFace) {
+	const auto &corners = animState->shared->corners;
+
+	auto nextCorner = -1;
+	for (auto i = 0; i < 4; ++i) {
+		if (corners[i].giftButton && animState->giftToSide[i].face < 0) {
+			nextCorner = i;
+			break;
+		}
+	}
+
+	if (nextCorner < 0) {
+		return;
+	}
+
+	animState->currentlyFlying = nextCorner;
+	animState->nearlyStoppedSince = 0;
+
+	const auto currentBest = FindBestFreeFaceAtRotation(
+		*animState,
+		animState->rotationX,
+		animState->rotationY);
+	const auto actualFace = (currentBest.face >= 0) ? currentBest.face : targetFace;
+
+	animState->giftToSide[nextCorner] = FacePlacement{
+		.face = actualFace,
+		.rotation = ComputeFaceRotation(
+			animState->rotationX,
+			animState->rotationY,
+			actualFace),
+	};
+
+	animState->flightAnimation.start(
+		[=] { canvas->update(); },
+		0.,
+		1.,
+		kFlightDuration,
+		anim::easeInCubic);
+
+	if (!animState->continuousAnimation.animating()) {
+		animState->lastRotationUpdate = 0;
+		animState->continuousAnimation.start();
+	}
+}
+
+void LandCurrentGift(CraftAnimationState *animState, crl::time now) {
 	if (animState->currentlyFlying < 0) {
 		return;
 	}
 
 	const auto cornerIndex = animState->currentlyFlying;
-
-	ApplyRotationImpulse(*animState, cornerIndex);
-
 	++animState->giftsLanded;
 	animState->currentlyFlying = -1;
+
+	const auto isLastGift = (animState->giftsLanded >= animState->totalGifts);
+
+	if (!isLastGift) {
+		animState->landingTime = now;
+		animState->rotationXAtLanding = animState->rotationX;
+		animState->rotationYAtLanding = animState->rotationY;
+
+		constexpr auto kImpulseStrength = 3.0;
+		const auto [baseImpulseX, baseImpulseY] = ComputeRotatedImpulse(
+			animState->rotationX,
+			animState->rotationY,
+			cornerIndex);
+		const auto impulseX = baseImpulseX * kImpulseStrength;
+		const auto impulseY = baseImpulseY * kImpulseStrength;
+
+		const auto totalVelocityX = animState->velocityX + impulseX;
+		const auto totalVelocityY = animState->velocityY + impulseY;
+
+		animState->baseVelocityX = totalVelocityX;
+		animState->baseVelocityY = totalVelocityY;
+
+		const auto [futureRotX, futureRotY] = SimulateRotationAtTime(
+			animState->rotationX,
+			animState->rotationY,
+			totalVelocityX,
+			totalVelocityY,
+			kNextLandTime);
+
+		const auto bestFace = FindBestFreeFaceAtRotation(*animState, futureRotX, futureRotY);
+		animState->nextGiftTargetFace = bestFace.face;
+
+		const auto [targetX, targetY] = ComputeTargetRotationForFace(
+			futureRotX,
+			futureRotY,
+			bestFace.face);
+
+		animState->targetRotationX = targetX;
+		animState->targetRotationY = targetY;
+		animState->usingPlannedTrajectory = true;
+
+		animState->velocityX = totalVelocityX;
+		animState->velocityY = totalVelocityY;
+	} else {
+		ApplyRotationImpulse(*animState, cornerIndex);
+		animState->usingPlannedTrajectory = false;
+	}
+
 	animState->nearlyStoppedSince = 0;
 }
 
@@ -929,9 +1318,7 @@ void StartCraftAnimation(
 				}
 			}
 
-			const auto flying = animState->flightAnimation.animating()
-				? animState->currentlyFlying
-				: -1;
+			const auto flying = animState->currentlyFlying;
 			const auto firstFlyProgress = (flying == 0)
 				? animState->flightAnimation.value(1.)
 				: 1.;
@@ -979,11 +1366,10 @@ void StartCraftAnimation(
 			return true;
 		}
 
-		const auto dt = float64(now - animState->lastRotationUpdate);
+		const auto dt = float64(now - animState->lastRotationUpdate)
+			/ anim::SlowMultiplier();
 		animState->lastRotationUpdate = now;
 
-		constexpr auto kFrameDuration = 1000. / 60.;
-		constexpr auto kVelocityDecay = 0.99;
 		constexpr auto kDelayBeforeNextFlight = crl::time(100);
 
 		if (animState->snapping) {
@@ -998,6 +1384,30 @@ void StartCraftAnimation(
 				animState->rotationX = animState->snapTargetX;
 				animState->rotationY = animState->snapTargetY;
 			}
+		} else if (animState->usingPlannedTrajectory && animState->landingTime > 0) {
+			const auto elapsed = float64(now - animState->landingTime)
+				/ anim::SlowMultiplier();
+
+			const auto [baseRotX, baseRotY] = SimulateRotationAtTime(
+				animState->rotationXAtLanding,
+				animState->rotationYAtLanding,
+				animState->baseVelocityX,
+				animState->baseVelocityY,
+				elapsed);
+
+			const auto correctionProgress = std::clamp(
+				elapsed / float64(kNextLandTime),
+				0.,
+				1.);
+			const auto eased = anim::linear(1., correctionProgress);
+			const auto strength = eased * kCorrectionStrength;
+
+			animState->rotationX = baseRotX + (animState->targetRotationX - baseRotX) * strength;
+			animState->rotationY = baseRotY + (animState->targetRotationY - baseRotY) * strength;
+
+			const auto decayFactor = std::pow(kVelocityDecay, elapsed / kFrameDuration);
+			animState->velocityX = animState->baseVelocityX * decayFactor;
+			animState->velocityY = animState->baseVelocityY * decayFactor;
 		} else if (animState->giftsLanded > 0
 			|| animState->flightAnimation.animating()) {
 			animState->rotationX += animState->velocityX * dt / 1000.;
@@ -1012,14 +1422,21 @@ void StartCraftAnimation(
 
 		if (animState->currentlyFlying >= 0
 			&& !animState->flightAnimation.animating()) {
-			LandCurrentGift(animState);
+			LandCurrentGift(animState, now);
 		}
 
 		if (!animState->flightAnimation.animating()
 			&& animState->currentlyFlying < 0
 			&& animState->giftsLanded < animState->totalGifts) {
 
-			if (IsCubeNearlyStopped(*animState)) {
+			if (animState->usingPlannedTrajectory && animState->landingTime > 0) {
+				const auto elapsed = (now - animState->landingTime) / anim::SlowMultiplier();
+				if (elapsed >= kNextFlightDelay) {
+					StartGiftFlightToFace(animState, raw, animState->nextGiftTargetFace);
+				}
+			} else if (animState->giftsLanded == 0) {
+				// First gift handled elsewhere
+			} else if (IsCubeNearlyStopped(*animState)) {
 				if (animState->nearlyStoppedSince == 0) {
 					animState->nearlyStoppedSince = now;
 				} else if (now - animState->nearlyStoppedSince >= kDelayBeforeNextFlight) {

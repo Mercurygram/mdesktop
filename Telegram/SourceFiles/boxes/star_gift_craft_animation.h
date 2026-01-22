@@ -121,6 +121,16 @@ struct CraftAnimationState {
 
 	crl::time nearlyStoppedSince = 0;
 
+	crl::time landingTime = 0;
+	float64 rotationXAtLanding = 0.;
+	float64 rotationYAtLanding = 0.;
+	float64 baseVelocityX = 0.;
+	float64 baseVelocityY = 0.;
+	float64 targetRotationX = 0.;
+	float64 targetRotationY = 0.;
+	int nextGiftTargetFace = -1;
+	bool usingPlannedTrajectory = false;
+
 };
 
 void StartCraftAnimation(
