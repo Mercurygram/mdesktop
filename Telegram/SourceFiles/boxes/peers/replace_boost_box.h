@@ -65,6 +65,7 @@ enum class UserpicsTransferType {
 	BoostReplace,
 	StarRefJoin,
 	AuctionRecipient,
+	ChannelFutureOwner,
 };
 [[nodiscard]] object_ptr<Ui::RpWidget> CreateUserpicsTransfer(
 	not_null<Ui::RpWidget*> parent,

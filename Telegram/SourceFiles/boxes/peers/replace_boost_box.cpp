@@ -593,10 +593,25 @@ object_ptr<Ui::RpWidget> CreateUserpicsTransfer(
 	const auto raw = result.data();
 	const auto right = CreateChild<Ui::UserpicButton>(raw, to, st->button);
 	const auto overlay = CreateChild<Ui::RpWidget>(raw);
+	const auto drawCornerPeer = (type == Type::ChannelFutureOwner)
+		? [&]() -> PaintRoundImageCallback {
+			using Peers = std::vector<not_null<PeerData*>>;
+			const auto snapshot = rpl::variable<Peers>(
+				rpl::duplicate(from)).current();
+			if (snapshot.size() == 2) {
+				return ForceRoundUserpicCallback(snapshot[1].get());
+			}
+			return nullptr;
+		}()
+		: (PaintRoundImageCallback)(nullptr);
 
 	const auto state = raw->lifetime().make_state<State>();
-	std::move(
-		from
+	((type == Type::ChannelFutureOwner)
+		? std::move(from) | rpl::map([=](
+				const std::vector<not_null<PeerData*>> &list) {
+			return std::vector<not_null<PeerData*>>{ list.front() };
+		})
+		: std::move(from)
 	) | rpl::on_next([=](
 			const std::vector<not_null<PeerData*>> &list) {
 		auto was = base::take(state->from);
@@ -662,7 +677,7 @@ object_ptr<Ui::RpWidget> CreateUserpicsTransfer(
 		}
 		state->layer.fill(Qt::transparent);
 
-		auto q = QPainter(&state->layer);
+		auto q = Painter(&state->layer);
 		auto hq = PainterHighQualityEnabler(q);
 		const auto stroke = st->stroke;
 		const auto half = stroke / 2.;
@@ -691,13 +706,24 @@ object_ptr<Ui::RpWidget> CreateUserpicsTransfer(
 			const auto x = back->x() + back->width() - w + add.x();
 			const auto y = back->y() + back->height() - h + add.y();
 
-			auto brush = QLinearGradient(QPointF(x + w, y + h), QPointF(x, y));
-			brush.setStops(Ui::Premium::ButtonGradientStops());
-			q.setBrush(brush);
-			pen.setWidthF(stroke);
+			pen.setWidthF(drawCornerPeer ? stroke * 2 : stroke);
 			q.setPen(pen);
 			q.drawEllipse(x - half, y - half, w + stroke, h + stroke);
-			icon.paint(q, x + skip, y + skip, outerw);
+			if (drawCornerPeer) {
+				drawCornerPeer(
+					q,
+					x - half,
+					y - half,
+					w + stroke,
+					w + stroke);
+			} else {
+				auto brush = QLinearGradient(
+					QPointF(x + w, y + h),
+					QPointF(x, y));
+				brush.setStops(Ui::Premium::ButtonGradientStops());
+				q.setBrush(brush);
+				icon.paint(q, x + skip, y + skip, outerw);
+			}
 		}
 		const auto size = st::boostReplaceArrow.size();
 		st::boostReplaceArrow.paint(
