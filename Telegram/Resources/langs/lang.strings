@@ -4098,7 +4098,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_collection_reorder_exit" = "Apply Reorder";
 "lng_gift_collection_remove_from" = "Remove from Collection";
 "lng_gift_locked_title" = "Gift Locked";
-"lng_gift_craft_info_level" = "Level {n} Gift";
 "lng_gift_craft_info_title" = "Gift Crafting";
 "lng_gift_craft_info_about" = "Use your existing gifts to craft new ones.";
 "lng_gift_craft_combine_title" = "Combine Gifts";

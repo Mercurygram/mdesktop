@@ -100,6 +100,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_chat_invite.h"
 #include "api/api_global_privacy.h"
 #include "api/api_blocked_peers.h"
+#include "api/api_premium.h"
+#include "boxes/star_gift_craft_box.h"
 #include "support/support_helper.h"
 #include "storage/file_upload.h"
 #include "storage/download_manager_mtproto.h"
@@ -1679,6 +1681,34 @@ SessionController::SessionController(
 		activateFirstChatsFilter();
 		setupPremiumToast();
 	});
+
+#if 1 // TEST: Auto-open craft box on startup
+	crl::on_main(this, [=] {
+		const auto user = session->user();
+		session->api().request(MTPpayments_GetSavedStarGifts(
+			MTP_flags(0),
+			user->input(),
+			MTP_int(0),
+			MTP_string(QString()),
+			MTP_int(50)
+		)).done([=](const MTPpayments_SavedStarGifts &result) {
+			const auto &data = result.data();
+			session->data().processUsers(data.vusers());
+			session->data().processChats(data.vchats());
+			for (const auto &gift : data.vgifts().v) {
+				if (auto parsed = Api::FromTL(user, gift)) {
+					const auto unique = parsed->info.unique;
+					if (unique
+						&& unique->craftChancePermille > 0
+						&& !unique->canCraftAt) {
+						Ui::ShowGiftCraftInfoBox(this, unique, parsed->manageId);
+						return;
+					}
+				}
+			}
+		}).send();
+	});
+#endif
 }
 
 bool SessionController::skipNonPremiumLimitToast(bool download) const {

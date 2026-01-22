@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/star_gift_craft_box.h"
 
+#include "boxes/star_gift_craft_animation.h"
 #include "apiwrap.h"
 #include "api/api_credits.h"
 #include "api/api_premium.h"
@@ -30,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/gradient_round_button.h"
 #include "ui/painter.h"
 #include "ui/top_background_gradient.h"
+#include "ui/ui_utility.h"
 #include "ui/vertical_list.h"
 #include "window/window_session_controller.h"
 #include "styles/style_chat_helpers.h" // stickerPanDeleteIconFg
@@ -95,6 +97,7 @@ struct CraftingView {
 	object_ptr<RpWidget> widget;
 	rpl::producer<int> editRequests;
 	rpl::producer<int> removeRequests;
+	Fn<void(std::shared_ptr<CraftState>)> grabForAnimation;
 };
 
 [[nodiscard]] QString FormatPercent(int permille) {
@@ -456,36 +459,39 @@ AbstractButton *MakeRemoveButton(
 		st::craftForgePadding,
 	}));
 
+	auto grabForAnimation = [=](std::shared_ptr<CraftState> craftState) {
+		craftState->forgeRect = center;
+
+		craftState->forgeImage = GrabWidgetToImage(raw, center);
+
+		for (auto i = 0; i != 4; ++i) {
+			const auto &entry = state->entries[i];
+			auto &corner = craftState->corners[i];
+
+			if (entry.button) {
+				corner.hasGift = true;
+				corner.gift = GrabWidgetToImage(entry.button);
+				corner.originalRect = entry.button->geometry();
+				if (entry.percent) {
+					corner.percentBadge = GrabWidgetToImage(entry.percent);
+				}
+				if (entry.remove) {
+					corner.removeButton = GrabWidgetToImage(entry.remove);
+				}
+			} else if (entry.add) {
+				corner.hasGift = false;
+				corner.addButton = GrabWidgetToImage(entry.add);
+				corner.originalRect = entry.add->geometry();
+			}
+		}
+	};
+
 	return {
 		.widget = std::move(widget),
 		.editRequests = state->editRequests.events(),
 		.removeRequests = state->removeRequests.events(),
+		.grabForAnimation = std::move(grabForAnimation),
 	};
-}
-
-[[nodiscard]] QImage CreateBgGradient(
-		QSize size,
-		const Data::UniqueGiftBackdrop &backdrop) {
-	const auto ratio = style::DevicePixelRatio();
-	auto result = QImage(size * ratio, QImage::Format_ARGB32_Premultiplied);
-	result.setDevicePixelRatio(ratio);
-
-	auto p = QPainter(&result);
-	auto hq = PainterHighQualityEnabler(p);
-	auto gradient = QRadialGradient(
-		QPoint(size.width() / 2, size.height() / 2),
-		size.height() / 2);
-	gradient.setStops({
-		{ 0., backdrop.centerColor },
-		{ 1., backdrop.edgeColor },
-	});
-	p.setBrush(gradient);
-	p.setPen(Qt::NoPen);
-	p.drawRect(0, 0, size.width(), size.height());
-	p.end();
-
-	const auto mask = Images::CornersMask(st::boxRadius);
-	return Images::Round(std::move(result), mask);
 }
 
 void ShowSelectGiftBox(
@@ -775,59 +781,29 @@ void ShowSelectGiftBox(
 }
 
 void Craft(
-		not_null<Window::SessionController*> controller,
-		std::vector<GiftForCraft> gifts) {
-#if 0
-	auto inputs = QVector<MTPInputSavedStarGift>();
-	for (const auto &gift : gifts) {
-		inputs.push_back(
-			Api::InputSavedStarGiftId(gift.manageId, gift.unique));
-	}
-	const auto weak = base::make_weak(controller);
-	const auto session = &controller->session();
-	session->api().request(MTPpayments_CraftStarGift(
-		MTP_vector<MTPInputSavedStarGift>(inputs)
-	)).done([=](const MTPUpdates &result) {
-		session->api().applyUpdates(result);
-		if (const auto strong = weak.get()) {
-			strong->showPeerHistory(strong->session().user()->id);
-		}
-	}).send();
-#endif
+		not_null<VerticalLayout*> container,
+		std::shared_ptr<CraftState> state) {
+	StartCraftAnimation(container, std::move(state));
 }
 
 void MakeCraftContent(
 		not_null<GenericBox*> box,
 		not_null<Window::SessionController*> controller,
 		GiftForCraft gift) {
-	struct BackdropView {
-		Data::UniqueGiftBackdrop colors;
-		QImage gradient;
-	};
-	struct PatternView {
-		std::unique_ptr<Text::CustomEmoji> emoji;
-		base::flat_map<int, base::flat_map<float64, QImage>> emojis;
-	};
-	struct Cover {
-		BackdropView backdrop;
-		PatternView pattern;
-		QColor button1;
-		QColor button2;
-		Ui::Animations::Simple shownAnimation;
-		bool shown = false;
-	};
 	struct State {
 		explicit State(not_null<Main::Session*> session)
 		: delegate(session, GiftButtonMode::CraftPreview) {
 		}
 
 		Delegate delegate;
-		std::array<Cover, 4> covers;
-		rpl::variable<QColor> coverEdgeColor;
-		QColor coverButton1;
-		QColor coverButton2;
+		std::shared_ptr<CraftState> craftState;
 		GradientButton *button = nullptr;
-		bool coversAnimate = false;
+
+		FlatLabel *title = nullptr;
+		FlatLabel *about = nullptr;
+		RpWidget *attributes = nullptr;
+		RpWidget *craftingView = nullptr;
+		Fn<void(std::shared_ptr<CraftState>)> grabCraftingView;
 
 		rpl::variable<std::vector<GiftForCraft>> chosen;
 		rpl::variable<QString> name;
@@ -839,22 +815,25 @@ void MakeCraftContent(
 	};
 	const auto session = &controller->session();
 	const auto state = box->lifetime().make_state<State>(session);
-	state->coversAnimate = true;
+
+	state->craftState = std::make_shared<CraftState>();
+	state->craftState->coversAnimate = true;
 
 	{
 		auto backdrops = CraftBackdrops();
 		const auto emoji = Text::IconEmoji(&st::craftPattern);
 		const auto data = emoji.entities.front().data();
 		for (auto i = 0; i != backdrops.size(); ++i) {
-			state->covers[i].backdrop.colors = backdrops[i].backdrop;
-			state->covers[i].pattern.emoji = Text::TryMakeSimpleEmoji(data);
-			state->covers[i].button1 = backdrops[i].button1;
-			state->covers[i].button2 = backdrops[i].button2;
+			auto &cover = state->craftState->covers[i];
+			cover.backdrop.colors = backdrops[i].backdrop;
+			cover.pattern.emoji = Text::TryMakeSimpleEmoji(data);
+			cover.button1 = backdrops[i].button1;
+			cover.button2 = backdrops[i].button2;
 		}
 	}
 
 	state->chosen = std::vector{ gift };
-	state->covers[0].shown = true;
+	state->craftState->covers[0].shown = true;
 
 	state->name = state->chosen.value(
 	) | rpl::map([=](const std::vector<GiftForCraft> &gifts) {
@@ -875,25 +854,13 @@ void MakeCraftContent(
 
 	const auto raw = box->verticalLayout();
 
+	state->craftState->repaint = [=] { raw->update(); };
 	state->chosen.value(
 	) | rpl::on_next([=](const std::vector<GiftForCraft> &gifts) {
-		const auto count = int(gifts.size());
-		for (auto i = 4; i != 0;) {
-			auto &cover = state->covers[--i];
-			const auto shown = (i < count);
-			if (cover.shown != shown) {
-				cover.shown = shown;
-				const auto from = shown ? 0. : 1.;
-				const auto to = shown ? 1. : 0.;
-				cover.shownAnimation.start([=] {
-					raw->update();
-				}, from, to, st::fadeWrapDuration);
-				state->coversAnimate = true;
-			}
-		}
+		state->craftState->updateForGiftCount(int(gifts.size()));
 	}, box->lifetime());
 
-	const auto title = raw->add(
+	const auto title = state->title = raw->add(
 		object_ptr<Ui::FlatLabel>(
 			box,
 			tr::lng_gift_craft_title(),
@@ -906,8 +873,10 @@ void MakeCraftContent(
 		raw,
 		session,
 		state->chosen.value(),
-		state->coverEdgeColor.value());
+		state->craftState->edgeColor.value());
 	const auto craftingHeight = crafting.widget->height();
+	state->craftingView = crafting.widget.data();
+	state->grabCraftingView = std::move(crafting.grabForAnimation);
 	raw->add(std::move(crafting.widget));
 	std::move(crafting.removeRequests) | rpl::on_next([=](int index) {
 		auto chosen = state->chosen.current();
@@ -974,7 +943,7 @@ void MakeCraftContent(
 	) | rpl::map([=](TextWithEntities &&a, TextWithEntities &&b) {
 		return a.append('\n').append('\n').append(b);
 	});
-	const auto about = raw->add(
+	const auto about = state->about = raw->add(
 		object_ptr<FlatLabel>(
 			raw,
 			std::move(aboutText),
@@ -986,84 +955,20 @@ void MakeCraftContent(
 	about->setTextColorOverride(st::white->c);
 	about->setTryMakeSimilarLines(true);
 
-	raw->add(
+	state->attributes = raw->add(
 		MakeRarityExpectancyPreview(raw, session, state->chosen.value()),
 		style::al_top);
 
 	raw->paintOn([=](QPainter &p) {
-		const auto width = raw->width();
-		const auto getBackdrop = [&](BackdropView &backdrop) {
-			const auto ratio = style::DevicePixelRatio();
-			const auto gradientSize = QSize(width, raw->height());
-			auto &gradient = backdrop.gradient;
-			if (gradient.size() != gradientSize * ratio) {
-				gradient = CreateBgGradient(gradientSize, backdrop.colors);
-			}
-			return gradient;
-		};
-		const auto paintPattern = [&](
-				QPainter &p,
-				PatternView &pattern,
-				const BackdropView &backdrop,
-				float64 shown) {
-			const auto color = backdrop.colors.patternColor;
-			const auto key = (color.red() << 16)
-				| (color.green() << 8)
-				| color.blue();
-			PaintBgPoints(
-				p,
-				PatternBgPoints(),
-				pattern.emojis[key],
-				pattern.emoji.get(),
-				color,
-				QRect(0, 0, width, st::boxTitleHeight + craftingHeight),
-				shown);
-		};
-		auto animating = false;
-		auto edgeColor = std::optional<QColor>();
-		auto button1 = QColor();
-		auto button2 = QColor();
-		for (auto i = 0; i != 4; ++i) {
-			auto &cover = state->covers[i];
-			if (cover.shownAnimation.animating()) {
-				animating = true;
-			}
-			const auto finalValue = cover.shown ? 1. : 0.;
-			const auto shown = cover.shownAnimation.value(finalValue);
-			if (shown <= 0.) {
-				break;
-			} else if (shown == 1.) {
-				const auto next = i + 1;
-				if (next < 4
-					&& state->covers[next].shown
-					&& !state->covers[next].shownAnimation.animating()) {
-					continue;
-				}
-			}
-			p.setOpacity(shown);
-			p.drawImage(0, 0, getBackdrop(cover.backdrop));
-			paintPattern(p, cover.pattern, cover.backdrop, 1.);
-			if (state->coversAnimate) {
-				const auto edge = cover.backdrop.colors.edgeColor;
-				if (!edgeColor) {
-					edgeColor = edge;
-					button1 = cover.button1;
-					button2 = cover.button2;
-				} else {
-					edgeColor = anim::color(*edgeColor, edge, shown);
-					button1 = anim::color(button1, cover.button1, shown);
-					button2 = anim::color(button2, cover.button2, shown);
-				}
-			}
-		}
-		if (edgeColor) {
-			state->coverEdgeColor = *edgeColor;
-			state->coverButton1 = button1;
-			state->coverButton2 = button2;
-			state->button->setStops({ { 0., button1 }, { 1., button2 } });
-		}
-		if (!animating) {
-			state->coversAnimate = false;
+		const auto &cs = state->craftState;
+		const auto wasButton1 = cs->button1;
+		const auto wasButton2 = cs->button2;
+		cs->paint(p, raw->size(), craftingHeight);
+		if (cs->button1 != wasButton1 || cs->button2 != wasButton2) {
+			state->button->setStops({
+				{ 0., cs->button1 },
+				{ 1., cs->button2 },
+			});
 		}
 	});
 
@@ -1078,7 +983,55 @@ void MakeCraftContent(
 			return;
 		}
 		state->crafting = true;
-		Craft(controller, state->chosen.current());
+
+		const auto &cs = state->craftState;
+
+		cs->topPart = GrabWidgetToImage(state->title);
+		cs->topPartRect = state->title->geometry();
+
+		if (state->grabCraftingView) {
+			state->grabCraftingView(cs);
+		}
+
+		const auto craftingPos = state->craftingView->pos();
+		cs->craftingTop = craftingPos.y();
+		cs->craftingBottom = craftingPos.y() + state->craftingView->height();
+
+		for (auto &corner : cs->corners) {
+			corner.originalRect.translate(craftingPos);
+		}
+		cs->forgeRect.translate(craftingPos);
+		cs->craftingAreaCenterY = cs->forgeRect.center().y();
+
+		const auto aboutPos = state->about->pos();
+		const auto buttonBottom = state->button->pos().y()
+			+ state->button->height();
+		const auto bottomRect = QRect(
+			0,
+			aboutPos.y(),
+			raw->width(),
+			buttonBottom - aboutPos.y());
+
+		const auto ratio = style::DevicePixelRatio();
+		auto bottomPart = QImage(
+			bottomRect.size() * ratio,
+			QImage::Format_ARGB32_Premultiplied);
+		bottomPart.fill(Qt::transparent);
+		bottomPart.setDevicePixelRatio(ratio);
+
+		const auto renderWidget = [&](QWidget *widget) {
+			const auto pos = widget->pos() - bottomRect.topLeft();
+			widget->render(&bottomPart, pos, QRegion(), QWidget::DrawChildren);
+		};
+		renderWidget(state->about);
+		renderWidget(state->attributes);
+		renderWidget(state->button);
+
+		cs->bottomPart = std::move(bottomPart);
+		cs->bottomPartY = aboutPos.y();
+		cs->containerHeight = raw->height();
+
+		Craft(raw, state->craftState);
 	});
 
 	SetButtonTwoLabels(
@@ -1130,9 +1083,6 @@ void ShowGiftCraftInfoBox(
 			return result;
 		});
 		AddUniqueGiftCover(container, std::move(cover), {
-			.pretitle = tr::lng_gift_craft_info_level(
-				lt_n,
-				rpl::single(QString::number(2))),
 			.subtitle = tr::lng_gift_craft_info_about(tr::marked),
 		});
 		AddSkip(container);
