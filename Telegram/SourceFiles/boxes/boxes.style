@@ -1182,3 +1182,9 @@ moderateCommonGroupsCheckbox: RoundImageCheckbox(defaultPeerListCheckbox) {
 		}};
 	}
 }
+
+futureOwnerBox: Box(defaultBox) {
+	buttonPadding: margins(0px, 0px, 0px, 14px);
+	buttonHeight: 0px;
+}
+futureOwnerBoxSelect: collectibleBox;

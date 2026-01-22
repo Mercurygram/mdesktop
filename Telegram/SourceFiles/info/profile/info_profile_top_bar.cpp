@@ -967,11 +967,8 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 			this,
 			tr::lng_profile_action_short_leave(tr::now),
 			st::infoProfileTopBarActionLeave);
-		leaveButton->setClickedCallback([=] {
-			if (!controller->showFrozenError()) {
-				controller->show(Box(DeleteChatBox, peer));
-			}
-		});
+		leaveButton->setClickedCallback(
+			Window::DeleteAndLeaveHandler(controller, peer));
 		_actions->add(leaveButton);
 		buttons.push_back(leaveButton);
 	}

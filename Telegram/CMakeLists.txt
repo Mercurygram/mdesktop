@@ -325,6 +325,8 @@ PRIVATE
     boxes/report_messages_box.h
     boxes/ringtones_box.cpp
     boxes/ringtones_box.h
+    boxes/select_future_owner_box.cpp
+    boxes/select_future_owner_box.h
     boxes/self_destruction_box.cpp
     boxes/self_destruction_box.h
     boxes/send_credits_box.cpp

@@ -1643,6 +1643,22 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_invite_upgrade_via_channel_about" = "You can send an invite link to the channel in a private message instead.";
 "lng_invite_status_disabled" = "available only to Premium users";
 
+"lng_leave_next_owner_box_title" = "Leave Channel?";
+"lng_leave_next_owner_box_title_group" = "Leave Group?";
+"lng_leave_next_owner_box_about" = "If you leave, **{user}** will become the new owner of **{chat}** in **1 week**.";
+"lng_leave_next_owner_box_about_admin" = "If you leave, **{user}** will become the new admin of **{chat}** in **1 week**.";
+"lng_select_next_owner_box" = "Appoint Another Owner";
+"lng_select_next_owner_box_admin" = "Appoint Another Admin";
+"lng_select_next_owner_box_title" = "Appoint New Owner";
+"lng_select_next_owner_box_title_admin" = "Appoint New Admin";
+"lng_select_next_owner_box_confirm" = "Appoint and Leave Group";
+"lng_select_next_owner_box_sub_admins" = "Channel admins";
+"lng_select_next_owner_box_sub_admins_group" = "Group admins";
+"lng_select_next_owner_box_sub_members" = "Channel members";
+"lng_select_next_owner_box_sub_members_group" = "Group members";
+"lng_select_next_owner_box_status_joined" = "joined {date}";
+"lng_select_next_owner_box_status_promoted" = "promoted {date}";
+
 "lng_via_link_group_one" = "**{user}** restricts adding them to groups.\nYou can send them an invite link as message instead.";
 "lng_via_link_group_many#one" = "**{count} user** restricts adding them to groups.\nYou can send them an invite link as message instead.";
 "lng_via_link_group_many#other" = "**{count} users** restrict adding them to groups.\nYou can send them an invite link as message instead.";
