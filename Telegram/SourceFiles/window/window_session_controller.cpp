@@ -1682,11 +1682,12 @@ SessionController::SessionController(
 		setupPremiumToast();
 	});
 
-#if 1 // TEST: Auto-open craft box on startup
+#if _DEBUG // TEST: Auto-open craft box on startup
+	constexpr auto kGiftsCount = 3;
 	crl::on_main(this, [=] {
 		const auto user = session->user();
 		session->api().request(MTPpayments_GetSavedStarGifts(
-			MTP_flags(0),
+			MTP_flags(MTPpayments_GetSavedStarGifts::Flag::f_exclude_unlimited),
 			user->input(),
 			MTP_int(0),
 			MTP_string(QString()),
@@ -1695,16 +1696,28 @@ SessionController::SessionController(
 			const auto &data = result.data();
 			session->data().processUsers(data.vusers());
 			session->data().processChats(data.vchats());
+
+			auto craftableGifts = std::vector<Ui::GiftForCraftEntry>();
+			craftableGifts.reserve(kGiftsCount);
+
 			for (const auto &gift : data.vgifts().v) {
 				if (auto parsed = Api::FromTL(user, gift)) {
 					const auto unique = parsed->info.unique;
 					if (unique
 						&& unique->craftChancePermille > 0
-						&& !unique->canCraftAt) {
-						Ui::ShowGiftCraftInfoBox(this, unique, parsed->manageId);
-						return;
+						&& unique->canCraftAt <= base::unixtime::now()) {
+						craftableGifts.push_back({
+							unique,
+							parsed->manageId,
+						});
+						if (craftableGifts.size() >= kGiftsCount) {
+							break;
+						}
 					}
 				}
+			}
+			if (!craftableGifts.empty()) {
+				Ui::ShowTestGiftCraftBox(this, std::move(craftableGifts));
 			}
 		}).send();
 	});

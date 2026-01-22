@@ -21,14 +21,66 @@ namespace {
 
 using namespace Info::PeerGifts;
 
-constexpr auto kVelocityDecay = 0.98;
 constexpr auto kFrameDuration = 1000. / 60.;
-constexpr auto kLambda = 0.001213;
-constexpr auto kNextFlightDelay = crl::time(1000);
 constexpr auto kFlightDuration = crl::time(400);
-constexpr auto kNextLandTime = kNextFlightDelay + kFlightDuration;
-constexpr auto kCorrectionStrength = 1.;
-constexpr auto kLastGiftSettleTime = crl::time(2000);
+
+struct Rotation {
+	float64 x = 0.;
+	float64 y = 0.;
+
+	Rotation operator+(Rotation other) const {
+		return { x + other.x, y + other.y };
+	}
+	Rotation operator*(float64 scale) const {
+		return { x * scale, y * scale };
+	}
+};
+
+using RotationFn = Fn<Rotation(Rotation initial, crl::time t)>;
+
+[[nodiscard]] Rotation RotateImpulse(Rotation impulse, Rotation orientation) {
+	const auto cosX = std::cos(orientation.x);
+	const auto sinX = std::sin(orientation.x);
+	const auto cosY = std::cos(orientation.y);
+	const auto sinY = std::sin(orientation.y);
+
+	return {
+		impulse.x * cosY - impulse.y * sinX * sinY,
+		impulse.y * cosX,
+	};
+}
+
+[[nodiscard]] RotationFn DecayingRotation(Rotation impulse, float64 decay) {
+	const auto lambda = -std::log(decay) / kFrameDuration;
+	return [=](Rotation initial, crl::time t) {
+		const auto factor = (1. - std::exp(-lambda * t)) / lambda / 1000.;
+		return initial + impulse * factor;
+	};
+}
+
+struct GiftAnimationConfig {
+	RotationFn rotation;
+	crl::time duration = 0;
+	int nextFaceIndex = 0;
+	int nextFaceRotation = 0;
+};
+
+const auto kGiftAnimations = std::array<GiftAnimationConfig, 7>{{
+	// Gift 1, last
+	{ DecayingRotation({ 3.2, -5.9 }, 0.98), 2200, 1, 0 },
+	// Gift 1, not last
+	{ DecayingRotation({ 3.2, -5.9 }, 0.97), 1200, 4, 0 }, // good
+	// Gift 2, last
+	{ DecayingRotation({ 3.0, 6.0 }, 0.98), 2200, 2, 0 },
+	// Gift 2, not last
+	{ DecayingRotation({ 4.0, 5.0 }, 0.97), 1200, 2, 0 },
+	// Gift 3, last
+	{ DecayingRotation({ 3.0, 6.0 }, 0.98), 2200, 3, 0 },
+	// Gift 3, not last
+	{ DecayingRotation({ 1.5, 3.0 }, 0.98), 1200, 3, 0 },
+	// Gift 4, always last
+	{ DecayingRotation({ 3.0, 6.0 }, 0.98), 2200, 4, 0 },
+}};
 
 [[nodiscard]] int GetFrontFaceAtRotation(float64 rotationX, float64 rotationY) {
 	struct Vec3 {
@@ -65,66 +117,6 @@ constexpr auto kLastGiftSettleTime = crl::time(2000);
 		}
 	}
 	return bestFace;
-}
-
-[[nodiscard]] std::tuple<float64, float64, int> FindTargetRotationForFreeFace(
-		const CraftAnimationState &state) {
-	constexpr auto kPiOver2 = M_PI / 2.;
-
-	const auto isOccupied = [&](int faceIndex) {
-		for (const auto &placement : state.giftToSide) {
-			if (placement.face == faceIndex) {
-				return true;
-			}
-		}
-		return false;
-	};
-
-	const auto normalizeAngle = [](float64 angle) {
-		auto result = angle;
-		while (result > M_PI) {
-			result -= 2. * M_PI;
-		}
-		while (result <= -M_PI) {
-			result += 2. * M_PI;
-		}
-		return result;
-	};
-
-	struct FaceTarget {
-		int face;
-		float64 rotX;
-		float64 rotY;
-	};
-
-	auto candidates = std::vector<FaceTarget>();
-	for (auto ix = 0; ix < 4; ++ix) {
-		for (auto iy = 0; iy < 4; ++iy) {
-			const auto rotX = ix * kPiOver2;
-			const auto rotY = iy * kPiOver2;
-			const auto frontFace = GetFrontFaceAtRotation(rotX, rotY);
-			if (!isOccupied(frontFace)) {
-				candidates.push_back({ frontFace, rotX, rotY });
-			}
-		}
-	}
-
-	auto bestDistance = std::numeric_limits<float64>::max();
-	auto best = FaceTarget{ 0, 0., 0. };
-
-	for (const auto &c : candidates) {
-		const auto diffX = normalizeAngle(c.rotX - state.rotationX);
-		const auto diffY = normalizeAngle(c.rotY - state.rotationY);
-		const auto dist = diffX * diffX + diffY * diffY;
-		if (dist < bestDistance) {
-			bestDistance = dist;
-			best.face = c.face;
-			best.rotX = state.rotationX + diffX;
-			best.rotY = state.rotationY + diffY;
-		}
-	}
-
-	return { best.rotX, best.rotY, best.face };
 }
 
 [[nodiscard]] int ComputeFaceRotation(
@@ -514,47 +506,6 @@ struct GiftFlightPosition {
 	};
 }
 
-[[nodiscard]] std::pair<float64, float64> ComputeRotatedImpulse(
-		float64 rotationX,
-		float64 rotationY,
-		int cornerIndex) {
-	const auto baseX = ((cornerIndex < 2) ? 1. : -1.) * 0.5;
-	const auto baseY = ((cornerIndex % 2) ? 1. : -1.) * 1.;
-
-	const auto cosX = std::cos(rotationX);
-	const auto sinX = std::sin(rotationX);
-	const auto cosY = std::cos(rotationY);
-	const auto sinY = std::sin(rotationY);
-
-	const auto adjustedImpulseX = baseX * cosY - baseY * sinX * sinY;
-	const auto adjustedImpulseY = baseY * cosX;
-
-	return { adjustedImpulseX, adjustedImpulseY };
-}
-
-void ApplyRotationImpulse(CraftAnimationState &state, int cornerIndex) {
-	constexpr auto kImpulseStrength = 3.0;
-
-	const auto [impulseX, impulseY] = ComputeRotatedImpulse(
-		state.rotationX,
-		state.rotationY,
-		cornerIndex);
-
-	state.velocityX += impulseX * kImpulseStrength;
-	state.velocityY += impulseY * kImpulseStrength;
-
-	if (!state.continuousAnimation.animating()) {
-		state.lastRotationUpdate = 0;
-		state.continuousAnimation.start();
-	}
-}
-
-[[nodiscard]] bool IsCubeNearlyStopped(const CraftAnimationState &state) {
-	constexpr auto kNearlyStoppedThreshold = 0.05;
-	return (std::abs(state.velocityX) < kNearlyStoppedThreshold)
-		&& (std::abs(state.velocityY) < kNearlyStoppedThreshold);
-}
-
 [[nodiscard]] FacePlacement GetCameraFacingFreeFace(
 		const CraftAnimationState &state) {
 	struct Vec3 {
@@ -751,249 +702,6 @@ void PaintSlideOutPhase(
 		state->forgePercent);
 }
 
-[[nodiscard]] float64 LambdaFromDecay() {
-	static const auto result = -std::log(kVelocityDecay) / kFrameDuration;
-	return result;
-}
-
-[[nodiscard]] std::pair<float64, float64> SimulateRotationAtTime(
-		float64 startX,
-		float64 startY,
-		float64 velX,
-		float64 velY,
-		float64 timeMs) {
-	const auto lambda = LambdaFromDecay();
-	const auto factor = (1. - std::exp(-lambda * timeMs)) / lambda / 1000.;
-	return {
-		startX + velX * factor,
-		startY + velY * factor,
-	};
-}
-
-struct FreeFaceAtRotation {
-	int face = -1;
-	float64 zDepth = 0.;
-};
-
-[[nodiscard]] FreeFaceAtRotation FindBestFreeFaceAtRotation(
-		const CraftAnimationState &state,
-		float64 rotX,
-		float64 rotY) {
-	struct Vec3 {
-		float64 x, y, z;
-	};
-
-	const auto rotateY = [](Vec3 v, float64 angle) {
-		const auto c = std::cos(angle);
-		const auto s = std::sin(angle);
-		return Vec3{ v.x * c + v.z * s, v.y, -v.x * s + v.z * c };
-	};
-	const auto rotateX = [](Vec3 v, float64 angle) {
-		const auto c = std::cos(angle);
-		const auto s = std::sin(angle);
-		return Vec3{ v.x, v.y * c - v.z * s, v.y * s + v.z * c };
-	};
-
-	constexpr auto normals = std::array<Vec3, 6>{{
-		{ 0., 0., -1. },
-		{ 0., 0., 1. },
-		{ -1., 0., 0. },
-		{ 1., 0., 0. },
-		{ 0., -1., 0. },
-		{ 0., 1., 0. },
-	}};
-
-	const auto isOccupied = [&](int faceIndex) {
-		for (const auto &placement : state.giftToSide) {
-			if (placement.face == faceIndex) {
-				return true;
-			}
-		}
-		return false;
-	};
-
-	auto bestFace = -1;
-	auto bestZ = 0.;
-	for (auto i = 0; i != 6; ++i) {
-		if (isOccupied(i)) {
-			continue;
-		}
-		const auto transformed = rotateX(rotateY(normals[i], rotY), rotX);
-		if (bestFace < 0 || transformed.z < bestZ) {
-			bestFace = i;
-			bestZ = transformed.z;
-		}
-	}
-	return { bestFace, bestZ };
-}
-
-[[nodiscard]] std::pair<float64, float64> ComputeTargetRotationForFace(
-		float64 rotX,
-		float64 rotY,
-		int targetFace) {
-	constexpr auto kPiOver2 = M_PI / 2.;
-
-	struct Vec3 {
-		float64 x, y, z;
-	};
-
-	constexpr auto faceNormals = std::array<Vec3, 6>{{
-		{ 0., 0., -1. },
-		{ 0., 0., 1. },
-		{ -1., 0., 0. },
-		{ 1., 0., 0. },
-		{ 0., -1., 0. },
-		{ 0., 1., 0. },
-	}};
-
-	if (targetFace < 0 || targetFace >= 6) {
-		return { rotX, rotY };
-	}
-
-	const auto normalizeAngle = [](float64 angle) {
-		auto result = angle;
-		while (result > M_PI) {
-			result -= 2. * M_PI;
-		}
-		while (result <= -M_PI) {
-			result += 2. * M_PI;
-		}
-		return result;
-	};
-
-	const auto &faceNormal = faceNormals[targetFace];
-
-	if (std::abs(faceNormal.z) > 0.5) {
-		const auto targetY = (faceNormal.z < 0.) ? 0. : M_PI;
-		const auto diffY = normalizeAngle(targetY - rotY);
-		return { rotX, rotY + diffY };
-	} else if (std::abs(faceNormal.x) > 0.5) {
-		const auto targetY = (faceNormal.x < 0.) ? -kPiOver2 : kPiOver2;
-		const auto diffY = normalizeAngle(targetY - rotY);
-		return { rotX, rotY + diffY };
-	} else {
-		const auto targetX = (faceNormal.y < 0.) ? kPiOver2 : -kPiOver2;
-		const auto diffX = normalizeAngle(targetX - rotX);
-		return { rotX + diffX, rotY };
-	}
-}
-
-[[nodiscard]] std::pair<float64, float64> FindSnapTarget(
-		const CraftAnimationState &state) {
-	constexpr auto kPiOver2 = M_PI / 2.;
-
-	const auto isOccupied = [&](int faceIndex) {
-		for (const auto &placement : state.giftToSide) {
-			if (placement.face == faceIndex) {
-				return true;
-			}
-		}
-		return false;
-	};
-
-	const auto normalizeAngle = [](float64 angle) {
-		auto result = angle;
-		while (result > M_PI) {
-			result -= 2. * M_PI;
-		}
-		while (result <= -M_PI) {
-			result += 2. * M_PI;
-		}
-		return result;
-	};
-
-	const auto angleDiff = [&](float64 from, float64 to) {
-		return normalizeAngle(to - from);
-	};
-
-	struct Vec3 {
-		float64 x, y, z;
-	};
-
-	const auto rotateY = [](Vec3 v, float64 angle) {
-		const auto c = std::cos(angle);
-		const auto s = std::sin(angle);
-		return Vec3{ v.x * c + v.z * s, v.y, -v.x * s + v.z * c };
-	};
-	const auto rotateX = [](Vec3 v, float64 angle) {
-		const auto c = std::cos(angle);
-		const auto s = std::sin(angle);
-		return Vec3{ v.x, v.y * c - v.z * s, v.y * s + v.z * c };
-	};
-
-	constexpr auto normals = std::array<Vec3, 6>{{
-		{ 0., 0., -1. },
-		{ 0., 0., 1. },
-		{ -1., 0., 0. },
-		{ 1., 0., 0. },
-		{ 0., -1., 0. },
-		{ 0., 1., 0. },
-	}};
-
-	const auto getFrontFace = [&](float64 rotX, float64 rotY) {
-		auto bestFace = 0;
-		auto bestZ = 0.;
-		for (auto i = 0; i != 6; ++i) {
-			const auto transformed = rotateX(rotateY(normals[i], rotY), rotX);
-			if (i == 0 || transformed.z < bestZ) {
-				bestFace = i;
-				bestZ = transformed.z;
-			}
-		}
-		return bestFace;
-	};
-
-	auto bestTargetX = 0.;
-	auto bestTargetY = 0.;
-	auto bestDistance = std::numeric_limits<float64>::max();
-
-	for (auto ix = 0; ix != 4; ++ix) {
-		for (auto iy = 0; iy != 4; ++iy) {
-			const auto targetX = ix * kPiOver2;
-			const auto targetY = iy * kPiOver2;
-
-			const auto frontFace = getFrontFace(targetX, targetY);
-			if (isOccupied(frontFace)) {
-				continue;
-			}
-
-			const auto diffX = angleDiff(state.rotationX, targetX);
-			const auto diffY = angleDiff(state.rotationY, targetY);
-			const auto distance = diffX * diffX + diffY * diffY;
-
-			if (distance < bestDistance) {
-				bestDistance = distance;
-				bestTargetX = state.rotationX + diffX;
-				bestTargetY = state.rotationY + diffY;
-			}
-		}
-	}
-
-	return { bestTargetX, bestTargetY };
-}
-
-void StartSnapAnimation(
-		CraftAnimationState *animState,
-		not_null<RpWidget*> canvas) {
-	animState->snapStartX = animState->rotationX;
-	animState->snapStartY = animState->rotationY;
-
-	const auto [targetX, targetY] = FindSnapTarget(*animState);
-	animState->snapTargetX = targetX;
-	animState->snapTargetY = targetY;
-
-	animState->velocityX = 0.;
-	animState->velocityY = 0.;
-	animState->snapping = true;
-
-	animState->snapAnimation.start(
-		[=] { canvas->update(); },
-		0.,
-		1.,
-		crl::time(300),
-		anim::easeOutCubic);
-}
-
 void StartGiftFlight(
 		CraftAnimationState *animState,
 		not_null<RpWidget*> canvas,
@@ -1013,8 +721,6 @@ void StartGiftFlight(
 	}
 
 	animState->currentlyFlying = nextGift;
-	animState->nearlyStoppedSince = 0;
-
 	animState->giftToSide[nextGift] = GetCameraFacingFreeFace(*animState);
 
 	animState->flightAnimation.start(
@@ -1025,7 +731,6 @@ void StartGiftFlight(
 		anim::easeInCubic);
 
 	if (!animState->continuousAnimation.animating()) {
-		animState->lastRotationUpdate = 0;
 		animState->continuousAnimation.start();
 	}
 }
@@ -1049,20 +754,10 @@ void StartGiftFlightToFace(
 	}
 
 	animState->currentlyFlying = nextCorner;
-	animState->nearlyStoppedSince = 0;
-
-	const auto currentBest = FindBestFreeFaceAtRotation(
-		*animState,
-		animState->rotationX,
-		animState->rotationY);
-	const auto actualFace = (currentBest.face >= 0) ? currentBest.face : targetFace;
 
 	animState->giftToSide[nextCorner] = FacePlacement{
-		.face = actualFace,
-		.rotation = ComputeFaceRotation(
-			animState->rotationX,
-			animState->rotationY,
-			actualFace),
+		.face = targetFace,
+		.rotation = animState->nextFaceRotation,
 	};
 
 	animState->flightAnimation.start(
@@ -1073,7 +768,6 @@ void StartGiftFlightToFace(
 		anim::easeInCubic);
 
 	if (!animState->continuousAnimation.animating()) {
-		animState->lastRotationUpdate = 0;
 		animState->continuousAnimation.start();
 	}
 }
@@ -1083,101 +777,30 @@ void LandCurrentGift(CraftAnimationState *animState, crl::time now) {
 		return;
 	}
 
-	const auto cornerIndex = animState->currentlyFlying;
+	const auto giftNumber = animState->giftsLanded + 1;
+	const auto isLastGift = (giftNumber >= animState->totalGifts);
+
+	const auto configIndex = (giftNumber - 1) * 2 + (isLastGift ? 0 : 1);
+	Assert(configIndex < 7);
+
+	const auto &config = kGiftAnimations[configIndex];
+
 	++animState->giftsLanded;
 	animState->currentlyFlying = -1;
 
-	const auto isLastGift = (animState->giftsLanded >= animState->totalGifts);
+	animState->initialRotationX = animState->rotationX;
+	animState->initialRotationY = animState->rotationY;
+	animState->currentConfigIndex = configIndex;
+	animState->animationStartTime = now;
+	animState->nextFaceIndex = config.nextFaceIndex;
+	animState->nextFaceRotation = config.nextFaceRotation;
 
-	if (!isLastGift) {
-		animState->landingTime = now;
-		animState->rotationXAtLanding = animState->rotationX;
-		animState->rotationYAtLanding = animState->rotationY;
-
-		constexpr auto kImpulseStrength = 3.0;
-		const auto [baseImpulseX, baseImpulseY] = ComputeRotatedImpulse(
-			animState->rotationX,
-			animState->rotationY,
-			cornerIndex);
-		const auto impulseX = baseImpulseX * kImpulseStrength;
-		const auto impulseY = baseImpulseY * kImpulseStrength;
-
-		const auto totalVelocityX = animState->velocityX + impulseX;
-		const auto totalVelocityY = animState->velocityY + impulseY;
-
-		animState->baseVelocityX = totalVelocityX;
-		animState->baseVelocityY = totalVelocityY;
-
-		const auto [futureRotX, futureRotY] = SimulateRotationAtTime(
-			animState->rotationX,
-			animState->rotationY,
-			totalVelocityX,
-			totalVelocityY,
-			kNextLandTime);
-
-		const auto bestFace = FindBestFreeFaceAtRotation(*animState, futureRotX, futureRotY);
-		animState->nextGiftTargetFace = bestFace.face;
-
-		const auto [targetX, targetY] = ComputeTargetRotationForFace(
-			futureRotX,
-			futureRotY,
-			bestFace.face);
-
-		animState->targetRotationX = targetX;
-		animState->targetRotationY = targetY;
-		animState->usingPlannedTrajectory = true;
-		animState->lastGiftTrajectory = false;
-
-		animState->velocityX = totalVelocityX;
-		animState->velocityY = totalVelocityY;
-	} else {
-		animState->landingTime = now;
-		animState->rotationXAtLanding = animState->rotationX;
-		animState->rotationYAtLanding = animState->rotationY;
-
-		constexpr auto kLastGiftImpulseStrength = 6.0;
-		const auto [baseImpulseX, baseImpulseY] = ComputeRotatedImpulse(
-			animState->rotationX,
-			animState->rotationY,
-			cornerIndex);
-		const auto impulseX = baseImpulseX * kLastGiftImpulseStrength;
-		const auto impulseY = baseImpulseY * kLastGiftImpulseStrength;
-
-		const auto totalVelocityX = animState->velocityX + impulseX;
-		const auto totalVelocityY = animState->velocityY + impulseY;
-
-		animState->baseVelocityX = totalVelocityX;
-		animState->baseVelocityY = totalVelocityY;
-
-		const auto [futureRotX, futureRotY] = SimulateRotationAtTime(
-			animState->rotationX,
-			animState->rotationY,
-			totalVelocityX,
-			totalVelocityY,
-			kLastGiftSettleTime);
-
-		const auto bestFace = FindBestFreeFaceAtRotation(*animState, futureRotX, futureRotY);
-
-		const auto [targetX, targetY] = ComputeTargetRotationForFace(
-			futureRotX,
-			futureRotY,
-			bestFace.face);
-
-		animState->targetRotationX = targetX;
-		animState->targetRotationY = targetY;
-		animState->usingPlannedTrajectory = true;
-		animState->lastGiftTrajectory = true;
-
-		animState->velocityX = totalVelocityX;
-		animState->velocityY = totalVelocityY;
-
-		if (!animState->continuousAnimation.animating()) {
-			animState->lastRotationUpdate = 0;
-			animState->continuousAnimation.start();
-		}
+	if (animState->giftsLanded > 2) {
+		animState->continuousAnimation.stop();
 	}
-
-	animState->nearlyStoppedSince = 0;
+	//if (!animState->continuousAnimation.animating()) {
+	//	animState->continuousAnimation.start();
+	//}
 }
 
 } // namespace
@@ -1415,64 +1038,17 @@ void StartCraftAnimation(
 		anim::easeOutCubic);
 
 	animState->continuousAnimation.init([=](crl::time now) {
-		if (animState->lastRotationUpdate == 0) {
-			animState->lastRotationUpdate = now;
-			return true;
-		}
-
-		const auto dt = float64(now - animState->lastRotationUpdate)
-			/ anim::SlowMultiplier();
-		animState->lastRotationUpdate = now;
-
-		constexpr auto kDelayBeforeNextFlight = crl::time(100);
-
-		if (animState->snapping) {
-			const auto progress = animState->snapAnimation.value(1.);
-			animState->rotationX = animState->snapStartX
-				+ (animState->snapTargetX - animState->snapStartX) * progress;
-			animState->rotationY = animState->snapStartY
-				+ (animState->snapTargetY - animState->snapStartY) * progress;
-
-			if (progress >= 1.) {
-				animState->snapping = false;
-				animState->rotationX = animState->snapTargetX;
-				animState->rotationY = animState->snapTargetY;
-			}
-		} else if (animState->usingPlannedTrajectory && animState->landingTime > 0) {
-			const auto elapsed = float64(now - animState->landingTime)
+		if (animState->currentConfigIndex >= 0) {
+			const auto &config = kGiftAnimations[animState->currentConfigIndex];
+			const auto elapsed = (now - animState->animationStartTime)
 				/ anim::SlowMultiplier();
-			const auto settleTime = animState->lastGiftTrajectory
-				? kLastGiftSettleTime
-				: kNextLandTime;
-
-			const auto [baseRotX, baseRotY] = SimulateRotationAtTime(
-				animState->rotationXAtLanding,
-				animState->rotationYAtLanding,
-				animState->baseVelocityX,
-				animState->baseVelocityY,
-				elapsed);
-
-			const auto correctionProgress = std::clamp(
-				elapsed / float64(settleTime),
-				0.,
-				1.);
-			const auto eased = anim::linear(1., correctionProgress);
-			const auto strength = eased * kCorrectionStrength;
-
-			animState->rotationX = baseRotX + (animState->targetRotationX - baseRotX) * strength;
-			animState->rotationY = baseRotY + (animState->targetRotationY - baseRotY) * strength;
-
-			const auto decayFactor = std::pow(kVelocityDecay, elapsed / kFrameDuration);
-			animState->velocityX = animState->baseVelocityX * decayFactor;
-			animState->velocityY = animState->baseVelocityY * decayFactor;
-		} else if (animState->giftsLanded > 0
-			|| animState->flightAnimation.animating()) {
-			animState->rotationX += animState->velocityX * dt / 1000.;
-			animState->rotationY += animState->velocityY * dt / 1000.;
-
-			const auto decayFactor = std::pow(kVelocityDecay, dt / kFrameDuration);
-			animState->velocityX *= decayFactor;
-			animState->velocityY *= decayFactor;
+			const auto initial = Rotation{
+				animState->initialRotationX,
+				animState->initialRotationY,
+			};
+			const auto r = config.rotation(initial, elapsed);
+			animState->rotationX = r.x;
+			animState->rotationY = r.y;
 		}
 
 		raw->update();
@@ -1484,74 +1060,38 @@ void StartCraftAnimation(
 
 		if (!animState->flightAnimation.animating()
 			&& animState->currentlyFlying < 0
-			&& animState->giftsLanded < animState->totalGifts) {
+			&& animState->giftsLanded > 0
+			&& animState->giftsLanded < animState->totalGifts
+			&& animState->currentConfigIndex >= 0) {
 
-			if (animState->usingPlannedTrajectory && animState->landingTime > 0) {
-				const auto elapsed = (now - animState->landingTime) / anim::SlowMultiplier();
-				if (elapsed >= kNextFlightDelay) {
-					StartGiftFlightToFace(animState, raw, animState->nextGiftTargetFace);
-				}
-			} else if (animState->giftsLanded == 0) {
-				// First gift handled elsewhere
-			} else if (IsCubeNearlyStopped(*animState)) {
-				if (animState->nearlyStoppedSince == 0) {
-					animState->nearlyStoppedSince = now;
-				} else if (now - animState->nearlyStoppedSince >= kDelayBeforeNextFlight) {
-					auto nextIndex = 0;
-					for (auto i = 0; i < 4; ++i) {
-						if (animState->shared->corners[i].giftButton
-							&& animState->giftToSide[i].face < 0) {
-							nextIndex = i;
-							break;
-						}
-					}
-					StartGiftFlight(animState, raw, nextIndex);
-				}
-			} else {
-				animState->nearlyStoppedSince = 0;
+			const auto &config = kGiftAnimations[animState->currentConfigIndex];
+			const auto elapsed = (now - animState->animationStartTime)
+				/ anim::SlowMultiplier();
+			const auto flightStartTime = config.duration - kFlightDuration;
+			if (elapsed >= flightStartTime) {
+				StartGiftFlightToFace(animState, raw, animState->nextFaceIndex);
 			}
 		}
 
-		if (!animState->snapping
-			&& !animState->flightAnimation.animating()
+		if (!animState->flightAnimation.animating()
 			&& animState->currentlyFlying < 0
 			&& animState->giftsLanded >= animState->totalGifts
-			&& animState->totalGifts > 0) {
+			&& animState->totalGifts > 0
+			&& animState->currentConfigIndex >= 0) {
 
-			if (animState->usingPlannedTrajectory
-				&& animState->lastGiftTrajectory
-				&& animState->landingTime > 0) {
-				const auto elapsed = (now - animState->landingTime)
-					/ anim::SlowMultiplier();
-				if (elapsed >= kLastGiftSettleTime) {
-					animState->rotationX = animState->targetRotationX;
-					animState->rotationY = animState->targetRotationY;
-					animState->velocityX = 0.;
-					animState->velocityY = 0.;
-					animState->usingPlannedTrajectory = false;
-				}
-			} else if (!animState->usingPlannedTrajectory) {
-				if (IsCubeNearlyStopped(*animState)) {
-					if (animState->nearlyStoppedSince == 0) {
-						animState->nearlyStoppedSince = now;
-					} else if (now - animState->nearlyStoppedSince >= kDelayBeforeNextFlight) {
-						StartSnapAnimation(animState, raw);
-					}
-				} else {
-					animState->nearlyStoppedSince = 0;
-				}
+			const auto &config = kGiftAnimations[animState->currentConfigIndex];
+			const auto elapsed = (now - animState->animationStartTime)
+				/ anim::SlowMultiplier();
+			if (elapsed >= config.duration) {
+				animState->currentConfigIndex = -1;
 			}
 		}
 
-		const auto hasVelocity = (std::abs(animState->velocityX) > 0.001)
-			|| (std::abs(animState->velocityY) > 0.001);
 		const auto hasMoreFlights = (animState->giftsLanded < animState->totalGifts);
 		const auto isFlying = animState->flightAnimation.animating();
-		const auto isSnapping = animState->snapping;
-		const auto isSettling = animState->usingPlannedTrajectory
-			&& animState->lastGiftTrajectory;
+		const auto isAnimating = (animState->currentConfigIndex >= 0);
 
-		return hasVelocity || hasMoreFlights || isFlying || isSnapping || isSettling;
+		return hasMoreFlights || isFlying || isAnimating;
 	});
 
 	container->add(std::move(canvas));

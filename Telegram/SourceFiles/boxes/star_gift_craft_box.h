@@ -7,9 +7,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "data/data_star_gift.h"
+
 namespace Data {
 struct UniqueGift;
-class SavedStarGiftId;
 } // namespace Data
 
 namespace Window {
@@ -18,9 +19,18 @@ class SessionController;
 
 namespace Ui {
 
+struct GiftForCraftEntry {
+	std::shared_ptr<Data::UniqueGift> unique;
+	Data::SavedStarGiftId manageId;
+};
+
 void ShowGiftCraftInfoBox(
 	not_null<Window::SessionController*> controller,
 	std::shared_ptr<Data::UniqueGift> gift,
 	Data::SavedStarGiftId savedId);
+
+void ShowTestGiftCraftBox(
+	not_null<Window::SessionController*> controller,
+	std::vector<GiftForCraftEntry> gifts);
 
 } // namespace Ui

@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/star_gift_craft_box.h"
 
+#include "base/call_delayed.h"
 #include "boxes/star_gift_craft_animation.h"
 #include "apiwrap.h"
 #include "api/api_credits.h"
@@ -810,7 +811,8 @@ void Craft(
 void MakeCraftContent(
 		not_null<GenericBox*> box,
 		not_null<Window::SessionController*> controller,
-		GiftForCraft gift) {
+		std::vector<GiftForCraft> gifts,
+		bool autoStartCraft) {
 	struct State {
 		std::shared_ptr<CraftState> craftState;
 		GradientButton *button = nullptr;
@@ -848,8 +850,10 @@ void MakeCraftContent(
 		}
 	}
 
-	state->chosen = std::vector{ gift };
-	state->craftState->covers[0].shown = true;
+	state->chosen = std::move(gifts);
+	for (auto i = 0; i != int(state->chosen.current().size()); ++i) {
+		state->craftState->covers[i].shown = true;
+	}
 
 	state->name = state->chosen.value(
 	) | rpl::map([=](const std::vector<GiftForCraft> &gifts) {
@@ -902,6 +906,7 @@ void MakeCraftContent(
 		}
 	}, raw->lifetime());
 
+	const auto initialGiftId = state->chosen.current().front().unique->initialGiftId;
 	std::move(
 		crafting.editRequests
 	) | rpl::on_next([=](int index) {
@@ -912,7 +917,7 @@ void MakeCraftContent(
 		}
 		state->requestingIndex = index;
 		session->api().request(MTPpayments_GetCraftStarGifts(
-			MTP_long(gift.unique->initialGiftId),
+			MTP_long(initialGiftId),
 			MTP_string(),
 			MTP_int(30)
 		)).done([=](const MTPpayments_SavedStarGifts &result) {
@@ -994,7 +999,7 @@ void MakeCraftContent(
 	button->setFullRadius(true);
 	button->startGlareAnimation();
 
-	button->setClickedCallback([=] {
+	const auto startCrafting = [=] {
 		if (state->crafting) {
 			return;
 		}
@@ -1048,7 +1053,8 @@ void MakeCraftContent(
 		cs->containerHeight = raw->height();
 
 		Craft(raw, state->craftState);
-	});
+	};
+	button->setClickedCallback(startCrafting);
 
 	SetButtonTwoLabels(
 		button,
@@ -1069,18 +1075,32 @@ void MakeCraftContent(
 		button->setNaturalWidth(width - padding.left() - padding.right());
 		button->resize(button->naturalWidth(), st::giftBox.button.height);
 	}, raw->lifetime());
+
+	if (autoStartCraft) {
+		base::call_delayed(crl::time(1000), raw, startCrafting);
+	}
 }
 
-void ShowGiftCraftBox(
+void ShowGiftCraftBoxInternal(
 		not_null<Window::SessionController*> controller,
-		std::shared_ptr<Data::UniqueGift> gift,
-		Data::SavedStarGiftId savedId) {
+		std::vector<GiftForCraft> gifts,
+		bool autoStartCraft) {
 	controller->show(Box([=](not_null<GenericBox*> box) {
 		box->setStyle(st::giftCraftBox);
 		box->setWidth(st::boxWidth);
 		box->setNoContentMargin(true);
-		MakeCraftContent(box, controller, GiftForCraft{ gift, savedId });
+		MakeCraftContent(box, controller, gifts, autoStartCraft);
 		AddUniqueCloseButton(box);
+
+#if _DEBUG
+		if (autoStartCraft) {
+			box->boxClosing() | rpl::on_next([=] {
+				base::call_delayed(1000, controller, [=] {
+					ShowGiftCraftBoxInternal(controller, gifts, true);
+				});
+			}, box->lifetime());
+		}
+#endif
 	}));
 }
 
@@ -1133,9 +1153,26 @@ void ShowGiftCraftInfoBox(
 		box->setNoContentMargin(true);
 
 		box->addButton(tr::lng_gift_craft_start_button(), [=] {
-			ShowGiftCraftBox(controller, gift, savedId);
+			ShowGiftCraftBoxInternal(
+				controller,
+				{ GiftForCraft{ gift, savedId } },
+				false);
 		});
 	}));
+}
+
+void ShowTestGiftCraftBox(
+		not_null<Window::SessionController*> controller,
+		std::vector<GiftForCraftEntry> gifts) {
+	auto converted = std::vector<GiftForCraft>();
+	converted.reserve(gifts.size());
+	for (auto &gift : gifts) {
+		auto entry = GiftForCraft();
+		entry.unique = std::move(gift.unique);
+		entry.manageId = std::move(gift.manageId);
+		converted.push_back(std::move(entry));
+	}
+	ShowGiftCraftBoxInternal(controller, std::move(converted), true);
 }
 
 } // namespace Ui

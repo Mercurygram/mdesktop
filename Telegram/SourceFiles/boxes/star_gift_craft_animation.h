@@ -102,9 +102,6 @@ struct CraftAnimationState {
 
 	float64 rotationX = 0.;
 	float64 rotationY = 0.;
-	float64 velocityX = 0.;
-	float64 velocityY = 0.;
-	crl::time lastRotationUpdate = 0;
 
 	int currentlyFlying = -1;
 	int giftsLanded = 0;
@@ -112,25 +109,12 @@ struct CraftAnimationState {
 	std::array<FacePlacement, 4> giftToSide;
 	Animations::Simple flightAnimation;
 
-	bool snapping = false;
-	Animations::Simple snapAnimation;
-	float64 snapTargetX = 0.;
-	float64 snapTargetY = 0.;
-	float64 snapStartX = 0.;
-	float64 snapStartY = 0.;
-
-	crl::time nearlyStoppedSince = 0;
-
-	crl::time landingTime = 0;
-	float64 rotationXAtLanding = 0.;
-	float64 rotationYAtLanding = 0.;
-	float64 baseVelocityX = 0.;
-	float64 baseVelocityY = 0.;
-	float64 targetRotationX = 0.;
-	float64 targetRotationY = 0.;
-	int nextGiftTargetFace = -1;
-	bool usingPlannedTrajectory = false;
-	bool lastGiftTrajectory = false;
+	int currentConfigIndex = -1;
+	crl::time animationStartTime = 0;
+	float64 initialRotationX = 0.;
+	float64 initialRotationY = 0.;
+	int nextFaceIndex = 0;
+	int nextFaceRotation = 0;
 
 };
 
