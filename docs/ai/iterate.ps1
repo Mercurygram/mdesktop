@@ -2,7 +2,7 @@
 # Iterative Task Runner
 # Runs Claude Code in a loop to complete tasks from a taskplanner-created folder
 #
-# Usage: .\docs\ai\iterate.ps1 <featurename> [-MaxIterations N] [-Interactive] [-DryRun] [-SingleCommit]
+# Usage: .\docs\ai\iterate.ps1 <featurename> [-MaxIterations N] [-Interactive] [-DryRun] [-SingleCommit] [-NoCommit]
 #
 # Arguments:
 #   featurename     Name of the folder in docs/ai/work/ containing prompt.md and tasks.json
@@ -10,6 +10,7 @@
 #   -Interactive    Pause between iterations for user confirmation (default: auto/no pause)
 #   -DryRun         Show what would be executed without running
 #   -SingleCommit   Don't commit after each task, commit all changes at the end
+#   -NoCommit       Don't commit at all (no per-task commits, no final commit)
 
 param(
     [Parameter(Position=0, Mandatory=$true)]
@@ -18,7 +19,8 @@ param(
     [int]$MaxIterations = 50,
     [switch]$Interactive,
     [switch]$DryRun,
-    [switch]$SingleCommit
+    [switch]$SingleCommit,
+    [switch]$NoCommit
 )
 
 $ErrorActionPreference = "Stop"
@@ -144,7 +146,7 @@ foreach ($file in @($PromptMd, $TasksJson)) {
     }
 }
 
-if ($SingleCommit) {
+if ($SingleCommit -or $NoCommit) {
     $AfterImplementation = @"
    - Mark the task completed in tasks.json ("completed": true)
    - If new tasks emerged, add them to tasks.json
@@ -214,7 +216,7 @@ Write-Host "  Iterative Task Runner" -ForegroundColor Cyan
 Write-Host "  Feature: $FeatureName" -ForegroundColor Cyan
 Write-Host "  Max iterations: $MaxIterations" -ForegroundColor Cyan
 Write-Host "  Mode: $(if ($Interactive) { 'Interactive' } else { 'Auto' })" -ForegroundColor Cyan
-Write-Host "  Commit: $(if ($SingleCommit) { 'Single (at end)' } else { 'Per task' })" -ForegroundColor Cyan
+Write-Host "  Commit: $(if ($NoCommit) { 'None' } elseif ($SingleCommit) { 'Single (at end)' } else { 'Per task' })" -ForegroundColor Cyan
 Write-Host "  Working directory: $RepoRoot" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
@@ -263,7 +265,7 @@ try {
         $inProgress = @($tasks.tasks | Where-Object { $_.started -and -not $_.completed })
 
         if ($incomplete.Count -eq 0) {
-            if ($SingleCommit) {
+            if ($SingleCommit -and -not $NoCommit) {
                 $i++
                 if ($i -le $MaxIterations) {
                     Write-Host ""
