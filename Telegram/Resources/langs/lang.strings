@@ -6026,6 +6026,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_rights_transfer_channel" = "Transfer channel ownership";
 "lng_rights_transfer_check" = "Security check";
 "lng_rights_transfer_check_about" = "You can transfer this group to {user} only if you have:";
+"lng_rights_transfer_check_about_channel" = "You can transfer this channel to {user} only if you have:";
 "lng_rights_transfer_check_password" = "• Enabled **Two-Step Verification** more than **7 days** ago.";
 "lng_rights_transfer_check_session" = "• Logged in on this device more than **24 hours** ago.";
 "lng_rights_transfer_check_later" = "Please come back later.";
