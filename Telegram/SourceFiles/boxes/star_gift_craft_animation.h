@@ -118,6 +118,7 @@ struct CraftAnimationState {
 	float64 initialRotationY = 0.;
 	int nextFaceIndex = 0;
 	int nextFaceRotation = 0;
+	bool nextFaceRotationApplied = false;
 
 	std::optional<std::array<QPointF, 4>> flightTargetCorners;
 

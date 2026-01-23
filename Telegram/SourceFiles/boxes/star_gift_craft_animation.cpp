@@ -458,41 +458,48 @@ void PaintCubeFirstFlight(
 
 void PaintCube(
 		QPainter &p,
-		const CraftAnimationState &animState,
+		CraftAnimationState *animState,
 		QPointF center,
 		float64 size) {
-	const auto &shared = animState.shared;
+	const auto &shared = animState->shared;
 
-	const auto faces = GetVisibleCubeFaces(animState.rotationX, animState.rotationY);
-	auto painted = false;
+	const auto faces = GetVisibleCubeFaces(animState->rotationX, animState->rotationY);
+
+	if (!animState->nextFaceRotationApplied
+		&& animState->nextFaceRotation != 0
+		&& !ranges::contains(faces, animState->nextFaceIndex)) {
+		animState->nextFaceRotationApplied = true;
+	}
 
 	for (const auto faceIndex : faces) {
 		const auto corners = ComputeCubeFaceCorners(
 			center,
 			size,
-			animState.rotationX,
-			animState.rotationY,
+			animState->rotationX,
+			animState->rotationY,
 			faceIndex);
 		if (!corners) {
 			continue;
 		}
 
 		auto faceImage = shared->forgeImages[faceIndex];
-		auto faceRotation = 0;
+		auto faceRotation = (animState->nextFaceRotationApplied
+			&& faceIndex == animState->nextFaceIndex)
+			? animState->nextFaceRotation
+			: 0;
 
 		for (auto i = 0; i < 4; ++i) {
-			if (i != animState.currentlyFlying
-				&& animState.giftToSide[i].face == faceIndex
+			if (i != animState->currentlyFlying
+				&& animState->giftToSide[i].face == faceIndex
 				&& shared->corners[i].giftButton) {
 				faceImage = shared->corners[i].gift(1.);
-				faceRotation = animState.giftToSide[i].rotation;
+				faceRotation = animState->giftToSide[i].rotation;
 				break;
 			}
 		}
 
 		if (!faceImage.isNull()) {
 			PaintCubeFace(p, faceImage, *corners, faceRotation);
-			painted = true;
 		}
 	}
 }
@@ -895,6 +902,7 @@ void LandCurrentGift(CraftAnimationState *animState, crl::time now) {
 	animState->animationStartTime = now;
 	animState->nextFaceIndex = config.nextFaceIndex;
 	animState->nextFaceRotation = config.nextFaceRotation;
+	animState->nextFaceRotationApplied = false;
 }
 
 void PaintLoadingAnimation(QPainter &p, CraftAnimationState *animState) {
@@ -1146,7 +1154,7 @@ void StartCraftAnimation(
 				const auto skipForgeIcon = loadingVisible && anim::Disabled();
 				PaintCubeFirstFlight(p, *animState, firstFlyProgress, skipForgeIcon);
 			} else {
-				PaintCube(p, *animState, cubeCenter, cubeSize);
+				PaintCube(p, animState, cubeCenter, cubeSize);
 			}
 
 			if (flying >= 0) {
