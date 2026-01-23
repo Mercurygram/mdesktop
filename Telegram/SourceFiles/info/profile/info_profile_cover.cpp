@@ -113,7 +113,7 @@ TopicIconView::TopicIconView(
 	setup(topic);
 }
 
-void TopicIconView::paintInRect(QPainter &p, QRect rect) {
+void TopicIconView::paintInRect(QPainter &p, QRect rect, QColor textColor) {
 	const auto paint = [&](const QImage &image) {
 		const auto size = image.size() / style::DevicePixelRatio();
 		p.drawImage(
@@ -125,7 +125,9 @@ void TopicIconView::paintInRect(QPainter &p, QRect rect) {
 			image);
 	};
 	if (_player && _player->ready()) {
-		const auto colored = _playerUsesTextColor
+		const auto colored = (textColor.alpha() > 0)
+			? textColor
+			: _playerUsesTextColor
 			? st::windowFg->c
 			: QColor(0, 0, 0, 0);
 		paint(_player->frame(

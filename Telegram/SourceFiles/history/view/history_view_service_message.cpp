@@ -969,7 +969,8 @@ void EmptyPainter::paint(
 	if (_icon) {
 		_icon->paintInRect(
 			p,
-			QRect(bubbleLeft, top, bubbleWidth, iconHeight));
+			QRect(bubbleLeft, top, bubbleWidth, iconHeight),
+			st->msgServiceFg()->c);
 		top += iconHeight + st::historyGroupAboutHeaderSkip;
 	}
 

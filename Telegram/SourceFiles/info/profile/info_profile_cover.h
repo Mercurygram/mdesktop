@@ -63,7 +63,10 @@ public:
 		Fn<void()> update,
 		const style::color &generalIconFg);
 
-	void paintInRect(QPainter &p, QRect rect);
+	void paintInRect(
+		QPainter &p,
+		QRect rect,
+		QColor textColor = QColor(0, 0, 0, 0));
 
 private:
 	using StickerPlayer = HistoryView::StickerPlayer;
