@@ -804,9 +804,10 @@ void ShowSelectGiftBox(
 }
 
 void Craft(
-		not_null<VerticalLayout*> container,
+		not_null<GenericBox*> box,
 		std::shared_ptr<CraftState> state,
-		const std::vector<GiftForCraft> &gifts) {
+		const std::vector<GiftForCraft> &gifts,
+		Fn<void()> closeParent) {
 	auto startRequest = [=](CraftResultCallback done) {
 		constexpr auto kDelays = std::array<crl::time, 7>{
 			100, 200, 300, 400, 500, 1000, 2000
@@ -814,10 +815,11 @@ void Craft(
 		const auto delay = kDelays[base::RandomIndex(kDelays.size())];
 		const auto giftsCopy = gifts;
 
-		base::call_delayed(delay, container, [=] {
-			const auto shouldSucceed = (base::RandomIndex(5) != 0);
-			if (shouldSucceed && !giftsCopy.empty()) {
-				const auto &chosen = giftsCopy[base::RandomIndex(giftsCopy.size())];
+		base::call_delayed(delay, box, [=] {
+			const auto shouldSucceed = true;// (base::RandomIndex(5) != 0);
+			const auto count = int(giftsCopy.size());
+			if (shouldSucceed && !count) {
+				const auto &chosen = giftsCopy[base::RandomIndex(count)];
 				auto info = Data::StarGift{
 					.id = chosen.unique->initialGiftId,
 					.unique = chosen.unique,
@@ -834,14 +836,31 @@ void Craft(
 			}
 		});
 	};
-	StartCraftAnimation(container, std::move(state), std::move(startRequest));
+
+	const auto container = box->verticalLayout();
+	const auto show = box->uiShow();
+	const auto closeOnFail = crl::guard(box, [=] {
+		if (const auto onstack = closeParent) {
+			onstack();
+		}
+		box->closeBox();
+		show->showToast(tr::lng_gift_craft_failed(tr::now));
+	});
+	StartCraftAnimation(
+		container,
+		std::move(state),
+		std::move(startRequest),
+		closeOnFail);
 }
 
 void MakeCraftContent(
 		not_null<GenericBox*> box,
 		not_null<Window::SessionController*> controller,
 		std::vector<GiftForCraft> gifts,
+		Fn<void()> closeParent,
 		bool autoStartCraft) {
+	Expects(!gifts.empty());
+
 	struct State {
 		std::shared_ptr<CraftState> craftState;
 		GradientButton *button = nullptr;
@@ -861,9 +880,11 @@ void MakeCraftContent(
 		bool crafting = false;
 	};
 	const auto session = &controller->session();
+	const auto initialGiftId = gifts.front().unique->initialGiftId;
 	const auto state = box->lifetime().make_state<State>();
 
 	state->craftState = std::make_shared<CraftState>();
+	state->craftState->session = session;
 	state->craftState->coversAnimate = true;
 
 	{
@@ -935,7 +956,6 @@ void MakeCraftContent(
 		}
 	}, raw->lifetime());
 
-	const auto initialGiftId = state->chosen.current().front().unique->initialGiftId;
 	std::move(
 		crafting.editRequests
 	) | rpl::on_next([=](int index) {
@@ -1071,7 +1091,7 @@ void MakeCraftContent(
 
 		const auto renderWidget = [&](QWidget *widget) {
 			const auto pos = widget->pos() - bottomRect.topLeft();
-			widget->render(&bottomPart, pos, QRegion(), QWidget::DrawChildren);
+			widget->render(&bottomPart, pos, {}, QWidget::DrawChildren);
 		};
 		renderWidget(state->about);
 		renderWidget(state->attributes);
@@ -1081,7 +1101,7 @@ void MakeCraftContent(
 		cs->bottomPartY = aboutPos.y();
 		cs->containerHeight = raw->height();
 
-		Craft(raw, state->craftState, state->chosen.current());
+		Craft(box, state->craftState, state->chosen.current(), closeParent);
 	};
 	button->setClickedCallback(startCrafting);
 
@@ -1113,12 +1133,18 @@ void MakeCraftContent(
 void ShowGiftCraftBoxInternal(
 		not_null<Window::SessionController*> controller,
 		std::vector<GiftForCraft> gifts,
+		Fn<void()> closeParent,
 		bool autoStartCraft) {
 	controller->show(Box([=](not_null<GenericBox*> box) {
 		box->setStyle(st::giftCraftBox);
 		box->setWidth(st::boxWidth);
 		box->setNoContentMargin(true);
-		MakeCraftContent(box, controller, gifts, autoStartCraft);
+		MakeCraftContent(
+			box,
+			controller,
+			gifts,
+			closeParent,
+			autoStartCraft);
 		AddUniqueCloseButton(box);
 
 #if _DEBUG
@@ -1132,7 +1158,7 @@ void ShowGiftCraftBoxInternal(
 					} else {
 						copy = full;
 					}
-					ShowGiftCraftBoxInternal(controller, copy, true);
+					ShowGiftCraftBoxInternal(controller, copy, [] {}, true);
 				});
 			}, box->lifetime());
 		}
@@ -1145,7 +1171,8 @@ void ShowGiftCraftBoxInternal(
 void ShowGiftCraftInfoBox(
 		not_null<Window::SessionController*> controller,
 		std::shared_ptr<Data::UniqueGift> gift,
-		Data::SavedStarGiftId savedId) {
+		Data::SavedStarGiftId savedId,
+		Fn<void()> closeParent) {
 	controller->show(Box([=](not_null<GenericBox*> box) {
 		const auto container = box->verticalLayout();
 		auto cover = tr::lng_gift_craft_info_title(
@@ -1189,10 +1216,15 @@ void ShowGiftCraftInfoBox(
 		box->setNoContentMargin(true);
 
 		box->addButton(tr::lng_gift_craft_start_button(), [=] {
+			const auto weak = base::make_weak(box);
 			ShowGiftCraftBoxInternal(
 				controller,
 				{ GiftForCraft{ gift, savedId } },
+				closeParent,
 				false);
+			if (const auto strong = box.get()) {
+				strong->closeBox();
+			}
 		});
 	}));
 }
@@ -1208,7 +1240,7 @@ void ShowTestGiftCraftBox(
 		entry.manageId = std::move(gift.manageId);
 		converted.push_back(std::move(entry));
 	}
-	ShowGiftCraftBoxInternal(controller, std::move(converted), true);
+	ShowGiftCraftBoxInternal(controller, std::move(converted), [] {}, true);
 }
 
 } // namespace Ui

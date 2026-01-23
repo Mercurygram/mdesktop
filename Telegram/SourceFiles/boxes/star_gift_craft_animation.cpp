@@ -8,7 +8,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/star_gift_craft_animation.h"
 
 #include "base/call_delayed.h"
+#include "chat_helpers/stickers_lottie.h"
+#include "data/data_document.h"
+#include "data/data_document_media.h"
+#include "data/data_session.h"
+#include "history/view/media/history_view_sticker_player.h"
 #include "info/peer_gifts/info_peer_gifts_common.h"
+#include "lottie/lottie_common.h"
+#include "main/main_session.h"
 #include "ui/image/image_prepare.h"
 #include "ui/top_background_gradient.h"
 #include "ui/painter.h"
@@ -27,6 +34,10 @@ constexpr auto kFlightDuration = crl::time(400);
 constexpr auto kLoadingFadeInDuration = crl::time(150);
 constexpr auto kLoadingFadeOutDuration = crl::time(300);
 constexpr auto kLoadingMinDuration = crl::time(600);
+constexpr auto kFailurePlayerStopFrame = 120;
+constexpr auto kFailurePlayerFps = 60;
+constexpr auto kFailurePlayerFadeOutFrames = 10;
+constexpr auto kFailureScaleDuration = crl::time(200);
 
 struct Rotation {
 	float64 x = 0.;
@@ -42,18 +53,6 @@ struct Rotation {
 
 using RotationFn = Fn<Rotation(Rotation initial, crl::time t)>;
 
-[[nodiscard]] Rotation RotateImpulse(Rotation impulse, Rotation orientation) {
-	const auto cosX = std::cos(orientation.x);
-	const auto sinX = std::sin(orientation.x);
-	const auto cosY = std::cos(orientation.y);
-	const auto sinY = std::sin(orientation.y);
-
-	return {
-		impulse.x * cosY - impulse.y * sinX * sinY,
-		impulse.y * cosX,
-	};
-}
-
 [[nodiscard]] RotationFn DecayingRotation(Rotation impulse, float64 decay) {
 	const auto lambda = -std::log(decay) / kFrameDuration;
 	return [=](Rotation initial, crl::time t) {
@@ -62,7 +61,7 @@ using RotationFn = Fn<Rotation(Rotation initial, crl::time t)>;
 	};
 }
 
-[[nodiscard]] RotationFn DecayingRotationFinal(
+[[nodiscard]] RotationFn DecayingEndRotation(
 		Rotation impulse,
 		float64 decay,
 		Rotation target,
@@ -86,100 +85,53 @@ struct GiftAnimationConfig {
 	RotationFn rotation;
 	crl::time duration = 0;
 	crl::time revealTime = 0;
-	int nextFaceIndex = 0;
-	int nextFaceRotation = 0;
+	int targetFaceIndex = 0;
+	int targetFaceRotation = 0;
 };
 
-const auto kGiftAnimations = std::array<GiftAnimationConfig, 7>{{
-	{ DecayingRotationFinal({ 4.1, -8.2 }, 0.98, { 1, -2 }, 2200), 2200, 600, 1, 180 },
-	{ DecayingRotation({ 3.2, -5.9 }, 0.97), 1200, 0, 4, 180 },
-	{ DecayingRotationFinal({ 6.2, 7.8 }, 0.98, { 2, 1 }, 2200), 2200, 1000, 1, 0 },
-	{ DecayingRotation({ 7.0, 4.5 }, 0.97), 1200, 200, 5, 0 },
-	{ DecayingRotationFinal({ -6.5, 5.0 }, 0.98, { 0, 1 }, 2200), 2200, 800, 1, 0 },
-	{ DecayingRotation({ -2.5, 3.5 }, 0.98), 1200, 200, 2, 180 },
-	{ DecayingRotationFinal({ -4.4, -8.2 }, 0.98, { 0, -1.5 }, 2200), 2200, 600, 3, 0 },
-}};
-
-[[nodiscard]] int GetFrontFaceAtRotation(float64 rotationX, float64 rotationY) {
-	struct Vec3 {
-		float64 x, y, z;
-	};
-
-	const auto rotateY = [](Vec3 v, float64 angle) {
-		const auto c = std::cos(angle);
-		const auto s = std::sin(angle);
-		return Vec3{ v.x * c + v.z * s, v.y, -v.x * s + v.z * c };
-	};
-	const auto rotateX = [](Vec3 v, float64 angle) {
-		const auto c = std::cos(angle);
-		const auto s = std::sin(angle);
-		return Vec3{ v.x, v.y * c - v.z * s, v.y * s + v.z * c };
-	};
-
-	constexpr auto normals = std::array<Vec3, 6>{{
-		{ 0., 0., -1. },
-		{ 0., 0., 1. },
-		{ -1., 0., 0. },
-		{ 1., 0., 0. },
-		{ 0., -1., 0. },
-		{ 0., 1., 0. },
-	}};
-
-	auto bestFace = 0;
-	auto bestZ = 0.;
-	for (auto i = 0; i != 6; ++i) {
-		const auto transformed = rotateX(rotateY(normals[i], rotationY), rotationX);
-		if (i == 0 || transformed.z < bestZ) {
-			bestFace = i;
-			bestZ = transformed.z;
-		}
-	}
-	return bestFace;
-}
-
-[[nodiscard]] int ComputeFaceRotation(
-		float64 rotationX,
-		float64 rotationY,
-		int faceIndex) {
-	struct Vec3 {
-		float64 x, y, z;
-	};
-
-	const auto rotateY = [](Vec3 v, float64 angle) {
-		const auto c = std::cos(angle);
-		const auto s = std::sin(angle);
-		return Vec3{ v.x * c + v.z * s, v.y, -v.x * s + v.z * c };
-	};
-	const auto rotateX = [](Vec3 v, float64 angle) {
-		const auto c = std::cos(angle);
-		const auto s = std::sin(angle);
-		return Vec3{ v.x, v.y * c - v.z * s, v.y * s + v.z * c };
-	};
-
-	constexpr auto faceUpVectors = std::array<Vec3, 6>{{
-		{ 0., -1., 0. },
-		{ 0., -1., 0. },
-		{ 0., -1., 0. },
-		{ 0., -1., 0. },
-		{ 0., 0., -1. },
-		{ 0., 0., 1. },
-	}};
-
-	const auto faceUp = rotateX(
-		rotateY(faceUpVectors[faceIndex], rotationY),
-		rotationX);
-
-	const auto screenUpY = faceUp.y;
-	const auto screenUpX = faceUp.x;
-
-	auto rotation = 0;
-	if (std::abs(screenUpY) >= std::abs(screenUpX)) {
-		rotation = (screenUpY < 0.) ? 0 : 180;
-	} else {
-		rotation = (screenUpX < 0.) ? 90 : 270;
-	}
-	return rotation;
-}
+const auto kGiftAnimations = std::array<GiftAnimationConfig, 7>{{ {
+	.rotation = DecayingEndRotation({ 4.1, -8.2 }, 0.98, { 1, -2 }, 2200),
+	.duration = 2200,
+	.revealTime = 600,
+	.targetFaceIndex = 1,
+	.targetFaceRotation = 180,
+}, {
+	.rotation = DecayingRotation({ 3.2, -5.9 }, 0.97),
+	.duration = 1200,
+	.revealTime = 0,
+	.targetFaceIndex = 4,
+	.targetFaceRotation = 180,
+}, {
+	.rotation = DecayingEndRotation({ 6.2, 7.8 }, 0.98, { 2, 1 }, 2200),
+	.duration = 2200,
+	.revealTime = 1000,
+	.targetFaceIndex = 1,
+	.targetFaceRotation = 0,
+}, {
+	.rotation = DecayingRotation({ 7.0, 4.5 }, 0.97),
+	.duration = 1200,
+	.revealTime = 200,
+	.targetFaceIndex = 5,
+	.targetFaceRotation = 0,
+}, {
+	.rotation = DecayingEndRotation({ -6.5, 5.0 }, 0.98, { 0, 1 }, 2200),
+	.duration = 2200,
+	.revealTime = 800,
+	.targetFaceIndex = 1,
+	.targetFaceRotation = 0,
+}, {
+	.rotation = DecayingRotation({ -2.5, 3.5 }, 0.98),
+	.duration = 1200,
+	.revealTime = 200,
+	.targetFaceIndex = 2,
+	.targetFaceRotation = 180,
+}, {
+	.rotation = DecayingEndRotation({ -4.4, -8.2 }, 0.98, { 0, -1.5 }, 2200),
+	.duration = 2200,
+	.revealTime = 600,
+	.targetFaceIndex = 3,
+	.targetFaceRotation = 0,
+} }};
 
 [[nodiscard]] QImage CreateBgGradient(
 		QSize size,
@@ -303,14 +255,18 @@ const auto kGiftAnimations = std::array<GiftAnimationConfig, 7>{{
 
 	const auto &face = faces[faceIndex];
 
-	auto transformedNormal = rotateX(rotateY(face.normal, rotationY), rotationX);
+	const auto transformedNormal = rotateX(
+		rotateY(face.normal, rotationY),
+		rotationX);
 	if (transformedNormal.z >= 0.) {
 		return std::nullopt;
 	}
 
 	auto result = std::array<QPointF, 4>();
 	for (auto i = 0; i != 4; ++i) {
-		auto p = rotateX(rotateY(face.corners[i], rotationY), rotationX);
+		const auto p = rotateX(
+			rotateY(face.corners[i], rotationY),
+			rotationX);
 
 		const auto viewZ = p.z + half + kFocalLength;
 		if (viewZ <= 0.) {
@@ -364,7 +320,7 @@ void PaintCubeFace(
 		rotatedCorners[3]
 	});
 
-	QTransform transform;
+	auto transform = QTransform();
 	if (!QTransform::quadToQuad(srcRect, dstRect, transform)) {
 		return;
 	}
@@ -415,7 +371,9 @@ void PaintCubeFace(
 	visible.reserve(3);
 
 	for (auto i = 0; i != 6; ++i) {
-		auto transformed = rotateX(rotateY(normals[i], rotationY), rotationX);
+		const auto transformed = rotateX(
+			rotateY(normals[i], rotationY),
+			rotationX);
 		if (transformed.z < 0.) {
 			visible.push_back({ i, transformed.z });
 		}
@@ -433,10 +391,10 @@ void PaintCubeFace(
 
 void PaintCubeFirstFlight(
 		QPainter &p,
-		const CraftAnimationState &animState,
+		not_null<const CraftAnimationState*> state,
 		float64 progress,
 		bool skipForgeIcon = false) {
-	const auto &shared = animState.shared;
+	const auto shared = state->shared.get();
 
 	const auto overlayBg = shared->forgeBgOverlay;
 	auto sideBg = shared->forgeBg1;
@@ -457,74 +415,227 @@ void PaintCubeFirstFlight(
 	}
 }
 
+std::unique_ptr<FailureAnimation> SetupFailureAnimation(
+		not_null<RpWidget*> canvas,
+		not_null<CraftAnimationState*> state) {
+	auto result = std::make_unique<FailureAnimation>();
+	const auto raw = result.get();
+
+	const auto document
+		= raw->document
+		= ChatHelpers::GenerateLocalTgsSticker(
+			state->shared->session,
+			u"bomb"_q);
+	const auto media = document->createMediaView();
+	media->checkStickerLarge();
+
+	rpl::single() | rpl::then(
+		document->session().downloaderTaskFinished()
+	) | rpl::filter([=] {
+		return media->loaded();
+	}) | rpl::take(1) | rpl::on_next([=] {
+		const auto sticker = document->sticker();
+		Assert(sticker != nullptr);
+
+		const auto size = state->shared->forgeRect.size();
+		raw->player = std::make_unique<HistoryView::LottiePlayer>(
+			ChatHelpers::LottiePlayerFromDocument(
+				media.get(),
+				ChatHelpers::StickerLottieSize::InlineResults,
+				size,
+				Lottie::Quality::High));
+		raw->player->setRepaintCallback([=] { canvas->update(); });
+	}, raw->lifetime);
+
+	return result;
+}
+
+[[nodiscard]] float64 FailureAnimationScale(
+		not_null<const CraftAnimationState*> state) {
+	const auto animation = state->failureAnimation.get();
+	return animation
+		? animation->scaleAnimation.value(animation->scaleStarted ? 0. : 1.)
+		: 1.;
+}
+
+void FailureAnimationCheck(
+		not_null<CraftAnimationState*> state,
+		not_null<RpWidget*> canvas) {
+	const auto animation = state->failureAnimation.get();
+	if (!animation) {
+		return;
+	}
+	const auto &config = kGiftAnimations[state->currentPhaseIndex];
+	const auto elapsed = (crl::now() - state->animationStartTime);
+	const auto failureAnimationDuration = (1000 * kFailurePlayerStopFrame)
+		/ kFailurePlayerFps;
+	if (!animation->playerStarted
+		&& elapsed >= config.duration - failureAnimationDuration) {
+		animation->playerStarted = true;
+	}
+	if (!animation->scaleStarted
+		&& elapsed >= config.duration - kFailureScaleDuration) {
+		animation->scaleStarted = true;
+		animation->scaleAnimation.start([=] {
+			canvas->update();
+		}, 1., 0., kFailureScaleDuration, anim::easeInCubic);
+	}
+}
+
+[[nodiscard]] std::optional<float64> FailureAnimationPrepareFrame(
+		not_null<CraftAnimationState*> state,
+		not_null<RpWidget*> canvas,
+		int faceIndex) {
+	if (!state->failureAnimation) {
+		state->failureAnimation = SetupFailureAnimation(
+			canvas,
+			state);
+	}
+	const auto shared = state->shared.get();
+	const auto animation = state->failureAnimation.get();
+	if (!animation->player->ready()) {
+		return {};
+	} else if (shared->finalSide.frame.isNull()) {
+		shared->finalSide = shared->forgeSides[faceIndex];
+		shared->finalSide.frame.fill(shared->finalSide.bg);
+	}
+	if (animation->frame.isNull()) {
+		animation->frame = shared->finalSide.frame;
+	}
+	animation->frame.fill(Qt::transparent);
+	auto q = QPainter(&animation->frame);
+	const auto paused = !animation->playerStarted;
+	auto info = animation->player->frame(
+		st::giftBoxStickerTiny * 2,
+		QColor(0, 0, 0, 0),
+		false,
+		crl::now(),
+		paused);
+	const auto frame = info.image;
+	const auto finished
+		= animation->playerFinished
+		= (info.index + 1 == kFailurePlayerStopFrame);
+	if (finished) {
+		return 0.;
+	}
+	const auto result = (kFailurePlayerStopFrame - info.index)
+		/ float64(kFailurePlayerFadeOutFrames);
+	if (!paused) {
+		animation->player->markFrameShown();
+	}
+	const auto outer = animation->frame.size()
+		/ animation->frame.devicePixelRatio();
+	const auto size = frame.size() / style::DevicePixelRatio();
+	q.drawImage(
+		QRect(
+			(outer.width() - size.width()) / 2,
+			(outer.height() - size.width()) / 2,
+			size.width(),
+			size.height()),
+		frame);
+	q.end();
+	return result;
+}
+
 void PaintCube(
 		QPainter &p,
-		CraftAnimationState *animState,
+		not_null<CraftAnimationState*> state,
+		not_null<RpWidget*> canvas,
 		QPointF center,
 		float64 size) {
-	const auto &shared = animState->shared;
+	const auto shared = state->shared.get();
 
-	const auto faces = GetVisibleCubeFaces(animState->rotationX, animState->rotationY);
+	FailureAnimationCheck(state, canvas);
 
-	if (!animState->nextFaceRevealed
-		&& animState->currentConfigIndex >= 0) {
-		const auto &config = kGiftAnimations[animState->currentConfigIndex];
-		const auto elapsed = (crl::now() - animState->animationStartTime);
+	const auto totalScale = FailureAnimationScale(state);
+	const auto showCube = (totalScale > 0.);
+	const auto scaledCube = showCube && (totalScale < 1.);
+	if (scaledCube) {
+		p.save();
+		p.translate(center);
+		p.scale(totalScale, totalScale);
+		p.translate(-center);
+	}
+
+	const auto faces = GetVisibleCubeFaces(
+		state->rotationX,
+		state->rotationY);
+
+	if (!state->nextFaceRevealed
+		&& state->currentPhaseIndex >= 0) {
+		const auto &config = kGiftAnimations[state->currentPhaseIndex];
+		const auto elapsed = (crl::now() - state->animationStartTime);
 		if (elapsed >= config.revealTime * anim::SlowMultiplier()) {
-			animState->nextFaceRevealed = true;
+			state->nextFaceRevealed = true;
 		}
 	}
 
+	const auto craftFailed = state->craftResult.has_value()
+		&& !state->craftResult->get();
+
+	auto paintFailure = Fn<void()>();
 	for (const auto faceIndex : faces) {
 		const auto corners = ComputeCubeFaceCorners(
 			center,
 			size,
-			animState->rotationX,
-			animState->rotationY,
+			state->rotationX,
+			state->rotationY,
 			faceIndex);
 		if (!corners) {
 			continue;
 		}
 
-		const auto thisFaceRevealed = animState->nextFaceRevealed
-			&& (faceIndex == animState->nextFaceIndex);
+		const auto thisFaceRevealed = state->nextFaceRevealed
+			&& (faceIndex == state->nextFaceIndex);
 		auto faceImage = shared->forgeSides[faceIndex].frame;
 		auto faceRotation = thisFaceRevealed
-			? animState->nextFaceRotation
+			? state->nextFaceRotation
 			: 0;
 
 		for (auto i = 0; i < 4; ++i) {
-			if (i != animState->currentlyFlying
-				&& animState->giftToSide[i].face == faceIndex
+			if (i != state->currentlyFlying
+				&& state->giftToSide[i].face == faceIndex
 				&& shared->corners[i].giftButton) {
 				faceImage = shared->corners[i].gift(1.);
-				faceRotation = animState->giftToSide[i].rotation;
+				faceRotation = state->giftToSide[i].rotation;
 				break;
 			}
 		}
 
-		if (thisFaceRevealed && animState->allGiftsLanded) {
-			if (shared->finalSide.frame.isNull()) {
-				shared->finalSide = shared->forgeSides[faceIndex];
-				shared->finalSide.frame.fill(shared->finalSide.bg);
-
-				auto p = QPainter(&shared->finalSide.frame);
-				const auto side = shared->finalSide.frame.width() / 6;
-				p.setPen(Qt::NoPen);
-				p.setBrush(Qt::red);
-				p.drawEllipse(side, side, side, side);
+		if (thisFaceRevealed && state->allGiftsLanded) {
+			if (craftFailed) {
+				const auto maybeOpacity = FailureAnimationPrepareFrame(
+					state,
+					canvas,
+					faceIndex);
+				if (maybeOpacity) {
+					if (const auto opacity = *maybeOpacity; opacity > 0.) {
+						paintFailure = [=, &p] {
+							if (opacity < 1.) {
+								p.setOpacity(opacity);
+							}
+							PaintCubeFace(
+								p,
+								state->failureAnimation->frame,
+								*corners,
+								faceRotation);
+						};
+					}
+					faceImage = shared->finalSide.frame;
+				}
 			}
-			faceImage = shared->finalSide.frame;
 		}
-
-		PaintCubeFace(p, faceImage, *corners, faceRotation);
+		if (showCube) {
+			PaintCubeFace(p, faceImage, *corners, faceRotation);
+		}
 	}
 
-	const auto elapsed = (crl::now() - animState->animationStartTime)
-		/ anim::SlowMultiplier();
-	p.setPen(Qt::white);
-	p.setFont(st::semiboldFont);
-	p.drawText(0, st::semiboldFont->ascent, QString::number(elapsed, 'f', 2));
+	if (scaledCube) {
+		p.restore();
+	}
+	if (paintFailure) {
+		paintFailure();
+	}
 }
 
 struct GiftFlightPosition {
@@ -540,11 +651,16 @@ struct GiftFlightPosition {
 		float64 startOffsetY) {
 	const auto eased = progress;
 
-	const auto startOrigin = QPointF(originalRect.topLeft()) + QPointF(0, startOffsetY);
-	const auto targetOrigin = targetCenter - QPointF(targetSize, targetSize) / 2.;
-	const auto currentOrigin = startOrigin + (targetOrigin - startOrigin) * eased;
+	const auto startOrigin = QPointF(originalRect.topLeft())
+		+ QPointF(0, startOffsetY);
+	const auto targetOrigin = targetCenter
+		- QPointF(targetSize, targetSize) / 2.;
+	const auto currentOrigin = startOrigin
+		+ (targetOrigin - startOrigin) * eased;
 
-	const auto originalSize = std::max(originalRect.width(), originalRect.height());
+	const auto originalSize = std::max(
+		originalRect.width(),
+		originalRect.height());
 	const auto endScale = (originalSize > 0.)
 		? (targetSize / float64(originalSize))
 		: 1.;
@@ -557,7 +673,7 @@ struct GiftFlightPosition {
 }
 
 [[nodiscard]] FacePlacement GetCameraFacingFreeFace(
-		const CraftAnimationState &state) {
+		not_null<const CraftAnimationState*> state) {
 	struct Vec3 {
 		float64 x, y, z;
 	};
@@ -592,7 +708,7 @@ struct GiftFlightPosition {
 	}};
 
 	const auto isOccupied = [&](int faceIndex) {
-		for (const auto &placement : state.giftToSide) {
+		for (const auto &placement : state->giftToSide) {
 			if (placement.face == faceIndex) {
 				return true;
 			}
@@ -608,8 +724,8 @@ struct GiftFlightPosition {
 			continue;
 		}
 		const auto transformed = rotateX(
-			rotateY(normals[i], state.rotationY),
-			state.rotationX);
+			rotateY(normals[i], state->rotationY),
+			state->rotationX);
 		if (bestFace < 0 || transformed.z < bestZ) {
 			bestFace = i;
 			bestZ = transformed.z;
@@ -621,8 +737,8 @@ struct GiftFlightPosition {
 	}
 
 	const auto faceUp = rotateX(
-		rotateY(faceUpVectors[bestFace], state.rotationY),
-		state.rotationX);
+		rotateY(faceUpVectors[bestFace], state->rotationY),
+		state->rotationX);
 
 	const auto screenUpY = faceUp.y;
 	const auto screenUpX = faceUp.x;
@@ -708,24 +824,34 @@ void PaintSlideOutCorner(
 		const auto giftTopLeft = currentTopLeft;
 
 		const auto &extend = st::defaultDropdownMenu.wrap.shadow.extend;
-		const auto innerTopLeft = giftTopLeft + QPointF(extend.left(), extend.top());
-		const auto innerWidth = giftSize.width() - extend.left() - extend.right();
+		const auto innerTopLeft = giftTopLeft
+			+ QPointF(extend.left(), extend.top());
+		const auto innerWidth = giftSize.width()
+			- extend.left()
+			- extend.right();
 
 		p.drawImage(giftTopLeft, frame);
 
 		const auto badgeFade = std::clamp(1. - progress / 0.7, 0., 1.);
 		if (!corner.percentBadge.isNull() && badgeFade > 0.) {
-			const auto badgeSize = QSizeF(corner.percentBadge.size()) / ratio;
-			const auto badgePos = innerTopLeft - QPointF(badgeSize.width() / 3., badgeSize.height() / 3.);
+			const auto badgeSize = QSizeF(corner.percentBadge.size())
+				/ ratio;
+			const auto badgePos = innerTopLeft
+				- QPointF(badgeSize.width() / 3., badgeSize.height() / 3.);
 			p.setOpacity(badgeFade);
 			p.drawImage(badgePos, corner.percentBadge);
 			p.setOpacity(1.);
 		}
 
 		if (!corner.removeButton.isNull() && badgeFade > 0.) {
-			const auto removeSize = QSizeF(corner.removeButton.size()) / ratio;
+			const auto removeSize = QSizeF(corner.removeButton.size())
+				/ ratio;
 			const auto removePos = innerTopLeft
-				+ QPointF(innerWidth - removeSize.width() + removeSize.width() / 3., -removeSize.height() / 3.);
+				+ QPointF(
+					(innerWidth
+						- removeSize.width()
+						+ removeSize.width() / 3.),
+					-removeSize.height() / 3.);
 			p.setOpacity(badgeFade);
 			p.drawImage(removePos, corner.removeButton);
 			p.setOpacity(1.);
@@ -741,49 +867,54 @@ void PaintSlideOutCorner(
 
 void PaintSlideOutPhase(
 		QPainter &p,
-		const std::shared_ptr<CraftState> &state,
+		not_null<CraftState*> shared,
 		QSize canvasSize,
 		float64 progress) {
 	const auto ratio = style::DevicePixelRatio();
 
-	if (!state->topPart.isNull()) {
-		const auto topSize = QSizeF(state->topPart.size()) / ratio;
+	if (!shared->topPart.isNull()) {
+		const auto topSize = QSizeF(shared->topPart.size()) / ratio;
 		const auto slideDistance = topSize.height();
 		const auto offsetY = slideDistance * progress;
 		const auto opacity = 1. - progress;
 
 		p.setOpacity(opacity);
-		p.drawImage(state->topPartRect.topLeft() - QPointF(0, offsetY), state->topPart);
+		p.drawImage(
+			shared->topPartRect.topLeft() - QPointF(0, offsetY),
+			shared->topPart);
 		p.setOpacity(1.);
 	}
 
-	if (!state->bottomPart.isNull()) {
-		const auto slideDistance = QSizeF(state->bottomPart.size()).height() / ratio;
+	if (!shared->bottomPart.isNull()) {
+		const auto slideDistance = QSizeF(shared->bottomPart.size()).height()
+			/ ratio;
 		const auto offsetY = slideDistance * progress;
 		const auto opacity = 1. - progress;
 
 		p.setOpacity(opacity);
-		p.drawImage(QPointF(0, state->bottomPartY + offsetY), state->bottomPart);
+		p.drawImage(
+			QPointF(0, shared->bottomPartY + offsetY),
+			shared->bottomPart);
 		p.setOpacity(1.);
 	}
 
-	const auto offset = state->craftingOffsetY;
-	for (const auto &corner : state->corners) {
+	const auto offset = shared->craftingOffsetY;
+	for (const auto &corner : shared->corners) {
 		PaintSlideOutCorner(p, corner, offset, progress);
 	}
 
 	auto hq = PainterHighQualityEnabler(p);
-	const auto forge = state->forgeRect.translated(0, offset);
+	const auto forge = shared->forgeRect.translated(0, offset);
 	const auto radius = st::boxRadius;
 	p.setPen(Qt::NoPen);
-	p.setBrush(state->forgeBgOverlay);
+	p.setBrush(shared->forgeBgOverlay);
 	p.drawRoundedRect(forge, radius, radius);
 	st::craftForge.paintInCenter(p, forge, st::white->c);
 	p.setOpacity(1. - progress);
 	p.drawImage(
 		forge.x() + st::craftForgePadding,
 		forge.y() + st::craftForgePadding,
-		state->forgePercent);
+		shared->forgePercent);
 }
 
 [[nodiscard]] std::array<QPointF, 4> RotateCornersForFace(
@@ -802,10 +933,10 @@ void PaintSlideOutPhase(
 }
 
 void StartGiftFlight(
-		CraftAnimationState *animState,
+		not_null<CraftAnimationState*> state,
 		not_null<RpWidget*> canvas,
 		int startIndex) {
-	const auto &corners = animState->shared->corners;
+	const auto &corners = state->shared->corners;
 
 	auto nextGift = -1;
 	for (auto i = startIndex; i < 4; ++i) {
@@ -819,32 +950,32 @@ void StartGiftFlight(
 		return;
 	}
 
-	animState->currentlyFlying = nextGift;
-	animState->giftToSide[nextGift] = GetCameraFacingFreeFace(*animState);
-	animState->flightTargetCorners = std::nullopt;
+	state->currentlyFlying = nextGift;
+	state->giftToSide[nextGift] = GetCameraFacingFreeFace(state);
+	state->flightTargetCorners = std::nullopt;
 
-	animState->flightAnimation.start(
+	state->flightAnimation.start(
 		[=] { canvas->update(); },
 		0.,
 		1.,
 		kFlightDuration,
 		anim::easeInCubic);
 
-	if (!animState->continuousAnimation.animating()) {
-		animState->continuousAnimation.start();
+	if (!state->continuousAnimation.animating()) {
+		state->continuousAnimation.start();
 	}
 }
 
 void StartGiftFlightToFace(
-		CraftAnimationState *animState,
+		not_null<CraftAnimationState*> state,
 		not_null<RpWidget*> canvas,
 		int targetFace) {
-	const auto shared = animState->shared;
+	const auto shared = state->shared.get();
 	const auto &corners = shared->corners;
 
 	auto nextCorner = -1;
 	for (auto i = 0; i < 4; ++i) {
-		if (corners[i].giftButton && animState->giftToSide[i].face < 0) {
+		if (corners[i].giftButton && state->giftToSide[i].face < 0) {
 			nextCorner = i;
 			break;
 		}
@@ -854,19 +985,19 @@ void StartGiftFlightToFace(
 		return;
 	}
 
-	animState->currentlyFlying = nextCorner;
+	state->currentlyFlying = nextCorner;
 
-	const auto faceRotation = animState->nextFaceRotation;
-	animState->giftToSide[nextCorner] = FacePlacement{
+	const auto faceRotation = state->nextFaceRotation;
+	state->giftToSide[nextCorner] = FacePlacement{
 		.face = targetFace,
 		.rotation = faceRotation,
 	};
 
-	if (animState->currentConfigIndex >= 0) {
-		const auto &config = kGiftAnimations[animState->currentConfigIndex];
+	if (state->currentPhaseIndex >= 0) {
+		const auto &config = kGiftAnimations[state->currentPhaseIndex];
 		const auto initial = Rotation{
-			animState->initialRotationX,
-			animState->initialRotationY,
+			state->initialRotationX,
+			state->initialRotationY,
 		};
 		const auto endRotation = config.rotation(initial, config.duration);
 
@@ -882,68 +1013,69 @@ void StartGiftFlightToFace(
 			endRotation.y,
 			targetFace);
 		if (targetCorners) {
-			animState->flightTargetCorners = RotateCornersForFace(
+			state->flightTargetCorners = RotateCornersForFace(
 				*targetCorners,
 				faceRotation);
 		} else {
-			animState->flightTargetCorners = std::nullopt;
+			state->flightTargetCorners = std::nullopt;
 		}
 	} else {
-		animState->flightTargetCorners = std::nullopt;
+		state->flightTargetCorners = std::nullopt;
 	}
 
-	animState->flightAnimation.start(
-		[=] { canvas->update(); },
-		0.,
-		1.,
-		kFlightDuration,
-		anim::easeInCubic);
+	state->flightAnimation.start([=] {
+		canvas->update();
+	}, 0., 1., kFlightDuration, anim::easeInCubic);
 
-	if (!animState->continuousAnimation.animating()) {
-		animState->continuousAnimation.start();
+	if (!state->continuousAnimation.animating()) {
+		state->continuousAnimation.start();
 	}
 }
 
-void LandCurrentGift(CraftAnimationState *animState, crl::time now) {
-	if (animState->currentlyFlying < 0) {
+void LandCurrentGift(not_null<CraftAnimationState*> state, crl::time now) {
+	if (state->currentlyFlying < 0) {
 		return;
 	}
 
-	const auto giftNumber = ++animState->giftsLanded;
+	const auto giftNumber = ++state->giftsLanded;
 	const auto isLastGift
-		= animState->allGiftsLanded
-		= (giftNumber >= animState->totalGifts);
+		= state->allGiftsLanded
+		= (giftNumber >= state->totalGifts);
 
 	const auto configIndex = (giftNumber - 1) * 2 + (isLastGift ? 0 : 1);
 	Assert(configIndex < 7);
 
 	const auto &config = kGiftAnimations[configIndex];
 
-	animState->currentlyFlying = -1;
+	state->currentlyFlying = -1;
 
-	animState->initialRotationX = animState->rotationX;
-	animState->initialRotationY = animState->rotationY;
-	animState->currentConfigIndex = configIndex;
-	animState->animationStartTime = now;
-	animState->nextFaceIndex = config.nextFaceIndex;
-	animState->nextFaceRotation = config.nextFaceRotation;
-	animState->nextFaceRevealed = false;
+	state->initialRotationX = state->rotationX;
+	state->initialRotationY = state->rotationY;
+	state->currentPhaseIndex = configIndex;
+	state->currentPhaseFinished = false;
+	state->animationStartTime = now;
+	state->nextFaceIndex = config.targetFaceIndex;
+	state->nextFaceRotation = config.targetFaceRotation;
+	state->nextFaceRevealed = false;
 }
 
-void PaintLoadingAnimation(QPainter &p, CraftAnimationState *animState) {
-	const auto &loading = animState->loadingAnimation;
-	if (!loading || !animState->loadingStartedTime) {
+void PaintLoadingAnimation(
+		QPainter &p,
+		not_null<CraftAnimationState*> state) {
+	const auto &loading = state->loadingAnimation;
+	if (!loading || !state->loadingStartedTime) {
 		return;
 	}
 
-	const auto loadingShown = animState->loadingShownAnimation.value(
-		animState->loadingFadingOut ? 0. : 1.);
+	const auto loadingShown = state->loadingShownAnimation.value(
+		state->loadingFadingOut ? 0. : 1.);
 	if (loadingShown <= 0.) {
 		return;
 	}
 
-	const auto shared = animState->shared;
-	const auto forge = shared->forgeRect.translated(0, shared->craftingOffsetY);
+	const auto shared = state->shared.get();
+	const auto forge = shared->forgeRect.translated(
+		{ 0, shared->craftingOffsetY });
 	const auto inner = forge.marginsRemoved({
 		st::craftForgePadding,
 		st::craftForgePadding,
@@ -951,11 +1083,11 @@ void PaintLoadingAnimation(QPainter &p, CraftAnimationState *animState) {
 		st::craftForgePadding,
 	});
 
-	const auto state = loading->computeState();
+	const auto radial = loading->computeState();
 	const auto adjustedState = RadialState{
-		.shown = state.shown * loadingShown,
-		.arcFrom = state.arcFrom,
-		.arcLength = state.arcLength,
+		.shown = radial.shown * loadingShown,
+		.arcFrom = radial.arcFrom,
+		.arcLength = radial.arcLength,
 	};
 
 	auto pen = QPen(st::white->c);
@@ -986,7 +1118,11 @@ QImage CraftState::CornerSnapshot::gift(float64 progress) const {
 	return giftFrame;
 }
 
-void CraftState::paint(QPainter &p, QSize size, int craftingHeight, float64 slideProgress) {
+void CraftState::paint(
+		QPainter &p,
+		QSize size,
+		int craftingHeight,
+		float64 slideProgress) {
 	const auto width = size.width();
 	const auto getBackdrop = [&](BackdropView &backdrop) {
 		const auto ratio = style::DevicePixelRatio();
@@ -998,8 +1134,11 @@ void CraftState::paint(QPainter &p, QSize size, int craftingHeight, float64 slid
 		return gradient;
 	};
 	auto patternOffsetY = 0.;
-	if (slideProgress > 0. && containerHeight > 0 && craftingAreaCenterY > 0) {
-		patternOffsetY = (containerHeight / 2. - craftingAreaCenterY) * slideProgress;
+	if (slideProgress > 0.
+		&& containerHeight > 0
+		&& craftingAreaCenterY > 0) {
+		patternOffsetY = (containerHeight / 2. - craftingAreaCenterY)
+			* slideProgress;
 	}
 	const auto paintPattern = [&](
 			QPainter &q,
@@ -1118,34 +1257,40 @@ CraftState::EmptySide CraftState::prepareEmptySide(int index) const {
 
 void StartCraftAnimation(
 		not_null<VerticalLayout*> container,
-		std::shared_ptr<CraftState> state,
-		Fn<void(CraftResultCallback)> startRequest) {
+		std::shared_ptr<CraftState> shared,
+		Fn<void(CraftResultCallback)> startRequest,
+		Fn<void()> closeOnFail) {
 	while (container->count() > 0) {
 		delete container->widgetAt(0);
 	}
-
-	const auto height = state->containerHeight;
-	const auto craftingHeight = state->craftingBottom - state->craftingTop;
-
 	auto canvas = object_ptr<RpWidget>(container);
 	const auto raw = canvas.data();
+	const auto state = raw->lifetime().make_state<CraftAnimationState>();
+
+	const auto height = shared->containerHeight;
+	const auto craftingHeight = shared->craftingBottom - shared->craftingTop;
+	state->shared = std::move(shared);
+
 	raw->resize(container->width(), height);
 
-	const auto animState = raw->lifetime().make_state<CraftAnimationState>();
-	animState->shared = std::move(state);
-	for (auto &corner : animState->shared->corners) {
+	for (auto &corner : state->shared->corners) {
 		if (corner.giftButton) {
-			++animState->totalGifts;
+			++state->totalGifts;
 		}
 	}
 
-	animState->loadingAnimation = std::make_unique<InfiniteRadialAnimation>(
+	state->loadingAnimation = std::make_unique<InfiniteRadialAnimation>(
 		[=] { raw->update(); },
 		st::craftForgeLoading);
 
 	raw->paintOn([=](QPainter &p) {
-		const auto shared = animState->shared;
-		const auto slideProgress = animState->slideOutAnimation.value(1.);
+		if (state->failureAnimation
+			&& state->failureAnimation->playerFinished) {
+			crl::on_main(closeOnFail);
+		}
+
+		const auto shared = state->shared.get();
+		const auto slideProgress = state->slideOutAnimation.value(1.);
 		shared->paint(p, raw->size(), craftingHeight, slideProgress);
 
 		shared->craftingOffsetY = (shared->containerHeight / 2.)
@@ -1161,43 +1306,52 @@ void StartCraftAnimation(
 
 			for (auto i = 0; i < 4; ++i) {
 				const auto &corner = shared->corners[i];
-				if (corner.giftButton && animState->giftToSide[i].face < 0) {
-					const auto giftTopLeft = QPointF(corner.originalRect.topLeft())
+				if (corner.giftButton && state->giftToSide[i].face < 0) {
+					const auto giftTopLeft = QPointF()
+						+ QPointF(corner.originalRect.topLeft())
 						+ QPointF(0, shared->craftingOffsetY);
 					p.drawImage(giftTopLeft, corner.gift(0));
 				}
 			}
 
-			const auto flying = animState->currentlyFlying;
+			const auto flying = state->currentlyFlying;
 			const auto firstFlyProgress = (flying == 0)
-				? animState->flightAnimation.value(1.)
-				: animState->giftsLanded
+				? state->flightAnimation.value(1.)
+				: state->giftsLanded
 				? 1.
 				: 0.;
-			const auto loadingVisible = animState->loadingStartedTime
-				&& !animState->loadingFadingOut;
+			const auto loadingShown = state->loadingStartedTime
+				&& !state->loadingFadingOut;
 			if (firstFlyProgress < 1.) {
-				const auto skipForgeIcon = loadingVisible && anim::Disabled();
-				PaintCubeFirstFlight(p, *animState, firstFlyProgress, skipForgeIcon);
+				const auto skipForgeIcon = loadingShown && anim::Disabled();
+				PaintCubeFirstFlight(
+					p,
+					state,
+					firstFlyProgress,
+					skipForgeIcon);
 			} else {
-				PaintCube(p, animState, cubeCenter, cubeSize);
+				PaintCube(p, state, raw, cubeCenter, cubeSize);
 			}
 
 			if (flying >= 0) {
 				const auto &corner = shared->corners[flying];
 				const auto progress = (flying > 0)
-					? animState->flightAnimation.value(1.)
+					? state->flightAnimation.value(1.)
 					: firstFlyProgress;
 
-				if (animState->flightTargetCorners) {
+				if (state->flightTargetCorners) {
 					const auto sourceRect = QRectF(corner.originalRect)
 						.translated(0, shared->craftingOffsetY);
 					const auto sourceCorners = RectToCorners(sourceRect);
 					const auto interpolatedCorners = InterpolateQuadCorners(
 						sourceCorners,
-						*animState->flightTargetCorners,
+						*state->flightTargetCorners,
 						progress);
-					PaintFlyingGiftWithQuad(p, corner, interpolatedCorners, progress);
+					PaintFlyingGiftWithQuad(
+						p,
+						corner,
+						interpolatedCorners,
+						progress);
 				} else {
 					const auto position = ComputeGiftFlightPosition(
 						corner.originalRect,
@@ -1209,35 +1363,35 @@ void StartCraftAnimation(
 				}
 			}
 
-			PaintLoadingAnimation(p, animState);
+			PaintLoadingAnimation(p, state);
 		}
 	});
 
 	const auto startFlying = [=] {
-		if (animState->loadingStartedTime > 0) {
-			animState->loadingFadingOut = true;
-			animState->loadingShownAnimation.start(
+		if (state->loadingStartedTime > 0) {
+			state->loadingFadingOut = true;
+			state->loadingShownAnimation.start(
 				[=] { raw->update(); },
 				1.,
 				0.,
 				kLoadingFadeOutDuration);
 		}
-		StartGiftFlight(animState, raw, 0);
+		StartGiftFlight(state, raw, 0);
 	};
 
 	const auto tryStartFlying = [=] {
-		const auto slideFinished = !animState->slideOutAnimation.animating();
-		const auto resultArrived = animState->craftResult.has_value();
-		const auto notYetFlying = (animState->currentlyFlying < 0)
-			&& (animState->giftsLanded == 0);
+		const auto slideFinished = !state->slideOutAnimation.animating();
+		const auto resultArrived = state->craftResult.has_value();
+		const auto notYetFlying = (state->currentlyFlying < 0)
+			&& (state->giftsLanded == 0);
 		if (!slideFinished || !notYetFlying) {
 			return;
 		}
 		if (!resultArrived) {
-			if (!animState->loadingStartedTime) {
-				animState->loadingStartedTime = crl::now();
-				animState->loadingAnimation->start();
-				animState->loadingShownAnimation.start(
+			if (!state->loadingStartedTime) {
+				state->loadingStartedTime = crl::now();
+				state->loadingAnimation->start();
+				state->loadingShownAnimation.start(
 					[=] { raw->update(); },
 					0.,
 					1.,
@@ -1245,88 +1399,92 @@ void StartCraftAnimation(
 			}
 			return;
 		}
-		if (!animState->loadingStartedTime) {
+		if (!state->loadingStartedTime) {
 			startFlying();
 			return;
 		}
-		const auto elapsed = crl::now() - animState->loadingStartedTime;
+		const auto elapsed = crl::now() - state->loadingStartedTime;
 		if (elapsed >= kLoadingMinDuration) {
 			startFlying();
 		} else {
-			base::call_delayed(kLoadingMinDuration - elapsed, raw, startFlying);
+			base::call_delayed(
+				kLoadingMinDuration - elapsed,
+				raw,
+				startFlying);
 		}
 	};
 
-	animState->slideOutAnimation.start(
-		[=] {
-			raw->update();
+	state->slideOutAnimation.start([=] {
+		raw->update();
 
-			const auto progress = animState->slideOutAnimation.value(1.);
-			if (progress >= 1.) {
-				tryStartFlying();
-			}
-		},
-		0.,
-		1.,
-		crl::time(300),
-		anim::easeOutCubic);
+		const auto progress = state->slideOutAnimation.value(1.);
+		if (progress >= 1.) {
+			tryStartFlying();
+		}
+	}, 0., 1., crl::time(300), anim::easeOutCubic);
 
-	animState->continuousAnimation.init([=](crl::time now) {
-		if (animState->currentConfigIndex >= 0) {
-			const auto &config = kGiftAnimations[animState->currentConfigIndex];
-			const auto elapsed = (now - animState->animationStartTime)
+	state->continuousAnimation.init([=](crl::time now) {
+		if (state->currentPhaseIndex >= 0) {
+			const auto &config = kGiftAnimations[state->currentPhaseIndex];
+			const auto elapsed = (now - state->animationStartTime)
 				/ anim::SlowMultiplier();
 			const auto initial = Rotation{
-				animState->initialRotationX,
-				animState->initialRotationY,
+				state->initialRotationX,
+				state->initialRotationY,
 			};
 			const auto r = config.rotation(initial, elapsed);
-			animState->rotationX = r.x;
-			animState->rotationY = r.y;
+			state->rotationX = r.x;
+			state->rotationY = r.y;
 		}
 
 		raw->update();
 
-		if (animState->currentlyFlying >= 0
-			&& !animState->flightAnimation.animating()) {
-			LandCurrentGift(animState, now);
+		if (state->currentlyFlying >= 0
+			&& !state->flightAnimation.animating()) {
+			LandCurrentGift(state, now);
 		}
 
-		if (!animState->flightAnimation.animating()
-			&& animState->currentlyFlying < 0
-			&& animState->giftsLanded > 0
-			&& animState->giftsLanded < animState->totalGifts
-			&& animState->currentConfigIndex >= 0) {
+		if (!state->flightAnimation.animating()
+			&& state->currentlyFlying < 0
+			&& state->giftsLanded > 0
+			&& state->giftsLanded < state->totalGifts
+			&& state->currentPhaseIndex >= 0) {
 
-			const auto &config = kGiftAnimations[animState->currentConfigIndex];
-			const auto elapsed = (now - animState->animationStartTime)
+			const auto &config = kGiftAnimations[state->currentPhaseIndex];
+			const auto elapsed = (now - state->animationStartTime)
 				/ anim::SlowMultiplier();
 			const auto flightStartTime = config.duration - kFlightDuration;
 			if (elapsed >= flightStartTime) {
-				StartGiftFlightToFace(animState, raw, animState->nextFaceIndex);
+				StartGiftFlightToFace(state, raw, state->nextFaceIndex);
 			}
 		}
 
-		if (!animState->flightAnimation.animating()
-			&& animState->currentlyFlying < 0
-			&& animState->giftsLanded >= animState->totalGifts
-			&& animState->totalGifts > 0
-			&& animState->currentConfigIndex >= 0) {
+		if (!state->currentPhaseFinished
+			&& !state->flightAnimation.animating()
+			&& state->currentlyFlying < 0
+			&& state->giftsLanded >= state->totalGifts
+			&& state->totalGifts > 0
+			&& state->currentPhaseIndex >= 0) {
 
-			const auto &config = kGiftAnimations[animState->currentConfigIndex];
-			const auto elapsed = (now - animState->animationStartTime)
+			const auto &config = kGiftAnimations[state->currentPhaseIndex];
+			const auto elapsed = (now - state->animationStartTime)
 				/ anim::SlowMultiplier();
 			if (elapsed >= config.duration) {
-				animState->currentConfigIndex = -1;
+				state->currentPhaseFinished = true;
 			}
 		}
 
-		const auto hasMoreFlights = (animState->giftsLanded < animState->totalGifts);
-		const auto isFlying = animState->flightAnimation.animating();
-		const auto isAnimating = (animState->currentConfigIndex >= 0);
-		const auto isLoadingShown = animState->loadingShownAnimation.animating();
+		const auto hasMoreFlights = (state->giftsLanded < state->totalGifts);
+		const auto isFlying = state->flightAnimation.animating();
+		const auto isAnimating = !state->currentPhaseFinished;
+		const auto isLoadingShown = state->loadingShownAnimation.animating();
+		const auto isFailureAnimation = state->failureAnimation != nullptr;
 
-		return hasMoreFlights || isFlying || isAnimating || isLoadingShown;
+		return hasMoreFlights
+			|| isFlying
+			|| isAnimating
+			|| isLoadingShown
+			|| isFailureAnimation;
 	});
 
 	container->add(std::move(canvas));
@@ -1337,7 +1495,7 @@ void StartCraftAnimation(
 			if (!weak) {
 				return;
 			}
-			animState->craftResult = std::move(result);
+			state->craftResult = std::move(result);
 			tryStartFlying();
 		});
 	}

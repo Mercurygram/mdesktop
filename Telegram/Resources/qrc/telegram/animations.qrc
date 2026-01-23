@@ -55,6 +55,7 @@
     <file alias="passkeys.tgs">../../animations/passkeys.tgs</file>
     <file alias="ban.tgs">../../animations/ban.tgs</file>
     <file alias="cocoon.tgs">../../animations/cocoon.tgs</file>
+    <file alias="bomb.tgs">../../animations/bomb.tgs</file>
 
     <file alias="profile_muting.tgs">../../animations/profile/profile_muting.tgs</file>
     <file alias="profile_unmuting.tgs">../../animations/profile/profile_unmuting.tgs</file>

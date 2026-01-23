@@ -27,7 +27,8 @@ struct GiftForCraftEntry {
 void ShowGiftCraftInfoBox(
 	not_null<Window::SessionController*> controller,
 	std::shared_ptr<Data::UniqueGift> gift,
-	Data::SavedStarGiftId savedId);
+	Data::SavedStarGiftId savedId,
+	Fn<void()> closeParent);
 
 void ShowTestGiftCraftBox(
 	not_null<Window::SessionController*> controller,

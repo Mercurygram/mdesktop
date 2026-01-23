@@ -13,6 +13,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/effects/radial_animation.h"
 #include "ui/text/text_custom_emoji.h"
 
+namespace Main {
+class Session;
+} // namespace Main
+
+namespace HistoryView {
+class StickerPlayer;
+} // namespace HistoryView
+
 namespace Info::PeerGifts {
 class GiftButton;
 } // namespace Info::PeerGifts
@@ -26,13 +34,11 @@ using CraftResultCallback = Fn<void(std::shared_ptr<Data::GiftUpgradeResult>)>;
 struct BackdropView {
 	Data::UniqueGiftBackdrop colors;
 	QImage gradient;
-
 };
 
 struct PatternView {
 	std::unique_ptr<Text::CustomEmoji> emoji;
 	base::flat_map<int, base::flat_map<float64, QImage>> emojis;
-
 };
 
 struct CraftState {
@@ -84,6 +90,8 @@ struct CraftState {
 	std::array<EmptySide, 6> forgeSides;
 	EmptySide finalSide;
 
+	Main::Session *session = nullptr;
+
 	int containerHeight = 0;
 	int craftingTop = 0;
 	int craftingBottom = 0;
@@ -93,13 +101,22 @@ struct CraftState {
 	void paint(QPainter &p, QSize size, int craftingHeight, float64 slideProgress = 0.);
 	void updateForGiftCount(int count);
 	[[nodiscard]] EmptySide prepareEmptySide(int index) const;
-
 };
 
 struct FacePlacement {
 	int face = -1;
 	int rotation = 0;
+};
 
+struct FailureAnimation {
+	std::unique_ptr<HistoryView::StickerPlayer> player;
+	QImage frame;
+	DocumentData *document = nullptr;
+	Animations::Simple scaleAnimation;
+	bool scaleStarted = false;
+	bool playerStarted = false;
+	bool playerFinished = false;
+	rpl::lifetime lifetime;
 };
 
 struct CraftAnimationState {
@@ -115,10 +132,11 @@ struct CraftAnimationState {
 	int giftsLanded = 0;
 	int totalGifts = 0;
 	bool allGiftsLanded = false;
+	bool currentPhaseFinished = false;
 	std::array<FacePlacement, 4> giftToSide;
 	Animations::Simple flightAnimation;
 
-	int currentConfigIndex = -1;
+	int currentPhaseIndex = -1;
 	crl::time animationStartTime = 0;
 	float64 initialRotationX = 0.;
 	float64 initialRotationY = 0.;
@@ -134,11 +152,13 @@ struct CraftAnimationState {
 	crl::time loadingStartedTime = 0;
 	bool loadingFadingOut = false;
 
+	std::unique_ptr<FailureAnimation> failureAnimation;
 };
 
 void StartCraftAnimation(
 	not_null<VerticalLayout*> container,
 	std::shared_ptr<CraftState> state,
-	Fn<void(CraftResultCallback)> startRequest);
+	Fn<void(CraftResultCallback)> startRequest,
+	Fn<void()> closeOnFail);
 
 } // namespace Ui

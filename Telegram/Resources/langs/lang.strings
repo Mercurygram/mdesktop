@@ -4122,6 +4122,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_craft_progress" = "Crafting";
 "lng_gift_craft_progress_chance" = "{percent} success chance";
 "lng_gift_craft_progress_fails" = "If crafting fails, all selected gifts will be consumed.";
+"lng_gift_craft_failed" = "Crafting failed. Gifts consumed :(";
 
 "lng_auction_about_title" = "Auction";
 "lng_auction_about_subtitle" = "Join the battle for exclusive gifts.";
