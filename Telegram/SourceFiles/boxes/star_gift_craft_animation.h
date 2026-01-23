@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unique_qptr.h"
 #include "data/data_star_gift.h"
 #include "ui/effects/animations.h"
+#include "ui/effects/radial_animation.h"
 #include "ui/text/text_custom_emoji.h"
 
 namespace Info::PeerGifts {
@@ -19,6 +20,8 @@ class GiftButton;
 namespace Ui {
 
 class VerticalLayout;
+
+using CraftResultCallback = Fn<void(std::shared_ptr<Data::GiftUpgradeResult>)>;
 
 struct BackdropView {
 	Data::UniqueGiftBackdrop colors;
@@ -118,10 +121,17 @@ struct CraftAnimationState {
 
 	std::optional<std::array<QPointF, 4>> flightTargetCorners;
 
+	std::optional<std::shared_ptr<Data::GiftUpgradeResult>> craftResult;
+	std::unique_ptr<InfiniteRadialAnimation> loadingAnimation;
+	Animations::Simple loadingShownAnimation;
+	crl::time loadingStartedTime = 0;
+	bool loadingFadingOut = false;
+
 };
 
 void StartCraftAnimation(
 	not_null<VerticalLayout*> container,
-	std::shared_ptr<CraftState> state);
+	std::shared_ptr<CraftState> state,
+	Fn<void(CraftResultCallback)> startRequest);
 
 } // namespace Ui

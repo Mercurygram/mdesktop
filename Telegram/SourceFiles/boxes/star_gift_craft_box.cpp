@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/star_gift_craft_box.h"
 
 #include "base/call_delayed.h"
+#include "base/random.h"
 #include "boxes/star_gift_craft_animation.h"
 #include "apiwrap.h"
 #include "api/api_credits.h"
@@ -804,8 +805,36 @@ void ShowSelectGiftBox(
 
 void Craft(
 		not_null<VerticalLayout*> container,
-		std::shared_ptr<CraftState> state) {
-	StartCraftAnimation(container, std::move(state));
+		std::shared_ptr<CraftState> state,
+		const std::vector<GiftForCraft> &gifts) {
+	auto startRequest = [=](CraftResultCallback done) {
+		constexpr auto kDelays = std::array<crl::time, 7>{
+			100, 200, 300, 400, 500, 1000, 2000
+		};
+		const auto delay = kDelays[base::RandomIndex(kDelays.size())];
+		const auto giftsCopy = gifts;
+
+		base::call_delayed(delay, container, [=] {
+			const auto shouldSucceed = (base::RandomIndex(5) != 0);
+			if (shouldSucceed && !giftsCopy.empty()) {
+				const auto &chosen = giftsCopy[base::RandomIndex(giftsCopy.size())];
+				auto info = Data::StarGift{
+					.id = chosen.unique->initialGiftId,
+					.unique = chosen.unique,
+					.document = chosen.unique->model.document,
+				};
+				auto result = std::make_shared<Data::GiftUpgradeResult>(
+					Data::GiftUpgradeResult{
+						.info = std::move(info),
+						.manageId = chosen.manageId,
+					});
+				done(std::move(result));
+			} else {
+				done(nullptr);
+			}
+		});
+	};
+	StartCraftAnimation(container, std::move(state), std::move(startRequest));
 }
 
 void MakeCraftContent(
@@ -1052,7 +1081,7 @@ void MakeCraftContent(
 		cs->bottomPartY = aboutPos.y();
 		cs->containerHeight = raw->height();
 
-		Craft(raw, state->craftState);
+		Craft(raw, state->craftState, state->chosen.current());
 	};
 	button->setClickedCallback(startCrafting);
 

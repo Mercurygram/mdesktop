@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/star_gift_craft_animation.h"
 
+#include "base/call_delayed.h"
 #include "info/peer_gifts/info_peer_gifts_common.h"
 #include "ui/image/image_prepare.h"
 #include "ui/top_background_gradient.h"
@@ -23,6 +24,9 @@ using namespace Info::PeerGifts;
 
 constexpr auto kFrameDuration = 1000. / 60.;
 constexpr auto kFlightDuration = crl::time(400);
+constexpr auto kLoadingFadeInDuration = crl::time(150);
+constexpr auto kLoadingFadeOutDuration = crl::time(300);
+constexpr auto kLoadingMinDuration = crl::time(600);
 
 struct Rotation {
 	float64 x = 0.;
@@ -429,7 +433,8 @@ void PaintCubeFace(
 void PaintCubeFirstFlight(
 		QPainter &p,
 		const CraftAnimationState &animState,
-		float64 progress) {
+		float64 progress,
+		bool skipForgeIcon = false) {
 	const auto &shared = animState.shared;
 
 	const auto overlayBg = shared->forgeBgOverlay;
@@ -446,7 +451,9 @@ void PaintCubeFirstFlight(
 	p.setBrush(sideBg);
 	p.drawRoundedRect(forge, radius, radius);
 
-	st::craftForge.paintInCenter(p, forge, st::white->c);
+	if (!skipForgeIcon) {
+		st::craftForge.paintInCenter(p, forge, st::white->c);
+	}
 }
 
 void PaintCube(
@@ -872,7 +879,7 @@ void LandCurrentGift(CraftAnimationState *animState, crl::time now) {
 		return;
 	}
 
-	const auto giftNumber = animState->giftsLanded + 1;
+	const auto giftNumber = ++animState->giftsLanded;
 	const auto isLastGift = (giftNumber >= animState->totalGifts);
 
 	const auto configIndex = (giftNumber - 1) * 2 + (isLastGift ? 0 : 1);
@@ -880,7 +887,6 @@ void LandCurrentGift(CraftAnimationState *animState, crl::time now) {
 
 	const auto &config = kGiftAnimations[configIndex];
 
-	++animState->giftsLanded;
 	animState->currentlyFlying = -1;
 
 	animState->initialRotationX = animState->rotationX;
@@ -889,6 +895,46 @@ void LandCurrentGift(CraftAnimationState *animState, crl::time now) {
 	animState->animationStartTime = now;
 	animState->nextFaceIndex = config.nextFaceIndex;
 	animState->nextFaceRotation = config.nextFaceRotation;
+}
+
+void PaintLoadingAnimation(QPainter &p, CraftAnimationState *animState) {
+	const auto &loading = animState->loadingAnimation;
+	if (!loading || !animState->loadingStartedTime) {
+		return;
+	}
+
+	const auto loadingShown = animState->loadingShownAnimation.value(
+		animState->loadingFadingOut ? 0. : 1.);
+	if (loadingShown <= 0.) {
+		return;
+	}
+
+	const auto shared = animState->shared;
+	const auto forge = shared->forgeRect.translated(0, shared->craftingOffsetY);
+	const auto inner = forge.marginsRemoved({
+		st::craftForgePadding,
+		st::craftForgePadding,
+		st::craftForgePadding,
+		st::craftForgePadding,
+	});
+
+	const auto state = loading->computeState();
+	const auto adjustedState = RadialState{
+		.shown = state.shown * loadingShown,
+		.arcFrom = state.arcFrom,
+		.arcLength = state.arcLength,
+	};
+
+	auto pen = QPen(st::white->c);
+	pen.setCapStyle(Qt::RoundCap);
+	InfiniteRadialAnimation::Draw(
+		p,
+		adjustedState,
+		inner.topLeft(),
+		inner.size(),
+		inner.width(),
+		pen,
+		st::craftForgeLoading.thickness);
 }
 
 } // namespace
@@ -1038,7 +1084,8 @@ QImage CraftState::prepareForgeImage(int index) const {
 
 void StartCraftAnimation(
 		not_null<VerticalLayout*> container,
-		std::shared_ptr<CraftState> state) {
+		std::shared_ptr<CraftState> state,
+		Fn<void(CraftResultCallback)> startRequest) {
 	while (container->count() > 0) {
 		delete container->widgetAt(0);
 	}
@@ -1057,6 +1104,10 @@ void StartCraftAnimation(
 			++animState->totalGifts;
 		}
 	}
+
+	animState->loadingAnimation = std::make_unique<InfiniteRadialAnimation>(
+		[=] { raw->update(); },
+		st::craftForgeLoading);
 
 	raw->paintOn([=](QPainter &p) {
 		const auto shared = animState->shared;
@@ -1086,9 +1137,14 @@ void StartCraftAnimation(
 			const auto flying = animState->currentlyFlying;
 			const auto firstFlyProgress = (flying == 0)
 				? animState->flightAnimation.value(1.)
-				: 1.;
+				: animState->giftsLanded
+				? 1.
+				: 0.;
+			const auto loadingVisible = animState->loadingStartedTime
+				&& !animState->loadingFadingOut;
 			if (firstFlyProgress < 1.) {
-				PaintCubeFirstFlight(p, *animState, firstFlyProgress);
+				const auto skipForgeIcon = loadingVisible && anim::Disabled();
+				PaintCubeFirstFlight(p, *animState, firstFlyProgress, skipForgeIcon);
 			} else {
 				PaintCube(p, *animState, cubeCenter, cubeSize);
 			}
@@ -1118,18 +1174,62 @@ void StartCraftAnimation(
 					PaintFlyingGift(p, corner, position, progress);
 				}
 			}
+
+			PaintLoadingAnimation(p, animState);
 		}
 	});
+
+	const auto startFlying = [=] {
+		if (animState->loadingStartedTime > 0) {
+			animState->loadingFadingOut = true;
+			animState->loadingShownAnimation.start(
+				[=] { raw->update(); },
+				1.,
+				0.,
+				kLoadingFadeOutDuration);
+		}
+		StartGiftFlight(animState, raw, 0);
+	};
+
+	const auto tryStartFlying = [=] {
+		const auto slideFinished = !animState->slideOutAnimation.animating();
+		const auto resultArrived = animState->craftResult.has_value();
+		const auto notYetFlying = (animState->currentlyFlying < 0)
+			&& (animState->giftsLanded == 0);
+		if (!slideFinished || !notYetFlying) {
+			return;
+		}
+		if (!resultArrived) {
+			if (!animState->loadingStartedTime) {
+				animState->loadingStartedTime = crl::now();
+				animState->loadingAnimation->start();
+				animState->loadingShownAnimation.start(
+					[=] { raw->update(); },
+					0.,
+					1.,
+					kLoadingFadeInDuration);
+			}
+			return;
+		}
+		if (!animState->loadingStartedTime) {
+			startFlying();
+			return;
+		}
+		const auto elapsed = crl::now() - animState->loadingStartedTime;
+		if (elapsed >= kLoadingMinDuration) {
+			startFlying();
+		} else {
+			base::call_delayed(kLoadingMinDuration - elapsed, raw, startFlying);
+		}
+	};
 
 	animState->slideOutAnimation.start(
 		[=] {
 			raw->update();
 
 			const auto progress = animState->slideOutAnimation.value(1.);
-			if (progress >= 1.
-				&& animState->currentlyFlying < 0
-				&& animState->giftsLanded == 0) {
-				StartGiftFlight(animState, raw, 0);
+			if (progress >= 1.) {
+				tryStartFlying();
 			}
 		},
 		0.,
@@ -1190,11 +1290,23 @@ void StartCraftAnimation(
 		const auto hasMoreFlights = (animState->giftsLanded < animState->totalGifts);
 		const auto isFlying = animState->flightAnimation.animating();
 		const auto isAnimating = (animState->currentConfigIndex >= 0);
+		const auto isLoadingShown = animState->loadingShownAnimation.animating();
 
-		return hasMoreFlights || isFlying || isAnimating;
+		return hasMoreFlights || isFlying || isAnimating || isLoadingShown;
 	});
 
 	container->add(std::move(canvas));
+
+	if (startRequest) {
+		const auto weak = base::make_weak(raw);
+		startRequest([=](std::shared_ptr<Data::GiftUpgradeResult> result) {
+			if (!weak) {
+				return;
+			}
+			animState->craftResult = std::move(result);
+			tryStartFlying();
+		});
+	}
 }
 
 } // namespace Ui

@@ -611,6 +611,10 @@ craftForgePercent: CraftRadialPercent {
 	stroke: 4px;
 	font: font(14px semibold);
 }
+craftForgeLoading: InfiniteRadialAnimation(defaultInfiniteRadialAnimation) {
+	color: windowFgActive;
+	thickness: 4px;
+}
 craftPercentLabel: FlatLabel(defaultFlatLabel) {
 	style: TextStyle(defaultTextStyle) {
 		font: font(11px semibold);
