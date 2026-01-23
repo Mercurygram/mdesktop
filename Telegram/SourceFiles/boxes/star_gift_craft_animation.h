@@ -77,7 +77,12 @@ struct CraftState {
 	QColor forgeBg2;
 	QImage forgePercent;
 
-	std::array<QImage, 6> forgeImages;
+	struct EmptySide {
+		QColor bg;
+		QImage frame;
+	};
+	std::array<EmptySide, 6> forgeSides;
+	EmptySide finalSide;
 
 	int containerHeight = 0;
 	int craftingTop = 0;
@@ -87,7 +92,7 @@ struct CraftState {
 
 	void paint(QPainter &p, QSize size, int craftingHeight, float64 slideProgress = 0.);
 	void updateForGiftCount(int count);
-	[[nodiscard]] QImage prepareForgeImage(int index) const;
+	[[nodiscard]] EmptySide prepareEmptySide(int index) const;
 
 };
 
@@ -109,6 +114,7 @@ struct CraftAnimationState {
 	int currentlyFlying = -1;
 	int giftsLanded = 0;
 	int totalGifts = 0;
+	bool allGiftsLanded = false;
 	std::array<FacePlacement, 4> giftToSide;
 	Animations::Simple flightAnimation;
 
@@ -118,7 +124,7 @@ struct CraftAnimationState {
 	float64 initialRotationY = 0.;
 	int nextFaceIndex = 0;
 	int nextFaceRotation = 0;
-	bool nextFaceRotationApplied = false;
+	bool nextFaceRevealed = false;
 
 	std::optional<std::array<QPointF, 4>> flightTargetCorners;
 

@@ -505,7 +505,7 @@ AbstractButton *MakeRemoveButton(
 			QColor(overlayBg.red(), overlayBg.green(), overlayBg.blue()),
 			overlayBg.alphaF());
 		for (auto i = 0; i != 6; ++i) {
-			craftState->forgeImages[i] = craftState->prepareForgeImage(i);
+			craftState->forgeSides[i] = craftState->prepareEmptySide(i);
 		}
 	};
 

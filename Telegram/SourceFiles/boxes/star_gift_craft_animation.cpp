@@ -85,18 +85,19 @@ using RotationFn = Fn<Rotation(Rotation initial, crl::time t)>;
 struct GiftAnimationConfig {
 	RotationFn rotation;
 	crl::time duration = 0;
+	crl::time revealTime = 0;
 	int nextFaceIndex = 0;
 	int nextFaceRotation = 0;
 };
 
 const auto kGiftAnimations = std::array<GiftAnimationConfig, 7>{{
-	{ DecayingRotationFinal({ 4.1, -8.2 }, 0.98, { 1, -2 }, 2200), 2200, 1, 180 },
-	{ DecayingRotation({ 3.2, -5.9 }, 0.97), 1200, 4, 180 },
-	{ DecayingRotationFinal({ 6.2, 7.8 }, 0.98, { 2, 1 }, 2200), 2200, 1, 0 },
-	{ DecayingRotation({ 7.0, 4.5 }, 0.97), 1200, 5, 0 },
-	{ DecayingRotationFinal({ -6.5, 5.0 }, 0.98, { 0, 1 }, 2200), 2200, 1, 0 },
-	{ DecayingRotation({ -2.5, 3.5 }, 0.98), 1200, 2, 180 },
-	{ DecayingRotationFinal({ -4.4, -8.2 }, 0.98, { 0, -1.5 }, 2200), 2200, 3, 0 },
+	{ DecayingRotationFinal({ 4.1, -8.2 }, 0.98, { 1, -2 }, 2200), 2200, 600, 1, 180 },
+	{ DecayingRotation({ 3.2, -5.9 }, 0.97), 1200, 0, 4, 180 },
+	{ DecayingRotationFinal({ 6.2, 7.8 }, 0.98, { 2, 1 }, 2200), 2200, 1000, 1, 0 },
+	{ DecayingRotation({ 7.0, 4.5 }, 0.97), 1200, 200, 5, 0 },
+	{ DecayingRotationFinal({ -6.5, 5.0 }, 0.98, { 0, 1 }, 2200), 2200, 800, 1, 0 },
+	{ DecayingRotation({ -2.5, 3.5 }, 0.98), 1200, 200, 2, 180 },
+	{ DecayingRotationFinal({ -4.4, -8.2 }, 0.98, { 0, -1.5 }, 2200), 2200, 600, 3, 0 },
 }};
 
 [[nodiscard]] int GetFrontFaceAtRotation(float64 rotationX, float64 rotationY) {
@@ -465,10 +466,13 @@ void PaintCube(
 
 	const auto faces = GetVisibleCubeFaces(animState->rotationX, animState->rotationY);
 
-	if (!animState->nextFaceRotationApplied
-		&& animState->nextFaceRotation != 0
-		&& !ranges::contains(faces, animState->nextFaceIndex)) {
-		animState->nextFaceRotationApplied = true;
+	if (!animState->nextFaceRevealed
+		&& animState->currentConfigIndex >= 0) {
+		const auto &config = kGiftAnimations[animState->currentConfigIndex];
+		const auto elapsed = (crl::now() - animState->animationStartTime);
+		if (elapsed >= config.revealTime * anim::SlowMultiplier()) {
+			animState->nextFaceRevealed = true;
+		}
 	}
 
 	for (const auto faceIndex : faces) {
@@ -482,9 +486,10 @@ void PaintCube(
 			continue;
 		}
 
-		auto faceImage = shared->forgeImages[faceIndex];
-		auto faceRotation = (animState->nextFaceRotationApplied
-			&& faceIndex == animState->nextFaceIndex)
+		const auto thisFaceRevealed = animState->nextFaceRevealed
+			&& (faceIndex == animState->nextFaceIndex);
+		auto faceImage = shared->forgeSides[faceIndex].frame;
+		auto faceRotation = thisFaceRevealed
 			? animState->nextFaceRotation
 			: 0;
 
@@ -498,10 +503,28 @@ void PaintCube(
 			}
 		}
 
-		if (!faceImage.isNull()) {
-			PaintCubeFace(p, faceImage, *corners, faceRotation);
+		if (thisFaceRevealed && animState->allGiftsLanded) {
+			if (shared->finalSide.frame.isNull()) {
+				shared->finalSide = shared->forgeSides[faceIndex];
+				shared->finalSide.frame.fill(shared->finalSide.bg);
+
+				auto p = QPainter(&shared->finalSide.frame);
+				const auto side = shared->finalSide.frame.width() / 6;
+				p.setPen(Qt::NoPen);
+				p.setBrush(Qt::red);
+				p.drawEllipse(side, side, side, side);
+			}
+			faceImage = shared->finalSide.frame;
 		}
+
+		PaintCubeFace(p, faceImage, *corners, faceRotation);
 	}
+
+	const auto elapsed = (crl::now() - animState->animationStartTime)
+		/ anim::SlowMultiplier();
+	p.setPen(Qt::white);
+	p.setFont(st::semiboldFont);
+	p.drawText(0, st::semiboldFont->ascent, QString::number(elapsed, 'f', 2));
 }
 
 struct GiftFlightPosition {
@@ -887,7 +910,9 @@ void LandCurrentGift(CraftAnimationState *animState, crl::time now) {
 	}
 
 	const auto giftNumber = ++animState->giftsLanded;
-	const auto isLastGift = (giftNumber >= animState->totalGifts);
+	const auto isLastGift
+		= animState->allGiftsLanded
+		= (giftNumber >= animState->totalGifts);
 
 	const auto configIndex = (giftNumber - 1) * 2 + (isLastGift ? 0 : 1);
 	Assert(configIndex < 7);
@@ -902,7 +927,7 @@ void LandCurrentGift(CraftAnimationState *animState, crl::time now) {
 	animState->animationStartTime = now;
 	animState->nextFaceIndex = config.nextFaceIndex;
 	animState->nextFaceRotation = config.nextFaceRotation;
-	animState->nextFaceRotationApplied = false;
+	animState->nextFaceRevealed = false;
 }
 
 void PaintLoadingAnimation(QPainter &p, CraftAnimationState *animState) {
@@ -1065,13 +1090,14 @@ void CraftState::updateForGiftCount(int count) {
 	}
 }
 
-QImage CraftState::prepareForgeImage(int index) const {
+CraftState::EmptySide CraftState::prepareEmptySide(int index) const {
 	const auto size = forgeRect.size();
 	const auto ratio = style::DevicePixelRatio();
 	auto result = QImage(size * ratio, QImage::Format_ARGB32_Premultiplied);
 	result.setDevicePixelRatio(ratio);
 
-	result.fill(anim::color(forgeBg1, forgeBg2, index / 5.));
+	const auto bg = anim::color(forgeBg1, forgeBg2, index / 5.);
+	result.fill(bg);
 
 	auto p = QPainter(&result);
 	st::craftForge.paintInCenter(p, QRect(QPoint(), size), st::white->c);
@@ -1087,7 +1113,7 @@ QImage CraftState::prepareForgeImage(int index) const {
 
 	p.end();
 
-	return result;
+	return { .bg = bg, .frame = result };
 }
 
 void StartCraftAnimation(

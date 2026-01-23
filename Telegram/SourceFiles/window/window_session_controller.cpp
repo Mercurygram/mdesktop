@@ -1685,6 +1685,7 @@ SessionController::SessionController(
 #if _DEBUG // TEST: Auto-open craft box on startup
 	constexpr auto kGiftsCount = 4;
 	crl::on_main(this, [=] {
+		return;
 		const auto user = session->user();
 		session->api().request(MTPpayments_GetSavedStarGifts(
 			MTP_flags(MTPpayments_GetSavedStarGifts::Flag::f_exclude_unlimited),
