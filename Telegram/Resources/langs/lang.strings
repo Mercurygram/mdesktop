@@ -4100,10 +4100,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_locked_title" = "Gift Locked";
 "lng_gift_craft_info_title" = "Gift Crafting";
 "lng_gift_craft_info_about" = "Use your existing gifts to craft new ones.";
-"lng_gift_craft_combine_title" = "Combine Gifts";
+"lng_gift_craft_combine_title" = "New Models";
 "lng_gift_craft_combine_about" = "Add up to 4 NFT Gifts to attempt crafting a new upgraded model.";
 "lng_gift_craft_input_title" = "Input Matters";
-"lng_gift_craft_input_about" = "Each craft has a success chance. Better combinations improve the outcome.";
+"lng_gift_craft_input_about" = "Combine more gifts to improve your success chance.";
 "lng_gift_craft_exclusive_title" = "Exclusive Look";
 "lng_gift_craft_exclusive_about" = "Reforge gifts into a rarer collectibles with a new look.";
 "lng_gift_craft_start_button" = "Start Crafting";

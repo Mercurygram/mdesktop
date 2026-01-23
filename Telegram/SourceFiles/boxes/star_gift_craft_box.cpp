@@ -1163,12 +1163,12 @@ void ShowGiftCraftInfoBox(
 
 		const auto features = std::vector<FeatureListEntry>{
 			{
-				st::menuIconNftWear,
+				st::menuIconTools,
 				tr::lng_gift_craft_combine_title(tr::now),
 				tr::lng_gift_craft_combine_about(tr::now, tr::rich),
 			},
 			{
-				st::menuIconTradable,
+				st::menuIconCraftTraits,
 				tr::lng_gift_craft_input_title(tr::now),
 				tr::lng_gift_craft_input_about(tr::now, tr::marked),
 			},
