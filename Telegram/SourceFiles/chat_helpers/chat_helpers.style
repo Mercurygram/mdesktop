@@ -1742,7 +1742,7 @@ topPeersSelectorUserpicExpand: 0.1;
 topPeersSelectorSkip: point(9px, -5px);
 
 topPeersSelectorImportantTooltip: ImportantTooltip(defaultImportantTooltip) {
-	bg: scrollBarBgOver;
+	bg: msgServiceBg;
 	radius: 9px;
 }
 topPeersSelectorImportantTooltipLabel: FlatLabel(defaultImportantTooltipLabel) {
