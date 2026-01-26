@@ -70,6 +70,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "media/player/media_player_dropdown.h"
 #include "media/player/media_player_instance.h"
 #include "base/qthelp_regex.h"
+#include "base/options.h"
 #include "mtproto/mtproto_dc_options.h"
 #include "core/update_checker.h"
 #include "core/shortcuts.h"
@@ -105,7 +106,15 @@ void ClearBotStartToken(PeerData *peer) {
 	}
 }
 
+base::options::toggle ForceComposeSearchOneColumn({
+	.id = kForceComposeSearchOneColumn,
+	.name = "Force embedded search in chats",
+	.description = "Force in one-column mode the embedded search in chats.",
+});
+
 } // namespace
+
+const char kForceComposeSearchOneColumn[] = "force-compose-search-one-column";
 
 enum StackItemType {
 	HistoryStackItem,
@@ -782,7 +791,8 @@ void MainWidget::searchMessages(
 		return;
 	}
 	auto tags = Data::SearchTagsFromQuery(query);
-	if (_dialogs) {
+	if (_dialogs
+		&& (!ForceComposeSearchOneColumn.value() || !isOneColumn())) {
 		auto state = Dialogs::SearchState{
 			.inChat = ((tags.empty() || inChat.sublist())
 				? inChat
