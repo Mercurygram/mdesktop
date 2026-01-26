@@ -44,7 +44,7 @@ void FillChooseFilterMenu(
 	not_null<Ui::PopupMenu*> menu,
 	not_null<History*> history);
 
-void FillChooseFilterWithAdminedGroupsMenu(
+bool FillChooseFilterWithAdminedGroupsMenu(
 	not_null<Window::SessionController*> controller,
 	not_null<Ui::PopupMenu*> menu,
 	not_null<UserData*> user,

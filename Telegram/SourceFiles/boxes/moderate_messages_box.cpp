@@ -254,12 +254,13 @@ void FillMenuModerateCommonGroups(
 	}
 	menu->addSeparator();
 	if (const auto window = Core::App().findWindow(menu->parentWidget())) {
+		auto hasActions = false;
 		Ui::Menu::CreateAddActionCallback(menu)(Ui::Menu::MenuCallback::Args{
 			.text = tr::lng_restrict_users_kick_from_common_group(tr::now),
 			.handler = nullptr,
 			.icon = &st::menuIconAddToFolder,
 			.fillSubmenu = [&](not_null<Ui::PopupMenu*> menu) {
-				FillChooseFilterWithAdminedGroupsMenu(
+				hasActions = FillChooseFilterWithAdminedGroupsMenu(
 					window->sessionController(),
 					menu,
 					user,
@@ -269,6 +270,10 @@ void FillMenuModerateCommonGroups(
 			},
 			.submenuSt = &st::foldersMenu,
 		});
+		if (!hasActions) {
+			menu->removeAction(menu->actions().size() - 1);
+			menu->removeAction(menu->actions().size() - 1); // Separator.
+		}
 	}
 	menu->addSeparator();
 	{

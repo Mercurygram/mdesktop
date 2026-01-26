@@ -352,7 +352,7 @@ void FillChooseFilterMenu(
 	}, menu->lifetime());
 }
 
-void FillChooseFilterWithAdminedGroupsMenu(
+bool FillChooseFilterWithAdminedGroupsMenu(
 		not_null<Window::SessionController*> controller,
 		not_null<Ui::PopupMenu*> menu,
 		not_null<UserData*> user,
@@ -363,6 +363,7 @@ void FillChooseFilterWithAdminedGroupsMenu(
 	const auto session = &controller->session();
 	const auto &list = session->data().chatsFilters().list();
 	const auto showColors = session->data().chatsFilters().tagsEnabled();
+	auto added = 0;
 	for (const auto &filter : list) {
 		const auto id = filter.id();
 		if (!id) {
@@ -446,10 +447,14 @@ void FillChooseFilterWithAdminedGroupsMenu(
 		}));
 
 		item->setIcon(Icon(showColors ? filter : filter.withColorIndex({})));
+		menu->addAction(std::move(item));
+		added++;
 	}
 
 	session->data().chatsFilters().changed(
 	) | rpl::on_next([=] {
 		menu->hideMenu();
 	}, menu->lifetime());
+
+	return added;
 }
