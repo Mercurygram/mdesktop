@@ -1221,6 +1221,7 @@ Chat ParseChat(const MTPChat &data) {
 		result.bareId = data.vid().v;
 		result.isBroadcast = data.is_broadcast();
 		result.isSupergroup = data.is_megagroup();
+		result.isMonoforum = data.is_monoforum();
 		result.title = ParseString(data.vtitle());
 		result.input = MTP_inputPeerChannel(
 			MTP_long(result.bareId),
