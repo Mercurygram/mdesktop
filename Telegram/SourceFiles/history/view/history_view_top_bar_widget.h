@@ -148,9 +148,12 @@ private:
 	void call(Calls::StartOutgoingCallArgs);
 	void groupCall();
 	void showGroupCallMenu(not_null<PeerData*> peer);
+	void showCallMenu();
 	void toggleInfoSection();
 
-	[[nodiscard]] bool createMenu(not_null<Ui::IconButton*> button);
+	[[nodiscard]] bool createMenu(
+		not_null<Ui::IconButton*> button,
+		bool withIcons = true);
 
 	void handleEmojiInteractionSeen(const QString &emoticon);
 	bool paintSendAction(

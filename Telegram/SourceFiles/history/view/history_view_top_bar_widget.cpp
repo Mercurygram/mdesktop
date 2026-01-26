@@ -58,6 +58,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_send_action.h"
 #include "dialogs/dialogs_main_list.h"
 #include "chat_helpers/emoji_interactions.h"
+#include "base/call_delayed.h"
 #include "base/unixtime.h"
 #include "support/support_helper.h"
 #include "apiwrap.h"
@@ -155,6 +156,12 @@ TopBarWidget::TopBarWidget(
 	_delete->setWidthChangedCallback([=] { updateControlsGeometry(); });
 	_clear->setClickedCallback([=] { _clearSelection.fire({}); });
 	_call->setClickedCallback([=] { call({}); });
+	_call->setAcceptBoth();
+	_call->addClickHandler([=](Qt::MouseButton button) {
+		if (button == Qt::RightButton) {
+			showCallMenu();
+		}
+	});
 	_groupCall->setClickedCallback([=] { groupCall(); });
 	_menuToggle->setClickedCallback([=] { showPeerMenu(); });
 	_infoToggle->setClickedCallback([=] { toggleInfoSection(); });
@@ -342,13 +349,17 @@ void TopBarWidget::setChooseForReportReason(
 		: style::cur_default);
 }
 
-bool TopBarWidget::createMenu(not_null<Ui::IconButton*> button) {
+bool TopBarWidget::createMenu(
+		not_null<Ui::IconButton*> button,
+		bool withIcons) {
 	if (!_activeChat.key || _menu) {
 		return false;
 	}
 	_menu = base::make_unique_q<Ui::PopupMenu>(
 		this,
-		st::popupMenuExpandedSeparator);
+		withIcons
+			? st::popupMenuExpandedSeparator
+			: st::defaultPopupMenu);
 	_menu->setDestroyedCallback([
 			weak = base::make_weak(this),
 			weakButton = base::make_weak(button),
@@ -390,6 +401,30 @@ void TopBarWidget::showGroupCallMenu(not_null<PeerData*> peer) {
 	_menu->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
 	_menu->popup(mapToGlobal(QPoint(
 		_groupCall->x() + _groupCall->width() + st::topBarMenuGroupCallSkip,
+		st::topBarMenuPosition.y())));
+}
+
+void TopBarWidget::showCallMenu() {
+	const auto created = createMenu(_call, false);
+	if (!created) {
+		return;
+	}
+	const auto perform = [&](bool video) {
+		return [=] {
+			base::call_delayed(st::defaultPopupMenu.showDuration, this, [=] {
+				call({ .video = video, .isConfirmed = true });
+			});
+		};
+	};
+	_menu->addAction(
+		tr::lng_profile_action_short_call(tr::now),
+		perform(false));
+	_menu->addAction(
+		tr::lng_call_start_video(tr::now),
+		perform(true));
+	_menu->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
+	_menu->popup(mapToGlobal(QPoint(
+		_call->x() + _call->width() + st::topBarMenuGroupCallSkip,
 		st::topBarMenuPosition.y())));
 }
 
