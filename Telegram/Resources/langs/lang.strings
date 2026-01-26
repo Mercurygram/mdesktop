@@ -4648,6 +4648,17 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_url_auth_open_confirm" = "Do you want to open {link}?";
 "lng_url_auth_login_option" = "Log in to {domain} as {user}";
 "lng_url_auth_allow_messages" = "Allow {bot} to send me messages";
+"lng_url_auth_login_title" = "Log in to {domain}";
+"lng_url_auth_login_button" = "Log in";
+"lng_url_auth_site_access" = "This site will receive your **name**, **username** and **profile photo**.";
+"lng_url_auth_device_label" = "Device";
+"lng_url_auth_ip_label" = "IP Address";
+"lng_url_auth_login_attempt" = "This login attempt came from the device above.";
+"lng_url_auth_allow_messages_label" = "Allow Messages";
+"lng_url_auth_allow_messages_about" = "This will allow {bot} to message you";
+"lng_url_auth_phone_sure_title" = "Phone Number";
+"lng_url_auth_phone_sure_text" = "{domain} wants to access your phone number **{phone}**.\n\nAllow access?";
+"lng_url_auth_phone_sure_deny" = "Deny";
 
 "lng_bot_start" = "Start";
 "lng_bot_choose_group" = "Select a Group";
