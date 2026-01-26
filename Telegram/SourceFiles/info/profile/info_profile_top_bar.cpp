@@ -1962,7 +1962,7 @@ void TopBar::showTopBarMenu(
 	_peerMenu->popup(_actionMore
 		? _actionMore->mapToGlobal(
 			QPoint(
-				_actionMore->width(),
+				_actionMore->width() + _peerMenu->st().shadow.extend.right(),
 				_actionMore->height() + st::infoProfileTopBarActionMenuSkip))
 		: QCursor::pos());
 }
