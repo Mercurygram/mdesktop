@@ -63,6 +63,14 @@ void DynamicImagesStrip::setClickCallback(Fn<void(int)> callback) {
 	_clickCallback = std::move(callback);
 }
 
+bool DynamicImagesStrip::hasMouseMoved() const {
+	return _motions > 6;
+}
+
+void DynamicImagesStrip::mouseMoved() {
+	_motions++;
+}
+
 rpl::producer<HoveredItemInfo> DynamicImagesStrip::hoveredItemValue() const {
 	return _hoveredItem.events();
 }
@@ -111,6 +119,10 @@ void DynamicImagesStrip::paintEvent(QPaintEvent *e) {
 }
 
 void DynamicImagesStrip::mouseMoveEvent(QMouseEvent *e) {
+	mouseMoved();
+	if (!hasMouseMoved()) {
+		return;
+	}
 	const auto pos = e->pos().x();
 	const auto step = _userpicSize + _gap;
 	const auto count = int(_thumbnails.size());
@@ -127,6 +139,9 @@ void DynamicImagesStrip::mouseMoveEvent(QMouseEvent *e) {
 }
 
 void DynamicImagesStrip::mousePressEvent(QMouseEvent *e) {
+	if (!hasMouseMoved()) {
+		return;
+	}
 	_pressed = true;
 	if (_hoveredIndex >= 0 && _clickCallback) {
 		_clickCallback(_hoveredIndex);
@@ -134,6 +149,9 @@ void DynamicImagesStrip::mousePressEvent(QMouseEvent *e) {
 }
 
 void DynamicImagesStrip::mouseReleaseEvent(QMouseEvent *e) {
+	if (!hasMouseMoved()) {
+		return;
+	}
 	if (!_pressed && _hoveredIndex >= 0 && _clickCallback) {
 		_clickCallback(_hoveredIndex);
 	}

@@ -45,11 +45,15 @@ private:
 	void updateHoveredItem(int index);
 	void setSelectedIndex(int index);
 
+	[[nodiscard]] bool hasMouseMoved() const;
+	void mouseMoved();
+
 	std::vector<std::shared_ptr<DynamicImage>> _thumbnails;
 	int _userpicSize = 0;
 	int _gap = 0;
 	float64 _progress = 0.;
 	int _hoveredIndex = -1;
+	int _motions = 0;
 	std::vector<float64> _scales;
 	std::vector<float64> _alphas;
 	std::vector<float64> _scaleTargets;
