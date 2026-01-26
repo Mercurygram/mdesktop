@@ -61,7 +61,9 @@ void UrlAuthBox::Activate(
 
 		button->requestId = 0;
 		result.match([&](const MTPDurlAuthResultAccepted &data) {
-			UrlClickHandler::Open(qs(data.vurl()));
+			if (const auto url = data.vurl()) {
+				UrlClickHandler::Open(qs(url->v));
+			}
 		}, [&](const MTPDurlAuthResultDefault &data) {
 			HiddenUrlClickHandler::Open(url);
 		}, [&](const MTPDurlAuthResultRequest &data) {
@@ -101,7 +103,7 @@ void UrlAuthBox::Activate(
 		MTP_string(url)
 	)).done([=](const MTPUrlAuthResult &result) {
 		result.match([&](const MTPDurlAuthResultAccepted &data) {
-			UrlClickHandler::Open(qs(data.vurl()), context);
+			UrlClickHandler::Open(qs(data.vurl().value_or_empty()), context);
 		}, [&](const MTPDurlAuthResultDefault &data) {
 			HiddenUrlClickHandler::Open(url, context);
 		}, [&](const MTPDurlAuthResultRequest &data) {
@@ -158,7 +160,7 @@ void UrlAuthBox::Request(
 			)).done([=](const MTPUrlAuthResult &result) {
 				const auto to = result.match(
 				[&](const MTPDurlAuthResultAccepted &data) {
-					return qs(data.vurl());
+					return qs(data.vurl().value_or_empty());
 				}, [&](const MTPDurlAuthResultDefault &data) {
 					return url;
 				}, [&](const MTPDurlAuthResultRequest &data) {
@@ -209,7 +211,7 @@ void UrlAuthBox::Request(
 			)).done([=](const MTPUrlAuthResult &result) {
 				const auto to = result.match(
 				[&](const MTPDurlAuthResultAccepted &data) {
-					return qs(data.vurl());
+					return qs(data.vurl().value_or_empty());
 				}, [&](const MTPDurlAuthResultDefault &data) {
 					return url;
 				}, [&](const MTPDurlAuthResultRequest &data) {
