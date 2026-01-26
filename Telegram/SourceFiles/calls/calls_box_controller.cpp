@@ -612,7 +612,7 @@ void BoxController::rowRightActionClicked(not_null<PeerListRow*> row) {
 	auto user = row->peer()->asUser();
 	Assert(user != nullptr);
 
-	Core::App().calls().startOutgoingCall(user, false);
+	Core::App().calls().startOutgoingCall(user, {});
 }
 
 void BoxController::receivedCalls(const QVector<MTPMessage> &result) {

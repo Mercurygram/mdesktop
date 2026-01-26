@@ -154,7 +154,7 @@ TopBarWidget::TopBarWidget(
 	_delete->setClickedCallback([=] { _deleteSelection.fire({}); });
 	_delete->setWidthChangedCallback([=] { updateControlsGeometry(); });
 	_clear->setClickedCallback([=] { _clearSelection.fire({}); });
-	_call->setClickedCallback([=] { call(); });
+	_call->setClickedCallback([=] { call({}); });
 	_groupCall->setClickedCallback([=] { groupCall(); });
 	_menuToggle->setClickedCallback([=] { showPeerMenu(); });
 	_infoToggle->setClickedCallback([=] { toggleInfoSection(); });
@@ -288,12 +288,12 @@ void TopBarWidget::refreshLang() {
 	InvokeQueued(this, [this] { updateControlsGeometry(); });
 }
 
-void TopBarWidget::call() {
+void TopBarWidget::call(Calls::StartOutgoingCallArgs args) {
 	if (_controller->showFrozenError()) {
 		return;
 	} else if (const auto peer = _activeChat.key.peer()) {
 		if (const auto user = peer->asUser()) {
-			Core::App().calls().startOutgoingCall(user, false);
+			Core::App().calls().startOutgoingCall(user, std::move(args));
 		}
 	}
 }

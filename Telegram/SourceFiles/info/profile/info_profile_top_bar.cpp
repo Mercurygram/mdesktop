@@ -861,7 +861,7 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 			tr::lng_profile_action_short_call(tr::now),
 			st::infoProfileTopBarActionCall);
 		call->setClickedCallback([=] {
-			Core::App().calls().startOutgoingCall(user, false);
+			Core::App().calls().startOutgoingCall(user, {});
 		});
 		buttons.push_back(call);
 		_actions->add(call);

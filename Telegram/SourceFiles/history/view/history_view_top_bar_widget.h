@@ -36,6 +36,10 @@ namespace Window {
 class SessionController;
 } // namespace Window
 
+namespace Calls {
+struct StartOutgoingCallArgs;
+} // namespace Calls
+
 namespace HistoryView {
 
 class SendActionPainter;
@@ -141,7 +145,7 @@ private:
 	void updateInfoToggleActive();
 	void setupDragOnBackButton();
 
-	void call();
+	void call(Calls::StartOutgoingCallArgs);
 	void groupCall();
 	void showGroupCallMenu(not_null<PeerData*> peer);
 	void toggleInfoSection();
