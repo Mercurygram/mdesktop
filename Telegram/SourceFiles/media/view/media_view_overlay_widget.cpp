@@ -6564,6 +6564,7 @@ void OverlayWidget::handleMouseRelease(
 	}
 
 	if (_recognitionResult.success
+		&& !_dragging
 		&& !_recognitionResult.items.empty()
 		&& _showRecognitionResults
 		&& button == Qt::LeftButton) {
@@ -6573,6 +6574,9 @@ void OverlayWidget::handleMouseRelease(
 				QString(),
 				{ tr::lng_text_copied(tr::now) },
 				1000);
+			_over = _down = Over::None;
+			_pressed = false;
+			_dragging = 0;
 			return;
 		}
 	}
