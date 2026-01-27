@@ -251,15 +251,19 @@ void RequestButton(
 		? session->data().processUser(request.vbot()).get()
 		: nullptr;
 	const auto box = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
-	const auto finishWithUrl = [=](const QString &url) {
+	const auto finishWithUrl = [=](const QString &url, bool accepted) {
 		if (*box) {
 			(*box)->closeBox();
 		}
-		UrlClickHandler::Open(url);
+		if (url.isEmpty() && accepted) {
+			show->showToast(tr::lng_passport_success(tr::now));
+		} else {
+			UrlClickHandler::Open(url);
+		}
 	};
 	const auto callback = [=](Result result) {
 		if (!result.auth) {
-			finishWithUrl(url);
+			finishWithUrl(url, false);
 		} else if (session->data().message(itemId)) {
 			using Flag = MTPmessages_AcceptUrlAuth::Flag;
 			const auto flags = Flag(0)
@@ -273,6 +277,12 @@ void RequestButton(
 				MTP_int(buttonId),
 				MTPstring() // #TODO auth url
 			)).done([=](const MTPUrlAuthResult &result) {
+				const auto accepted = result.match(
+				[](const MTPDurlAuthResultAccepted &data) {
+					return true;
+				}, [](const auto &) {
+					return false;
+				});
 				const auto to = result.match(
 				[&](const MTPDurlAuthResultAccepted &data) {
 					return qs(data.vurl().value_or_empty());
@@ -283,9 +293,9 @@ void RequestButton(
 						"got urlAuthResultRequest after acceptUrlAuth."));
 					return url;
 				});
-				finishWithUrl(to);
+				finishWithUrl(to, accepted);
 			}).fail([=] {
-				finishWithUrl(url);
+				finishWithUrl(url, false);
 			}).send();
 		}
 	};
@@ -310,17 +320,22 @@ void RequestUrl(
 		? session->data().processUser(request.vbot()).get()
 		: nullptr;
 	const auto box = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
-	const auto finishWithUrl = [=](const QString &url) {
+	const auto finishWithUrl = [=](const QString &url, bool accepted) {
 		if (*box) {
 			(*box)->closeBox();
 		}
-		UrlClickHandler::Open(url, context);
+
+		if (url.isEmpty() && accepted) {
+			show->showToast(tr::lng_passport_success(tr::now));
+		} else {
+			UrlClickHandler::Open(url, context);
+		}
 	};
 	const auto anotherSessionFactory
 		= std::make_shared<AnotherSessionFactory>(nullptr);
 	const auto sendRequest = [=](Result result) {
 		if (!result.auth) {
-			finishWithUrl(url);
+			finishWithUrl(url, false);
 		} else {
 			using Flag = MTPmessages_AcceptUrlAuth::Flag;
 			const auto flags = Flag::f_url
@@ -336,6 +351,12 @@ void RequestUrl(
 				MTPint(), // button_id
 				MTP_string(url)
 			)).done([=](const MTPUrlAuthResult &result) {
+				const auto accepted = result.match(
+				[](const MTPDurlAuthResultAccepted &data) {
+					return true;
+				}, [](const auto &) {
+					return false;
+				});
 				const auto to = result.match(
 				[&](const MTPDurlAuthResultAccepted &data) {
 					return qs(data.vurl().value_or_empty());
@@ -346,9 +367,9 @@ void RequestUrl(
 						"got urlAuthResultRequest after acceptUrlAuth."));
 					return url;
 				});
-				finishWithUrl(to);
+				finishWithUrl(to, accepted);
 			}).fail([=] {
-				finishWithUrl(url);
+				finishWithUrl(url, false);
 			}).send();
 		}
 	};
