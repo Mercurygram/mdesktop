@@ -7,11 +7,16 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "base/object_ptr.h"
 #include "base/unique_qptr.h"
 #include "data/data_star_gift.h"
 #include "ui/effects/animations.h"
 #include "ui/effects/radial_animation.h"
 #include "ui/text/text_custom_emoji.h"
+
+namespace ChatHelpers {
+class Show;
+} // namespace ChatHelpers
 
 namespace Main {
 class Session;
@@ -27,7 +32,9 @@ class GiftButton;
 
 namespace Ui {
 
+class GenericBox;
 class VerticalLayout;
+class UniqueGiftCoverWidget;
 
 using CraftResultCallback = Fn<void(std::shared_ptr<Data::GiftUpgradeResult>)>;
 
@@ -56,7 +63,8 @@ struct CraftState {
 	QColor button1;
 	QColor button2;
 	bool coversAnimate = false;
-	Fn<void()> repaint;
+	bool craftingStarted = false;
+	QImage craftBg;
 
 	QImage topPart;
 	QRect topPartRect;
@@ -98,8 +106,12 @@ struct CraftState {
 	int craftingAreaCenterY = 0;
 	int craftingOffsetY = 0;
 
-	void paint(QPainter &p, QSize size, int craftingHeight, float64 slideProgress = 0.);
-	void updateForGiftCount(int count);
+	void paint(
+		QPainter &p,
+		QSize size,
+		int craftingHeight,
+		float64 slideProgress = 0.);
+	void updateForGiftCount(int count, Fn<void()> repaint);
 	[[nodiscard]] EmptySide prepareEmptySide(int index) const;
 };
 
@@ -108,7 +120,20 @@ struct FacePlacement {
 	int rotation = 0;
 };
 
-struct FailureAnimation {
+struct CraftDoneAnimation {
+	object_ptr<UniqueGiftCoverWidget> owned;
+	UniqueGiftCoverWidget *widget = nullptr;
+	Animations::Simple shownAnimation;
+	Animations::Simple heightAnimation;
+	QImage frame;
+	int coverHeight = 0;
+	int coverShift = 0;
+	float64 expanded = 0.;
+	bool finished = false;
+	bool hiding = false;
+};
+
+struct CraftFailAnimation {
 	std::unique_ptr<HistoryView::StickerPlayer> player;
 	QImage frame;
 	DocumentData *document = nullptr;
@@ -138,6 +163,7 @@ struct CraftAnimationState {
 
 	int currentPhaseIndex = -1;
 	crl::time animationStartTime = 0;
+	crl::time animationDuration = 0;
 	float64 initialRotationX = 0.;
 	float64 initialRotationY = 0.;
 	int nextFaceIndex = 0;
@@ -152,13 +178,15 @@ struct CraftAnimationState {
 	crl::time loadingStartedTime = 0;
 	bool loadingFadingOut = false;
 
-	std::unique_ptr<FailureAnimation> failureAnimation;
+	std::unique_ptr<CraftDoneAnimation> successAnimation;
+	std::unique_ptr<CraftFailAnimation> failureAnimation;
 };
 
 void StartCraftAnimation(
-	not_null<VerticalLayout*> container,
+	not_null<GenericBox*> box,
+	std::shared_ptr<ChatHelpers::Show> show,
 	std::shared_ptr<CraftState> state,
 	Fn<void(CraftResultCallback)> startRequest,
-	Fn<void()> closeOnFail);
+	Fn<void()> closeParent);
 
 } // namespace Ui

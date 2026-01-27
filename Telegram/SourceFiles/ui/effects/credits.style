@@ -604,7 +604,7 @@ craftPattern: IconEmoji {
 	padding: margins(0px, 0px, 0px, 0px);
 }
 craftAddIcon: icon {{ "settings/plus", windowFgActive }};
-craftPreviewPadding: margins(24px, 12px, 18px, 8px);
+craftPreviewPadding: margins(24px, 12px, 40px, 8px);
 craftForge: icon{{ "chat/filled_forge-48x48", windowFg }};
 craftForgePadding: 12px;
 craftForgePercent: CraftRadialPercent {

@@ -1491,6 +1491,13 @@ void GenericCreditsEntryBox(
 void GenericCreditsEntryBody(
 		not_null<Ui::GenericBox*> box,
 		std::shared_ptr<ChatHelpers::Show> show,
+		const Data::CreditsHistoryEntry &e) {
+	GenericCreditsEntryBody(box, std::move(show), e, {}, nullptr, {});
+}
+
+void GenericCreditsEntryBody(
+		not_null<Ui::GenericBox*> box,
+		std::shared_ptr<ChatHelpers::Show> show,
 		const Data::CreditsHistoryEntry &e,
 		const Data::SubscriptionEntry &s,
 		std::shared_ptr<Data::GiftUpgradeSpinner> upgradeSpinner,

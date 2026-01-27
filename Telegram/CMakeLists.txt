@@ -337,6 +337,8 @@ PRIVATE
     boxes/star_gift_auction_box.h
     boxes/star_gift_box.cpp
     boxes/star_gift_box.h
+    boxes/star_gift_cover_box.cpp
+    boxes/star_gift_cover_box.h
     boxes/star_gift_craft_animation.cpp
     boxes/star_gift_craft_animation.h
     boxes/star_gift_craft_box.cpp

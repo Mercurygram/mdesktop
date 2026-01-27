@@ -8,7 +8,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/star_gift_craft_animation.h"
 
 #include "base/call_delayed.h"
+#include "boxes/star_gift_box.h"
+#include "boxes/star_gift_cover_box.h"
+#include "chat_helpers/compose/compose_show.h"
 #include "chat_helpers/stickers_lottie.h"
+#include "data/data_credits.h"
 #include "data/data_document.h"
 #include "data/data_document_media.h"
 #include "data/data_session.h"
@@ -16,10 +20,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/peer_gifts/info_peer_gifts_common.h"
 #include "lottie/lottie_common.h"
 #include "main/main_session.h"
+#include "settings/settings_credits_graphics.h"
+#include "ui/boxes/boost_box.h"
 #include "ui/image/image_prepare.h"
+#include "ui/layers/generic_box.h"
+#include "ui/wrap/vertical_layout.h"
 #include "ui/top_background_gradient.h"
 #include "ui/painter.h"
-#include "ui/wrap/vertical_layout.h"
+#include "ui/ui_utility.h"
 #include "styles/style_boxes.h"
 #include "styles/style_credits.h"
 #include "styles/style_layers.h"
@@ -38,6 +46,9 @@ constexpr auto kFailurePlayerStopFrame = 120;
 constexpr auto kFailurePlayerFps = 60;
 constexpr auto kFailurePlayerFadeOutFrames = 10;
 constexpr auto kFailureScaleDuration = crl::time(200);
+constexpr auto kSuccessFadeInDuration = crl::time(300);
+constexpr auto kSuccessExpandDuration = crl::time(400);
+constexpr auto kSuccessExpandStart = crl::time(100);
 
 struct Rotation {
 	float64 x = 0.;
@@ -52,6 +63,10 @@ struct Rotation {
 };
 
 using RotationFn = Fn<Rotation(Rotation initial, crl::time t)>;
+
+[[nodiscard]] int Slowing() {
+	return anim::SlowMultiplier();
+}
 
 [[nodiscard]] RotationFn DecayingRotation(Rotation impulse, float64 decay) {
 	const auto lambda = -std::log(decay) / kFrameDuration;
@@ -284,16 +299,22 @@ const auto kGiftAnimations = std::array<GiftAnimationConfig, 7>{{ {
 
 void PaintCubeFace(
 		QPainter &p,
-		const QImage &face,
 		const std::array<QPointF, 4> &corners,
+		const QImage &face,
+		QSize faceSize = QSize(),
+		const QRect &source = QRect(),
 		int rotation = 0) {
 	if (face.isNull()) {
 		return;
 	}
 
 	const auto ratio = style::DevicePixelRatio();
-	const auto w = face.width() / ratio;
-	const auto h = face.height() / ratio;
+	const auto origin = source.isEmpty() ? face.size() : source.size();
+	if (faceSize.isEmpty()) {
+		faceSize = origin / ratio;
+	}
+	const auto w = faceSize.width();
+	const auto h = faceSize.height();
 
 	const auto srcRect = QPolygonF({
 		QPointF(0, 0),
@@ -328,7 +349,12 @@ void PaintCubeFace(
 	PainterHighQualityEnabler hq(p);
 	p.save();
 	p.setTransform(transform, true);
-	p.drawImage(QRectF(0, 0, w, h), face);
+	const auto delta = source.isEmpty()
+		? QPointF()
+		: QPointF(
+			((origin.width() / ratio) - faceSize.width()) / 2.,
+			((origin.height() / ratio) - faceSize.height()) / 2.);
+	p.drawImage(QRectF(-delta, QSizeF(origin) / ratio), face, source);
 	p.restore();
 }
 
@@ -415,10 +441,10 @@ void PaintCubeFirstFlight(
 	}
 }
 
-std::unique_ptr<FailureAnimation> SetupFailureAnimation(
+std::unique_ptr<CraftFailAnimation> SetupFailureAnimation(
 		not_null<RpWidget*> canvas,
 		not_null<CraftAnimationState*> state) {
-	auto result = std::make_unique<FailureAnimation>();
+	auto result = std::make_unique<CraftFailAnimation>();
 	const auto raw = result.get();
 
 	const auto document
@@ -460,21 +486,22 @@ std::unique_ptr<FailureAnimation> SetupFailureAnimation(
 
 void FailureAnimationCheck(
 		not_null<CraftAnimationState*> state,
-		not_null<RpWidget*> canvas) {
+		not_null<RpWidget*> canvas,
+		crl::time now) {
 	const auto animation = state->failureAnimation.get();
 	if (!animation) {
 		return;
 	}
-	const auto &config = kGiftAnimations[state->currentPhaseIndex];
-	const auto elapsed = (crl::now() - state->animationStartTime);
-	const auto failureAnimationDuration = (1000 * kFailurePlayerStopFrame)
+	const auto elapsed = (now - state->animationStartTime);
+	const auto failureDuration = (1000 * kFailurePlayerStopFrame)
 		/ kFailurePlayerFps;
-	if (!animation->playerStarted
-		&& elapsed >= config.duration - failureAnimationDuration) {
+	const auto playerStartTime = state->animationDuration - failureDuration;
+	if (!animation->playerStarted && elapsed >= playerStartTime) {
 		animation->playerStarted = true;
 	}
-	if (!animation->scaleStarted
-		&& elapsed >= config.duration - kFailureScaleDuration) {
+	const auto playerScaleStart = state->animationDuration
+		- kFailureScaleDuration;
+	if (!animation->scaleStarted && elapsed >= playerScaleStart) {
 		animation->scaleStarted = true;
 		animation->scaleAnimation.start([=] {
 			canvas->update();
@@ -537,6 +564,41 @@ void FailureAnimationCheck(
 	return result;
 }
 
+[[nodiscard]] QRect PrepareCraftFrame(
+		not_null<CraftAnimationState*> state,
+		int faceIndex,
+		crl::time now) {
+	Expects(state->successAnimation != nullptr);
+
+	const auto &shared = state->shared.get();
+	const auto success = state->successAnimation.get();
+	const auto elapsed = now - state->animationStartTime;
+	const auto end = state->animationDuration * Slowing();
+	const auto left = end - elapsed;
+	const auto fadeDuration = kSuccessFadeInDuration * Slowing();
+	const auto fadeInProgress = std::clamp(
+		(1. - (left / float64(fadeDuration))),
+		0.,
+		1.);
+	const auto expandStart = kSuccessExpandStart * Slowing();
+	const auto expanding = kSuccessExpandDuration * Slowing();
+	const auto expandProgress = std::clamp(
+		(expandStart - left) / float64(expanding),
+		0.,
+		1.);
+	if (expandProgress == 1. && !success->finished) {
+		success->finished = true;
+	}
+	const auto expanded = anim::easeOutCubic(1., expandProgress);
+	success->expanded = expanded;
+	return success->widget->prepareCraftFrame(success->frame, {
+		.initial = shared->forgeRect.size(),
+		.initialBg = shared->forgeSides[faceIndex].bg,
+		.fadeInProgress = fadeInProgress,
+		.expandProgress = expanded,
+	});
+}
+
 void PaintCube(
 		QPainter &p,
 		not_null<CraftAnimationState*> state,
@@ -545,7 +607,8 @@ void PaintCube(
 		float64 size) {
 	const auto shared = state->shared.get();
 
-	FailureAnimationCheck(state, canvas);
+	const auto now = crl::now();
+	FailureAnimationCheck(state, canvas, now);
 
 	const auto totalScale = FailureAnimationScale(state);
 	const auto showCube = (totalScale > 0.);
@@ -565,13 +628,12 @@ void PaintCube(
 		&& state->currentPhaseIndex >= 0) {
 		const auto &config = kGiftAnimations[state->currentPhaseIndex];
 		const auto elapsed = (crl::now() - state->animationStartTime);
-		if (elapsed >= config.revealTime * anim::SlowMultiplier()) {
+		if (elapsed >= config.revealTime * Slowing()) {
 			state->nextFaceRevealed = true;
 		}
 	}
 
-	const auto craftFailed = state->craftResult.has_value()
-		&& !state->craftResult->get();
+	const auto craftResult = state->successAnimation.get();
 
 	auto paintFailure = Fn<void()>();
 	for (const auto faceIndex : faces) {
@@ -587,7 +649,9 @@ void PaintCube(
 
 		const auto thisFaceRevealed = state->nextFaceRevealed
 			&& (faceIndex == state->nextFaceIndex);
+		auto faceSize = shared->forgeRect.size();
 		auto faceImage = shared->forgeSides[faceIndex].frame;
+		auto faceSource = QRect();
 		auto faceRotation = thisFaceRevealed
 			? state->nextFaceRotation
 			: 0;
@@ -596,6 +660,7 @@ void PaintCube(
 			if (i != state->currentlyFlying
 				&& state->giftToSide[i].face == faceIndex
 				&& shared->corners[i].giftButton) {
+				faceSize = QSize(); // Take from the frame.
 				faceImage = shared->corners[i].gift(1.);
 				faceRotation = state->giftToSide[i].rotation;
 				break;
@@ -603,7 +668,13 @@ void PaintCube(
 		}
 
 		if (thisFaceRevealed && state->allGiftsLanded) {
-			if (craftFailed) {
+			const auto coverWidget = craftResult
+				? craftResult->widget
+				: nullptr;
+			if (coverWidget) {
+				faceSource = PrepareCraftFrame(state, faceIndex, now);
+				faceImage = craftResult->frame;
+			} else {
 				const auto maybeOpacity = FailureAnimationPrepareFrame(
 					state,
 					canvas,
@@ -616,8 +687,10 @@ void PaintCube(
 							}
 							PaintCubeFace(
 								p,
-								state->failureAnimation->frame,
 								*corners,
+								state->failureAnimation->frame,
+								faceSize,
+								faceSource,
 								faceRotation);
 						};
 					}
@@ -626,7 +699,13 @@ void PaintCube(
 			}
 		}
 		if (showCube) {
-			PaintCubeFace(p, faceImage, *corners, faceRotation);
+			PaintCubeFace(
+				p,
+				*corners,
+				faceImage,
+				faceSize,
+				faceSource,
+				faceRotation);
 		}
 	}
 
@@ -784,7 +863,7 @@ void PaintFlyingGiftWithQuad(
 	}
 
 	const auto frame = corner.gift(progress);
-	PaintCubeFace(p, frame, corners, 0);
+	PaintCubeFace(p, corners, frame);
 }
 
 void PaintFlyingGift(
@@ -1054,6 +1133,7 @@ void LandCurrentGift(not_null<CraftAnimationState*> state, crl::time now) {
 	state->currentPhaseIndex = configIndex;
 	state->currentPhaseFinished = false;
 	state->animationStartTime = now;
+	state->animationDuration = config.duration;
 	state->nextFaceIndex = config.targetFaceIndex;
 	state->nextFaceRotation = config.targetFaceRotation;
 	state->nextFaceRevealed = false;
@@ -1211,7 +1291,7 @@ void CraftState::paint(
 	}
 }
 
-void CraftState::updateForGiftCount(int count) {
+void CraftState::updateForGiftCount(int count, Fn<void()> repaint) {
 	for (auto i = 4; i != 0;) {
 		auto &cover = covers[--i];
 		const auto shown = (i < count);
@@ -1219,11 +1299,11 @@ void CraftState::updateForGiftCount(int count) {
 			cover.shown = shown;
 			const auto from = shown ? 0. : 1.;
 			const auto to = shown ? 1. : 0.;
-			cover.shownAnimation.start([this] {
-				if (repaint) {
-					repaint();
-				}
-			}, from, to, st::fadeWrapDuration);
+			cover.shownAnimation.start(
+				repaint,
+				from,
+				to,
+				st::fadeWrapDuration);
 			coversAnimate = true;
 		}
 	}
@@ -1256,10 +1336,20 @@ CraftState::EmptySide CraftState::prepareEmptySide(int index) const {
 }
 
 void StartCraftAnimation(
-		not_null<VerticalLayout*> container,
+		not_null<GenericBox*> box,
+		std::shared_ptr<ChatHelpers::Show> show,
 		std::shared_ptr<CraftState> shared,
 		Fn<void(CraftResultCallback)> startRequest,
-		Fn<void()> closeOnFail) {
+		Fn<void()> closeParent) {
+	const auto container = box->verticalLayout();
+	const auto closeOnFail = crl::guard(box, [=] {
+		if (const auto onstack = closeParent) {
+			onstack();
+		}
+		box->closeBox();
+		show->showToast("failed");// tr::lng_gift_craft_failed(tr::now));
+	});
+
 	while (container->count() > 0) {
 		delete container->widgetAt(0);
 	}
@@ -1270,8 +1360,10 @@ void StartCraftAnimation(
 	const auto height = shared->containerHeight;
 	const auto craftingHeight = shared->craftingBottom - shared->craftingTop;
 	state->shared = std::move(shared);
+	state->shared->craftingStarted = true;
 
-	raw->resize(container->width(), height);
+	const auto craftingSize = QSize(container->width(), height);
+	raw->resize(craftingSize);
 
 	for (auto &corner : state->shared->corners) {
 		if (corner.giftButton) {
@@ -1290,15 +1382,41 @@ void StartCraftAnimation(
 		}
 
 		const auto shared = state->shared.get();
+		const auto success = state->successAnimation.get();
 		const auto slideProgress = state->slideOutAnimation.value(1.);
-		shared->paint(p, raw->size(), craftingHeight, slideProgress);
+		if (slideProgress < 1.) {
+			shared->paint(p, craftingSize, craftingHeight, slideProgress);
+		} else {
+			if (shared->craftBg.isNull()) {
+				const auto ratio = style::DevicePixelRatio();
+				shared->craftBg = QImage(
+					craftingSize * ratio,
+					QImage::Format_ARGB32_Premultiplied);
+				shared->craftBg.setDevicePixelRatio(ratio);
+				shared->craftBg.fill(Qt::transparent);
+
+				auto q = QPainter(&shared->craftBg);
+				shared->paint(q, craftingSize, craftingHeight, 1.);
+			}
+			if (success && success->hiding) {
+				p.setOpacity(1. - success->heightAnimation.value(1.));
+			}
+			p.drawImage(0, 0, shared->craftBg);
+			if (success && success->hiding) {
+				p.setOpacity(1.);
+			}
+		}
 
 		shared->craftingOffsetY = (shared->containerHeight / 2.)
 			- shared->craftingAreaCenterY;
 		if (slideProgress < 1.) {
 			shared->craftingOffsetY *= slideProgress;
-			PaintSlideOutPhase(p, shared, raw->size(), slideProgress);
+			PaintSlideOutPhase(p, shared, craftingSize, slideProgress);
 		} else {
+			if (success) {
+				const auto target = success->coverShift;
+				shared->craftingOffsetY -= target * success->expanded;
+			}
 			const auto cubeSize = float64(shared->forgeRect.width());
 			const auto cubeCenter = QPointF(shared->forgeRect.topLeft())
 				+ QPointF(cubeSize, cubeSize) / 2.
@@ -1426,13 +1544,14 @@ void StartCraftAnimation(
 	state->continuousAnimation.init([=](crl::time now) {
 		if (state->currentPhaseIndex >= 0) {
 			const auto &config = kGiftAnimations[state->currentPhaseIndex];
-			const auto elapsed = (now - state->animationStartTime)
-				/ anim::SlowMultiplier();
+			const auto elapsed = state->currentPhaseFinished
+				? (config.duration * Slowing())
+				: (now - state->animationStartTime);
 			const auto initial = Rotation{
 				state->initialRotationX,
 				state->initialRotationY,
 			};
-			const auto r = config.rotation(initial, elapsed);
+			const auto r = config.rotation(initial, elapsed / Slowing());
 			state->rotationX = r.x;
 			state->rotationY = r.y;
 		}
@@ -1449,42 +1568,67 @@ void StartCraftAnimation(
 			&& state->giftsLanded > 0
 			&& state->giftsLanded < state->totalGifts
 			&& state->currentPhaseIndex >= 0) {
-
-			const auto &config = kGiftAnimations[state->currentPhaseIndex];
-			const auto elapsed = (now - state->animationStartTime)
-				/ anim::SlowMultiplier();
-			const auto flightStartTime = config.duration - kFlightDuration;
-			if (elapsed >= flightStartTime) {
+			const auto elapsed = now - state->animationStartTime;
+			const auto start = state->animationDuration - kFlightDuration;
+			if (elapsed >= start * Slowing()) {
 				StartGiftFlightToFace(state, raw, state->nextFaceIndex);
 			}
 		}
 
+		const auto success = state->successAnimation.get();
 		if (!state->currentPhaseFinished
 			&& !state->flightAnimation.animating()
 			&& state->currentlyFlying < 0
 			&& state->giftsLanded >= state->totalGifts
 			&& state->totalGifts > 0
 			&& state->currentPhaseIndex >= 0) {
-
-			const auto &config = kGiftAnimations[state->currentPhaseIndex];
-			const auto elapsed = (now - state->animationStartTime)
-				/ anim::SlowMultiplier();
-			if (elapsed >= config.duration) {
+			const auto elapsed = now - state->animationStartTime;
+			if (elapsed >= state->animationDuration * Slowing()) {
 				state->currentPhaseFinished = true;
+				if (success) {
+					const auto wasContent = box->height();
+					const auto wasTotal = box->parentWidget()->height();
+					const auto wasButtons = wasTotal - wasContent;
+
+					container->clear();
+					container->add(std::move(success->owned));
+
+					box->setStyle(st::giftBox);
+
+					const auto entry = EntryForUpgradedGift(
+						*state->craftResult);
+					Settings::GenericCreditsEntryBody(box, show, entry);
+					container->resizeToWidth(st::boxWideWidth);
+
+					const auto nowContent = box->height();
+					const auto nowTotal = box->parentWidget()->height();
+					const auto nowButtons = nowTotal - nowContent;
+
+					box->animateHeightFrom(
+						wasContent + wasButtons - nowButtons);
+					success->hiding = true;
+					const auto duration = kSuccessExpandDuration
+						- kSuccessExpandStart;
+					success->heightAnimation.start([=] {
+						const auto height = anim::interpolate(
+							craftingSize.height(),
+							success->coverHeight,
+							success->heightAnimation.value(1.));
+						raw->resize(craftingSize.width(), height);
+					}, 0., 1., duration, anim::easeOutCubic);
+
+					raw->setParent(box->parentWidget());
+					raw->show();
+				}
 			}
 		}
+		if (success->finished) {
+			state->continuousAnimation.stop();
+			raw->hide();
 
-		const auto hasMoreFlights = (state->giftsLanded < state->totalGifts);
-		const auto isFlying = state->flightAnimation.animating();
-		const auto isAnimating = !state->currentPhaseFinished;
-		const auto isLoadingShown = state->loadingShownAnimation.animating();
-		const auto isFailureAnimation = state->failureAnimation != nullptr;
-
-		return hasMoreFlights
-			|| isFlying
-			|| isAnimating
-			|| isLoadingShown
-			|| isFailureAnimation;
+			StartFireworks(box->parentWidget());
+		}
+		return true;
 	});
 
 	container->add(std::move(canvas));
@@ -1496,6 +1640,27 @@ void StartCraftAnimation(
 				return;
 			}
 			state->craftResult = std::move(result);
+			if (const auto result = state->craftResult->get()) {
+				state->successAnimation = std::make_unique<
+					CraftDoneAnimation
+				>(CraftDoneAnimation{
+					.owned = MakeUniqueGiftCover(
+						container,
+						rpl::single(UniqueGiftCover{ *result->info.unique }),
+						{}),
+				});
+				const auto success = state->successAnimation.get();
+
+				const auto raw = success->owned.get();
+				success->widget = raw;
+				raw->hide();
+				raw->resizeToWidth(st::boxWideWidth);
+				SendPendingMoveResizeEvents(raw);
+
+				const auto fullHeight = state->shared->containerHeight;
+				success->coverHeight = raw->height();
+				success->coverShift = (fullHeight - raw->height()) / 2;
+			}
 			tryStartFlying();
 		});
 	}

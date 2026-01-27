@@ -292,7 +292,7 @@ AbstractButton *MakeRemoveButton(
 		not_null<Main::Session*> session,
 		rpl::producer<std::vector<GiftForCraft>> chosen,
 		rpl::producer<QColor> edgeColor) {
-	const auto width = st::boxWidth;
+	const auto width = st::boxWideWidth;
 
 	const auto buttonPadding = st::craftPreviewPadding;
 	const auto buttonSize = st::giftBoxGiftTiny;
@@ -805,6 +805,7 @@ void ShowSelectGiftBox(
 
 void Craft(
 		not_null<GenericBox*> box,
+		std::shared_ptr<ChatHelpers::Show> show,
 		std::shared_ptr<CraftState> state,
 		const std::vector<GiftForCraft> &gifts,
 		Fn<void()> closeParent) {
@@ -818,7 +819,7 @@ void Craft(
 		base::call_delayed(delay, box, [=] {
 			const auto shouldSucceed = true;// (base::RandomIndex(5) != 0);
 			const auto count = int(giftsCopy.size());
-			if (shouldSucceed && !count) {
+			if (shouldSucceed && count > 0) {
 				const auto &chosen = giftsCopy[base::RandomIndex(count)];
 				auto info = Data::StarGift{
 					.id = chosen.unique->initialGiftId,
@@ -836,21 +837,12 @@ void Craft(
 			}
 		});
 	};
-
-	const auto container = box->verticalLayout();
-	const auto show = box->uiShow();
-	const auto closeOnFail = crl::guard(box, [=] {
-		if (const auto onstack = closeParent) {
-			onstack();
-		}
-		box->closeBox();
-		show->showToast(tr::lng_gift_craft_failed(tr::now));
-	});
 	StartCraftAnimation(
-		container,
+		box,
+		std::move(show),
 		std::move(state),
 		std::move(startRequest),
-		closeOnFail);
+		closeParent);
 }
 
 void MakeCraftContent(
@@ -924,10 +916,11 @@ void MakeCraftContent(
 
 	const auto raw = box->verticalLayout();
 
-	state->craftState->repaint = [=] { raw->update(); };
 	state->chosen.value(
 	) | rpl::on_next([=](const std::vector<GiftForCraft> &gifts) {
-		state->craftState->updateForGiftCount(int(gifts.size()));
+		state->craftState->updateForGiftCount(int(gifts.size()), [=] {
+			raw->update();
+		});
 	}, box->lifetime());
 
 	const auto title = state->title = raw->add(
@@ -1031,6 +1024,9 @@ void MakeCraftContent(
 
 	raw->paintOn([=](QPainter &p) {
 		const auto &cs = state->craftState;
+		if (cs->craftingStarted) {
+			return;
+		}
 		const auto wasButton1 = cs->button1;
 		const auto wasButton2 = cs->button2;
 		cs->paint(p, raw->size(), craftingHeight);
@@ -1101,7 +1097,12 @@ void MakeCraftContent(
 		cs->bottomPartY = aboutPos.y();
 		cs->containerHeight = raw->height();
 
-		Craft(box, state->craftState, state->chosen.current(), closeParent);
+		Craft(
+			box,
+			controller->uiShow(),
+			state->craftState,
+			state->chosen.current(),
+			closeParent);
 	};
 	button->setClickedCallback(startCrafting);
 
@@ -1137,7 +1138,7 @@ void ShowGiftCraftBoxInternal(
 		bool autoStartCraft) {
 	controller->show(Box([=](not_null<GenericBox*> box) {
 		box->setStyle(st::giftCraftBox);
-		box->setWidth(st::boxWidth);
+		box->setWidth(st::boxWideWidth);
 		box->setNoContentMargin(true);
 		MakeCraftContent(
 			box,
