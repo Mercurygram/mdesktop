@@ -21,12 +21,6 @@ class Show;
 
 namespace UrlAuthBox {
 
-struct Result {
-	bool auth : 1 = false;
-	bool allowWrite : 1 = false;
-	bool sharePhone : 1 = false;
-};
-
 void ActivateButton(
 	std::shared_ptr<Ui::Show> show,
 	not_null<const HistoryItem*> message,

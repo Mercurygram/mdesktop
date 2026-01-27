@@ -814,6 +814,13 @@ urlAuthCheckboxAbout: FlatLabel(defaultPeerListAbout) {
 		font: font(12px);
 	}
 }
+urlAuthBoxRowTopLabel: FlatLabel(boxLabel) {
+	maxHeight: 30px;
+}
+urlAuthBoxRowBottomLabel: FlatLabel(defaultFlatLabel) {
+	textFg: windowSubTextFg;
+	maxHeight: 30px;
+}
 
 addContactFieldMargin: margins(19px, 0px, 19px, 10px);
 addContactWarningMargin: margins(19px, 10px, 19px, 5px);
