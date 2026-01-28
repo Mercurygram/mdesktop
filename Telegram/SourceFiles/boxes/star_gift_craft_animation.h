@@ -58,7 +58,7 @@ struct CraftState {
 		bool shown = false;
 	};
 
-	std::array<Cover, 4> covers;
+	std::array<Cover, 5> covers; // Last one for failed background.
 	rpl::variable<QColor> edgeColor;
 	QColor button1;
 	QColor button2;
@@ -89,6 +89,7 @@ struct CraftState {
 	QColor forgeBgOverlay;
 	QColor forgeBg1;
 	QColor forgeBg2;
+	QColor forgeFail;
 	QImage forgePercent;
 
 	struct EmptySide {
@@ -96,7 +97,6 @@ struct CraftState {
 		QImage frame;
 	};
 	std::array<EmptySide, 6> forgeSides;
-	EmptySide finalSide;
 
 	Main::Session *session = nullptr;
 
@@ -112,7 +112,9 @@ struct CraftState {
 		int craftingHeight,
 		float64 slideProgress = 0.);
 	void updateForGiftCount(int count, Fn<void()> repaint);
-	[[nodiscard]] EmptySide prepareEmptySide(int index) const;
+	[[nodiscard]] EmptySide prepareEmptySide(
+		int index,
+		bool fail = false) const;
 };
 
 struct FacePlacement {
@@ -134,13 +136,9 @@ struct CraftDoneAnimation {
 };
 
 struct CraftFailAnimation {
-	std::unique_ptr<HistoryView::StickerPlayer> player;
 	QImage frame;
-	DocumentData *document = nullptr;
-	Animations::Simple scaleAnimation;
-	bool scaleStarted = false;
-	bool playerStarted = false;
-	bool playerFinished = false;
+	bool started = false;
+	int finalCoverIndex = -1;
 	rpl::lifetime lifetime;
 };
 

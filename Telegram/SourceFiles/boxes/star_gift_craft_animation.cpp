@@ -42,10 +42,7 @@ constexpr auto kFlightDuration = crl::time(400);
 constexpr auto kLoadingFadeInDuration = crl::time(150);
 constexpr auto kLoadingFadeOutDuration = crl::time(300);
 constexpr auto kLoadingMinDuration = crl::time(600);
-constexpr auto kFailurePlayerStopFrame = 120;
-constexpr auto kFailurePlayerFps = 60;
-constexpr auto kFailurePlayerFadeOutFrames = 10;
-constexpr auto kFailureScaleDuration = crl::time(200);
+constexpr auto kFailureFadeDuration = crl::time(400);
 constexpr auto kSuccessFadeInDuration = crl::time(300);
 constexpr auto kSuccessExpandDuration = crl::time(400);
 constexpr auto kSuccessExpandStart = crl::time(100);
@@ -445,43 +442,7 @@ std::unique_ptr<CraftFailAnimation> SetupFailureAnimation(
 		not_null<RpWidget*> canvas,
 		not_null<CraftAnimationState*> state) {
 	auto result = std::make_unique<CraftFailAnimation>();
-	const auto raw = result.get();
-
-	const auto document
-		= raw->document
-		= ChatHelpers::GenerateLocalTgsSticker(
-			state->shared->session,
-			u"bomb"_q);
-	const auto media = document->createMediaView();
-	media->checkStickerLarge();
-
-	rpl::single() | rpl::then(
-		document->session().downloaderTaskFinished()
-	) | rpl::filter([=] {
-		return media->loaded();
-	}) | rpl::take(1) | rpl::on_next([=] {
-		const auto sticker = document->sticker();
-		Assert(sticker != nullptr);
-
-		const auto size = state->shared->forgeRect.size();
-		raw->player = std::make_unique<HistoryView::LottiePlayer>(
-			ChatHelpers::LottiePlayerFromDocument(
-				media.get(),
-				ChatHelpers::StickerLottieSize::InlineResults,
-				size,
-				Lottie::Quality::High));
-		raw->player->setRepaintCallback([=] { canvas->update(); });
-	}, raw->lifetime);
-
 	return result;
-}
-
-[[nodiscard]] float64 FailureAnimationScale(
-		not_null<const CraftAnimationState*> state) {
-	const auto animation = state->failureAnimation.get();
-	return animation
-		? animation->scaleAnimation.value(animation->scaleStarted ? 0. : 1.)
-		: 1.;
 }
 
 void FailureAnimationCheck(
@@ -493,23 +454,34 @@ void FailureAnimationCheck(
 		return;
 	}
 	const auto elapsed = (now - state->animationStartTime);
-	const auto failureDuration = (1000 * kFailurePlayerStopFrame)
-		/ kFailurePlayerFps;
-	const auto playerStartTime = state->animationDuration - failureDuration;
-	if (!animation->playerStarted && elapsed >= playerStartTime) {
-		animation->playerStarted = true;
-	}
-	const auto playerScaleStart = state->animationDuration
-		- kFailureScaleDuration;
-	if (!animation->scaleStarted && elapsed >= playerScaleStart) {
-		animation->scaleStarted = true;
-		animation->scaleAnimation.start([=] {
-			canvas->update();
-		}, 1., 0., kFailureScaleDuration, anim::easeInCubic);
+	const auto left = (state->animationDuration * Slowing()) - elapsed;
+	if (!animation->started
+		&& left > 0
+		&& left <= kFailureFadeDuration * Slowing()) {
+		animation->started = true;
+		auto &covers = state->shared->covers;
+		for (auto i = 0; i != 5; ++i) {
+			auto &cover = covers[i];
+			if (!cover.shown) {
+				animation->finalCoverIndex = i;
+				if (i != 4) {
+					auto &last = covers.back();
+					cover.backdrop = last.backdrop;
+					cover.pattern = std::move(last.pattern);
+					cover.button1 = last.button1;
+					cover.button2 = last.button2;
+				}
+				cover.shown = true;
+				cover.shownAnimation.start([=] {
+					canvas->update();
+				}, 0., 1., left);
+				break;
+			}
+		}
 	}
 }
 
-[[nodiscard]] std::optional<float64> FailureAnimationPrepareFrame(
+void FailureAnimationPrepareFrame(
 		not_null<CraftAnimationState*> state,
 		not_null<RpWidget*> canvas,
 		int faceIndex) {
@@ -520,48 +492,35 @@ void FailureAnimationCheck(
 	}
 	const auto shared = state->shared.get();
 	const auto animation = state->failureAnimation.get();
-	if (!animation->player->ready()) {
-		return {};
-	} else if (shared->finalSide.frame.isNull()) {
-		shared->finalSide = shared->forgeSides[faceIndex];
-		shared->finalSide.frame.fill(shared->finalSide.bg);
-	}
 	if (animation->frame.isNull()) {
-		animation->frame = shared->finalSide.frame;
+		animation->frame = shared->forgeSides[faceIndex].frame;
 	}
-	animation->frame.fill(Qt::transparent);
-	auto q = QPainter(&animation->frame);
-	const auto paused = !animation->playerStarted;
-	auto info = animation->player->frame(
-		st::giftBoxStickerTiny * 2,
-		QColor(0, 0, 0, 0),
-		false,
-		crl::now(),
-		paused);
-	const auto frame = info.image;
-	const auto finished
-		= animation->playerFinished
-		= (info.index + 1 == kFailurePlayerStopFrame);
-	if (finished) {
-		return 0.;
+	const auto lastIndex = animation->finalCoverIndex;
+	const auto progress = (lastIndex >= 0)
+		? shared->covers[lastIndex].shownAnimation.value(1.)
+		: 0.;
+	const auto bg = anim::color(
+		shared->forgeSides[faceIndex].bg,
+		shared->forgeFail,
+		progress);
+	const auto radius = progress * st::boxRadius;
+	const auto rounded = (radius > 0.);
+	if (rounded) {
+		animation->frame.fill(Qt::transparent);
 	}
-	const auto result = (kFailurePlayerStopFrame - info.index)
-		/ float64(kFailurePlayerFadeOutFrames);
-	if (!paused) {
-		animation->player->markFrameShown();
+
+	auto p = QPainter(&animation->frame);
+	const auto size = shared->forgeRect.size();
+	const auto rect = QRect(QPoint(), size);
+	if (rounded) {
+		auto hq = PainterHighQualityEnabler(p);
+		p.setBrush(bg);
+		p.setPen(Qt::NoPen);
+		p.drawRoundedRect(rect, radius, radius);
+	} else {
+		p.fillRect(rect, bg);
 	}
-	const auto outer = animation->frame.size()
-		/ animation->frame.devicePixelRatio();
-	const auto size = frame.size() / style::DevicePixelRatio();
-	q.drawImage(
-		QRect(
-			(outer.width() - size.width()) / 2,
-			(outer.height() - size.width()) / 2,
-			size.width(),
-			size.height()),
-		frame);
-	q.end();
-	return result;
+	st::craftFail.paintInCenter(p, rect, st::white->c);
 }
 
 [[nodiscard]] QRect PrepareCraftFrame(
@@ -600,29 +559,23 @@ void FailureAnimationCheck(
 }
 
 void PaintCube(
-		QPainter &p,
-		not_null<CraftAnimationState*> state,
-		not_null<RpWidget*> canvas,
-		QPointF center,
-		float64 size) {
+	QPainter &p,
+	not_null<CraftAnimationState*> state,
+	not_null<RpWidget*> canvas,
+	QPointF center,
+	float64 size) {
 	const auto shared = state->shared.get();
 
 	const auto now = crl::now();
 	FailureAnimationCheck(state, canvas, now);
 
-	const auto totalScale = FailureAnimationScale(state);
-	const auto showCube = (totalScale > 0.);
-	const auto scaledCube = showCube && (totalScale < 1.);
-	if (scaledCube) {
-		p.save();
-		p.translate(center);
-		p.scale(totalScale, totalScale);
-		p.translate(-center);
-	}
+	const auto success = state->successAnimation.get();
+	const auto failure = state->failureAnimation.get();
 
-	const auto faces = GetVisibleCubeFaces(
-		state->rotationX,
-		state->rotationY);
+	const auto finalCoverIndex = failure ? failure->finalCoverIndex : -1;
+	const auto finishingFailure = (finalCoverIndex >= 0)
+		? shared->covers[finalCoverIndex].shownAnimation.value(1.)
+		: 0.;
 
 	if (!state->nextFaceRevealed
 		&& state->currentPhaseIndex >= 0) {
@@ -633,7 +586,9 @@ void PaintCube(
 		}
 	}
 
-	const auto craftResult = state->successAnimation.get();
+	const auto faces = GetVisibleCubeFaces(
+		state->rotationX,
+		state->rotationY);
 
 	auto paintFailure = Fn<void()>();
 	for (const auto faceIndex : faces) {
@@ -668,52 +623,33 @@ void PaintCube(
 		}
 
 		if (thisFaceRevealed && state->allGiftsLanded) {
-			const auto coverWidget = craftResult
-				? craftResult->widget
-				: nullptr;
-			if (coverWidget) {
+			const auto cover = success ? success->widget : nullptr;
+			if (cover) {
 				faceSource = PrepareCraftFrame(state, faceIndex, now);
-				faceImage = craftResult->frame;
+				faceImage = success->frame;
 			} else {
-				const auto maybeOpacity = FailureAnimationPrepareFrame(
+				FailureAnimationPrepareFrame(
 					state,
 					canvas,
 					faceIndex);
-				if (maybeOpacity) {
-					if (const auto opacity = *maybeOpacity; opacity > 0.) {
-						paintFailure = [=, &p] {
-							if (opacity < 1.) {
-								p.setOpacity(opacity);
-							}
-							PaintCubeFace(
-								p,
-								*corners,
-								state->failureAnimation->frame,
-								faceSize,
-								faceSource,
-								faceRotation);
-						};
-					}
-					faceImage = shared->finalSide.frame;
-				}
+				faceImage = state->failureAnimation->frame;
 			}
 		}
-		if (showCube) {
-			PaintCubeFace(
-				p,
-				*corners,
-				faceImage,
-				faceSize,
-				faceSource,
-				faceRotation);
+		if (finishingFailure > 0.) {
+			p.setOpacity((faceIndex != state->nextFaceIndex)
+				? (1. - finishingFailure)
+				: 1.);
 		}
+		PaintCubeFace(
+			p,
+			*corners,
+			faceImage,
+			faceSize,
+			faceSource,
+			faceRotation);
 	}
-
-	if (scaledCube) {
-		p.restore();
-	}
-	if (paintFailure) {
-		paintFailure();
+	if (finishingFailure > 0.) {
+		p.setOpacity(1.);
 	}
 }
 
@@ -1248,7 +1184,7 @@ void CraftState::paint(
 	auto newEdgeColor = std::optional<QColor>();
 	auto newButton1 = QColor();
 	auto newButton2 = QColor();
-	for (auto i = 0; i != 4; ++i) {
+	for (auto i = 0; i != 5; ++i) {
 		auto &cover = covers[i];
 		if (cover.shownAnimation.animating()) {
 			animating = true;
@@ -1286,13 +1222,15 @@ void CraftState::paint(
 		button1 = newButton1;
 		button2 = newButton2;
 	}
-	if (!animating) {
+	if (animating) {
+		p.setOpacity(1.);
+	} else {
 		coversAnimate = false;
 	}
 }
 
 void CraftState::updateForGiftCount(int count, Fn<void()> repaint) {
-	for (auto i = 4; i != 0;) {
+	for (auto i = 5; i != 0;) {
 		auto &cover = covers[--i];
 		const auto shown = (i < count);
 		if (cover.shown != shown) {
@@ -1309,7 +1247,9 @@ void CraftState::updateForGiftCount(int count, Fn<void()> repaint) {
 	}
 }
 
-CraftState::EmptySide CraftState::prepareEmptySide(int index) const {
+CraftState::EmptySide CraftState::prepareEmptySide(
+		int index,
+		bool fail) const {
 	const auto size = forgeRect.size();
 	const auto ratio = style::DevicePixelRatio();
 	auto result = QImage(size * ratio, QImage::Format_ARGB32_Premultiplied);
@@ -1319,16 +1259,20 @@ CraftState::EmptySide CraftState::prepareEmptySide(int index) const {
 	result.fill(bg);
 
 	auto p = QPainter(&result);
-	st::craftForge.paintInCenter(p, QRect(QPoint(), size), st::white->c);
+	if (fail) {
+		st::craftFail.paintInCenter(p, QRect(QPoint(), size), st::white->c);
+	} else {
+		st::craftForge.paintInCenter(p, QRect(QPoint(), size), st::white->c);
+	}
 
-#if _DEBUG
-	p.setFont(st::semiboldFont);
-	p.setPen(st::white);
-	p.drawText(
-		size.width() / 10,
-		size.width() / 10 + st::semiboldFont->ascent,
-		QString::number(index));
-#endif // _DEBUG
+//#if _DEBUG
+//	p.setFont(st::semiboldFont);
+//	p.setPen(st::white);
+//	p.drawText(
+//		size.width() / 10,
+//		size.width() / 10 + st::semiboldFont->ascent,
+//		QString::number(index));
+//#endif // _DEBUG
 
 	p.end();
 
@@ -1376,15 +1320,11 @@ void StartCraftAnimation(
 		st::craftForgeLoading);
 
 	raw->paintOn([=](QPainter &p) {
-		if (state->failureAnimation
-			&& state->failureAnimation->playerFinished) {
-			crl::on_main(closeOnFail);
-		}
-
 		const auto shared = state->shared.get();
 		const auto success = state->successAnimation.get();
+		const auto failure = state->failureAnimation.get();
 		const auto slideProgress = state->slideOutAnimation.value(1.);
-		if (slideProgress < 1.) {
+		if (slideProgress < 1. || (failure && failure->started)) {
 			shared->paint(p, craftingSize, craftingHeight, slideProgress);
 		} else {
 			if (shared->craftBg.isNull()) {
@@ -1622,7 +1562,7 @@ void StartCraftAnimation(
 				}
 			}
 		}
-		if (success->finished) {
+		if (success && success->finished) {
 			state->continuousAnimation.stop();
 			raw->hide();
 

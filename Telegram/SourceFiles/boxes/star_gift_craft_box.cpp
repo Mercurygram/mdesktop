@@ -56,7 +56,11 @@ struct ColorScheme {
 	return QColor(0xBA, 0xDF, 0xFF, 32);
 }
 
-[[nodiscard]] std::array<ColorScheme, 4> CraftBackdrops() {
+[[nodiscard]] QColor ForgeFailOverlay() {
+	return QColor(0xE1, 0x79, 0x23, 41);
+}
+
+[[nodiscard]] std::array<ColorScheme, 5> CraftBackdrops() {
 	struct Colors {
 		int center = 0;
 		int edge = 0;
@@ -84,6 +88,7 @@ struct ColorScheme {
 		hardcoded({ 0x2C4359, 0x232E3F, 0x040C1A, 0x10A5DF, 0x2091E9 }),
 		hardcoded({ 0x2C4359, 0x232E3F, 0x040C1A, 0x10A5DF, 0x2091E9 }),
 		hardcoded({ 0x1C4843, 0x1A2E37, 0x040C1A, 0x3ACA49, 0x007D9E }),
+		hardcoded({ 0x5D2E16, 0x371B1A, 0x040C1A, 0xE27519, 0xDD4819 }),
 	};
 }
 
@@ -504,6 +509,11 @@ AbstractButton *MakeRemoveButton(
 			backdrop.edgeColor,
 			QColor(overlayBg.red(), overlayBg.green(), overlayBg.blue()),
 			overlayBg.alphaF());
+		const auto overlayFail = ForgeFailOverlay();
+		craftState->forgeFail = anim::color(
+			CraftBackdrops().back().backdrop.centerColor,
+			QColor(overlayFail.red(), overlayFail.green(), overlayFail.blue()),
+			overlayFail.alphaF());
 		for (auto i = 0; i != 6; ++i) {
 			craftState->forgeSides[i] = craftState->prepareEmptySide(i);
 		}
@@ -817,7 +827,7 @@ void Craft(
 		const auto giftsCopy = gifts;
 
 		base::call_delayed(delay, box, [=] {
-			const auto shouldSucceed = true;// (base::RandomIndex(5) != 0);
+			const auto shouldSucceed = false;// (base::RandomIndex(5) != 0);
 			const auto count = int(giftsCopy.size());
 			if (shouldSucceed && count > 0) {
 				const auto &chosen = giftsCopy[base::RandomIndex(count)];
