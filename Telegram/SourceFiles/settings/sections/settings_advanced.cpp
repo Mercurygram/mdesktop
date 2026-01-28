@@ -157,7 +157,7 @@ void BuildDataStorageSection(SectionBuilder &builder) {
 		.keywords = { u"download"_q, u"path"_q, u"folder"_q },
 		.shown = showDownloadPath
 			? showDownloadPath->value()
-			: rpl::single(true),
+			: rpl::single(true) | rpl::type_erased,
 	});
 
 	builder.addButton({

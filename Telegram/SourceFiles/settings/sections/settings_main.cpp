@@ -369,7 +369,7 @@ void BuildSectionButtons(SectionBuilder &builder) {
 			|| session->settings().dialogsFiltersEnabled();
 
 		auto shownProducer = hasFilters
-			? rpl::single(true)
+			? rpl::single(true) | rpl::type_erased
 			: (rpl::single(rpl::empty) | rpl::then(
 				session->appConfig().refreshed()
 			) | rpl::map([=] {
