@@ -1269,7 +1269,7 @@ void BuildPremiumSectionContent(
 	const auto session = builder.session();
 
 	if (controller && state) {
-		builder.add([controller, session, state](const WidgetContext &ctx) {
+		builder.add([controller, state](const WidgetContext &ctx) {
 			SetupSubscriptionOptions(
 				ctx.container,
 				controller,

@@ -273,7 +273,7 @@ Ui::SettingsButton *SectionBuilder::addButton(ButtonArgs &&args) {
 		if (args.toggled) {
 			button->toggleOn(std::move(args.toggled));
 		}
-		return std::move(button);
+		return button;
 	};
 	return static_cast<Ui::SettingsButton*>(addControl({
 		.factory = factory,

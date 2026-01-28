@@ -479,7 +479,7 @@ void BuildManageContent(SectionBuilder &builder) {
 		return SectionBuilder::WidgetToAdd{};
 	});
 
-	builder.add([controller](const WidgetContext &ctx) {
+	builder.add([](const WidgetContext &ctx) {
 		const auto systemUnlockWrap = ctx.container->add(
 			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 				ctx.container,

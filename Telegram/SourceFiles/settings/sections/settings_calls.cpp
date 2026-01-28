@@ -274,7 +274,7 @@ void BuildCallDevicesSection(SectionBuilder &builder) {
 		}, same->lifetime());
 	}
 
-	builder.add([controller, settings, same, orDefault](const WidgetContext &ctx) {
+	builder.add([controller, settings, same](const WidgetContext &ctx) {
 		const auto container = ctx.container.get();
 		const auto different = container->add(
 			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
