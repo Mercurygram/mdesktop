@@ -2135,6 +2135,7 @@ void ResolveAndShowUniqueGift(
 				*gift,
 				StarGiftResaleInfo(),
 				st));
+			show->activate();
 		}
 	}).fail([=](const MTP::Error &error) {
 		clear();
