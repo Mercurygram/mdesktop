@@ -69,6 +69,8 @@ QString UniqueGiftName(const QString &title, int number) {
 
 QString UniqueGiftRarityText(UniqueGiftRarity type) {
 	switch (type) {
+	case UniqueGiftRarity::Uncommon:
+		return tr::lng_gift_uncommon_tag(tr::now);
 	case UniqueGiftRarity::Rare:
 		return tr::lng_gift_rare_tag(tr::now);
 	case UniqueGiftRarity::Epic:
@@ -83,9 +85,10 @@ UniqueGiftRarityColors UniqueGiftRarityBadgeColors(UniqueGiftRarity type) {
 	constexpr auto kBgOpacity = 0.15;
 	const auto base = [&] {
 		switch (type) {
-		case UniqueGiftRarity::Rare: return st::historyPeer2NameFg->c;
+		case UniqueGiftRarity::Uncommon: return st::historyPeer2NameFg->c;
+		case UniqueGiftRarity::Rare: return st::historyPeer7NameFg->c;
 		case UniqueGiftRarity::Epic: return st::historyPeer5NameFg->c;
-		case UniqueGiftRarity::Legendary: return st::historyPeer3NameFg->c;
+		case UniqueGiftRarity::Legendary: return st::historyPeer8NameFg->c;
 		}
 		Unexpected("Invalid rarity type.");
 	}();

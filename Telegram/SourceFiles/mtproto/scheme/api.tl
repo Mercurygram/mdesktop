@@ -2115,6 +2115,7 @@ messages.emojiGameUnavailable#59e65335 = messages.EmojiGameInfo;
 messages.emojiGameDiceInfo#44e56023 flags:# game_hash:string prev_stake:long current_streak:int params:Vector<int> plays_left:flags.0?int = messages.EmojiGameInfo;
 
 starGiftAttributeRarity#36437737 permille:int = StarGiftAttributeRarity;
+starGiftAttributeRarityUncommon#dbce6389 = StarGiftAttributeRarity;
 starGiftAttributeRarityRare#f08d516b = StarGiftAttributeRarity;
 starGiftAttributeRarityEpic#78fbf3a8 = StarGiftAttributeRarity;
 starGiftAttributeRarityLegendary#cef7e7a8 = StarGiftAttributeRarity;

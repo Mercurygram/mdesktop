@@ -1045,6 +1045,8 @@ std::optional<Data::SavedStarGift> FromTL(
 int ParseRarity(const MTPStarGiftAttributeRarity &rarity) {
 	return rarity.match([&](const MTPDstarGiftAttributeRarity &data) {
 		return data.vpermille().v;
+	}, [&](const MTPDstarGiftAttributeRarityUncommon &) {
+		return int(Data::UniqueGiftRarity::Uncommon);
 	}, [&](const MTPDstarGiftAttributeRarityRare &) {
 		return int(Data::UniqueGiftRarity::Rare);
 	}, [&](const MTPDstarGiftAttributeRarityEpic &) {

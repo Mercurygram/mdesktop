@@ -19,9 +19,10 @@ namespace Data {
 
 enum class UniqueGiftRarity : int {
 	Default = 0,
-	Rare = -1,
-	Epic = -2,
-	Legendary = -3,
+	Uncommon = -1,
+	Rare = -2,
+	Epic = -3,
+	Legendary = -4,
 };
 
 struct UniqueGiftAttribute {
