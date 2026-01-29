@@ -9,11 +9,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/call_delayed.h"
 #include "base/random.h"
+#include "boxes/star_gift_auction_box.h"
 #include "boxes/star_gift_craft_animation.h"
+#include "boxes/star_gift_preview_box.h"
 #include "apiwrap.h"
 #include "api/api_credits.h"
 #include "api/api_premium.h"
 #include "boxes/star_gift_box.h"
+#include "data/components/gift_auctions.h"
 #include "core/ui_integration.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "data/data_document.h"
@@ -36,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/ui_utility.h"
 #include "ui/vertical_list.h"
 #include "window/window_session_controller.h"
+#include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h" // stickerPanDeleteIconFg
 #include "styles/style_credits.h"
 #include "styles/style_layers.h"
@@ -104,6 +108,12 @@ struct GiftForCraft {
 		const GiftForCraft &) = default;
 };
 
+void ShowGiftCraftBoxInternal(
+	not_null<Window::SessionController*> controller,
+	std::vector<GiftForCraft> gifts,
+	Fn<void()> closeParent,
+	bool autoStartCraft);
+
 struct CraftingView {
 	object_ptr<RpWidget> widget;
 	rpl::producer<int> editRequests;
@@ -119,7 +129,8 @@ struct CraftingView {
 [[nodiscard]] not_null<RpWidget*> MakeRadialPercent(
 		not_null<RpWidget*> parent,
 		const style::CraftRadialPercent &st,
-		rpl::producer<int> permille) {
+		rpl::producer<int> permille,
+		Fn<QString(int)> format = FormatPercent) {
 	auto raw = CreateChild<RpWidget>(parent);
 
 	struct State {
@@ -130,7 +141,7 @@ struct CraftingView {
 
 		Animations::Simple animation;
 		NumbersAnimation numbers;
-		int permille = 0;
+		int permille = -1;
 	};
 	const auto state = raw->lifetime().make_state<State>(
 		st,
@@ -144,7 +155,7 @@ struct CraftingView {
 			raw->update();
 		}, state->permille, value, st::slideWrapDuration);
 		state->permille = value;
-		state->numbers.setText(FormatPercent(value), value);
+		state->numbers.setText(format(value), value);
 	}, raw->lifetime());
 	state->animation.stop();
 	state->numbers.finishAnimating();
@@ -476,6 +487,7 @@ AbstractButton *MakeRemoveButton(
 		craftState->forgePercent = GrabWidgetToImage(state->forgeRadial);
 
 		auto giftsTotal = 0;
+		auto lostIndex = 0;
 		for (auto i = 0; i != 4; ++i) {
 			auto &entry = state->entries[i];
 			auto &corner = craftState->corners[i];
@@ -488,6 +500,11 @@ AbstractButton *MakeRemoveButton(
 				if (entry.remove) {
 					corner.removeButton = GrabWidgetToImage(entry.remove);
 				}
+				if (lostIndex < craftState->lostGifts.size()) {
+					craftState->lostGifts[lostIndex].thumbnail
+						= GrabWidgetToImage(entry.button);
+					++lostIndex;
+				}
 				corner.giftButton.reset(entry.button);
 				entry.button->setParent(parent);
 				base::take(entry.button)->hide();
@@ -498,6 +515,15 @@ AbstractButton *MakeRemoveButton(
 				corner.originalRect = entry.add->geometry();
 			}
 		}
+
+		const auto failedCount = MakeRadialPercent(
+			raw,
+			st::craftForgePercent,
+			rpl::single(0),
+			[=](int) { return QString::number(giftsTotal); });
+		failedCount->setGeometry(state->forgeRadial->geometry());
+		craftState->lostRadial = GrabWidgetToImage(failedCount);
+		delete failedCount;
 
 		const auto overlayBg = craftState->forgeBgOverlay = ForgeBgOverlay();
 		const auto backdrop = CraftBackdrops()[giftsTotal - 1].backdrop;
@@ -815,6 +841,7 @@ void ShowSelectGiftBox(
 
 void Craft(
 		not_null<GenericBox*> box,
+		not_null<Window::SessionController*> controller,
 		std::shared_ptr<ChatHelpers::Show> show,
 		std::shared_ptr<CraftState> state,
 		const std::vector<GiftForCraft> &gifts,
@@ -827,7 +854,8 @@ void Craft(
 		const auto giftsCopy = gifts;
 
 		base::call_delayed(delay, box, [=] {
-			const auto shouldSucceed = false;// (base::RandomIndex(5) != 0);
+			//static auto testing = 0;
+			const auto shouldSucceed = false;// (((++testing) / 4) % 2 == 0);
 			const auto count = int(giftsCopy.size());
 			if (shouldSucceed && count > 0) {
 				const auto &chosen = giftsCopy[base::RandomIndex(count)];
@@ -847,18 +875,135 @@ void Craft(
 			}
 		});
 	};
+	const auto session = &controller->session();
+	const auto initialGiftId = gifts.front().unique->initialGiftId;
+	auto retryWithNewGift = [=](Fn<void()> closeCurrent) {
+		session->api().request(MTPpayments_GetCraftStarGifts(
+			MTP_long(initialGiftId),
+			MTP_string(),
+			MTP_int(30)
+		)).done(crl::guard(box, [=](const MTPpayments_SavedStarGifts &result) {
+			const auto user = session->user();
+			const auto owner = &session->data();
+			const auto &data = result.data();
+			owner->processUsers(data.vusers());
+			owner->processChats(data.vchats());
+
+			auto list = std::vector<Data::SavedStarGift>();
+			list.reserve(data.vgifts().v.size());
+			for (const auto &gift : data.vgifts().v) {
+				if (auto parsed = Api::FromTL(user, gift)) {
+					list.push_back(std::move(*parsed));
+				}
+			}
+
+			ShowSelectGiftBox(controller, list, [=](GiftForCraft chosen) {
+				ShowGiftCraftBoxInternal(
+					controller,
+					{ chosen },
+					closeParent,
+					false);
+				closeCurrent();
+			}, {});
+		})).send();
+	};
 	StartCraftAnimation(
 		box,
 		std::move(show),
 		std::move(state),
 		std::move(startRequest),
-		closeParent);
+		closeParent,
+		std::move(retryWithNewGift));
+}
+
+void AddPreviewNewModels(
+		not_null<VerticalLayout*> container,
+		std::shared_ptr<Main::SessionShow> show,
+		const QString &giftName,
+		Data::UniqueGiftAttributes attributes) {
+	auto exceptional = std::vector<Data::UniqueGiftModel>();
+	for (const auto &model : attributes.models) {
+		if (Data::UniqueGiftAttributeHasSpecialRarity(model)) {
+			exceptional.push_back(model);
+		}
+	}
+	attributes.models = std::move(exceptional);
+
+	auto emoji = TextWithEntities();
+	const auto indices = RandomIndicesSubset(
+		int(attributes.models.size()),
+		std::min(3, int(attributes.models.size())));
+	for (const auto index : indices) {
+		emoji.append(Data::SingleCustomEmoji(
+			attributes.models[index].document));
+	}
+
+	auto badge = object_ptr<AbstractButton>(container);
+	const auto badgeRaw = badge.data();
+
+	const auto label = CreateChild<FlatLabel>(
+		badgeRaw,
+		tr::lng_gift_craft_view_all(
+			lt_emoji,
+			rpl::single(emoji),
+			lt_arrow,
+			rpl::single(Ui::Text::IconEmoji(&st::textMoreIconEmoji)),
+			Text::WithEntities),
+		st::uniqueGiftResalePrice,
+		st::defaultPopupMenu,
+		Core::TextContext({ .session = &show->session() }));
+	label->setTextColorOverride(st::white->c);
+
+	label->sizeValue() | rpl::on_next([=](QSize size) {
+		const auto padding = st::craftPreviewAllPadding;
+		badgeRaw->setNaturalWidth(
+			padding.left() + size.width() + padding.right());
+		badgeRaw->resize(
+			badgeRaw->naturalWidth(),
+			padding.top() + size.height() + padding.bottom());
+	}, label->lifetime());
+
+	badgeRaw->widthValue() | rpl::on_next([=](int width) {
+		const auto padding = st::craftPreviewAllPadding;
+		label->move(padding.left(), padding.top());
+	}, badgeRaw->lifetime());
+
+	badgeRaw->paintOn([=](QPainter &p) {
+		auto hq = PainterHighQualityEnabler(p);
+		const auto rect = badgeRaw->rect();
+		const auto radius = rect.height() / 2.;
+		p.setPen(Qt::NoPen);
+		p.setBrush(ForgeBgOverlay());
+		p.drawRoundedRect(rect, radius, radius);
+	});
+
+	label->setAttribute(Qt::WA_TransparentForMouseEvents);
+	badgeRaw->setClickedCallback([=] {
+		auto previewAttrs = attributes;
+		previewAttrs.models.erase(
+			ranges::remove_if(previewAttrs.models, [](const auto &m) {
+				return !Data::UniqueGiftAttributeHasSpecialRarity(m);
+			}),
+			end(previewAttrs.models));
+		show->show(Box(
+			StarGiftPreviewBox,
+			giftName,
+			previewAttrs,
+			Data::GiftAttributeIdType::Model,
+			nullptr));
+	});
+
+	container->add(
+		std::move(badge),
+		st::craftPreviewAllMargin,
+		style::al_top);
 }
 
 void MakeCraftContent(
 		not_null<GenericBox*> box,
 		not_null<Window::SessionController*> controller,
 		std::vector<GiftForCraft> gifts,
+		Data::UniqueGiftAttributes attributes,
 		Fn<void()> closeParent,
 		bool autoStartCraft) {
 	Expects(!gifts.empty());
@@ -902,6 +1047,7 @@ void MakeCraftContent(
 		}
 	}
 
+	const auto giftName = gifts.front().unique->title;
 	state->chosen = std::move(gifts);
 	for (auto i = 0; i != int(state->chosen.current().size()); ++i) {
 		state->craftState->covers[i].shown = true;
@@ -1030,7 +1176,14 @@ void MakeCraftContent(
 
 	state->attributes = raw->add(
 		MakeRarityExpectancyPreview(raw, session, state->chosen.value()),
+		st::craftAttributesMargin,
 		style::al_top);
+
+	AddPreviewNewModels(
+		raw,
+		controller->uiShow(),
+		giftName,
+		std::move(attributes));
 
 	raw->paintOn([=](QPainter &p) {
 		const auto &cs = state->craftState;
@@ -1050,7 +1203,7 @@ void MakeCraftContent(
 
 	const auto button = state->button = raw->add(
 		object_ptr<GradientButton>(raw, QGradientStops()),
-		st::giftBox.buttonPadding);
+		st::craftBoxButtonPadding);
 	button->setFullRadius(true);
 	button->startGlareAnimation();
 
@@ -1061,9 +1214,17 @@ void MakeCraftContent(
 		state->crafting = true;
 
 		const auto &cs = state->craftState;
+		const auto &gifts = state->chosen.current();
+		cs->giftName = state->name.current();
+		cs->successPermille = state->successPercentPermille.current();
 
-		cs->topPart = GrabWidgetToImage(state->title);
-		cs->topPartRect = state->title->geometry();
+		for (const auto &gift : gifts) {
+			if (gift.unique) {
+				cs->lostGifts.push_back({
+					.number = u"#%1"_q.arg(gift.unique->number),
+				});
+			}
+		}
 
 		if (state->grabCraftingView) {
 			state->grabCraftingView(cs);
@@ -1080,8 +1241,9 @@ void MakeCraftContent(
 		cs->craftingAreaCenterY = cs->forgeRect.center().y();
 
 		const auto aboutPos = state->about->pos();
-		const auto buttonBottom = state->button->pos().y()
-			+ state->button->height();
+		const auto buttonY = state->button->pos().y();
+		const auto buttonBottom = buttonY + state->button->height();
+		cs->originalButtonY = buttonY;
 		const auto bottomRect = QRect(
 			0,
 			aboutPos.y(),
@@ -1109,6 +1271,7 @@ void MakeCraftContent(
 
 		Craft(
 			box,
+			controller,
 			controller->uiShow(),
 			state->craftState,
 			state->chosen.current(),
@@ -1131,19 +1294,20 @@ void MakeCraftContent(
 		st::resaleButtonSubtitle);
 
 	raw->widthValue() | rpl::on_next([=](int width) {
-		const auto padding = st::giftBox.buttonPadding;
+		const auto padding = st::craftBoxButtonPadding;
 		button->setNaturalWidth(width - padding.left() - padding.right());
 		button->resize(button->naturalWidth(), st::giftBox.button.height);
 	}, raw->lifetime());
 
 	if (autoStartCraft) {
-		base::call_delayed(crl::time(1000), raw, startCrafting);
+//		base::call_delayed(crl::time(1000), raw, startCrafting);
 	}
 }
 
-void ShowGiftCraftBoxInternal(
+void ShowGiftCraftBoxWithAttributes(
 		not_null<Window::SessionController*> controller,
 		std::vector<GiftForCraft> gifts,
+		Data::UniqueGiftAttributes attributes,
 		Fn<void()> closeParent,
 		bool autoStartCraft) {
 	controller->show(Box([=](not_null<GenericBox*> box) {
@@ -1154,6 +1318,7 @@ void ShowGiftCraftBoxInternal(
 			box,
 			controller,
 			gifts,
+			attributes,
 			closeParent,
 			autoStartCraft);
 		AddUniqueCloseButton(box);
@@ -1175,6 +1340,33 @@ void ShowGiftCraftBoxInternal(
 		}
 #endif
 	}));
+}
+
+void ShowGiftCraftBoxInternal(
+		not_null<Window::SessionController*> controller,
+		std::vector<GiftForCraft> gifts,
+		Fn<void()> closeParent,
+		bool autoStartCraft) {
+	const auto giftId = gifts.front().unique->initialGiftId;
+	const auto auctions = &controller->session().giftAuctions();
+	if (auto attrs = auctions->attributes(giftId)) {
+		ShowGiftCraftBoxWithAttributes(
+			controller,
+			std::move(gifts),
+			std::move(*attrs),
+			std::move(closeParent),
+			autoStartCraft);
+	} else {
+		auctions->requestAttributes(giftId, crl::guard(controller, [=] {
+			auto attrs = auctions->attributes(giftId);
+			ShowGiftCraftBoxWithAttributes(
+				controller,
+				gifts,
+				attrs ? std::move(*attrs) : Data::UniqueGiftAttributes{},
+				closeParent,
+				autoStartCraft);
+		}));
+	}
 }
 
 } // namespace
@@ -1201,19 +1393,19 @@ void ShowGiftCraftInfoBox(
 
 		const auto features = std::vector<FeatureListEntry>{
 			{
-				st::menuIconTools,
-				tr::lng_gift_craft_combine_title(tr::now),
-				tr::lng_gift_craft_combine_about(tr::now, tr::rich),
+				st::menuIconUnique,
+				tr::lng_gift_craft_rare_title(tr::now),
+				tr::lng_gift_craft_rare_about(tr::now, tr::rich),
 			},
 			{
 				st::menuIconCraftTraits,
-				tr::lng_gift_craft_input_title(tr::now),
-				tr::lng_gift_craft_input_about(tr::now, tr::marked),
+				tr::lng_gift_craft_chance_title(tr::now),
+				tr::lng_gift_craft_chance_about(tr::now, tr::marked),
 			},
 			{
-				st::menuIconUnique,
-				tr::lng_gift_craft_exclusive_title(tr::now),
-				tr::lng_gift_craft_exclusive_about(tr::now, tr::marked),
+				st::menuIconCraftChance,
+				tr::lng_gift_craft_affect_title(tr::now),
+				tr::lng_gift_craft_affect_about(tr::now, tr::marked),
 			},
 		};
 		for (const auto &feature : features) {

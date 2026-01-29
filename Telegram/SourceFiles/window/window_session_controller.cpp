@@ -1685,7 +1685,7 @@ SessionController::SessionController(
 #if _DEBUG // TEST: Auto-open craft box on startup
 	constexpr auto kGiftsCount = 4;
 	crl::on_main(this, [=] {
-		if (rand() % 2 < 0) {
+		if (rand() % 2 >= 0) {
 			return;
 		}
 		const auto user = session->user();

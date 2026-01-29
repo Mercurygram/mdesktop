@@ -18,12 +18,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "history/view/media/history_view_sticker_player.h"
 #include "info/peer_gifts/info_peer_gifts_common.h"
+#include "lang/lang_keys.h"
 #include "lottie/lottie_common.h"
 #include "main/main_session.h"
 #include "settings/settings_credits_graphics.h"
 #include "ui/boxes/boost_box.h"
 #include "ui/image/image_prepare.h"
 #include "ui/layers/generic_box.h"
+#include "ui/widgets/gradient_round_button.h"
+#include "ui/widgets/labels.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/top_background_gradient.h"
 #include "ui/painter.h"
@@ -46,6 +49,13 @@ constexpr auto kFailureFadeDuration = crl::time(400);
 constexpr auto kSuccessFadeInDuration = crl::time(300);
 constexpr auto kSuccessExpandDuration = crl::time(400);
 constexpr auto kSuccessExpandStart = crl::time(100);
+constexpr auto kProgressFadeInDuration = crl::time(300);
+constexpr auto kFailureFadeInDuration = crl::time(300);
+
+[[nodiscard]] QString FormatPercent(int permille) {
+	const auto rounded = (permille + 5) / 10;
+	return QString::number(rounded) + '%';
+}
 
 struct Rotation {
 	float64 x = 0.;
@@ -424,8 +434,7 @@ void PaintCubeFirstFlight(
 	sideBg.setAlphaF(progress);
 
 	auto hq = PainterHighQualityEnabler(p);
-	const auto offset = shared->craftingOffsetY;
-	const auto forge = shared->forgeRect.translated(0, offset);
+	const auto forge = shared->forgeRect;
 	const auto radius = (1. - progress) * st::boxRadius;
 	p.setPen(Qt::NoPen);
 	p.setBrush(overlayBg);
@@ -450,35 +459,37 @@ void FailureAnimationCheck(
 		not_null<RpWidget*> canvas,
 		crl::time now) {
 	const auto animation = state->failureAnimation.get();
-	if (!animation) {
+	if (!animation || animation->started) {
 		return;
 	}
 	const auto elapsed = (now - state->animationStartTime);
 	const auto left = (state->animationDuration * Slowing()) - elapsed;
-	if (!animation->started
-		&& left > 0
-		&& left <= kFailureFadeDuration * Slowing()) {
-		animation->started = true;
-		auto &covers = state->shared->covers;
-		for (auto i = 0; i != 5; ++i) {
-			auto &cover = covers[i];
-			if (!cover.shown) {
-				animation->finalCoverIndex = i;
-				if (i != 4) {
-					auto &last = covers.back();
-					cover.backdrop = last.backdrop;
-					cover.pattern = std::move(last.pattern);
-					cover.button1 = last.button1;
-					cover.button2 = last.button2;
-				}
-				cover.shown = true;
-				cover.shownAnimation.start([=] {
-					canvas->update();
-				}, 0., 1., left);
-				break;
+	if (left <= 0 || left > kFailureFadeDuration * Slowing()) {
+		return;
+	}
+	animation->started = true;
+	auto &covers = state->shared->covers;
+	for (auto i = 0; i != 5; ++i) {
+		auto &cover = covers[i];
+		if (!cover.shown) {
+			animation->finalCoverIndex = i;
+			if (i != 4) {
+				auto &last = covers.back();
+				cover.backdrop = last.backdrop;
+				cover.pattern = std::move(last.pattern);
+				cover.button1 = last.button1;
+				cover.button2 = last.button2;
 			}
+			cover.shown = true;
+			cover.shownAnimation.start([=] {
+				canvas->update();
+			}, 0., 1., left);
+			break;
 		}
 	}
+
+	state->failureShown = true;
+	state->progressShown = false;
 }
 
 void FailureAnimationPrepareFrame(
@@ -521,6 +532,11 @@ void FailureAnimationPrepareFrame(
 		p.fillRect(rect, bg);
 	}
 	st::craftFail.paintInCenter(p, rect, st::white->c);
+	p.setOpacity(progress);
+	p.drawImage(
+		st::craftForgePadding,
+		st::craftForgePadding,
+		state->shared->lostRadial);
 }
 
 [[nodiscard]] QRect PrepareCraftFrame(
@@ -559,11 +575,11 @@ void FailureAnimationPrepareFrame(
 }
 
 void PaintCube(
-	QPainter &p,
-	not_null<CraftAnimationState*> state,
-	not_null<RpWidget*> canvas,
-	QPointF center,
-	float64 size) {
+		QPainter &p,
+		not_null<CraftAnimationState*> state,
+		not_null<RpWidget*> canvas,
+		QPointF center,
+		float64 size) {
 	const auto shared = state->shared.get();
 
 	const auto now = crl::now();
@@ -824,15 +840,13 @@ void PaintFlyingGift(
 void PaintSlideOutCorner(
 		QPainter &p,
 		const CraftState::CornerSnapshot &corner,
-		float64 offsetY,
 		float64 progress) {
 	if (corner.originalRect.isEmpty()) {
 		return;
 	}
 
 	const auto ratio = style::DevicePixelRatio();
-	const auto originalTopLeft = QPointF(corner.originalRect.topLeft());
-	const auto currentTopLeft = originalTopLeft + QPointF(0, offsetY);
+	const auto currentTopLeft = QPointF(corner.originalRect.topLeft());
 	if (corner.giftButton) {
 		const auto frame = corner.gift(0.);
 		const auto giftSize = QSizeF(frame.size()) / ratio;
@@ -887,19 +901,6 @@ void PaintSlideOutPhase(
 		float64 progress) {
 	const auto ratio = style::DevicePixelRatio();
 
-	if (!shared->topPart.isNull()) {
-		const auto topSize = QSizeF(shared->topPart.size()) / ratio;
-		const auto slideDistance = topSize.height();
-		const auto offsetY = slideDistance * progress;
-		const auto opacity = 1. - progress;
-
-		p.setOpacity(opacity);
-		p.drawImage(
-			shared->topPartRect.topLeft() - QPointF(0, offsetY),
-			shared->topPart);
-		p.setOpacity(1.);
-	}
-
 	if (!shared->bottomPart.isNull()) {
 		const auto slideDistance = QSizeF(shared->bottomPart.size()).height()
 			/ ratio;
@@ -913,13 +914,12 @@ void PaintSlideOutPhase(
 		p.setOpacity(1.);
 	}
 
-	const auto offset = shared->craftingOffsetY;
 	for (const auto &corner : shared->corners) {
-		PaintSlideOutCorner(p, corner, offset, progress);
+		PaintSlideOutCorner(p, corner, progress);
 	}
 
 	auto hq = PainterHighQualityEnabler(p);
-	const auto forge = shared->forgeRect.translated(0, offset);
+	const auto forge = shared->forgeRect;
 	const auto radius = st::boxRadius;
 	p.setPen(Qt::NoPen);
 	p.setBrush(shared->forgeBgOverlay);
@@ -930,6 +930,46 @@ void PaintSlideOutPhase(
 		forge.x() + st::craftForgePadding,
 		forge.y() + st::craftForgePadding,
 		shared->forgePercent);
+}
+
+void PaintFailureThumbnails(
+		QPainter &p,
+		not_null<const CraftState*> shared,
+		QSize canvasSize,
+		float64 fadeProgress) {
+	if (fadeProgress <= 0.) {
+		return;
+	}
+
+	p.setOpacity(fadeProgress);
+
+	const auto width = canvasSize.width();
+	const auto giftsCount = int(shared->lostGifts.size());
+	const auto thumbSize = shared->lostGifts.front().thumbnail.size()
+		/ style::DevicePixelRatio();
+	const auto thumbSpacing = st::boxRowPadding.left() / 2;
+	const auto totalThumbWidth = giftsCount * thumbSize.width()
+		+ (giftsCount - 1) * thumbSpacing;
+	const auto available = width
+		- st::boxRowPadding.left()
+		- st::boxRowPadding.right();
+	const auto skip = (totalThumbWidth > available)
+		? (available - giftsCount * thumbSize.width()) / (giftsCount - 1)
+		: thumbSpacing;
+	const auto full = giftsCount * thumbSize.width()
+		+ (giftsCount - 1) * skip;
+	auto x = (width - full) / 2;
+	const auto y = shared->forgeRect.bottom() + st::craftFailureThumbsTop;
+
+	for (const auto &gift : shared->lostGifts) {
+		if (!gift.thumbnail.isNull()) {
+			const auto targetRect = QRect(QPoint(x, y), thumbSize);
+			p.drawImage(targetRect, gift.thumbnail);
+		}
+		x += thumbSize.width() + skip;
+	}
+
+	p.setOpacity(1.);
 }
 
 [[nodiscard]] std::array<QPointF, 4> RotateCornersForFace(
@@ -1018,8 +1058,7 @@ void StartGiftFlightToFace(
 
 		const auto cubeSize = float64(shared->forgeRect.width());
 		const auto cubeCenter = QPointF(shared->forgeRect.topLeft())
-			+ QPointF(cubeSize, cubeSize) / 2.
-			+ QPointF(0, shared->craftingOffsetY);
+			+ QPointF(cubeSize, cubeSize) / 2.;
 
 		const auto targetCorners = ComputeCubeFaceCorners(
 			cubeCenter,
@@ -1090,8 +1129,7 @@ void PaintLoadingAnimation(
 	}
 
 	const auto shared = state->shared.get();
-	const auto forge = shared->forgeRect.translated(
-		{ 0, shared->craftingOffsetY });
+	const auto forge = shared->forgeRect;
 	const auto inner = forge.marginsRemoved({
 		st::craftForgePadding,
 		st::craftForgePadding,
@@ -1150,12 +1188,6 @@ void CraftState::paint(
 		return gradient;
 	};
 	auto patternOffsetY = 0.;
-	if (slideProgress > 0.
-		&& containerHeight > 0
-		&& craftingAreaCenterY > 0) {
-		patternOffsetY = (containerHeight / 2. - craftingAreaCenterY)
-			* slideProgress;
-	}
 	const auto paintPattern = [&](
 			QPainter &q,
 			PatternView &pattern,
@@ -1279,27 +1311,201 @@ CraftState::EmptySide CraftState::prepareEmptySide(
 	return { .bg = bg, .frame = result };
 }
 
+void SetupProgressControls(
+		not_null<CraftAnimationState*> state,
+		not_null<RpWidget*> canvas) {
+	const auto add = [&](not_null<FlatLabel*> label) {
+		state->progressOpacity.value() | rpl::on_next([=](float64 opacity) {
+			label->setOpacity(opacity);
+		}, label->lifetime());
+	};
+
+	const auto controls = CreateChild<VerticalLayout>(canvas);
+	controls->resizeToWidth(canvas->width());
+	controls->move(0, state->shared->craftingBottom);
+
+	const auto title = controls->add(
+		object_ptr<FlatLabel>(
+			controls,
+			tr::lng_gift_craft_progress(),
+			st::uniqueGiftTitle),
+		st::boxRowPadding + st::craftProgressTitleMargin,
+		style::al_top);
+	add(title);
+	title->setTextColorOverride(st::white->c);
+
+	const auto subColor = QColor(255, 255, 255, 178);
+	const auto about = controls->add(
+		object_ptr<FlatLabel>(
+			controls,
+			tr::lng_gift_craft_progress_about(
+				lt_gift,
+				rpl::single(tr::marked(state->shared->giftName)),
+				tr::rich),
+			st::uniqueGiftSubtitle),
+		st::boxRowPadding + st::craftProgressAboutMargin,
+		style::al_top);
+	add(about);
+	about->setTextColorOverride(subColor);
+
+	const auto warning = controls->add(
+		object_ptr<FlatLabel>(
+			controls,
+			tr::lng_gift_craft_progress_fails(),
+			st::craftAbout),
+		st::boxRowPadding + st::craftProgressWarningMargin,
+		style::al_top);
+	add(warning);
+	warning->setTextColorOverride(subColor);
+
+	const auto chance = controls->add(
+		object_ptr<FlatLabel>(
+			controls,
+			tr::lng_gift_craft_progress_chance(
+				tr::now,
+				lt_percent,
+				FormatPercent(state->shared->successPermille)),
+			st::craftChance),
+		st::boxRowPadding + st::craftProgressChanceMargin,
+		style::al_top);
+	add(chance);
+	chance->setTextColorOverride(st::white->c);
+	chance->paintOn([=](QPainter &p) {
+		if (const auto opacity = state->progressOpacity.current()) {
+			p.setPen(Qt::NoPen);
+			p.setOpacity(opacity);
+			p.setBrush(state->shared->forgeBgOverlay);
+			const auto radius = chance->height() / 2.;
+			p.drawRoundedRect(chance->rect(), radius, radius);
+		}
+	});
+
+	controls->showOn(state->progressOpacity.value(
+	) | rpl::map(
+		rpl::mappers::_1 > 0.
+	) | rpl::distinct_until_changed());
+}
+
+void SetupFailureControls(
+		not_null<CraftAnimationState*> state,
+		not_null<RpWidget*> canvas) {
+	const auto add = [&](not_null<FlatLabel*> label) {
+		state->failureOpacity.value() | rpl::on_next([=](float64 opacity) {
+			label->setOpacity(opacity);
+		}, label->lifetime());
+	};
+
+	const auto controls = CreateChild<VerticalLayout>(canvas);
+	controls->resizeToWidth(canvas->width());
+	controls->move(0, state->shared->craftingBottom);
+
+	const auto title = controls->add(
+		object_ptr<FlatLabel>(
+			controls,
+			tr::lng_gift_craft_failed_title(),
+			st::uniqueGiftTitle),
+		st::boxRowPadding + st::craftFailureTitleMargin,
+		style::al_top);
+	add(title);
+	title->setTextColorOverride(QColor(0xF8, 0x4A, 0x4A));
+
+	const auto about = controls->add(
+		object_ptr<FlatLabel>(
+			controls,
+			tr::lng_gift_craft_failed_about(
+				lt_count,
+				rpl::single(state->shared->lostGifts.size() * 1.),
+				tr::rich),
+			st::uniqueGiftSubtitle),
+		st::boxRowPadding + st::craftFailureAboutMargin,
+		style::al_top);
+	add(about);
+	about->setTextColorOverride(QColor(0xFF, 0xBC, 0x9B));
+
+	controls->showOn(state->failureOpacity.value(
+	) | rpl::map(
+		rpl::mappers::_1 > 0.
+	) | rpl::distinct_until_changed());
+}
+
+void SetupCraftNewButton(
+		not_null<CraftAnimationState*> state,
+		not_null<RpWidget*> canvas) {
+	const auto button = CreateChild<GradientButton>(
+		canvas,
+		QGradientStops{
+			{ 0., QColor(0xE2, 0x75, 0x19) },
+			{ 1., QColor(0xDD, 0x48, 0x19) },
+		});
+	button->setFullRadius(true);
+	button->setClickedCallback([=] {
+		state->retryWithNewGift();
+	});
+
+	const auto buttonLabel = CreateChild<FlatLabel>(
+		button,
+		tr::lng_gift_craft_new_button(),
+		st::creditsBoxButtonLabel);
+	buttonLabel->setTextColorOverride(st::white->c);
+	buttonLabel->setAttribute(
+		Qt::WA_TransparentForMouseEvents);
+	button->sizeValue() | rpl::on_next([=](QSize size) {
+		buttonLabel->moveToLeft(
+			(size.width() - buttonLabel->width()) / 2,
+			st::giftBox.button.textTop);
+	}, buttonLabel->lifetime());
+
+	const auto buttonWidth = canvas->width()
+		- st::craftBoxButtonPadding.left()
+		- st::craftBoxButtonPadding.right();
+	const auto buttonHeight = st::giftBox.button.height;
+	button->setNaturalWidth(buttonWidth);
+	button->setGeometry(
+		st::craftBoxButtonPadding.left(),
+		state->shared->originalButtonY,
+		buttonWidth,
+		buttonHeight);
+	button->show();
+
+	button->shownValue() | rpl::filter(
+		rpl::mappers::_1
+	) | rpl::take(1) | rpl::on_next([=] {
+		button->startGlareAnimation();
+	}, button->lifetime());
+}
+
 void StartCraftAnimation(
 		not_null<GenericBox*> box,
 		std::shared_ptr<ChatHelpers::Show> show,
 		std::shared_ptr<CraftState> shared,
 		Fn<void(CraftResultCallback)> startRequest,
-		Fn<void()> closeParent) {
+		Fn<void()> closeParent,
+		Fn<void(Fn<void()> closeCurrent)> retryWithNewGift) {
 	const auto container = box->verticalLayout();
-	const auto closeOnFail = crl::guard(box, [=] {
-		if (const auto onstack = closeParent) {
-			onstack();
-		}
-		box->closeBox();
-		show->showToast("failed");// tr::lng_gift_craft_failed(tr::now));
-	});
-
 	while (container->count() > 0) {
 		delete container->widgetAt(0);
 	}
+
 	auto canvas = object_ptr<RpWidget>(container);
 	const auto raw = canvas.data();
 	const auto state = raw->lifetime().make_state<CraftAnimationState>();
+
+	state->retryWithNewGift = [=] {
+		retryWithNewGift(crl::guard(box, [=] { box->closeBox(); }));
+	};
+
+	const auto title = CreateChild<FlatLabel>(
+		raw,
+		tr::lng_gift_craft_title(),
+		st::uniqueGiftTitle);
+	title->naturalWidthValue() | rpl::on_next([=](int titleWidth) {
+		const auto width = st::boxWideWidth;
+		title->moveToLeft(
+			(width - titleWidth) / 2,
+			st::craftTitleMargin.top(),
+			width);
+	}, title->lifetime());
+	title->setTextColorOverride(st::white->c);
 
 	const auto height = shared->containerHeight;
 	const auto craftingHeight = shared->craftingBottom - shared->craftingTop;
@@ -1318,6 +1524,38 @@ void StartCraftAnimation(
 	state->loadingAnimation = std::make_unique<InfiniteRadialAnimation>(
 		[=] { raw->update(); },
 		st::craftForgeLoading);
+
+	SetupProgressControls(state, raw);
+	SetupFailureControls(state, raw);
+
+	state->progressShown.value(
+	) | rpl::combine_previous(
+	) | rpl::on_next([=](bool wasShown, bool nowShown) {
+		if (wasShown == nowShown) {
+			return;
+		}
+		const auto from = wasShown ? 1. : 0.;
+		const auto to = nowShown ? 1. : 0.;
+		state->progressFadeIn.start([=] {
+			raw->update();
+		}, from, to, kProgressFadeInDuration, anim::easeOutCubic);
+	}, raw->lifetime());
+
+	state->failureShown.value(
+	) | rpl::combine_previous(
+	) | rpl::on_next([=](bool wasShown, bool nowShown) {
+		if (wasShown == nowShown) {
+			return;
+		}
+		const auto from = wasShown ? 1. : 0.;
+		const auto to = nowShown ? 1. : 0.;
+		state->failureFadeIn.start([=] {
+			raw->update();
+			if (!state->failureFadeIn.animating()) {
+				SetupCraftNewButton(state, raw);
+			}
+		}, from, to, kFailureFadeDuration, anim::easeOutCubic);
+	}, raw->lifetime());
 
 	raw->paintOn([=](QPainter &p) {
 		const auto shared = state->shared.get();
@@ -1347,27 +1585,31 @@ void StartCraftAnimation(
 			}
 		}
 
-		shared->craftingOffsetY = (shared->containerHeight / 2.)
-			- shared->craftingAreaCenterY;
 		if (slideProgress < 1.) {
-			shared->craftingOffsetY *= slideProgress;
 			PaintSlideOutPhase(p, shared, craftingSize, slideProgress);
 		} else {
-			if (success) {
-				const auto target = success->coverShift;
-				shared->craftingOffsetY -= target * success->expanded;
+			const auto craftingOffsetY = success
+				? (-success->coverShift * success->expanded)
+				: 0.;
+			if (success && success->expanded > 0.) {
+				const auto width = st::boxWideWidth;
+				const auto top = st::craftTitleMargin.top();
+				title->moveToLeft(
+					(width - title->naturalWidth()) / 2,
+					top - (success->expanded * (top + title->height())),
+					width);
 			}
 			const auto cubeSize = float64(shared->forgeRect.width());
 			const auto cubeCenter = QPointF(shared->forgeRect.topLeft())
 				+ QPointF(cubeSize, cubeSize) / 2.
-				+ QPointF(0, shared->craftingOffsetY);
+				+ QPointF(0, craftingOffsetY);
 
 			for (auto i = 0; i < 4; ++i) {
 				const auto &corner = shared->corners[i];
 				if (corner.giftButton && state->giftToSide[i].face < 0) {
 					const auto giftTopLeft = QPointF()
 						+ QPointF(corner.originalRect.topLeft())
-						+ QPointF(0, shared->craftingOffsetY);
+						+ QPointF(0, craftingOffsetY);
 					p.drawImage(giftTopLeft, corner.gift(0));
 				}
 			}
@@ -1399,7 +1641,7 @@ void StartCraftAnimation(
 
 				if (state->flightTargetCorners) {
 					const auto sourceRect = QRectF(corner.originalRect)
-						.translated(0, shared->craftingOffsetY);
+						.translated(0, craftingOffsetY);
 					const auto sourceCorners = RectToCorners(sourceRect);
 					const auto interpolatedCorners = InterpolateQuadCorners(
 						sourceCorners,
@@ -1416,13 +1658,26 @@ void StartCraftAnimation(
 						cubeCenter,
 						cubeSize,
 						progress,
-						shared->craftingOffsetY);
+						craftingOffsetY);
 					PaintFlyingGift(p, corner, position, progress);
 				}
 			}
 
 			PaintLoadingAnimation(p, state);
+
+			if (const auto opacity = state->failureOpacity.current()) {
+				PaintFailureThumbnails(
+					p,
+					shared,
+					craftingSize,
+					opacity);
+			}
 		}
+
+		state->progressOpacity = state->progressFadeIn.value(
+			state->progressShown.current() ? 1. : 0.);
+		state->failureOpacity = state->failureFadeIn.value(
+			state->failureShown.current() ? 1. : 0.);
 	});
 
 	const auto startFlying = [=] {
@@ -1471,6 +1726,8 @@ void StartCraftAnimation(
 				startFlying);
 		}
 	};
+
+	state->progressShown = true;
 
 	state->slideOutAnimation.start([=] {
 		raw->update();
@@ -1597,9 +1854,10 @@ void StartCraftAnimation(
 				raw->resizeToWidth(st::boxWideWidth);
 				SendPendingMoveResizeEvents(raw);
 
-				const auto fullHeight = state->shared->containerHeight;
 				success->coverHeight = raw->height();
-				success->coverShift = (fullHeight - raw->height()) / 2;
+				success->coverShift = state->shared->forgeRect.y()
+					+ (state->shared->forgeRect.height() / 2)
+					- (raw->height() / 2);
 			}
 			tryStartFlying();
 		});

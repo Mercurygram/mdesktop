@@ -32,7 +32,9 @@ class GiftButton;
 
 namespace Ui {
 
+class FlatLabel;
 class GenericBox;
+class RpWidget;
 class VerticalLayout;
 class UniqueGiftCoverWidget;
 
@@ -104,7 +106,16 @@ struct CraftState {
 	int craftingTop = 0;
 	int craftingBottom = 0;
 	int craftingAreaCenterY = 0;
-	int craftingOffsetY = 0;
+	int originalButtonY = 0;
+
+	QString giftName;
+	int successPermille = 0;
+	struct LostGift {
+		QImage thumbnail;
+		QString number;
+	};
+	std::vector<LostGift> lostGifts;
+	QImage lostRadial;
 
 	void paint(
 		QPainter &p,
@@ -178,6 +189,16 @@ struct CraftAnimationState {
 
 	std::unique_ptr<CraftDoneAnimation> successAnimation;
 	std::unique_ptr<CraftFailAnimation> failureAnimation;
+
+	rpl::variable<float64> progressOpacity;
+	Animations::Simple progressFadeIn;
+	rpl::variable<bool> progressShown;
+
+	rpl::variable<float64> failureOpacity;
+	Animations::Simple failureFadeIn;
+	rpl::variable<bool> failureShown;
+
+	Fn<void()> retryWithNewGift;
 };
 
 void StartCraftAnimation(
@@ -185,6 +206,7 @@ void StartCraftAnimation(
 	std::shared_ptr<ChatHelpers::Show> show,
 	std::shared_ptr<CraftState> state,
 	Fn<void(CraftResultCallback)> startRequest,
-	Fn<void()> closeParent);
+	Fn<void()> closeParent,
+	Fn<void(Fn<void()> closeCurrent)> retryWithNewGift);
 
 } // namespace Ui
