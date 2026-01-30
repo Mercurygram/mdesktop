@@ -108,18 +108,18 @@ struct GiftForCraft {
 		const GiftForCraft &) = default;
 };
 
-void ShowGiftCraftBoxInternal(
-	not_null<Window::SessionController*> controller,
-	std::vector<GiftForCraft> gifts,
-	Fn<void()> closeParent,
-	bool autoStartCraft);
-
 struct CraftingView {
 	object_ptr<RpWidget> widget;
 	rpl::producer<int> editRequests;
 	rpl::producer<int> removeRequests;
 	Fn<void(std::shared_ptr<CraftState>)> grabForAnimation;
 };
+
+void ShowGiftCraftBox(
+	not_null<Window::SessionController*> controller,
+	std::vector<GiftForCraft> gifts,
+	Fn<void()> closeParent,
+	bool autoStartCraft);
 
 [[nodiscard]] QString FormatPercent(int permille) {
 	const auto rounded = (permille + 5) / 10;
@@ -898,7 +898,7 @@ void Craft(
 			}
 
 			ShowSelectGiftBox(controller, list, [=](GiftForCraft chosen) {
-				ShowGiftCraftBoxInternal(
+				ShowGiftCraftBox(
 					controller,
 					{ chosen },
 					closeParent,
@@ -1003,7 +1003,6 @@ void MakeCraftContent(
 		not_null<GenericBox*> box,
 		not_null<Window::SessionController*> controller,
 		std::vector<GiftForCraft> gifts,
-		Data::UniqueGiftAttributes attributes,
 		Fn<void()> closeParent,
 		bool autoStartCraft) {
 	Expects(!gifts.empty());
@@ -1029,6 +1028,9 @@ void MakeCraftContent(
 	const auto session = &controller->session();
 	const auto initialGiftId = gifts.front().unique->initialGiftId;
 	const auto state = box->lifetime().make_state<State>();
+
+	const auto auctions = &controller->session().giftAuctions();
+	auto attributes = auctions->attributes(initialGiftId).value_or({});
 
 	state->craftState = std::make_shared<CraftState>();
 	state->craftState->session = session;
@@ -1304,10 +1306,9 @@ void MakeCraftContent(
 	}
 }
 
-void ShowGiftCraftBoxWithAttributes(
+void ShowGiftCraftBox(
 		not_null<Window::SessionController*> controller,
 		std::vector<GiftForCraft> gifts,
-		Data::UniqueGiftAttributes attributes,
 		Fn<void()> closeParent,
 		bool autoStartCraft) {
 	controller->show(Box([=](not_null<GenericBox*> box) {
@@ -1318,7 +1319,6 @@ void ShowGiftCraftBoxWithAttributes(
 			box,
 			controller,
 			gifts,
-			attributes,
 			closeParent,
 			autoStartCraft);
 		AddUniqueCloseButton(box);
@@ -1334,39 +1334,12 @@ void ShowGiftCraftBoxWithAttributes(
 					} else {
 						copy = full;
 					}
-					ShowGiftCraftBoxInternal(controller, copy, [] {}, true);
+					ShowGiftCraftBox(controller, copy, [] {}, true);
 				});
 			}, box->lifetime());
 		}
 #endif
 	}));
-}
-
-void ShowGiftCraftBoxInternal(
-		not_null<Window::SessionController*> controller,
-		std::vector<GiftForCraft> gifts,
-		Fn<void()> closeParent,
-		bool autoStartCraft) {
-	const auto giftId = gifts.front().unique->initialGiftId;
-	const auto auctions = &controller->session().giftAuctions();
-	if (auto attrs = auctions->attributes(giftId)) {
-		ShowGiftCraftBoxWithAttributes(
-			controller,
-			std::move(gifts),
-			std::move(*attrs),
-			std::move(closeParent),
-			autoStartCraft);
-	} else {
-		auctions->requestAttributes(giftId, crl::guard(controller, [=] {
-			auto attrs = auctions->attributes(giftId);
-			ShowGiftCraftBoxWithAttributes(
-				controller,
-				gifts,
-				attrs ? std::move(*attrs) : Data::UniqueGiftAttributes{},
-				closeParent,
-				autoStartCraft);
-		}));
-	}
 }
 
 } // namespace
@@ -1419,14 +1392,19 @@ void ShowGiftCraftInfoBox(
 		box->setNoContentMargin(true);
 
 		box->addButton(tr::lng_gift_craft_start_button(), [=] {
-			const auto weak = base::make_weak(box);
-			ShowGiftCraftBoxInternal(
-				controller,
-				{ GiftForCraft{ gift, savedId } },
-				closeParent,
-				false);
-			if (const auto strong = box.get()) {
-				strong->closeBox();
+			const auto auctions = &controller->session().giftAuctions();
+			const auto show = crl::guard(box, [=] {
+				ShowGiftCraftBox(
+					controller,
+					{ GiftForCraft{ gift, savedId } },
+					std::move(closeParent),
+					false);
+				box->closeBox();
+			});
+			if (auctions->attributes(gift->initialGiftId)) {
+				show();
+			} else {
+				auctions->requestAttributes(gift->initialGiftId, show);
 			}
 		});
 	}));
@@ -1443,7 +1421,7 @@ void ShowTestGiftCraftBox(
 		entry.manageId = std::move(gift.manageId);
 		converted.push_back(std::move(entry));
 	}
-	ShowGiftCraftBoxInternal(controller, std::move(converted), [] {}, true);
+	ShowGiftCraftBox(controller, std::move(converted), [] {}, true);
 }
 
 } // namespace Ui
