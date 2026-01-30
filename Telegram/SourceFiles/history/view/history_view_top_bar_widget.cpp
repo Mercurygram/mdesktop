@@ -76,16 +76,6 @@ namespace {
 
 constexpr auto kEmojiInteractionSeenDuration = 3 * crl::time(1000);
 
-class MenuToggleButton final : public Ui::IconButton {
-public:
-	using IconButton::IconButton;
-
-protected:
-	void contextMenuEvent(QContextMenuEvent *e) override {
-		Ui::AbstractButton::clicked(Qt::KeyboardModifiers(), Qt::LeftButton);
-	}
-};
-
 [[nodiscard]] inline bool HasGroupCallMenu(not_null<PeerData*> peer) {
 	return !peer->isUser()
 		&& !peer->groupCall()
@@ -136,9 +126,7 @@ TopBarWidget::TopBarWidget(
 , _groupCall(this, st::topBarGroupCall)
 , _search(this, st::topBarSearch)
 , _infoToggle(this, st::topBarInfo)
-, _menuToggle(
-	object_ptr<Ui::IconButton>::fromRaw(
-		Ui::CreateChild<MenuToggleButton>(this, st::topBarMenuToggle)))
+, _menuToggle(this, st::topBarMenuToggle)
 , _titlePeerText(st::windowMinWidth / 3)
 , _onlineUpdater([=] { updateOnlineDisplay(); }) {
 	setAttribute(Qt::WA_OpaquePaintEvent);
@@ -156,14 +144,15 @@ TopBarWidget::TopBarWidget(
 	_delete->setWidthChangedCallback([=] { updateControlsGeometry(); });
 	_clear->setClickedCallback([=] { _clearSelection.fire({}); });
 	_call->setClickedCallback([=] { call({}); });
-	_call->setAcceptBoth();
+	_call->setAcceptBoth(true, true);
 	_call->addClickHandler([=](Qt::MouseButton button) {
 		if (button == Qt::RightButton) {
 			showCallMenu();
 		}
 	});
 	_groupCall->setClickedCallback([=] { groupCall(); });
-	_menuToggle->setClickedCallback([=] { showPeerMenu(); });
+	_menuToggle->addClickHandler([=](auto) { showPeerMenu(); });
+	_menuToggle->setAcceptBoth(true, true);
 	_infoToggle->setClickedCallback([=] { toggleInfoSection(); });
 	_back->setAcceptBoth();
 	_back->addClickHandler([=](Qt::MouseButton) {
