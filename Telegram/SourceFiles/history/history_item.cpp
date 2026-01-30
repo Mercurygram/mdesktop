@@ -6601,6 +6601,16 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 		return result;
 	};
 
+	auto prepareNewCreatorPending = [&](const MTPDmessageActionNewCreatorPending &action) {
+		auto result = PreparedServiceText{ .text = { u"new creator pending"_q } };
+		return result;
+	};
+
+	auto prepareChangeCreator = [&](const MTPDmessageActionChangeCreator &action) {
+		auto result = PreparedServiceText{ .text = { u"new creator"_q } };
+		return result;
+	};
+
 	setServiceText(action.match(
 		prepareChatAddUserText,
 		prepareChatJoinedByLink,
@@ -6660,6 +6670,8 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 		prepareSuggestBirthday,
 		prepareStarGiftPurchaseOffer,
 		prepareStarGiftPurchaseOfferDeclined,
+		prepareNewCreatorPending,
+		prepareChangeCreator,
 		PrepareEmptyText<MTPDmessageActionRequestedPeerSentMe>,
 		PrepareErrorText<MTPDmessageActionEmpty>));
 
