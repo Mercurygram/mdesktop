@@ -999,7 +999,8 @@ void Message::draw(Painter &p, const PaintContext &context) const {
 			context.st,
 			messageRounding,
 			g.width(),
-			context.clip.translated(-keyboardPosition));
+			context.clip.translated(-keyboardPosition),
+			context.paused);
 		p.translate(-keyboardPosition);
 	}
 
