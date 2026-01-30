@@ -4659,6 +4659,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_url_auth_phone_sure_title" = "Phone Number";
 "lng_url_auth_phone_sure_text" = "{domain} wants to access your phone number **{phone}**.\n\nAllow access?";
 "lng_url_auth_phone_sure_deny" = "Deny";
+"lng_url_auth_phone_toast_good_title" = "Login successful";
+"lng_url_auth_phone_toast_good" = "You're now logged in to {domain}.";
+"lng_url_auth_phone_toast_good_no_phone" = "You're now logged in to {domain}, but you didn't grant access to your phone number.";
+"lng_url_auth_phone_toast_bad_title" = "Login failed";
+"lng_url_auth_phone_toast_bad" = "Please try logging in to {domain} again.";
+"lng_url_auth_phone_toast_bad_expired" = "This link is expired.";
 
 "lng_bot_start" = "Start";
 "lng_bot_choose_group" = "Select a Group";

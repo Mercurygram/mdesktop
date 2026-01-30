@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/boxes/confirm_box.h"
 #include "ui/controls/userpic_button.h"
 #include "ui/layers/generic_box.h"
+#include "ui/toast/toast.h"
 #include "ui/widgets/menu/menu_action.h"
 #include "ui/widgets/popup_menu.h"
 #include "styles/style_layers.h"
@@ -222,8 +223,13 @@ void ActivateUrl(
 		}, [&](const MTPDurlAuthResultRequest &data) {
 			RequestUrl(show, data, session, url, context);
 		});
-	}).fail([=] {
-		HiddenUrlClickHandler::Open(url, context);
+	}).fail([=](const MTP::Error &error) {
+		if (error.type() == u"URL_EXPIRED"_q) {
+			show->showToast(
+				tr::lng_url_auth_phone_toast_bad_expired(tr::now));
+		} else {
+			HiddenUrlClickHandler::Open(url, context);
+		}
 	}).send();
 }
 
@@ -319,6 +325,8 @@ void RequestUrl(
 	const auto bot = request.is_request_write_access()
 		? session->data().processUser(request.vbot()).get()
 		: nullptr;
+	const auto requestPhone = request.is_request_phone_number();
+	const auto domain = qs(request.vdomain());
 	const auto box = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
 	const auto finishWithUrl = [=](const QString &url, bool accepted) {
 		if (*box) {
@@ -326,7 +334,6 @@ void RequestUrl(
 		}
 
 		if (url.isEmpty() && accepted) {
-			show->showToast(tr::lng_passport_success(tr::now));
 		} else {
 			UrlClickHandler::Open(url, context);
 		}
@@ -337,10 +344,11 @@ void RequestUrl(
 		if (!result.auth) {
 			finishWithUrl(url, false);
 		} else {
+			const auto sharePhone = result.sharePhone;
 			using Flag = MTPmessages_AcceptUrlAuth::Flag;
 			const auto flags = Flag::f_url
 				| (result.allowWrite ? Flag::f_write_allowed : Flag(0))
-				| (result.sharePhone ? Flag::f_share_phone_number : Flag(0));
+				| (sharePhone ? Flag::f_share_phone_number : Flag(0));
 			const auto currentSession = anotherSessionFactory
 				? (*anotherSessionFactory)()
 				: session;
@@ -368,13 +376,31 @@ void RequestUrl(
 					return url;
 				});
 				finishWithUrl(to, accepted);
+				show->showToast(Ui::Toast::Config{
+					.title = tr::lng_url_auth_phone_toast_good_title(tr::now),
+					.text = ((requestPhone && !sharePhone)
+						? tr::lng_url_auth_phone_toast_good_no_phone
+						: tr::lng_url_auth_phone_toast_good)(
+							tr::now,
+							lt_domain,
+							tr::link(domain),
+							tr::marked),
+					.duration = crl::time(4000),
+				});
 			}).fail([=] {
+				show->showToast(Ui::Toast::Config{
+					.title = tr::lng_url_auth_phone_toast_bad_title(tr::now),
+					.text = tr::lng_url_auth_phone_toast_bad(
+						tr::now,
+						lt_domain,
+						tr::link(domain),
+						tr::marked),
+					.duration = crl::time(4000),
+				});
 				finishWithUrl(url, false);
 			}).send();
 		}
 	};
-	const auto requestPhone = request.is_request_phone_number();
-	const auto domain = qs(request.vdomain());
 	const auto browser = qs(request.vbrowser().value_or("Unknown browser"));
 	const auto device = qs(request.vplatform().value_or("Unknown platform"));
 	const auto ip = qs(request.vip().value_or("Unknown IP"));
@@ -422,12 +448,14 @@ void RequestUrl(
 			url,
 			domain,
 			callback,
-			object_ptr<Ui::UserpicButton>(
-				box->verticalLayout(),
-				bot,
-				st::defaultUserpicButton,
-				Ui::PeerUserpicShape::Forum),
-			Info::Profile::NameValue(bot),
+			bot
+				? object_ptr<Ui::UserpicButton>(
+					box->verticalLayout(),
+					bot,
+					st::defaultUserpicButton,
+					Ui::PeerUserpicShape::Forum)
+				: nullptr,
+			bot ? Info::Profile::NameValue(bot) : nullptr,
 			browser,
 			device,
 			ip,
