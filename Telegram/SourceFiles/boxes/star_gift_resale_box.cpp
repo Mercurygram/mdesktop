@@ -8,12 +8,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/star_gift_resale_box.h"
 
 #include "boxes/star_gift_box.h"
+#include "boxes/transfer_gift_box.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "core/ui_integration.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
 #include "data/data_star_gift.h"
+#include "data/data_user.h"
 #include "lang/lang_keys.h"
 #include "info/peer_gifts/info_peer_gifts_common.h"
 #include "main/main_session.h"
@@ -81,7 +83,6 @@ struct ResaleTabs {
 };
 [[nodiscard]] ResaleTabs MakeResaleTabs(
 		std::shared_ptr<ChatHelpers::Show> show,
-		not_null<PeerData*> peer,
 		const ResaleGiftsDescriptor &info,
 		rpl::producer<ResaleGiftsFilter> filter) {
 	auto widget = object_ptr<RpWidget>((QWidget*)nullptr);
@@ -470,16 +471,13 @@ void GiftResaleBox(
 		ResaleGiftsDescriptor descriptor) {
 	box->setWidth(st::boxWideWidth);
 
-	// Create a proper vertical layout for the title
 	const auto titleWrap = box->setPinnedToTopContent(
 		object_ptr<Ui::VerticalLayout>(box.get()));
 
-	// Add vertical spacing above the title
 	titleWrap->add(object_ptr<Ui::FixedHeightWidget>(
 		titleWrap,
 		st::defaultVerticalListSkip));
 
-	// Add the gift name with semibold style
 	titleWrap->add(
 		object_ptr<Ui::FlatLabel>(
 			titleWrap,
@@ -487,7 +485,6 @@ void GiftResaleBox(
 			st::boxTitle),
 		QMargins(st::boxRowPadding.left(), 0, st::boxRowPadding.right(), 0));
 
-	// Add the count text in gray below with proper translation
 	const auto countLabel = titleWrap->add(
 		object_ptr<Ui::FlatLabel>(
 			titleWrap,
@@ -506,22 +503,16 @@ void GiftResaleBox(
 	}, content->lifetime());
 
 	struct State {
-		rpl::event_stream<> updated;
-		ResaleGiftsDescriptor data;
-		rpl::variable<ResaleGiftsFilter> filter;
 		rpl::variable<bool> ton;
-		rpl::lifetime loading;
 		int lastMinHeight = 0;
 	};
 	const auto state = content->lifetime().make_state<State>();
-	state->data = std::move(descriptor);
 
 	box->addButton(tr::lng_create_group_back(), [=] { box->closeBox(); });
 
 #ifndef OS_MAC_STORE
 	const auto currency = box->addLeftButton(rpl::single(QString()), [=] {
 		state->ton = !state->ton.current();
-		state->updated.fire({});
 	});
 	currency->setText(rpl::conditional(
 		state->ton.value(),
@@ -536,18 +527,47 @@ void GiftResaleBox(
 		}
 	}, content->lifetime());
 
+	AddResaleGiftsList(
+		window,
+		peer,
+		content,
+		std::move(descriptor),
+		state->ton.value());
+}
+
+} // namespace
+
+void AddResaleGiftsList(
+		not_null<Window::SessionController*> window,
+		not_null<PeerData*> peer,
+		not_null<VerticalLayout*> container,
+		Data::ResaleGiftsDescriptor descriptor,
+		rpl::producer<bool> forceTon,
+		Fn<void(std::shared_ptr<Data::UniqueGift>)> bought) {
+	struct State {
+		rpl::event_stream<> updated;
+		ResaleGiftsDescriptor data;
+		rpl::variable<ResaleGiftsFilter> filter;
+		rpl::variable<bool> ton;
+		rpl::lifetime loading;
+		int lastMinHeight = 0;
+	};
+	const auto state = container->lifetime().make_state<State>();
+	state->data = std::move(descriptor);
+	state->ton = std::move(forceTon);
+
 	auto tabs = MakeResaleTabs(
 		window->uiShow(),
-		peer,
 		state->data,
 		state->filter.value());
 	state->filter = std::move(tabs.filter);
-	content->add(std::move(tabs.widget));
+	container->add(std::move(tabs.widget));
 
+	const auto session = &window->session();
 	state->filter.changes() | rpl::on_next([=](ResaleGiftsFilter value) {
 		state->data.offset = QString();
 		state->loading = ResaleGiftsSlice(
-			&peer->session(),
+			session,
 			state->data.giftId,
 			value,
 			QString()
@@ -559,9 +579,9 @@ void GiftResaleBox(
 			state->data.list = std::move(slice.list);
 			state->updated.fire({});
 		});
-	}, content->lifetime());
+	}, container->lifetime());
 
-	peer->owner().giftUpdates(
+	session->data().giftUpdates(
 	) | rpl::on_next([=](const Data::GiftUpdate &update) {
 		using Action = Data::GiftUpdate::Action;
 		const auto action = update.action;
@@ -581,13 +601,33 @@ void GiftResaleBox(
 			state->data.list.erase(i);
 		}
 		state->updated.fire({});
-	}, box->lifetime());
+	}, container->lifetime());
 
-	content->add(MakeGiftsSendList(window, peer, rpl::single(
+	using Descriptor = Info::PeerGifts::GiftDescriptor;
+	auto customHandler = Fn<void(Descriptor)>();
+	if (bought) {
+		using StarGift = Info::PeerGifts::GiftTypeStars;
+		customHandler = crl::guard(container, [=](Descriptor descriptor) {
+			Expects(v::is<StarGift>(descriptor));
+
+			const auto unique = v::get<StarGift>(descriptor).info.unique;
+			const auto done = crl::guard(container, [=](bool ok) {
+				if (ok) {
+					bought(unique);
+				}
+			});
+			const auto to = peer->session().user();
+			const auto ton = state->ton.current();
+			ShowBuyResaleGiftBox(window->uiShow(), unique, ton, to, done);
+		});
+	}
+
+	container->add(MakeGiftsSendList(window, peer, rpl::single(
 		rpl::empty
-	) | rpl::then(
-		state->updated.events()
-	) | rpl::map([=] {
+	) | rpl::then(rpl::merge(
+		state->updated.events() | rpl::type_erased,
+		state->ton.changes() | rpl::to_empty | rpl::type_erased
+	)) | rpl::map([=] {
 		auto result = GiftsDescriptor();
 		const auto selfId = window->session().userPeerId();
 		const auto forceTon = state->ton.current();
@@ -620,10 +660,8 @@ void GiftResaleBox(
 				state->updated.fire({});
 			});
 		}
-	}));
+	}, customHandler));
 }
-
-} // namespace
 
 void ShowResaleGiftBoughtToast(
 		std::shared_ptr<Main::SessionShow> show,

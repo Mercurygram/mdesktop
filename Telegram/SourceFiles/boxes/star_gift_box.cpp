@@ -150,9 +150,6 @@ using namespace Info::PeerGifts;
 
 using Data::GiftAttributeId;
 using Data::GiftAttributeIdType;
-using Data::ResaleGiftsSort;
-using Data::ResaleGiftsFilter;
-using Data::ResaleGiftsDescriptor;
 using Data::MyGiftsDescriptor;
 
 enum class PickType {
@@ -1652,7 +1649,8 @@ void CheckMaybeGiftLocked(
 		not_null<Window::SessionController*> window,
 		not_null<PeerData*> peer,
 		rpl::producer<GiftsDescriptor> gifts,
-		Fn<void()> loadMore) {
+		Fn<void()> loadMore,
+		Fn<void(GiftDescriptor)> handler = nullptr) {
 	auto result = object_ptr<VisibleRangeWidget>((QWidget*)nullptr);
 	const auto raw = result.data();
 
@@ -1749,6 +1747,10 @@ void CheckMaybeGiftLocked(
 			const auto &descriptor = state->list[state->order[index]];
 			raw->setDescriptor(descriptor, GiftButton::Mode::Full);
 			raw->setClickedCallback([=] {
+				if (handler) {
+					handler(descriptor);
+					return;
+				}
 				const auto star = std::get_if<GiftTypeStars>(&descriptor);
 				const auto send = crl::guard(raw, [=] {
 					window->show(Box(
@@ -4706,12 +4708,14 @@ object_ptr<RpWidget> MakeGiftsSendList(
 		not_null<Window::SessionController*> window,
 		not_null<PeerData*> peer,
 		rpl::producer<GiftsDescriptor> gifts,
-		Fn<void()> loadMore) {
+		Fn<void()> loadMore,
+		Fn<void(GiftDescriptor)> handler) {
 	return MakeGiftsList(
 		window,
 		peer,
 		std::move(gifts),
-		std::move(loadMore));
+		std::move(loadMore),
+		std::move(handler));
 }
 
 void SendGiftBox(

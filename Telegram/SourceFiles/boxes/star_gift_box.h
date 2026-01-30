@@ -160,7 +160,8 @@ struct GiftsDescriptor {
 	not_null<Window::SessionController*> window,
 	not_null<PeerData*> peer,
 	rpl::producer<GiftsDescriptor> gifts,
-	Fn<void()> loadMore);
+	Fn<void()> loadMore,
+	Fn<void(Info::PeerGifts::GiftDescriptor)> handler = nullptr);
 
 void SendGiftBox(
 	not_null<GenericBox*> box,

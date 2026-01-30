@@ -199,7 +199,9 @@ void GiftButton::setDescriptor(const GiftDescriptor &descriptor, Mode mode) {
 	const auto unique = v::is<GiftTypeStars>(descriptor)
 		? v::get<GiftTypeStars>(descriptor).info.unique.get()
 		: nullptr;
-	const auto resalePrice = unique ? unique->starsForResale : 0;
+	const auto resalePrice = (unique && _mode != Mode::CraftPreview)
+		? unique->starsForResale
+		: 0;
 	if (_descriptor == descriptor && _resalePrice == resalePrice) {
 		return;
 	}
@@ -964,7 +966,7 @@ void GiftButton::paint(QPainter &p, float64 craftProgress) {
 
 	v::match(_descriptor, [](const GiftTypePremium &) {
 	}, [&](const GiftTypeStars &data) {
-		if (!unique) {
+		if (!unique || _mode == Mode::CraftPreview) {
 		} else if (data.pinned && _mode != GiftButtonMode::Selection) {
 			auto hq = PainterHighQualityEnabler(p);
 			const auto &icon = st::giftBoxPinIcon;

@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/star_gift_auction_box.h"
 #include "boxes/star_gift_craft_animation.h"
 #include "boxes/star_gift_preview_box.h"
+#include "boxes/star_gift_resale_box.h"
 #include "apiwrap.h"
 #include "api/api_credits.h"
 #include "api/api_premium.h"
@@ -47,6 +48,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Ui {
 namespace {
+
+constexpr auto kCraftGiftsLimit = 30;
 
 using namespace Info::PeerGifts;
 
@@ -555,39 +558,45 @@ AbstractButton *MakeRemoveButton(
 
 void ShowSelectGiftBox(
 		not_null<Window::SessionController*> controller,
-		std::vector<Data::SavedStarGift> list,
+		uint64 giftId,
 		Fn<void(GiftForCraft)> chosen,
-		std::vector<GiftForCraft> selected) {
-	controller->show(Box([=](not_null<Ui::GenericBox*> box) {
+		std::vector<GiftForCraft> selected,
+		Fn<void()> boxClosed) {
+	struct Entry {
+		Data::SavedStarGift gift;
+		GiftButton *button = nullptr;
+	};
+	struct State {
+		explicit State(not_null<Main::Session*> session)
+		: delegate(session, GiftButtonMode::Minimal) {
+		}
+
+		Delegate delegate;
+		std::vector<Entry> entries;
+
+		std::vector<Data::SavedStarGift> myList;
+		QString myOffset;
+		bool myFinished = false;
+
+		Data::ResaleGiftsDescriptor resale;
+
+		rpl::lifetime resaleLifetime;
+	};
+
+	const auto session = &controller->session();
+	const auto state = std::make_shared<State>(session);
+
+	const auto make = [=](not_null<GenericBox*> box) {
 		box->setTitle(tr::lng_gift_craft_select_title());
 		box->setWidth(st::boxWideWidth);
 
-		struct Entry {
-			Data::SavedStarGift gift;
-			GiftButton *button = nullptr;
-		};
-		struct State {
-			explicit State(not_null<Main::Session*> session)
-			: delegate(session, GiftButtonMode::Minimal) {
-			}
-
-			Delegate delegate;
-			std::vector<Entry> entries;
-			rpl::event_stream<> changes;
-			rpl::variable<int> successPercentPermille;
-			rpl::variable<QString> successPercentText;
-
-			int requestingIndex = 0;
-			bool crafting = false;
-		};
-		const auto session = &controller->session();
-		const auto state = box->lifetime().make_state<State>(session);
+		box->boxClosing() | rpl::on_next(boxClosed, box->lifetime());
 
 		AddSubsectionTitle(
 			box->verticalLayout(),
 			tr::lng_gift_craft_select_your());
 
-		if (list.empty()) {
+		if (state->myList.empty()) {
 			box->addRow(
 				object_ptr<FlatLabel>(
 					box,
@@ -602,7 +611,7 @@ void ShowSelectGiftBox(
 		const auto full = single.grownBy(extend).height();
 		const auto skip = st::boxRowPadding.left() / 2;
 		auto row = (RpWidget*)nullptr;
-		for (auto &gift : list) {
+		for (auto &gift : state->myList) {
 			if (!row) {
 				row = box->addRow(object_ptr<RpWidget>(box), QMargins());
 				row->resize(row->width(), full);
@@ -636,19 +645,89 @@ void ShowSelectGiftBox(
 					.document = gift.info.unique->model.document,
 				},
 			}, GiftButton::Mode::Minimal);
-			const auto width = (st::boxWideWidth - 2 * skip - st::boxRowPadding.left() - st::boxRowPadding.right()) / 3;
-			const auto left = st::boxRowPadding.left() + (width + skip) * col;
-			button->setGeometry(QRect(left, extend.top(), width, single.height()), extend);
+			const auto width = (st::boxWideWidth
+				- 2 * skip
+				- st::boxRowPadding.left()
+				- st::boxRowPadding.right()) / 3;
+			const auto x = st::boxRowPadding.left() + (width + skip) * col;
+			button->setGeometry(
+				QRect(x, extend.top(), width, single.height()),
+				extend);
 			if (col == 2) {
 				row = nullptr;
 			}
+		}
+
+		if (const auto count = state->resale.count) {
+			AddSubsectionTitle(
+				box->verticalLayout(),
+				tr::lng_gift_craft_select_market(
+					lt_count,
+					rpl::single(count * 1.)));
+
+			const auto bought = crl::guard(box, [=](
+					std::shared_ptr<Data::UniqueGift> gift) {
+				chosen(GiftForCraft{ .unique = gift });
+				box->closeBox();
+			});
+			AddResaleGiftsList(
+				controller,
+				controller->session().user(),
+				box->verticalLayout(),
+				state->resale,
+				rpl::single(false),
+				bought);
 		}
 
 		box->addButton(tr::lng_box_ok(), [=] {
 			box->closeBox();
 		});
 		box->setMaxHeight(st::boxWideWidth);
-	}));
+	};
+	const auto show = crl::guard(controller, [=] {
+		controller->show(Box(make));
+	});
+
+	session->api().request(MTPpayments_GetCraftStarGifts(
+		MTP_long(giftId),
+		MTP_string(),
+		MTP_int(kCraftGiftsLimit)
+	)).done([=](const MTPpayments_SavedStarGifts &result) {
+		const auto user = session->user();
+		const auto owner = &session->data();
+		const auto &data = result.data();
+		owner->processUsers(data.vusers());
+		owner->processChats(data.vchats());
+
+		auto list = std::vector<Data::SavedStarGift>();
+		list.reserve(data.vgifts().v.size());
+		for (const auto &gift : data.vgifts().v) {
+			if (auto parsed = Api::FromTL(user, gift)) {
+				list.push_back(std::move(*parsed));
+			}
+		}
+
+		state->myList = std::move(list);
+		state->myOffset = qs(data.vnext_offset().value_or_empty());
+		state->myFinished = !data.vnext_offset();
+
+		if (state->resale.giftId) {
+			show();
+		}
+	}).send();
+
+	state->resaleLifetime = Data::ResaleGiftsSlice(
+		session,
+		giftId,
+		{ .forCraft = true }
+	) | rpl::on_next([=](Data::ResaleGiftsDescriptor &&info) {
+		state->resaleLifetime.destroy();
+
+		state->resale = std::move(info);
+		if (!state->myList.empty() || state->myFinished) {
+			show();
+		}
+	});
 }
 
 [[nodiscard]] object_ptr<RpWidget> MakeRarityExpectancyPreview(
@@ -875,37 +954,21 @@ void Craft(
 			}
 		});
 	};
-	const auto session = &controller->session();
-	const auto initialGiftId = gifts.front().unique->initialGiftId;
+	const auto requested = std::make_shared<bool>();
+	const auto giftId = gifts.front().unique->initialGiftId;
 	auto retryWithNewGift = [=](Fn<void()> closeCurrent) {
-		session->api().request(MTPpayments_GetCraftStarGifts(
-			MTP_long(initialGiftId),
-			MTP_string(),
-			MTP_int(30)
-		)).done(crl::guard(box, [=](const MTPpayments_SavedStarGifts &result) {
-			const auto user = session->user();
-			const auto owner = &session->data();
-			const auto &data = result.data();
-			owner->processUsers(data.vusers());
-			owner->processChats(data.vchats());
-
-			auto list = std::vector<Data::SavedStarGift>();
-			list.reserve(data.vgifts().v.size());
-			for (const auto &gift : data.vgifts().v) {
-				if (auto parsed = Api::FromTL(user, gift)) {
-					list.push_back(std::move(*parsed));
-				}
-			}
-
-			ShowSelectGiftBox(controller, list, [=](GiftForCraft chosen) {
-				ShowGiftCraftBox(
-					controller,
-					{ chosen },
-					closeParent,
-					false);
-				closeCurrent();
-			}, {});
-		})).send();
+		if (*requested) {
+			return;
+		}
+		*requested = true;
+		ShowSelectGiftBox(controller, giftId, [=](GiftForCraft chosen) {
+			ShowGiftCraftBox(
+				controller,
+				{ chosen },
+				closeParent,
+				false);
+			closeCurrent();
+		}, {}, [=] { *requested = false; });
 	};
 	StartCraftAnimation(
 		box,
@@ -1022,15 +1085,15 @@ void MakeCraftContent(
 		rpl::variable<int> successPercentPermille;
 		rpl::variable<QString> successPercentText;
 
-		int requestingIndex = 0;
+		int requestingIndex = -1;
 		bool crafting = false;
 	};
 	const auto session = &controller->session();
-	const auto initialGiftId = gifts.front().unique->initialGiftId;
+	const auto giftId = gifts.front().unique->initialGiftId;
 	const auto state = box->lifetime().make_state<State>();
 
 	const auto auctions = &controller->session().giftAuctions();
-	auto attributes = auctions->attributes(initialGiftId).value_or({});
+	auto attributes = auctions->attributes(giftId).value_or({});
 
 	state->craftState = std::make_shared<CraftState>();
 	state->craftState->session = session;
@@ -1111,44 +1174,26 @@ void MakeCraftContent(
 		crafting.editRequests
 	) | rpl::on_next([=](int index) {
 		const auto guard = base::make_weak(raw);
-		if (state->requestingIndex) {
+		if (state->requestingIndex >= 0) {
 			state->requestingIndex = index;
 			return;
 		}
 		state->requestingIndex = index;
-		session->api().request(MTPpayments_GetCraftStarGifts(
-			MTP_long(initialGiftId),
-			MTP_string(),
-			MTP_int(30)
-		)).done([=](const MTPpayments_SavedStarGifts &result) {
-			if (!guard) {
-				return;
+		const auto callback = [=](GiftForCraft chosen) {
+			auto copy = state->chosen.current();
+			if (state->requestingIndex < copy.size()) {
+				copy[state->requestingIndex] = chosen;
+			} else {
+				copy.push_back(chosen);
 			}
-			const auto user = session->user();
-			const auto owner = &session->data();
-			const auto &data = result.data();
-			owner->processUsers(data.vusers());
-			owner->processChats(data.vchats());
-
-			auto list = std::vector<Data::SavedStarGift>();
-			list.reserve(data.vgifts().v.size());
-			for (const auto &gift : data.vgifts().v) {
-				if (auto parsed = Api::FromTL(user, gift)) {
-					list.push_back(std::move(*parsed));
-				}
-			}
-
-			const auto index = base::take(state->requestingIndex);
-			ShowSelectGiftBox(controller, list, [=](GiftForCraft chosen) {
-				auto copy = state->chosen.current();
-				if (index < copy.size()) {
-					copy[index] = chosen;
-				} else {
-					copy.push_back(chosen);
-				}
-				state->chosen = std::move(copy);
-			}, state->chosen.current());
-		}).send();
+			state->chosen = std::move(copy);
+		};
+		ShowSelectGiftBox(
+			controller,
+			giftId,
+			crl::guard(raw, callback),
+			state->chosen.current(),
+			crl::guard(raw, [=] { state->requestingIndex = -1; }));
 	}, raw->lifetime());
 
 	auto fullName = state->chosen.value(

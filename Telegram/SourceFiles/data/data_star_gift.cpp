@@ -234,7 +234,8 @@ rpl::producer<ResaleGiftsDescriptor> ResaleGiftsSlice(
 						: Flag())
 					| (filter.attributes.empty()
 						? Flag()
-						: Flag::f_attributes)),
+						: Flag::f_attributes)
+					| (filter.forCraft ? Flag::f_for_craft : Flag())),
 				MTP_long(filter.attributesHash),
 				MTP_long(giftId),
 				MTP_vector_from_range(filter.attributes
