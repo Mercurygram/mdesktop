@@ -15,13 +15,60 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/labels.h"
+#include "ui/widgets/tooltip.h"
 #include "ui/wrap/vertical_layout.h"
+#include "ui/ui_utility.h"
 #include "styles/style_boxes.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
 
 namespace UrlAuthBox {
+namespace {
+
+class TextWithTooltip final
+	: public Ui::FlatLabel
+	, public Ui::AbstractTooltipShower {
+public:
+	using Ui::FlatLabel::FlatLabel;
+
+	void setTooltip(QString text) {
+		_tooltip = std::move(text);
+	}
+
+	QString tooltipText() const override {
+		return _tooltip;
+	}
+
+	QPoint tooltipPos() const override {
+		return QCursor::pos();
+	}
+
+	bool tooltipWindowActive() const override {
+		return Ui::AppInFocus()
+			&& Ui::InFocusChain(window())
+			&& textMaxWidth() > width();
+	}
+
+private:
+	void mouseMoveEvent(QMouseEvent *e) override {
+		Ui::Tooltip::Show(1000, this);
+		Ui::FlatLabel::mouseMoveEvent(e);
+	}
+	void enterEventHook(QEnterEvent *e) override {
+		Ui::Tooltip::Show(1000, this);
+		Ui::FlatLabel::enterEventHook(e);
+	}
+	void leaveEventHook(QEvent *e) override {
+		Ui::Tooltip::Hide();
+		Ui::FlatLabel::leaveEventHook(e);
+	}
+
+	QString _tooltip;
+
+};
+
+} // namespace
 
 SwitchableUserpicButton::SwitchableUserpicButton(
 	not_null<Ui::RpWidget*> parent,
@@ -97,14 +144,18 @@ void AddAuthInfoRow(
 		object_ptr<Ui::RpWidget>(container),
 		st::boxRowPadding);
 
-	const auto topLabel = Ui::CreateChild<Ui::FlatLabel>(
+	const auto topLabel = Ui::CreateChild<TextWithTooltip>(
 		row,
 		topText,
 		st::urlAuthBoxRowTopLabel);
-	const auto bottomLabel = Ui::CreateChild<Ui::FlatLabel>(
+	topLabel->setSelectable(true);
+	topLabel->setTooltip(topText);
+	const auto bottomLabel = Ui::CreateChild<TextWithTooltip>(
 		row,
 		bottomText,
 		st::urlAuthBoxRowBottomLabel);
+	bottomLabel->setSelectable(true);
+	bottomLabel->setTooltip(bottomText);
 	const auto leftLabel = Ui::CreateChild<Ui::FlatLabel>(
 		row,
 		leftText,
@@ -128,7 +179,7 @@ void AddAuthInfoRow(
 		topLabel->moveToRight(0, 0);
 		bottomLabel->resizeToNaturalWidth(availableWidth);
 		bottomLabel->moveToRight(0, topSize.height());
-;
+
 		leftLabel->moveToLeft(left, (totalHeight - leftLabel->height()) / 2);
 	}, row->lifetime());
 
