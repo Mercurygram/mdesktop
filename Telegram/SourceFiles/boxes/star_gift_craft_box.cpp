@@ -103,6 +103,10 @@ struct GiftForCraft {
 	std::shared_ptr<Data::UniqueGift> unique;
 	Data::SavedStarGiftId manageId;
 
+	[[nodiscard]] QString slugId() const {
+		return unique ? unique->slug : QString();
+	}
+
 	explicit operator bool() const {
 		return unique != nullptr;
 	}
@@ -624,8 +628,8 @@ void ShowSelectGiftBox(
 					&state->delegate),
 			});
 			const auto button = state->entries.back().button;
-			const auto proj = &GiftForCraft::manageId;
-			if (ranges::contains(selected, gift.manageId, proj)) {
+			const auto proj = &GiftForCraft::slugId;
+			if (ranges::contains(selected, gift.info.unique->slug, proj)) {
 				button->toggleSelected(
 					true,
 					GiftSelectionMode::Inset,
@@ -676,7 +680,8 @@ void ShowSelectGiftBox(
 				box->verticalLayout(),
 				state->resale,
 				rpl::single(false),
-				bought);
+				bought,
+				true);
 		}
 
 		box->addButton(tr::lng_box_ok(), [=] {
@@ -921,11 +926,12 @@ void ShowSelectGiftBox(
 void Craft(
 		not_null<GenericBox*> box,
 		not_null<Window::SessionController*> controller,
-		std::shared_ptr<ChatHelpers::Show> show,
 		std::shared_ptr<CraftState> state,
 		const std::vector<GiftForCraft> &gifts,
 		Fn<void()> closeParent) {
+	auto show = controller->uiShow();
 	auto startRequest = [=](CraftResultCallback done) {
+#if 0
 		constexpr auto kDelays = std::array<crl::time, 7>{
 			100, 200, 300, 400, 500, 1000, 2000
 		};
@@ -953,6 +959,24 @@ void Craft(
 				done(nullptr);
 			}
 		});
+#endif
+
+		auto inputs = QVector<MTPInputSavedStarGift>();
+		for (const auto &gift : gifts) {
+			inputs.push_back(
+				Api::InputSavedStarGiftId(gift.manageId, gift.unique));
+		}
+		const auto weak = base::make_weak(controller);
+		const auto session = &controller->session();
+		session->api().request(MTPpayments_CraftStarGift(
+			MTP_vector<MTPInputSavedStarGift>(inputs)
+		)).done([=](const MTPUpdates &result) {
+			session->api().applyUpdates(result);
+			session->data().nextForUpgradeGiftInvalidate(session->user());
+			done(FindUniqueGift(session, result));
+		}).fail([=](const MTP::Error &error) {
+			show->showToast(error.type());
+		}).send();
 	};
 	const auto requested = std::make_shared<bool>();
 	const auto giftId = gifts.front().unique->initialGiftId;
@@ -1319,7 +1343,6 @@ void MakeCraftContent(
 		Craft(
 			box,
 			controller,
-			controller->uiShow(),
 			state->craftState,
 			state->chosen.current(),
 			closeParent);

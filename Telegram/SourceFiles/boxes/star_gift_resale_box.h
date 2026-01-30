@@ -47,6 +47,7 @@ void AddResaleGiftsList(
 	not_null<VerticalLayout*> container,
 	Data::ResaleGiftsDescriptor descriptor,
 	rpl::producer<bool> forceTon,
-	Fn<void(std::shared_ptr<Data::UniqueGift>)> bought = nullptr);
+	Fn<void(std::shared_ptr<Data::UniqueGift>)> bought = nullptr,
+	bool forCraft = false);
 
 } // namespace Ui

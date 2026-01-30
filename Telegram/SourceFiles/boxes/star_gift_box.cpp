@@ -1273,59 +1273,6 @@ void SendGift(
 	});
 }
 
-[[nodiscard]] std::shared_ptr<Data::GiftUpgradeResult> FindUniqueGift(
-		not_null<Main::Session*> session,
-		const MTPUpdates &updates) {
-	auto result = std::shared_ptr<Data::GiftUpgradeResult>();
-	const auto checkAction = [&](const MTPDmessageService &message) {
-		const auto &action = message.vaction();
-		action.match([&](const MTPDmessageActionStarGiftUnique &data) {
-			if (const auto gift = Api::FromTL(session, data.vgift())) {
-				const auto to = data.vpeer()
-					? peerFromMTP(*data.vpeer())
-					: PeerId();
-				const auto service = data.vfrom_id()
-					&& session->data().peer(
-						peerFromMTP(*data.vfrom_id()))->isServiceUser();
-				const auto channel = (service && peerIsChannel(to))
-					? session->data().channel(peerToChannel(to)).get()
-					: nullptr;
-				const auto channelSavedId = channel
-					? data.vsaved_id().value_or_empty()
-					: uint64();
-				const auto realGiftMsgId = (peerIsUser(to) && data.vsaved_id())
-					? MsgId(data.vsaved_id().value_or_empty())
-					: MsgId(message.vid().v);
-
-				result = std::make_shared<Data::GiftUpgradeResult>(
-					Data::GiftUpgradeResult{
-						.info = *gift,
-						.manageId = (channel && channelSavedId)
-							? Data::SavedStarGiftId::Chat(
-								channel,
-								channelSavedId)
-							: Data::SavedStarGiftId::User(realGiftMsgId),
-						.date = message.vdate().v,
-						.starsForDetailsRemove = int(
-							data.vdrop_original_details_stars(
-							).value_or_empty()),
-						.saved = data.is_saved(),
-					});
-			}
-		}, [](const auto &) {});
-	};
-	updates.match([&](const MTPDupdates &data) {
-		for (const auto &update : data.vupdates().v) {
-			update.match([&](const MTPDupdateNewMessage &data) {
-				data.vmessage().match([&](const MTPDmessageService &data) {
-					checkAction(data);
-				}, [](const auto &) {});
-			}, [](const auto &) {});
-		}
-	}, [](const auto &) {});
-	return result;
-}
-
 void ShowGiftUpgradedToast(
 		not_null<Window::SessionController*> window,
 		not_null<Main::Session*> session,
@@ -5068,6 +5015,59 @@ void SendGiftBox(
 			st::creditsBoxButtonLabel,
 			&st::giftBox.button.textFg);
 	}
+}
+
+std::shared_ptr<Data::GiftUpgradeResult> FindUniqueGift(
+		not_null<Main::Session*> session,
+		const MTPUpdates &updates) {
+	auto result = std::shared_ptr<Data::GiftUpgradeResult>();
+	const auto checkAction = [&](const MTPDmessageService &message) {
+		const auto &action = message.vaction();
+		action.match([&](const MTPDmessageActionStarGiftUnique &data) {
+			if (const auto gift = Api::FromTL(session, data.vgift())) {
+				const auto to = data.vpeer()
+					? peerFromMTP(*data.vpeer())
+					: PeerId();
+				const auto service = data.vfrom_id()
+					&& session->data().peer(
+						peerFromMTP(*data.vfrom_id()))->isServiceUser();
+				const auto channel = (service && peerIsChannel(to))
+					? session->data().channel(peerToChannel(to)).get()
+					: nullptr;
+				const auto channelSavedId = channel
+					? data.vsaved_id().value_or_empty()
+					: uint64();
+				const auto realGiftMsgId = (peerIsUser(to) && data.vsaved_id())
+					? MsgId(data.vsaved_id().value_or_empty())
+					: MsgId(message.vid().v);
+
+				result = std::make_shared<Data::GiftUpgradeResult>(
+					Data::GiftUpgradeResult{
+						.info = *gift,
+						.manageId = (channel && channelSavedId)
+							? Data::SavedStarGiftId::Chat(
+								channel,
+								channelSavedId)
+							: Data::SavedStarGiftId::User(realGiftMsgId),
+						.date = message.vdate().v,
+						.starsForDetailsRemove = int(
+							data.vdrop_original_details_stars(
+							).value_or_empty()),
+						.saved = data.is_saved(),
+					});
+			}
+		}, [](const auto &) {});
+	};
+	updates.match([&](const MTPDupdates &data) {
+		for (const auto &update : data.vupdates().v) {
+			update.match([&](const MTPDupdateNewMessage &data) {
+				data.vmessage().match([&](const MTPDmessageService &data) {
+					checkAction(data);
+				}, [](const auto &) {});
+			}, [](const auto &) {});
+		}
+	}, [](const auto &) {});
+	return result;
 }
 
 } // namespace Ui

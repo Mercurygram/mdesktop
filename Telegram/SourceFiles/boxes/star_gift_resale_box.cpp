@@ -543,7 +543,8 @@ void AddResaleGiftsList(
 		not_null<VerticalLayout*> container,
 		Data::ResaleGiftsDescriptor descriptor,
 		rpl::producer<bool> forceTon,
-		Fn<void(std::shared_ptr<Data::UniqueGift>)> bought) {
+		Fn<void(std::shared_ptr<Data::UniqueGift>)> bought,
+		bool forCraft) {
 	struct State {
 		rpl::event_stream<> updated;
 		ResaleGiftsDescriptor data;
@@ -553,6 +554,7 @@ void AddResaleGiftsList(
 		int lastMinHeight = 0;
 	};
 	const auto state = container->lifetime().make_state<State>();
+	state->filter = ResaleGiftsFilter{ .forCraft = forCraft };
 	state->data = std::move(descriptor);
 	state->ton = std::move(forceTon);
 
@@ -668,7 +670,7 @@ void ShowResaleGiftBoughtToast(
 		not_null<PeerData*> to,
 		const Data::UniqueGift &gift) {
 	show->showToast({
-		.title = tr::lng_gift_sent_title(tr::now),
+		.title = to->isSelf() ? QString() : tr::lng_gift_sent_title(tr::now),
 		.text = TextWithEntities{ (to->isSelf()
 			? tr::lng_gift_sent_resale_done_self(
 				tr::now,

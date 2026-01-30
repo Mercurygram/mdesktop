@@ -176,4 +176,8 @@ void SendGiftBox(
 	uint64 nextToUpgradeStickerId = 0,
 	Fn<void()> nextToUpgradeShow = nullptr);
 
+[[nodiscard]] std::shared_ptr<Data::GiftUpgradeResult> FindUniqueGift(
+	not_null<Main::Session*> session,
+	const MTPUpdates &updates);
+
 } // namespace Ui
