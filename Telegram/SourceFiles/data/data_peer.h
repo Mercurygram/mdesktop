@@ -675,6 +675,6 @@ void SetTopPinnedMessageId(
 	PeerData *migrated = nullptr);
 
 [[nodiscard]] uint64 BackgroundEmojiIdFromColor(const MTPPeerColor *color);
-[[nodiscard]] uint8 ColorIndexFromColor(const MTPPeerColor *color);
+[[nodiscard]] std::optional<uint8> ColorIndexFromColor(const MTPPeerColor *);
 
 } // namespace Data
