@@ -614,18 +614,15 @@ void ShowSelectGiftBox(
 		const auto extend = state->delegate.buttonExtend();
 		const auto full = single.grownBy(extend).height();
 		const auto skip = st::boxRowPadding.left() / 2;
-		auto row = (RpWidget*)nullptr;
+		const auto gifts = box->addRow(
+			object_ptr<VisibleRangeWidget>(box),
+			QMargins());
 		for (auto &gift : state->myList) {
-			if (!row) {
-				row = box->addRow(object_ptr<RpWidget>(box), QMargins());
-				row->resize(row->width(), full);
-			}
+			const auto row = (state->entries.size() / 3);
 			const auto col = (state->entries.size() % 3);
 			state->entries.push_back(Entry{
 				.gift = gift,
-				.button = CreateChild<GiftButton>(
-					row,
-					&state->delegate),
+				.button = CreateChild<GiftButton>(gifts, &state->delegate),
 			});
 			const auto button = state->entries.back().button;
 			const auto proj = &GiftForCraft::slugId;
@@ -654,13 +651,14 @@ void ShowSelectGiftBox(
 				- st::boxRowPadding.left()
 				- st::boxRowPadding.right()) / 3;
 			const auto x = st::boxRowPadding.left() + (width + skip) * col;
+			const auto y = extend.top() + full * row;
 			button->setGeometry(
-				QRect(x, extend.top(), width, single.height()),
+				QRect(x, y, width, single.height()),
 				extend);
-			if (col == 2) {
-				row = nullptr;
-			}
 		}
+		gifts->resize(
+			gifts->width(),
+			(state->myList.size() + 2) / 3 * full);
 
 		if (const auto count = state->resale.count) {
 			AddSubsectionTitle(
