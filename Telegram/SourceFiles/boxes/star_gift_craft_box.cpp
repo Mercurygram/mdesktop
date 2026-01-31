@@ -1115,7 +1115,8 @@ void MakeCraftContent(
 	const auto state = box->lifetime().make_state<State>();
 
 	const auto auctions = &controller->session().giftAuctions();
-	auto attributes = auctions->attributes(giftId).value_or({});
+	auto attributes = auctions->attributes(giftId).value_or(
+		Data::UniqueGiftAttributes());
 
 	state->craftState = std::make_shared<CraftState>();
 	state->craftState->session = session;
