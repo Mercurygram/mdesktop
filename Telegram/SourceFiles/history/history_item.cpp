@@ -6372,6 +6372,10 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 						: QString(),
 					},
 					tr::marked);
+			} else if (action.is_craft()) {
+				result.text = tr::lng_action_gift_crafted(
+					tr::now,
+					tr::marked);
 			} else {
 				result.text = resale
 					? tr::lng_action_gift_self_bought(
