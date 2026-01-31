@@ -211,7 +211,7 @@ void SelectFutureOwnerbox(
 		st::boxRowPadding);
 	Ui::AddSkip(content);
 	Ui::AddSkip(content);
-	const auto title = content->add(
+	content->add(
 		object_ptr<Ui::FlatLabel>(
 			content,
 			channel->isMegagroup()
@@ -222,7 +222,7 @@ void SelectFutureOwnerbox(
 	Ui::AddSkip(content);
 	Ui::AddSkip(content);
 	const auto adminsAreEqual = false;
-	const auto about = content->add(
+	content->add(
 		object_ptr<Ui::FlatLabel>(
 			content,
 			(adminsAreEqual
