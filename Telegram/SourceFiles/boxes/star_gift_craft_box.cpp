@@ -760,10 +760,14 @@ void ShowSelectGiftBox(
 	const auto state = raw->lifetime().make_state<State>();
 
 	const auto permilles = session->appConfig().craftAttributePermilles();
-	const auto permille = [=](int count) {
+	const auto permille = [=](int total, int count) {
+		Expects(total > 0);
 		Expects(count > 0);
 
-		return (count <= permilles.size()) ? permilles[count - 1] : 1000;
+		const auto &list = (total <= permilles.size())
+			? permilles[total - 1]
+			: std::vector<int>();
+		return (count <= list.size()) ? list[count - 1] : 1000;
 	};
 
 	std::move(
@@ -800,8 +804,9 @@ void ShowSelectGiftBox(
 		ranges::sort(backdrops, ranges::greater(), &Backdrop::count);
 		ranges::sort(patterns, ranges::greater(), &Pattern::count);
 
+		const auto total = int(list.size());
 		const auto &backdrop = backdrops.front();
-		state->backdropPermille = permille(backdrop.count);
+		state->backdropPermille = permille(total, backdrop.count);
 		if (state->nowBackdrop != backdrop.fields) {
 			if (!state->nowFrame.isNull()) {
 				state->wasBackdrop = state->nowBackdrop;
@@ -815,7 +820,7 @@ void ShowSelectGiftBox(
 		}
 
 		const auto &pattern = patterns.front();
-		state->patternPermille = permille(pattern.count);
+		state->patternPermille = permille(total, pattern.count);
 		if (state->nowPattern != pattern.document) {
 			if (state->nowEmoji) {
 				state->wasPattern = state->nowPattern;
