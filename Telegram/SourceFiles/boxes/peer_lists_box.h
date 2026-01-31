@@ -20,7 +20,9 @@ public:
 		std::vector<std::unique_ptr<PeerListController>> controllers,
 		Fn<void(not_null<PeerListsBox*>)> init);
 
-	void addSeparatorBefore(int listIndex, object_ptr<Ui::RpWidget> widget);
+	not_null<Ui::RpWidget*> addSeparatorBefore(
+		int listIndex,
+		object_ptr<Ui::RpWidget> widget);
 
 	[[nodiscard]] std::vector<not_null<PeerData*>> collectSelectedRows();
 

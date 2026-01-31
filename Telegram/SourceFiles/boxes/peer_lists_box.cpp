@@ -350,12 +350,10 @@ void PeerListsBox::Delegate::peerListSetForeignRowChecked(
 	}
 }
 
-void PeerListsBox::addSeparatorBefore(
+not_null<Ui::RpWidget*> PeerListsBox::addSeparatorBefore(
 		int listIndex,
 		object_ptr<Ui::RpWidget> widget) {
-	if (listIndex < 0 || listIndex >= int(_lists.size()) || !_rows) {
-		return;
-	}
+	Assert(!(listIndex < 0 || listIndex >= int(_lists.size()) || !_rows));
 	const auto position = listIndex * 2;
 	auto wrapped = object_ptr<Ui::SlideWrap<>>(
 		_rows,
@@ -366,6 +364,7 @@ void PeerListsBox::addSeparatorBefore(
 	}, wrapped->lifetime());
 	_lists[listIndex].separator = wrapped.data();
 	_rows->insert(position, std::move(wrapped));
+	return _lists[listIndex].separator;
 }
 
 void PeerListsBox::Delegate::peerListScrollToTop() {

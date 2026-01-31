@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/application.h"
 #include "core/core_cloud_password.h"
 #include "data/data_channel.h"
+#include "dialogs/ui/chat_search_empty.h"
 #include "boxes/peers/channel_ownership_transfer.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
@@ -296,8 +297,11 @@ void SelectFutureOwnerbox(
 		const auto members = membersOwned.get();
 
 		auto initBox = [=](not_null<PeerListsBox*> selectBox) {
-			const auto selectionChanges
-				= selectBox->lifetime().make_state<rpl::event_stream<>>();
+			struct State {
+				base::unique_qptr<Dialogs::SearchEmpty> noLists;
+				rpl::event_stream<> selectionChanges;
+			};
+			const auto state = selectBox->lifetime().make_state<State>();
 			const auto uncheckOtherList = [=](
 					not_null<PeerListController*> otherController) {
 				auto delegate = otherController->delegate();
@@ -307,7 +311,7 @@ void SelectFutureOwnerbox(
 						delegate->peerListRowAt(i),
 						false);
 				}
-				selectionChanges->fire({});
+				state->selectionChanges.fire({});
 			};
 			admins->setOnRowClicked([=] { uncheckOtherList(members); });
 			members->setOnRowClicked([=] { uncheckOtherList(admins); });
@@ -321,29 +325,62 @@ void SelectFutureOwnerbox(
 				admins->itemDeselected(),
 				members->itemDeselected()
 			) | rpl::on_next([=] {
-				selectionChanges->fire({});
+				state->selectionChanges.fire({});
 			}, selectBox->lifetime());
-			selectBox->addSeparatorBefore(
+			const auto separatorAdmins = selectBox->addSeparatorBefore(
 				0,
 				CreatePeerListSectionSubtitle(
 					selectBox,
 					!channel->isMegagroup()
 						? tr::lng_select_next_owner_box_sub_admins()
 						: tr::lng_select_next_owner_box_sub_admins_group()));
-			selectBox->addSeparatorBefore(
+			const auto separatorMembers = selectBox->addSeparatorBefore(
 				1,
 				CreatePeerListSectionSubtitle(
 					selectBox,
 					!channel->isMegagroup()
 						? tr::lng_select_next_owner_box_sub_members()
 						: tr::lng_select_next_owner_box_sub_members_group()));
+			rpl::combine(
+				separatorAdmins->heightValue(),
+				separatorMembers->heightValue()
+			) | rpl::map(
+				(rpl::mappers::_1 + rpl::mappers::_2) > 0
+			) | rpl::distinct_until_changed() | rpl::on_next([=](bool has) {
+				qDebug() << "has" << has;
+				if (has) {
+					state->noLists = nullptr;
+					return;
+				}
+				using namespace Dialogs;
+				state->noLists = base::make_unique_q<SearchEmpty>(
+					selectBox,
+					SearchEmpty::Icon::NoResults,
+					(adminsAreEqual
+						? tr::lng_select_next_owner_box_empty_list
+						: tr::lng_select_next_owner_box_empty_list_admin)(
+							tr::rich));
+				state->noLists->show();
+				state->noLists->raise();
+				selectBox->sizeValue(
+				) | rpl::filter_size() | rpl::on_next([=](QSize s) {
+					state->noLists->setMinimalHeight(s.height() / 3);
+					state->noLists->resizeToWidth(s.width() / 3 * 2);
+					state->noLists->moveToLeft(
+						(s.width() - state->noLists->width()) / 2,
+						(s.height() - state->noLists->height()) / 2);
+				}, state->noLists->lifetime());
+				crl::on_main(state->noLists.get(), [=] {
+					state->noLists->animate();
+				});
+			}, selectBox->lifetime());
 			{
 				const auto &st = st::futureOwnerBoxSelect;
 				selectBox->setStyle(st);
 				auto button = object_ptr<Ui::RoundButton>(
 					selectBox,
 					rpl::conditional(
-						selectionChanges->events(
+						state->selectionChanges.events(
 						) | rpl::map([=] {
 							return !selectBox->collectSelectedRows().empty();
 						}),
@@ -354,7 +391,7 @@ void SelectFutureOwnerbox(
 					Ui::RoundButton::TextTransform::NoTransform);
 				const auto raw = button.data();
 				rpl::combine(
-					selectionChanges->events() | rpl::map_to(0),
+					state->selectionChanges.events() | rpl::map_to(0),
 					selectBox->widthValue()
 				) | rpl::on_next([=](int, int width) {
 					raw->resizeToWidth(width
@@ -383,7 +420,7 @@ void SelectFutureOwnerbox(
 					}
 				});
 				selectBox->addButton(std::move(button));
-				selectionChanges->fire({});
+				state->selectionChanges.fire({});
 			}
 		};
 

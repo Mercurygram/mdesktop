@@ -1658,6 +1658,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_select_next_owner_box_sub_members_group" = "Group members";
 "lng_select_next_owner_box_status_joined" = "joined {date}";
 "lng_select_next_owner_box_status_promoted" = "promoted {date}";
+"lng_select_next_owner_box_empty_list" = "There are no eligible participants to appoint as owner.";
+"lng_select_next_owner_box_empty_list_admin" = "There are no eligible participants to appoint as admin.";
 
 "lng_via_link_group_one" = "**{user}** restricts adding them to groups.\nYou can send them an invite link as message instead.";
 "lng_via_link_group_many#one" = "**{count} user** restricts adding them to groups.\nYou can send them an invite link as message instead.";
