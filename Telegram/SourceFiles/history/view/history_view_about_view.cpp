@@ -610,6 +610,14 @@ AboutView::AboutView(
 	not_null<ElementDelegate*> delegate)
 : _history(history)
 , _delegate(delegate) {
+	if (_history->peer->isBot() && _history->peer->isForum()) {
+		_history->session().data().newItemAdded(
+		) | rpl::on_next([=](not_null<HistoryItem*> item) {
+			if (item->history() == _history) {
+				_destroyRequests.fire({});
+			}
+		}, lifetime());
+	}
 }
 
 AboutView::~AboutView() {
@@ -632,7 +640,13 @@ HistoryItem *AboutView::item() const {
 }
 
 bool AboutView::aboveHistory() const {
-	return !_history->peer->isBot() || !_history->isForum();
+	if (!_history->peer->isBot() || !_history->isForum()) {
+		return true;
+	}
+	const auto info = _history->peer->asUser()->botInfo.get();
+	return !(info->canManageTopics
+		&& info->startToken.isEmpty()
+		&& (!_history->isEmpty() || _history->lastMessage()));
 }
 
 bool AboutView::refresh() {
@@ -779,6 +793,10 @@ rpl::producer<not_null<DocumentData*>> AboutView::sendIntroSticker() const {
 
 rpl::producer<> AboutView::refreshRequests() const {
 	return _refreshRequests.events();
+}
+
+rpl::producer<> AboutView::destroyRequests() const {
+	return _destroyRequests.events();
 }
 
 rpl::lifetime &AboutView::lifetime() {
