@@ -7755,7 +7755,7 @@ bool HistoryWidget::replyToPreviousMessage() {
 				controller()->showMessage(previous);
 				if (isFieldVisible) {
 					if (previous->isLocal()) {
-						cancelReply();
+						cancelReply(false, true);
 					} else {
 						replyToMessage(previous);
 					}
@@ -7798,13 +7798,12 @@ bool HistoryWidget::replyToNextMessage() {
 				controller()->showMessage(next);
 				if (isFieldVisible) {
 					if (next->isLocal()) {
-						cancelReply();
+						cancelReply(false, true);
 					} else {
 						replyToMessage(next);
 					}
 				}
 			} else {
-				_highlighter.clear();
 				cancelReply(false);
 			}
 			return true;
@@ -8971,7 +8970,9 @@ bool HistoryWidget::cancelReplyOrSuggest(bool lastKeyboardUsed) {
 	return ok1 || ok2;
 }
 
-bool HistoryWidget::cancelReply(bool lastKeyboardUsed) {
+bool HistoryWidget::cancelReply(
+		bool lastKeyboardUsed,
+		bool keepHighlighterState) {
 	bool wasReply = false;
 	if (_replyTo) {
 		wasReply = true;
@@ -8985,6 +8986,9 @@ bool HistoryWidget::cancelReply(bool lastKeyboardUsed) {
 			&& !_suggestOptions) {
 			_fieldBarCancel->hide();
 			updateMouseTracking();
+		}
+		if (!keepHighlighterState) {
+			_highlighter.clear();
 		}
 		updateBotKeyboard();
 		refreshTopBarActiveChat();
