@@ -155,18 +155,6 @@ private:
 
 };
 
-class NewBotThreadDownIcon final : public MediaGenericPart {
-public:
-	void draw(
-		Painter &p,
-		not_null<const MediaGeneric*> owner,
-		const PaintContext &context,
-		int outerWidth) const override;
-	QSize countOptimalSize() override;
-	QSize countCurrentSize(int newWidth) override;
-
-};
-
 UserpicsList::UserpicsList(
 	std::vector<not_null<PeerData*>> peers,
 	const style::GroupCallUserpics &st,
@@ -227,26 +215,7 @@ int UserpicsList::width() const {
 	return _st.size + (shifted * (_st.size - _st.shift));
 }
 
-void NewBotThreadDownIcon::draw(
-		Painter &p,
-		not_null<const MediaGeneric*> owner,
-		const PaintContext &context,
-		int outerWidth) const {
-	auto color = context.st->msgServiceFg()->c;
-	color.setAlphaF(color.alphaF() * kLabelOpacity);
-	st::newBotThreadDown.paintInCenter(
-		p,
-		QRect(0, 0, outerWidth, st::newBotThreadDown.height()),
-		color);
-}
 
-QSize NewBotThreadDownIcon::countOptimalSize() {
-	return st::newBotThreadDown.size();
-}
-
-QSize NewBotThreadDownIcon::countCurrentSize(int newWidth) {
-	return st::newBotThreadDown.size();
-}
 
 NewBotThreadDottedLine::NewBotThreadDottedLine(not_null<Element*> parent)
 : _parent(parent) {
@@ -392,7 +361,20 @@ auto GenerateNewBotThread(
 				}));
 		pushText(tr::bold(title), st::chatIntroTitleMargin);
 		pushText({ description }, st::chatIntroMargin);
-		push(std::make_unique<NewBotThreadDownIcon>());
+		push(std::make_unique<LambdaGenericPart>(
+			st::newBotThreadDown.size() / 4 * 3,
+			[=, h = st::newBotThreadDown.height() / 2 + st::lineWidth * 4](
+				Painter &p,
+				not_null<const MediaGeneric*> owner,
+				const PaintContext &context,
+				int outerWidth) {
+					auto color = context.st->msgServiceFg()->c;
+					color.setAlphaF(color.alphaF() * kLabelOpacity);
+					st::newBotThreadDown.paintInCenter(
+						p,
+						QRect(0, 0, outerWidth, h),
+						color);
+			}));
 
 		parent->addVerticalMargins(
 			st::newBotThreadTopSkip - st::msgServiceMargin.top(),
