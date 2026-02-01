@@ -366,6 +366,30 @@ auto GenerateNewBotThread(
 		const auto title = tr::lng_bot_new_thread_title(tr::now);
 		const auto description = tr::lng_bot_new_thread_about(tr::now);
 		push(std::make_unique<NewBotThreadDottedLine>(parent));
+		push(std::make_unique<LambdaGenericPart>(
+			QSize(
+				st::newThreadAboutIconOuter,
+				st::newThreadAboutIconOuter + st::newThreadAboutIconSkip),
+			[=](
+				Painter &p,
+				not_null<const MediaGeneric*> owner,
+				const PaintContext &context,
+				int outerWidth) {
+					const auto size = st::newThreadAboutIconOuter;
+					const auto &icon = st::newThreadAboutIcon;
+					const auto x = (outerWidth - icon.width()) / 2;
+					const auto y = (size - icon.height()) / 2
+						+ st::newThreadAboutIconSkip;
+					p.setPen(Qt::NoPen);
+					p.setBrush(context.st->msgServiceBgSelected());
+					p.drawEllipse(
+						(outerWidth - size) / 2,
+						st::newThreadAboutIconSkip,
+						size,
+						size);
+					const auto color = context.st->msgServiceFg();
+					icon.paint(p, x, y, outerWidth, color->c);
+				}));
 		pushText(tr::bold(title), st::chatIntroTitleMargin);
 		pushText({ description }, st::chatIntroMargin);
 		push(std::make_unique<NewBotThreadDownIcon>());
@@ -1030,7 +1054,7 @@ AdminLog::OwnedItem AboutView::makeNewBotThread() {
 		result.get(),
 		GenerateNewBotThread(result.get(), _item.get()),
 		HistoryView::MediaGenericDescriptor{
-			.maxWidth = st::chatIntroWidth,
+			.maxWidth = st::newThreadAboutMaxWidth,
 			.service = true,
 			.hideServiceText = true,
 		}));
