@@ -4137,6 +4137,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_craft_select_about" = "You need to add up to **3 gifts** from the same collection for crafting.";
 "lng_gift_craft_select_your" = "Your gifts";
 "lng_gift_craft_select_none" = "You don't have other gifts from this collection.";
+"lng_gift_craft_search_none" = "Could not find other gifts from this collection.";
 "lng_gift_craft_select_market#one" = "{count} suitable gift on sale";
 "lng_gift_craft_select_market#other" = "{count} suitable gifts on sale";
 "lng_gift_craft_progress" = "Crafting";

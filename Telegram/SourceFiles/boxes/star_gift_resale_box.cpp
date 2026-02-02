@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/toast/toast.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/popup_menu.h"
+#include "ui/wrap/slide_wrap.h"
 #include "ui/painter.h"
 #include "ui/ui_utility.h"
 #include "window/window_session_controller.h"
@@ -108,9 +109,29 @@ struct ResaleTabs {
 	};
 	const auto state = raw->lifetime().make_state<State>();
 	state->filter = std::move(filter);
+
+	const auto forCraft = state->filter.current().forCraft;
+	const auto wrapName = [=](QString name, int count) {
+		auto result = tr::marked(name);
+		if (!forCraft) {
+			result.append(' ').append(tr::bold(
+				Lang::FormatCountDecimal(count)));
+		}
+		return result;
+	};
+
 	state->lists.backdrops = info.backdrops;
 	state->lists.models = info.models;
 	state->lists.patterns = info.patterns;
+	if (forCraft) {
+		using namespace Data;
+		const auto isRare = [](const UniqueGiftModelCount &entry) {
+			return entry.model.rarityType() != UniqueGiftRarity::Default;
+		};
+		state->lists.models.erase(
+			ranges::remove_if(state->lists.models, isRare),
+			end(state->lists.models));
+	}
 
 	const auto scroll = [=] {
 		return QPoint(int(base::SafeRound(state->scroll)), 0);
@@ -264,11 +285,9 @@ struct ResaleTabs {
 			if (type == GiftAttributeIdType::Model) {
 				for (auto &entry : state->lists.models) {
 					const auto id = IdFor(entry.model);
-					const auto text = TextWithEntities{
-						entry.model.name
-					}.append(' ').append(tr::bold(
-						Lang::FormatCountDecimal(entry.count)
-					));
+					const auto text = wrapName(
+						entry.model.name,
+						entry.count);
 					actionWithDocument(text, [=] {
 						toggle(id);
 					}, id.value, checked(id));
@@ -276,11 +295,9 @@ struct ResaleTabs {
 			} else if (type == GiftAttributeIdType::Backdrop) {
 				for (auto &entry : state->lists.backdrops) {
 					const auto id = IdFor(entry.backdrop);
-					const auto text = TextWithEntities{
-						entry.backdrop.name
-					}.append(' ').append(tr::bold(
-						Lang::FormatCountDecimal(entry.count)
-					));
+					const auto text = wrapName(
+						entry.backdrop.name,
+						entry.count);
 					actionWithColor(text, [=] {
 						toggle(id);
 					}, entry.backdrop.centerColor, checked(id));
@@ -288,11 +305,9 @@ struct ResaleTabs {
 			} else if (type == GiftAttributeIdType::Pattern) {
 				for (auto &entry : state->lists.patterns) {
 					const auto id = IdFor(entry.pattern);
-					const auto text = TextWithEntities{
-						entry.pattern.name
-					}.append(' ').append(tr::bold(
-						Lang::FormatCountDecimal(entry.count)
-					));
+					const auto text = wrapName(
+						entry.pattern.name,
+						entry.count);
 					actionWithDocument(text, [=] {
 						toggle(id);
 					}, id.value, checked(id));
@@ -550,6 +565,7 @@ void AddResaleGiftsList(
 		ResaleGiftsDescriptor data;
 		rpl::variable<ResaleGiftsFilter> filter;
 		rpl::variable<bool> ton;
+		rpl::variable<bool> empty = true;
 		rpl::lifetime loading;
 		int lastMinHeight = 0;
 	};
@@ -563,7 +579,19 @@ void AddResaleGiftsList(
 		state->data,
 		state->filter.value());
 	state->filter = std::move(tabs.filter);
-	container->add(std::move(tabs.widget));
+	if (forCraft) {
+		const auto skip = st::giftBoxResaleTabsMargin.top()
+			- st::giftBoxTabsMargin.bottom();
+		const auto wrap = container->add(object_ptr<PaddingWrap<>>(
+			container,
+			std::move(tabs.widget),
+			QMargins(0, 0, 0, skip)));
+		wrap->paintOn([=](QPainter &p) {
+			p.fillRect(wrap->rect(), st::windowBgOver);
+		});
+	} else {
+		container->add(std::move(tabs.widget));
+	}
 
 	const auto session = &window->session();
 	state->filter.changes() | rpl::on_next([=](ResaleGiftsFilter value) {
@@ -641,6 +669,7 @@ void AddResaleGiftsList(
 				.mine = (gift.unique->ownerId == selfId),
 			});
 		}
+		state->empty = result.list.empty();
 		return result;
 	}), [=] {
 		if (!state->data.offset.isEmpty()
@@ -663,6 +692,31 @@ void AddResaleGiftsList(
 			});
 		}
 	}, customHandler));
+
+	const auto skip = st::defaultSubsectionTitlePadding.top();
+	const auto wrap = container->add(
+		object_ptr<SlideWrap<FlatLabel>>(
+			container,
+			object_ptr<FlatLabel>(
+				container,
+				tr::lng_gift_craft_search_none(),
+				st::craftYourListEmpty),
+			(st::boxRowPadding + QMargins(0, 0, 0, skip))),
+		style::al_top);
+	state->empty.value() | rpl::on_next([=](bool empty) {
+		// Scroll doesn't jump up if we show before rows are cleared,
+		// and we hide after rows are added.
+		if (empty) {
+			wrap->show(anim::type::instant);
+		} else {
+			crl::on_main(wrap, [=] {
+				if (!state->empty.current()) {
+					wrap->hide(anim::type::instant);
+				}
+			});
+		}
+	}, wrap->lifetime());
+	wrap->entity()->setTryMakeSimilarLines(true);
 }
 
 void ShowResaleGiftBoughtToast(
