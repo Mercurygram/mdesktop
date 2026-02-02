@@ -19,6 +19,8 @@ class SessionController;
 
 namespace Ui {
 
+class Show;
+
 struct GiftForCraftEntry {
 	std::shared_ptr<Data::UniqueGift> unique;
 	Data::SavedStarGiftId manageId;
@@ -33,5 +35,13 @@ void ShowGiftCraftInfoBox(
 void ShowTestGiftCraftBox(
 	not_null<Window::SessionController*> controller,
 	std::vector<GiftForCraftEntry> gifts);
+
+[[nodiscard]] bool ShowCraftLaterError(
+	std::shared_ptr<Show> show,
+	std::shared_ptr<Data::UniqueGift> gift);
+
+void ShowCraftLaterError(
+	std::shared_ptr<Show> show,
+	TimeId when);
 
 } // namespace Ui

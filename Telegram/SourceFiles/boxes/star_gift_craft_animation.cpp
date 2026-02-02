@@ -8,8 +8,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/star_gift_craft_animation.h"
 
 #include "base/call_delayed.h"
+#include "base/unixtime.h"
 #include "boxes/star_gift_box.h"
 #include "boxes/star_gift_cover_box.h"
+#include "boxes/star_gift_craft_box.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "chat_helpers/stickers_lottie.h"
 #include "data/data_credits.h"
@@ -23,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "settings/settings_credits_graphics.h"
 #include "ui/boxes/boost_box.h"
+#include "ui/boxes/confirm_box.h"
 #include "ui/image/image_prepare.h"
 #include "ui/layers/generic_box.h"
 #include "ui/widgets/gradient_round_button.h"
@@ -1478,7 +1481,7 @@ void StartCraftAnimation(
 		not_null<GenericBox*> box,
 		std::shared_ptr<ChatHelpers::Show> show,
 		std::shared_ptr<CraftState> shared,
-		Fn<void(CraftResultCallback)> startRequest,
+		Fn<void(Fn<void(CraftResult)> callback)> startRequest,
 		Fn<void()> closeParent,
 		Fn<void(Fn<void()> closeCurrent)> retryWithNewGift) {
 	const auto container = box->verticalLayout();
@@ -1832,11 +1835,24 @@ void StartCraftAnimation(
 
 	if (startRequest) {
 		const auto weak = base::make_weak(raw);
-		startRequest([=](std::shared_ptr<Data::GiftUpgradeResult> result) {
+		startRequest([=](CraftResult result) {
 			if (!weak) {
 				return;
+			} else if (v::is<CraftResultError>(result)) {
+				box->uiShow()->show(MakeInformBox({
+					.text = v::get<CraftResultError>(result).type,
+				}));
+				box->closeBox();
+				return;
+			} else if (v::is<CraftResultWait>(result)) {
+				const auto when = base::unixtime::now()
+					+ v::get<CraftResultWait>(result).seconds;
+				ShowCraftLaterError(box->uiShow(), when);
+				box->closeBox();
+				return;
 			}
-			state->craftResult = std::move(result);
+			using Result = std::shared_ptr<Data::GiftUpgradeResult>;
+			state->craftResult = v::get<Result>(result);
 			if (const auto result = state->craftResult->get()) {
 				state->successAnimation = std::make_unique<
 					CraftDoneAnimation

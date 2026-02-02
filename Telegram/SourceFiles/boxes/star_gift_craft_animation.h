@@ -38,7 +38,18 @@ class RpWidget;
 class VerticalLayout;
 class UniqueGiftCoverWidget;
 
-using CraftResultCallback = Fn<void(std::shared_ptr<Data::GiftUpgradeResult>)>;
+struct CraftResultError {
+	QString type;
+};
+
+struct CraftResultWait {
+	TimeId seconds = 0;
+};
+
+using CraftResult = std::variant<
+	std::shared_ptr<Data::GiftUpgradeResult>,
+	CraftResultError,
+	CraftResultWait>;
 
 struct BackdropView {
 	Data::UniqueGiftBackdrop colors;
@@ -205,7 +216,7 @@ void StartCraftAnimation(
 	not_null<GenericBox*> box,
 	std::shared_ptr<ChatHelpers::Show> show,
 	std::shared_ptr<CraftState> state,
-	Fn<void(CraftResultCallback)> startRequest,
+	Fn<void(Fn<void(CraftResult)> callback)> startRequest,
 	Fn<void()> closeParent,
 	Fn<void(Fn<void()> closeCurrent)> retryWithNewGift);
 

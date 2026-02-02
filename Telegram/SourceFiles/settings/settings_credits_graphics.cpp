@@ -1584,6 +1584,9 @@ void GenericCreditsEntryBody(
 		const auto canCraft = CanCraftGift(session, e);
 		const auto craft = canCraft ? [=] {
 			const auto unique = e.uniqueGift;
+			if (Ui::ShowCraftLaterError(show, unique)) {
+				return;
+			}
 			const auto savedId = EntryToSavedStarGiftId(&show->session(), e);
 			if (const auto window = show->resolveWindow()) {
 				const auto closeParent = crl::guard(box, [=] {

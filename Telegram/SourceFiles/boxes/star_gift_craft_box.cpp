@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/call_delayed.h"
 #include "base/random.h"
+#include "base/unixtime.h"
 #include "boxes/star_gift_auction_box.h"
 #include "boxes/star_gift_craft_animation.h"
 #include "boxes/star_gift_preview_box.h"
@@ -29,6 +30,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_app_config.h"
 #include "main/main_session.h"
 #include "ui/boxes/about_cocoon_box.h" // AddUniqueCloseButton.
+#include "ui/boxes/confirm_box.h"
 #include "ui/controls/button_labels.h"
 #include "ui/controls/feature_list.h"
 #include "ui/effects/numbers_animation.h"
@@ -933,7 +935,7 @@ void Craft(
 		const std::vector<GiftForCraft> &gifts,
 		Fn<void()> closeParent) {
 	auto show = controller->uiShow();
-	auto startRequest = [=](CraftResultCallback done) {
+	auto startRequest = [=](Fn<void(CraftResult)> done) {
 #if 0
 		constexpr auto kDelays = std::array<crl::time, 7>{
 			100, 200, 300, 400, 500, 1000, 2000
@@ -978,7 +980,15 @@ void Craft(
 			session->data().nextForUpgradeGiftInvalidate(session->user());
 			done(FindUniqueGift(session, result));
 		}).fail([=](const MTP::Error &error) {
-			show->showToast(error.type());
+			const auto type = error.type();
+			const auto waitPrefix = u"STARGIFT_CRAFT_TOO_EARLY_"_q;
+			if (type.startsWith(waitPrefix)) {
+				done(CraftResultWait{
+					.seconds = type.mid(waitPrefix.size()).toInt(),
+				});
+			} else {
+				done(CraftResultError{ type });
+			}
 		}).send();
 	};
 	const auto requested = std::make_shared<bool>();
@@ -989,11 +999,14 @@ void Craft(
 		}
 		*requested = true;
 		ShowSelectGiftBox(controller, giftId, [=](GiftForCraft chosen) {
-			ShowGiftCraftBox(
-				controller,
-				{ chosen },
-				closeParent,
-				false);
+			const auto unique = chosen.unique;
+			if (!ShowCraftLaterError(show, unique)) {
+				ShowGiftCraftBox(
+					controller,
+					{ chosen },
+					closeParent,
+					false);
+			}
 			closeCurrent();
 		}, {}, [=] { *requested = false; });
 	};
@@ -1208,13 +1221,16 @@ void MakeCraftContent(
 		}
 		state->requestingIndex = index;
 		const auto callback = [=](GiftForCraft chosen) {
-			auto copy = state->chosen.current();
-			if (state->requestingIndex < copy.size()) {
-				copy[state->requestingIndex] = chosen;
-			} else {
-				copy.push_back(chosen);
+			const auto unique = chosen.unique;
+			if (!ShowCraftLaterError(controller->uiShow(), unique)) {
+				auto copy = state->chosen.current();
+				if (state->requestingIndex < copy.size()) {
+					copy[state->requestingIndex] = chosen;
+				} else {
+					copy.push_back(chosen);
+				}
+				state->chosen = std::move(copy);
 			}
-			state->chosen = std::move(copy);
 		};
 		ShowSelectGiftBox(
 			controller,
@@ -1494,6 +1510,35 @@ void ShowTestGiftCraftBox(
 		converted.push_back(std::move(entry));
 	}
 	ShowGiftCraftBox(controller, std::move(converted), [] {}, true);
+}
+
+bool ShowCraftLaterError(
+		std::shared_ptr<Show> show,
+		std::shared_ptr<Data::UniqueGift> gift) {
+	const auto now = base::unixtime::now();
+	if (gift->canCraftAt <= now) {
+		return false;
+	}
+	ShowCraftLaterError(show, gift->canCraftAt);
+	return true;
+}
+
+void ShowCraftLaterError(
+		std::shared_ptr<Show> show,
+		TimeId when) {
+	const auto data = base::unixtime::parse(when);
+	const auto time = QLocale().toString(data.time(), QLocale::ShortFormat);
+	const auto date = langDayOfMonthShort(data.date());
+
+	show->show(MakeInformBox({
+		.text = tr::lng_gift_craft_when(
+			lt_date,
+			rpl::single(tr::bold(date)),
+			lt_time,
+			rpl::single(tr::bold(time)),
+			tr::marked),
+		.title = tr::lng_gift_craft_unavailable(),
+	}));
 }
 
 } // namespace Ui

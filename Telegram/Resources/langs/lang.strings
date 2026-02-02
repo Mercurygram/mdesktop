@@ -4148,6 +4148,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_craft_failed_about#one" = "This crafting attempt was unsuccessful.\n**{count}** gift was lost.";
 "lng_gift_craft_failed_about#other" = "This crafting attempt was unsuccessful.\n**{count}** gifts were lost.";
 "lng_gift_craft_new_button" = "Craft New Gift";
+"lng_gift_craft_unavailable" = "Crafting unavailable";
+"lng_gift_craft_when" = "This gift will become available for crafting on {date} at {time}.";
 
 "lng_auction_about_title" = "Auction";
 "lng_auction_about_subtitle" = "Join the battle for exclusive gifts.";
