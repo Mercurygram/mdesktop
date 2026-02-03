@@ -156,12 +156,21 @@ struct GiftsDescriptor {
 	std::vector<Info::PeerGifts::GiftDescriptor> list;
 	std::shared_ptr<Api::PremiumGiftCodeOptions> api;
 };
-[[nodiscard]] object_ptr<RpWidget> MakeGiftsSendList(
-	not_null<Window::SessionController*> window,
-	not_null<PeerData*> peer,
-	rpl::producer<GiftsDescriptor> gifts,
-	Fn<void()> loadMore,
-	Fn<void(Info::PeerGifts::GiftDescriptor)> handler = nullptr);
+enum class GiftsListMode {
+	Send,
+	Craft,
+	CraftResale,
+};
+struct GiftsListArgs {
+	not_null<Window::SessionController*> window;
+	GiftsListMode mode = GiftsListMode::Send;
+	not_null<PeerData*> peer;
+	rpl::producer<GiftsDescriptor> gifts;
+	std::vector<std::shared_ptr<Data::UniqueGift>> selected;
+	Fn<void()> loadMore;
+	Fn<void(Info::PeerGifts::GiftDescriptor)> handler;
+};
+[[nodiscard]] object_ptr<RpWidget> MakeGiftsList(GiftsListArgs &&args);
 
 void SendGiftBox(
 	not_null<GenericBox*> box,

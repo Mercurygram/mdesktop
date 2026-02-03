@@ -1594,315 +1594,6 @@ void CheckMaybeGiftLocked(
 	})).send();
 }
 
-[[nodiscard]] object_ptr<RpWidget> MakeGiftsList(
-		not_null<Window::SessionController*> window,
-		not_null<PeerData*> peer,
-		rpl::producer<GiftsDescriptor> gifts,
-		Fn<void()> loadMore,
-		Fn<void(GiftDescriptor)> handler = nullptr) {
-	auto result = object_ptr<VisibleRangeWidget>((QWidget*)nullptr);
-	const auto raw = result.data();
-
-	Data::AmPremiumValue(&window->session()) | rpl::on_next([=] {
-		raw->update();
-	}, raw->lifetime());
-
-	struct State {
-		Delegate delegate;
-		std::vector<int> order;
-		std::vector<bool> validated;
-		std::vector<GiftDescriptor> list;
-		std::vector<std::unique_ptr<GiftButton>> buttons;
-		std::shared_ptr<Api::PremiumGiftCodeOptions> api;
-		std::shared_ptr<Data::UniqueGift> transferRequested;
-		rpl::variable<VisibleRange> visibleRange;
-		uint64 resaleRequestingId = 0;
-		rpl::lifetime resaleLifetime;
-		bool sending = false;
-		int perRow = 1;
-	};
-	const auto state = raw->lifetime().make_state<State>(State{
-		.delegate = Delegate(&window->session(), GiftButtonMode::Full),
-	});
-	const auto single = state->delegate.buttonSize();
-	const auto shadow = st::defaultDropdownMenu.wrap.shadow;
-	const auto extend = shadow.extend;
-
-	auto &packs = window->session().giftBoxStickersPacks();
-	packs.updated() | rpl::on_next([=] {
-		for (const auto &button : state->buttons) {
-			if (const auto raw = button.get()) {
-				raw->update();
-			}
-		}
-	}, raw->lifetime());
-
-	const auto rebuild = [=] {
-		const auto width = st::boxWideWidth;
-		const auto padding = st::giftBoxPadding;
-		const auto available = width - padding.left() - padding.right();
-		const auto range = state->visibleRange.current();
-		const auto count = int(state->list.size());
-
-		auto &buttons = state->buttons;
-		if (buttons.size() < count) {
-			buttons.resize(count);
-		}
-		auto &validated = state->validated;
-		validated.resize(count);
-
-		auto x = padding.left();
-		auto y = padding.top();
-		const auto perRow = state->perRow;
-		const auto singlew = single.width() + st::giftBoxGiftSkip.x();
-		const auto singleh = single.height() + st::giftBoxGiftSkip.y();
-		const auto rowFrom = std::max(range.top - y, 0) / singleh;
-		const auto rowTill = (std::max(range.bottom - y + st::giftBoxGiftSkip.y(), 0) + singleh - 1)
-			/ singleh;
-		Assert(rowTill >= rowFrom);
-		const auto first = rowFrom * perRow;
-		const auto last = std::min(rowTill * perRow, count);
-		auto checkedFrom = 0;
-		auto checkedTill = int(buttons.size());
-		const auto ensureButton = [&](int index) {
-			auto &button = buttons[index];
-			if (!button) {
-				validated[index] = false;
-				for (; checkedFrom != first; ++checkedFrom) {
-					if (buttons[checkedFrom]) {
-						button = std::move(buttons[checkedFrom]);
-						break;
-					}
-				}
-			}
-			if (!button) {
-				for (; checkedTill != last; ) {
-					--checkedTill;
-					if (buttons[checkedTill]) {
-						button = std::move(buttons[checkedTill]);
-						break;
-					}
-				}
-			}
-			if (!button) {
-				button = std::make_unique<GiftButton>(raw, &state->delegate);
-			}
-			const auto raw = button.get();
-			if (validated[index]) {
-				return;
-			}
-			raw->show();
-			validated[index] = true;
-			const auto &descriptor = state->list[state->order[index]];
-			raw->setDescriptor(descriptor, GiftButton::Mode::Full);
-			raw->setClickedCallback([=] {
-				if (handler) {
-					handler(descriptor);
-					return;
-				}
-				const auto star = std::get_if<GiftTypeStars>(&descriptor);
-				const auto send = crl::guard(raw, [=] {
-					window->show(Box(
-						SendGiftBox,
-						window,
-						peer,
-						state->api,
-						descriptor,
-						nullptr));
-				});
-				const auto unique = star ? star->info.unique : nullptr;
-				const auto premiumNeeded = star && star->info.requirePremium;
-				if (unique && star->resale) {
-					window->show(Box(
-						Settings::GlobalStarGiftBox,
-						window->uiShow(),
-						star->info,
-						Settings::StarGiftResaleInfo{
-							.recipientId = peer->id,
-							.forceTon = star->forceTon,
-						},
-						Settings::CreditsEntryBoxStyleOverrides()));
-				} else if (unique && star->mine && !peer->isSelf()) {
-					if (ShowTransferGiftLater(window->uiShow(), unique)) {
-						return;
-					}
-					const auto done = [=] {
-						window->session().credits().load(true);
-						window->showPeerHistory(peer);
-					};
-					if (state->transferRequested == unique) {
-						return;
-					}
-					state->transferRequested = unique;
-					const auto savedId = star->transferId;
-					using Payments::CheckoutResult;
-					const auto formReady = [=](
-							uint64 formId,
-							CreditsAmount price,
-							std::optional<CheckoutResult> failure) {
-						state->transferRequested = nullptr;
-						if (!failure && !price.stars()) {
-							LOG(("API Error: "
-								"Bad transfer invoice currenct."));
-						} else if (!failure
-							|| *failure == CheckoutResult::Free) {
-							unique->starsForTransfer = failure
-								? 0
-								: price.whole();
-							ShowTransferToBox(
-								window,
-								peer,
-								unique,
-								savedId,
-								done);
-						} else if (*failure == CheckoutResult::Cancelled) {
-							done();
-						}
-					};
-					RequestOurForm(
-						window->uiShow(),
-						MTP_inputInvoiceStarGiftTransfer(
-							Api::InputSavedStarGiftId(savedId, unique),
-							peer->input()),
-						formReady);
-				} else if (star && star->resale) {
-					const auto id = star->info.id;
-					if (state->resaleRequestingId == id) {
-						return;
-					}
-					state->resaleRequestingId = id;
-					state->resaleLifetime = ShowStarGiftResale(
-						window,
-						peer,
-						id,
-						star->info.resellTitle,
-						[=] { state->resaleRequestingId = 0; });
-				} else if (star && star->info.auction()) {
-					if (!IsSoldOut(star->info)
-						&& premiumNeeded
-						&& !peer->session().premium()) {
-						Settings::ShowPremiumGiftPremium(window, star->info);
-					} else {
-						const auto id = star->info.id;
-						if (state->resaleRequestingId == id) {
-							return;
-						}
-						state->resaleRequestingId = id;
-						state->resaleLifetime = ShowStarGiftAuction(
-							window,
-							peer,
-							id,
-							[=] { state->resaleRequestingId = 0; },
-							crl::guard(raw, [=] {
-								state->resaleLifetime.destroy();
-							}));
-					}
-				} else if (star && IsSoldOut(star->info)) {
-					window->show(Box(SoldOutBox, window, *star));
-				} else if (premiumNeeded && !peer->session().premium()) {
-					Settings::ShowPremiumGiftPremium(window, star->info);
-				} else if (star
-					&& star->info.lockedUntilDate
-					&& star->info.lockedUntilDate > base::unixtime::now()) {
-					const auto ready = crl::guard(raw, [=] {
-						if (premiumNeeded && !peer->session().premium()) {
-							Settings::ShowPremiumGiftPremium(
-								window,
-								v::get<GiftTypeStars>(descriptor).info);
-						} else {
-							send();
-						}
-					});
-					CheckMaybeGiftLocked(window, star->info.id, ready);
-				} else if (star
-						&& star->info.perUserTotal
-						&& !star->info.perUserRemains) {
-					window->showToast({
-						.text = tr::lng_gift_sent_finished(
-							tr::now,
-							lt_count,
-							star->info.perUserTotal,
-							tr::rich),
-					});
-				} else {
-					send();
-				}
-			});
-			raw->setGeometry(QRect(QPoint(x, y), single), extend);
-		};
-		y += rowFrom * singleh;
-		for (auto row = rowFrom; row != rowTill; ++row) {
-			for (auto col = 0; col != perRow; ++col) {
-				const auto index = row * perRow + col;
-				if (index >= count) {
-					break;
-				}
-				const auto last = !((col + 1) % perRow);
-				if (last) {
-					x = padding.left() + available - single.width();
-				}
-				ensureButton(index);
-				if (last) {
-					x = padding.left();
-					y += singleh;
-				} else {
-					x += singlew;
-				}
-			}
-		}
-		const auto till = std::min(int(buttons.size()), rowTill * perRow);
-		for (auto i = count; i < till; ++i) {
-			if (const auto button = buttons[i].get()) {
-				button->hide();
-			}
-		}
-
-		const auto page = range.bottom - range.top;
-		if (loadMore && page > 0 && range.bottom + page > raw->height()) {
-			loadMore();
-		}
-	};
-
-	state->visibleRange = raw->visibleRange();
-	state->visibleRange.value(
-	) | rpl::on_next(rebuild, raw->lifetime());
-
-	std::move(
-		gifts
-	) | rpl::on_next([=](const GiftsDescriptor &gifts) {
-		const auto width = st::boxWideWidth;
-		const auto padding = st::giftBoxPadding;
-		const auto available = width - padding.left() - padding.right();
-		state->perRow = available / single.width();
-		state->list = std::move(gifts.list);
-		state->api = gifts.api;
-
-		const auto count = int(state->list.size());
-		state->order = ranges::views::ints
-			| ranges::views::take(count)
-			| ranges::to_vector;
-		state->validated.clear();
-
-		if (SortForBirthday(peer)) {
-			ranges::stable_partition(state->order, [&](int i) {
-				const auto &gift = state->list[i];
-				const auto stars = std::get_if<GiftTypeStars>(&gift);
-				return stars && stars->info.birthday && !stars->info.unique;
-			});
-		}
-
-		const auto rows = (count + state->perRow - 1) / state->perRow;
-		const auto height = padding.top()
-			+ (rows * single.height())
-			+ ((rows - 1) * st::giftBoxGiftSkip.y())
-			+ padding.bottom();
-		raw->resize(raw->width(), height);
-		rebuild();
-	}, raw->lifetime());
-
-	return result;
-}
-
 void FillBg(not_null<RpWidget*> box) {
 	box->paintRequest() | rpl::on_next([=] {
 		auto p = QPainter(box);
@@ -1957,13 +1648,18 @@ void AddBlock(
 
 	state->gifts = GiftsPremium(&window->session(), peer);
 
-	auto result = MakeGiftsList(window, peer, state->gifts.value(
+	auto gifts = state->gifts.value(
 	) | rpl::map([=](const PremiumGiftsDescriptor &gifts) {
 		return GiftsDescriptor{
 			gifts.list | ranges::to<std::vector<GiftDescriptor>>,
 			gifts.api,
 		};
-	}), nullptr);
+	});
+	auto result = MakeGiftsList({
+		.window = window,
+		.peer = peer,
+		.gifts = std::move(gifts),
+	});
 	result->lifetime().add([state = std::move(state)] {});
 	return result;
 }
@@ -1996,7 +1692,8 @@ void AddBlock(
 		tabSelected(tab);
 	}, tabs.widget->lifetime());
 	result->add(std::move(tabs.widget));
-	result->add(MakeGiftsList(window, peer, rpl::combine(
+
+	auto gifts = rpl::combine(
 		state->gifts.value(),
 		state->priceTab.value(),
 		rpl::single(rpl::empty) | rpl::then(state->myUpdated.events())
@@ -2042,7 +1739,8 @@ void AddBlock(
 		return GiftsDescriptor{
 			gifts | ranges::to<std::vector<GiftDescriptor>>(),
 		};
-	}), [=] {
+	});
+	const auto loadMore = [=] {
 		if (state->priceTab.current() == kPriceTabMy
 			&& !state->my.offset.isEmpty()
 			&& !state->myLoading) {
@@ -2062,6 +1760,12 @@ void AddBlock(
 				state->myUpdated.fire({});
 			});
 		}
+	};
+	result->add(MakeGiftsList({
+		.window = window,
+		.peer = peer,
+		.gifts = std::move(gifts),
+		.loadMore = loadMore,
 	}));
 
 	return result;
@@ -4653,18 +4357,354 @@ CreditsAmount TonFromStars(
 		CreditsType::Ton);
 }
 
-object_ptr<RpWidget> MakeGiftsSendList(
+struct DefaultGiftHandlerState {
+	not_null<Window::SessionController*> window;
+	not_null<PeerData*> peer;
+	std::shared_ptr<Api::PremiumGiftCodeOptions> api;
+	std::shared_ptr<Data::UniqueGift> transferRequested;
+	uint64 resaleRequestingId = 0;
+	rpl::lifetime resaleLifetime;
+
+	base::has_weak_ptr guard;
+};
+
+void DefaultGiftHandler(
 		not_null<Window::SessionController*> window,
-		not_null<PeerData*> peer,
-		rpl::producer<GiftsDescriptor> gifts,
-		Fn<void()> loadMore,
-		Fn<void(GiftDescriptor)> handler) {
-	return MakeGiftsList(
-		window,
-		peer,
-		std::move(gifts),
-		std::move(loadMore),
-		std::move(handler));
+		not_null<DefaultGiftHandlerState*> state,
+		Info::PeerGifts::GiftDescriptor descriptor) {
+	const auto star = std::get_if<GiftTypeStars>(&descriptor);
+	const auto send = crl::guard(&state->guard, [=] {
+		window->show(Box(
+			SendGiftBox,
+			window,
+			state->peer,
+			state->api,
+			descriptor,
+			nullptr));
+	});
+	const auto peer = state->peer;
+	const auto unique = star ? star->info.unique : nullptr;
+	const auto premiumNeeded = star && star->info.requirePremium;
+	if (unique && star->resale) {
+		window->show(Box(
+			Settings::GlobalStarGiftBox,
+			window->uiShow(),
+			star->info,
+			Settings::StarGiftResaleInfo{
+				.recipientId = peer->id,
+				.forceTon = star->forceTon,
+			},
+			Settings::CreditsEntryBoxStyleOverrides()));
+	} else if (unique && star->mine && !peer->isSelf()) {
+		if (ShowTransferGiftLater(window->uiShow(), unique)) {
+			return;
+		}
+		const auto done = [=] {
+			window->session().credits().load(true);
+			window->showPeerHistory(peer);
+		};
+		if (state->transferRequested == unique) {
+			return;
+		}
+		state->transferRequested = unique;
+		const auto savedId = star->transferId;
+		using Payments::CheckoutResult;
+		const auto formReady = [=](
+				uint64 formId,
+				CreditsAmount price,
+				std::optional<CheckoutResult> failure) {
+			state->transferRequested = nullptr;
+			if (!failure && !price.stars()) {
+				LOG(("API Error: Bad transfer invoice currenct."));
+			} else if (!failure
+				|| *failure == CheckoutResult::Free) {
+				unique->starsForTransfer = failure
+					? 0
+					: price.whole();
+				ShowTransferToBox(
+					window,
+					peer,
+					unique,
+					savedId,
+					done);
+			} else if (*failure == CheckoutResult::Cancelled) {
+				done();
+			}
+		};
+		RequestOurForm(
+			window->uiShow(),
+			MTP_inputInvoiceStarGiftTransfer(
+				Api::InputSavedStarGiftId(savedId, unique),
+				peer->input()),
+			formReady);
+	} else if (star && star->resale) {
+		const auto id = star->info.id;
+		if (state->resaleRequestingId == id) {
+			return;
+		}
+		state->resaleRequestingId = id;
+		state->resaleLifetime = ShowStarGiftResale(
+			window,
+			peer,
+			id,
+			star->info.resellTitle,
+			[=] { state->resaleRequestingId = 0; });
+	} else if (star && star->info.auction()) {
+		if (!IsSoldOut(star->info)
+			&& premiumNeeded
+			&& !peer->session().premium()) {
+			Settings::ShowPremiumGiftPremium(window, star->info);
+		} else {
+			const auto id = star->info.id;
+			if (state->resaleRequestingId == id) {
+				return;
+			}
+			state->resaleRequestingId = id;
+			state->resaleLifetime = ShowStarGiftAuction(
+				window,
+				peer,
+				id,
+				[=] { state->resaleRequestingId = 0; },
+				crl::guard(&state->guard, [=] {
+					state->resaleLifetime.destroy();
+				}));
+		}
+	} else if (star && IsSoldOut(star->info)) {
+		window->show(Box(SoldOutBox, window, *star));
+	} else if (premiumNeeded && !peer->session().premium()) {
+		Settings::ShowPremiumGiftPremium(window, star->info);
+	} else if (star
+		&& star->info.lockedUntilDate
+		&& star->info.lockedUntilDate > base::unixtime::now()) {
+		const auto ready = crl::guard(window, [=] {
+			if (premiumNeeded && !peer->session().premium()) {
+				Settings::ShowPremiumGiftPremium(
+					window,
+					v::get<GiftTypeStars>(descriptor).info);
+			} else {
+				send();
+			}
+		});
+		CheckMaybeGiftLocked(window, star->info.id, ready);
+	} else if (star
+			&& star->info.perUserTotal
+			&& !star->info.perUserRemains) {
+		window->showToast({
+			.text = tr::lng_gift_sent_finished(
+				tr::now,
+				lt_count,
+				star->info.perUserTotal,
+				tr::rich),
+		});
+	} else {
+		send();
+	}
+}
+
+object_ptr<RpWidget> MakeGiftsList(GiftsListArgs &&args) {
+	using namespace Info::PeerGifts;
+
+	auto result = object_ptr<VisibleRangeWidget>((QWidget*)nullptr);
+	const auto raw = result.data();
+
+	const auto mode = args.mode;
+	const auto peer = args.peer;
+	const auto window = args.window;
+	const auto session = &window->session();
+
+	Data::AmPremiumValue(session) | rpl::on_next([=] {
+		raw->update();
+	}, raw->lifetime());
+
+	struct State {
+		Delegate delegate;
+		DefaultGiftHandlerState handlerState;
+		std::vector<int> order;
+		std::vector<bool> validated;
+		std::vector<GiftDescriptor> list;
+		std::vector<std::unique_ptr<GiftButton>> buttons;
+		rpl::variable<VisibleRange> visibleRange;
+		bool sending = false;
+		int perRow = 1;
+	};
+	const auto buttonMode = (mode == GiftsListMode::Craft)
+		? GiftButtonMode::Craft
+		: GiftButtonMode::Full;
+	const auto state = raw->lifetime().make_state<State>(State{
+		.delegate = Delegate(session, buttonMode),
+		.handlerState = {
+			.window = window,
+			.peer = peer,
+		},
+	});
+	const auto single = state->delegate.buttonSize();
+	const auto shadow = st::defaultDropdownMenu.wrap.shadow;
+	const auto extend = shadow.extend;
+
+	const auto handler = args.handler
+		? args.handler
+		: crl::guard(raw, [=](const GiftDescriptor &descriptor) {
+			DefaultGiftHandler(window, &state->handlerState, descriptor);
+		});
+
+	auto &packs = session->giftBoxStickersPacks();
+	packs.updated() | rpl::on_next([=] {
+		for (const auto &button : state->buttons) {
+			if (const auto raw = button.get()) {
+				raw->update();
+			}
+		}
+	}, raw->lifetime());
+
+	const auto loadMore = args.loadMore;
+	const auto alreadySelected = args.selected;
+	const auto rebuild = [=] {
+		const auto width = st::boxWideWidth;
+		const auto padding = st::giftBoxPadding;
+		const auto available = width - padding.left() - padding.right();
+		const auto range = state->visibleRange.current();
+		const auto count = int(state->list.size());
+
+		auto &buttons = state->buttons;
+		if (buttons.size() < count) {
+			buttons.resize(count);
+		}
+		auto &validated = state->validated;
+		validated.resize(count);
+
+		auto x = padding.left();
+		auto y = padding.top();
+		const auto perRow = state->perRow;
+		const auto singlew = single.width() + st::giftBoxGiftSkip.x();
+		const auto singleh = single.height() + st::giftBoxGiftSkip.y();
+		const auto rangeFrom = range.top - y;
+		const auto rowFrom = std::max(rangeFrom, 0) / singleh;
+		const auto rangeTill = range.bottom - y + st::giftBoxGiftSkip.y();
+		const auto rowTill = (std::max(rangeTill, 0) + singleh - 1)
+			/ singleh;
+		Assert(rowTill >= rowFrom);
+		const auto first = rowFrom * perRow;
+		const auto last = std::min(rowTill * perRow, count);
+		auto checkedFrom = 0;
+		auto checkedTill = int(buttons.size());
+		const auto ensureButton = [&](int index) {
+			auto &button = buttons[index];
+			if (!button) {
+				validated[index] = false;
+				for (; checkedFrom != first; ++checkedFrom) {
+					if (buttons[checkedFrom]) {
+						button = std::move(buttons[checkedFrom]);
+						break;
+					}
+				}
+			}
+			if (!button) {
+				for (; checkedTill != last; ) {
+					--checkedTill;
+					if (buttons[checkedTill]) {
+						button = std::move(buttons[checkedTill]);
+						break;
+					}
+				}
+			}
+			if (!button) {
+				button = std::make_unique<GiftButton>(raw, &state->delegate);
+			}
+			const auto raw = button.get();
+			if (validated[index]) {
+				return;
+			}
+			raw->show();
+			validated[index] = true;
+			const auto &descriptor = state->list[state->order[index]];
+			if (mode == GiftsListMode::Craft) {
+				const auto already = ranges::contains(
+					alreadySelected,
+					v::get<GiftTypeStars>(descriptor).info.unique->slug,
+					&Data::UniqueGift::slug);
+				raw->toggleSelected(
+					already,
+					GiftSelectionMode::Inset,
+					anim::type::instant);
+				raw->setAttribute(Qt::WA_TransparentForMouseEvents, already);
+			}
+			raw->setDescriptor(descriptor, buttonMode);
+			raw->setClickedCallback([=] {
+				handler(descriptor);
+			});
+			raw->setGeometry(QRect(QPoint(x, y), single), extend);
+		};
+		y += rowFrom * singleh;
+		for (auto row = rowFrom; row != rowTill; ++row) {
+			for (auto col = 0; col != perRow; ++col) {
+				const auto index = row * perRow + col;
+				if (index >= count) {
+					break;
+				}
+				const auto last = !((col + 1) % perRow);
+				if (last) {
+					x = padding.left() + available - single.width();
+				}
+				ensureButton(index);
+				if (last) {
+					x = padding.left();
+					y += singleh;
+				} else {
+					x += singlew;
+				}
+			}
+		}
+		const auto till = std::min(int(buttons.size()), rowTill * perRow);
+		for (auto i = count; i < till; ++i) {
+			if (const auto button = buttons[i].get()) {
+				button->hide();
+			}
+		}
+
+		const auto page = range.bottom - range.top;
+		if (loadMore && page > 0 && range.bottom + page > raw->height()) {
+			loadMore();
+		}
+	};
+
+	state->visibleRange = raw->visibleRange();
+	state->visibleRange.value(
+	) | rpl::on_next(rebuild, raw->lifetime());
+
+	std::move(
+		args.gifts
+	) | rpl::on_next([=](const GiftsDescriptor &gifts) {
+		const auto width = st::boxWideWidth;
+		const auto padding = st::giftBoxPadding;
+		const auto available = width - padding.left() - padding.right();
+		state->perRow = available / single.width();
+		state->list = std::move(gifts.list);
+		state->handlerState.api = gifts.api;
+
+		const auto count = int(state->list.size());
+		state->order = ranges::views::ints
+			| ranges::views::take(count)
+			| ranges::to_vector;
+		state->validated.clear();
+
+		if (SortForBirthday(peer)) {
+			ranges::stable_partition(state->order, [&](int i) {
+				const auto &gift = state->list[i];
+				const auto stars = std::get_if<GiftTypeStars>(&gift);
+				return stars && stars->info.birthday && !stars->info.unique;
+			});
+		}
+
+		const auto rows = (count + state->perRow - 1) / state->perRow;
+		const auto height = padding.top()
+			+ (rows * single.height())
+			+ ((rows - 1) * st::giftBoxGiftSkip.y())
+			+ padding.bottom();
+		raw->resize(raw->width(), height);
+		rebuild();
+	}, raw->lifetime());
+
+	return result;
 }
 
 void SendGiftBox(

@@ -24,6 +24,7 @@ namespace {
 
 constexpr auto kMyGiftsPerPage = 50;
 constexpr auto kResaleGiftsPerPage = 50;
+constexpr auto kCraftGiftsPerPage = 50;
 
 [[nodiscard]] MTPStarGiftAttributeId AttributeToTL(GiftAttributeId id) {
 	switch (id.type) {
@@ -291,6 +292,47 @@ rpl::producer<ResaleGiftsDescriptor> ResaleGiftsSlice(
 					info.backdrops.push_back({ parsed, count(IdFor(parsed)) });
 				}, [](const MTPDstarGiftAttributeOriginalDetails &data) {
 				});
+			}
+			consumer.put_next(std::move(info));
+			consumer.put_done();
+		}).fail([=](const MTP::Error &error) {
+			consumer.put_next({});
+			consumer.put_done();
+		}).send();
+
+		auto lifetime = rpl::lifetime();
+		lifetime.add([=] { session->api().request(requestId).cancel(); });
+		return lifetime;
+	};
+}
+
+rpl::producer<CraftGiftsDescriptor> CraftGiftsSlice(
+		not_null<Main::Session*> session,
+		uint64 giftId,
+		QString offset) {
+	return [=](auto consumer) {
+		const auto requestId = session->api().request(
+			MTPpayments_GetCraftStarGifts(
+				MTP_long(giftId),
+				MTP_string(),
+				MTP_int(kCraftGiftsPerPage))
+		).done([=](const MTPpayments_SavedStarGifts &result) {
+			const auto user = session->user();
+			const auto owner = &session->data();
+			const auto &data = result.data();
+			owner->processUsers(data.vusers());
+			owner->processChats(data.vchats());
+
+			auto info = CraftGiftsDescriptor{
+				.giftId = giftId,
+				.offset = qs(data.vnext_offset().value_or_empty()),
+				.count = data.vcount().v,
+			};
+			info.list.reserve(data.vgifts().v.size());
+			for (const auto &gift : data.vgifts().v) {
+				if (auto parsed = Api::FromTL(user, gift)) {
+					info.list.push_back(std::move(*parsed));
+				}
 			}
 			consumer.put_next(std::move(info));
 			consumer.put_done();

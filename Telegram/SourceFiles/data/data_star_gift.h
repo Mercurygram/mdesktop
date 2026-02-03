@@ -408,4 +408,16 @@ struct ResaleGiftsFilter {
 	ResaleGiftsFilter filter = {},
 	QString offset = QString());
 
+struct CraftGiftsDescriptor {
+	uint64 giftId = 0;
+	QString offset;
+	std::vector<SavedStarGift> list;
+	int count = 0;
+};
+
+[[nodiscard]] rpl::producer<CraftGiftsDescriptor> CraftGiftsSlice(
+	not_null<Main::Session*> session,
+	uint64 giftId,
+	QString offset = QString());
+
 } // namespace Data

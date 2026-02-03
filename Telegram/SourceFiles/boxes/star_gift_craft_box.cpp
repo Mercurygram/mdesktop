@@ -37,6 +37,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/layers/generic_box.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/gradient_round_button.h"
+#include "ui/wrap/slide_wrap.h"
 #include "ui/painter.h"
 #include "ui/top_background_gradient.h"
 #include "ui/ui_utility.h"
@@ -50,8 +51,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Ui {
 namespace {
-
-constexpr auto kCraftGiftsLimit = 30;
 
 using namespace Info::PeerGifts;
 
@@ -562,6 +561,104 @@ AbstractButton *MakeRemoveButton(
 	};
 }
 
+void AddCraftGiftsList(
+		not_null<Window::SessionController*> window,
+		not_null<VerticalLayout*> container,
+		Data::CraftGiftsDescriptor descriptor,
+		const std::vector<GiftForCraft> &selected,
+		Fn<void(std::shared_ptr<Data::UniqueGift>)> chosen) {
+	struct State {
+		rpl::event_stream<> updated;
+		Data::CraftGiftsDescriptor data;
+		QString offset;
+		rpl::variable<bool> empty = true;
+		rpl::lifetime loading;
+	};
+	const auto state = container->lifetime().make_state<State>();
+	state->data = std::move(descriptor);
+
+	using Descriptor = Info::PeerGifts::GiftDescriptor;
+	using StarGift = Info::PeerGifts::GiftTypeStars;
+	auto handler = crl::guard(container, [=](Descriptor descriptor) {
+		Expects(v::is<StarGift>(descriptor));
+
+		const auto unique = v::get<StarGift>(descriptor).info.unique;
+		chosen(unique);
+	});
+
+	auto gifts = rpl::single(
+		rpl::empty
+	) | rpl::then(state->updated.events()) | rpl::map([=] {
+		auto result = GiftsDescriptor();
+		const auto selfId = window->session().userPeerId();
+		for (const auto &gift : state->data.list) {
+			result.list.push_back(Info::PeerGifts::GiftTypeStars{
+				.info = gift.info,
+				.resale = true,
+				.mine = (gift.info.unique->ownerId == selfId),
+				});
+		}
+		state->empty = result.list.empty();
+		return result;
+	});
+	const auto peer = window->session().user();
+	const auto loadMore = [=] {
+		if (!state->offset.isEmpty() && !state->loading) {
+			state->loading = Data::CraftGiftsSlice(
+				&peer->session(),
+				state->data.giftId,
+				state->data.offset
+			) | rpl::on_next([=](Data::CraftGiftsDescriptor &&slice) {
+				state->loading.destroy();
+				state->data.offset = slice.list.empty()
+					? QString()
+					: slice.offset;
+				state->data.list.insert(
+					end(state->data.list),
+					std::make_move_iterator(begin(slice.list)),
+					std::make_move_iterator(end(slice.list)));
+				state->updated.fire({});
+			});
+		}
+	};
+	container->add(MakeGiftsList({
+		.window = window,
+		.mode = GiftsListMode::Craft,
+		.peer = peer,
+		.gifts = std::move(gifts),
+		.selected = (selected
+			| ranges::views::transform(&GiftForCraft::unique)
+			| ranges::to_vector),
+		.loadMore = loadMore,
+		.handler = handler,
+	}));
+
+	const auto skip = st::defaultSubsectionTitlePadding.top();
+	const auto wrap = container->add(
+		object_ptr<SlideWrap<FlatLabel>>(
+			container,
+			object_ptr<FlatLabel>(
+				container,
+				tr::lng_gift_craft_select_none(),
+				st::craftYourListEmpty),
+			(st::boxRowPadding + QMargins(0, 0, 0, skip))),
+		style::al_top);
+	state->empty.value() | rpl::on_next([=](bool empty) {
+		// Scroll doesn't jump up if we show before rows are cleared,
+		// and we hide after rows are added.
+		if (empty) {
+			wrap->show(anim::type::instant);
+		} else {
+			crl::on_main(wrap, [=] {
+				if (!state->empty.current()) {
+					wrap->hide(anim::type::instant);
+				}
+			});
+		}
+	}, wrap->lifetime());
+	wrap->entity()->setTryMakeSimilarLines(true);
+}
+
 void ShowSelectGiftBox(
 		not_null<Window::SessionController*> controller,
 		uint64 giftId,
@@ -573,24 +670,17 @@ void ShowSelectGiftBox(
 		GiftButton *button = nullptr;
 	};
 	struct State {
-		explicit State(not_null<Main::Session*> session)
-		: delegate(session, GiftButtonMode::Minimal) {
-		}
-
-		Delegate delegate;
 		std::vector<Entry> entries;
 
-		std::vector<Data::SavedStarGift> myList;
-		QString myOffset;
-		bool myFinished = false;
-
+		Data::CraftGiftsDescriptor craft;
 		Data::ResaleGiftsDescriptor resale;
 
+		rpl::lifetime craftLifetime;
 		rpl::lifetime resaleLifetime;
 	};
 
 	const auto session = &controller->session();
-	const auto state = std::make_shared<State>(session);
+	const auto state = std::make_shared<State>();
 
 	const auto make = [=](not_null<GenericBox*> box) {
 		box->setTitle(tr::lng_gift_craft_select_title());
@@ -602,65 +692,18 @@ void ShowSelectGiftBox(
 			box->verticalLayout(),
 			tr::lng_gift_craft_select_your());
 
-		if (state->myList.empty()) {
-			box->addRow(
-				object_ptr<FlatLabel>(
-					box,
-					tr::lng_gift_craft_select_none(),
-					st::craftYourListEmpty),
-				style::al_top
-			)->setTryMakeSimilarLines(true);
-		}
+		const auto got = crl::guard(box, [=](
+				std::shared_ptr<Data::UniqueGift> gift) {
+			chosen(GiftForCraft{ .unique = gift });
+			box->closeBox();
+		});
 
-		const auto single = state->delegate.buttonSize();
-		const auto extend = state->delegate.buttonExtend();
-		const auto full = single.grownBy(extend).height();
-		const auto skip = st::boxRowPadding.left() / 2;
-		const auto gifts = box->addRow(
-			object_ptr<VisibleRangeWidget>(box),
-			QMargins());
-		for (auto &gift : state->myList) {
-			const auto row = (state->entries.size() / 3);
-			const auto col = (state->entries.size() % 3);
-			state->entries.push_back(Entry{
-				.gift = gift,
-				.button = CreateChild<GiftButton>(gifts, &state->delegate),
-			});
-			const auto button = state->entries.back().button;
-			const auto proj = &GiftForCraft::slugId;
-			if (ranges::contains(selected, gift.info.unique->slug, proj)) {
-				button->toggleSelected(
-					true,
-					GiftSelectionMode::Inset,
-					anim::type::instant);
-				button->setAttribute(Qt::WA_TransparentForMouseEvents);
-			} else {
-				button->setClickedCallback([=] {
-					chosen({ gift.info.unique, gift.manageId });
-					box->closeBox();
-				});
-			}
-			button->show();
-			button->setDescriptor(GiftTypeStars{
-				.info = {
-					.id = gift.info.id,
-					.unique = gift.info.unique,
-					.document = gift.info.unique->model.document,
-				},
-			}, GiftButton::Mode::Minimal);
-			const auto width = (st::boxWideWidth
-				- 2 * skip
-				- st::boxRowPadding.left()
-				- st::boxRowPadding.right()) / 3;
-			const auto x = st::boxRowPadding.left() + (width + skip) * col;
-			const auto y = extend.top() + full * row;
-			button->setGeometry(
-				QRect(x, y, width, single.height()),
-				extend);
-		}
-		gifts->resize(
-			gifts->width(),
-			(state->myList.size() + 2) / 3 * full);
+		AddCraftGiftsList(
+			controller,
+			box->verticalLayout(),
+			state->craft,
+			selected,
+			got);
 
 		if (const auto count = state->resale.count) {
 			AddSubsectionTitle(
@@ -669,18 +712,13 @@ void ShowSelectGiftBox(
 					lt_count,
 					rpl::single(count * 1.)));
 
-			const auto bought = crl::guard(box, [=](
-					std::shared_ptr<Data::UniqueGift> gift) {
-				chosen(GiftForCraft{ .unique = gift });
-				box->closeBox();
-			});
 			AddResaleGiftsList(
 				controller,
-				controller->session().user(),
+				session->user(),
 				box->verticalLayout(),
 				state->resale,
 				rpl::single(false),
-				bought,
+				got,
 				true);
 		}
 
@@ -693,33 +731,17 @@ void ShowSelectGiftBox(
 		controller->show(Box(make));
 	});
 
-	session->api().request(MTPpayments_GetCraftStarGifts(
-		MTP_long(giftId),
-		MTP_string(),
-		MTP_int(kCraftGiftsLimit)
-	)).done([=](const MTPpayments_SavedStarGifts &result) {
-		const auto user = session->user();
-		const auto owner = &session->data();
-		const auto &data = result.data();
-		owner->processUsers(data.vusers());
-		owner->processChats(data.vchats());
+	state->craftLifetime = Data::CraftGiftsSlice(
+		session,
+		giftId
+	) | rpl::on_next([=](Data::CraftGiftsDescriptor &&info) {
+		state->craftLifetime.destroy();
 
-		auto list = std::vector<Data::SavedStarGift>();
-		list.reserve(data.vgifts().v.size());
-		for (const auto &gift : data.vgifts().v) {
-			if (auto parsed = Api::FromTL(user, gift)) {
-				list.push_back(std::move(*parsed));
-			}
-		}
-
-		state->myList = std::move(list);
-		state->myOffset = qs(data.vnext_offset().value_or_empty());
-		state->myFinished = !data.vnext_offset();
-
+		state->craft = std::move(info);
 		if (state->resale.giftId) {
 			show();
 		}
-	}).send();
+	});
 
 	state->resaleLifetime = Data::ResaleGiftsSlice(
 		session,
@@ -729,7 +751,7 @@ void ShowSelectGiftBox(
 		state->resaleLifetime.destroy();
 
 		state->resale = std::move(info);
-		if (!state->myList.empty() || state->myFinished) {
+		if (state->craft.giftId) {
 			show();
 		}
 	});

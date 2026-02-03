@@ -270,7 +270,7 @@ void GiftButton::setDescriptor(const GiftDescriptor &descriptor, Mode mode) {
 			: data.from
 			? Ui::MakeUserpicThumbnail(data.from)
 			: Ui::MakeHiddenAuthorThumbnail();
-		if (small() && !resale) {
+		if (small() && !resale || (_mode == GiftButtonMode::Craft)) {
 			_price = {};
 			_stars.reset();
 			return;
@@ -337,7 +337,7 @@ void GiftButton::setDescriptor(const GiftDescriptor &descriptor, Mode mode) {
 	_uniquePatternEmoji = nullptr;
 	_uniquePatternCache.clear();
 
-	if (small() && !resale) {
+	if (_price.isEmpty()) {
 		_button = QRect();
 		return;
 	}
@@ -817,7 +817,8 @@ void GiftButton::paint(QPainter &p, float64 craftProgress) {
 			QRect(
 				(width - size.width()) / 2,
 				((_mode == GiftButtonMode::CraftPreview
-					|| _mode == GiftButtonMode::Minimal)
+					|| _mode == GiftButtonMode::Minimal
+					|| _mode == GiftButtonMode::Craft)
 					? (extend.top()
 						+ ((height
 							- extend.top()
@@ -970,7 +971,7 @@ void GiftButton::paint(QPainter &p, float64 craftProgress) {
 
 	v::match(_descriptor, [](const GiftTypePremium &) {
 	}, [&](const GiftTypeStars &data) {
-		if (!unique || _mode == Mode::CraftPreview) {
+		if (!unique || _mode == Mode::Craft || _mode == Mode::CraftPreview) {
 		} else if (data.pinned && _mode != GiftButtonMode::Selection) {
 			auto hq = PainterHighQualityEnabler(p);
 			const auto &icon = st::giftBoxPinIcon;

@@ -652,7 +652,7 @@ void AddResaleGiftsList(
 		});
 	}
 
-	container->add(MakeGiftsSendList(window, peer, rpl::single(
+	auto gifts = rpl::single(
 		rpl::empty
 	) | rpl::then(rpl::merge(
 		state->updated.events() | rpl::type_erased,
@@ -662,16 +662,21 @@ void AddResaleGiftsList(
 		const auto selfId = window->session().userPeerId();
 		const auto forceTon = state->ton.current();
 		for (const auto &gift : state->data.list) {
+			const auto mine = (gift.unique->ownerId == selfId);
+			if (mine && forCraft) {
+				continue;
+			}
 			result.list.push_back(Info::PeerGifts::GiftTypeStars{
 				.info = gift,
 				.forceTon = forceTon,
 				.resale = true,
-				.mine = (gift.unique->ownerId == selfId),
-			});
+				.mine = mine,
+				});
 		}
 		state->empty = result.list.empty();
 		return result;
-	}), [=] {
+	});
+	const auto loadMore = [=] {
 		if (!state->data.offset.isEmpty()
 			&& !state->loading) {
 			state->loading = ResaleGiftsSlice(
@@ -691,7 +696,15 @@ void AddResaleGiftsList(
 				state->updated.fire({});
 			});
 		}
-	}, customHandler));
+	};
+	container->add(MakeGiftsList({
+		.window = window,
+		.mode = forCraft ? GiftsListMode::CraftResale : GiftsListMode::Send,
+		.peer = peer,
+		.gifts = std::move(gifts),
+		.loadMore = loadMore,
+		.handler = customHandler,
+	}));
 
 	const auto skip = st::defaultSubsectionTitlePadding.top();
 	const auto wrap = container->add(

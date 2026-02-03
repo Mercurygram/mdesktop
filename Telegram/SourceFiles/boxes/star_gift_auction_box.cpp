@@ -1304,7 +1304,7 @@ void AuctionInfoBox(
 
 	struct State {
 		explicit State(not_null<Main::Session*> session)
-			: delegate(session, GiftButtonMode::Minimal) {
+		: delegate(session, GiftButtonMode::Minimal) {
 		}
 
 		Delegate delegate;

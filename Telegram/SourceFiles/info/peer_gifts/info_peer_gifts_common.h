@@ -138,6 +138,7 @@ struct GiftBadge {
 
 enum class GiftButtonMode : uint8 {
 	Full,
+	Craft,
 	Minimal,
 	Selection,
 	CraftPreview,
