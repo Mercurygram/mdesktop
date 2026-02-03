@@ -1129,6 +1129,18 @@ void FillUniqueGiftMenu(
 	if (!host) {
 		return;
 	}
+	if (CanCraftGift(&show->session(), e)) {
+		menu->addAction(tr::lng_gift_craft_menu_button(tr::now), [=] {
+			const auto unique = e.uniqueGift;
+			if (Ui::ShowCraftLaterError(show, unique)) {
+				return;
+			}
+			const auto savedId = EntryToSavedStarGiftId(&show->session(), e);
+			if (const auto window = show->resolveWindow()) {
+				Ui::ShowGiftCraftInfoBox(window, unique, savedId);
+			}
+		}, st.craft ? st.craft : &st::menuIconCraft);
+	}
 	const auto transfer = savedId
 		&& (savedId.isUser() ? e.in : savedId.chat()->canTransferGifts())
 		&& (unique->starsForTransfer >= 0);
@@ -1224,6 +1236,7 @@ CreditsEntryBoxStyleOverrides DarkCreditsEntryBoxStyle() {
 		.share = &st::darkGiftShare,
 		.theme = &st::darkGiftTheme,
 		.transfer = &st::darkGiftTransfer,
+		.craft = &st::darkGiftCraft,
 		.wear = &st::darkGiftNftWear,
 		.takeoff = &st::darkGiftNftTakeOff,
 		.resell = &st::darkGiftNftResell,
