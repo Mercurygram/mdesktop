@@ -1482,7 +1482,6 @@ void StartCraftAnimation(
 		std::shared_ptr<ChatHelpers::Show> show,
 		std::shared_ptr<CraftState> shared,
 		Fn<void(Fn<void(CraftResult)> callback)> startRequest,
-		Fn<void()> closeParent,
 		Fn<void(Fn<void()> closeCurrent)> retryWithNewGift) {
 	const auto container = box->verticalLayout();
 	while (container->count() > 0) {

@@ -1602,11 +1602,7 @@ void GenericCreditsEntryBody(
 			}
 			const auto savedId = EntryToSavedStarGiftId(&show->session(), e);
 			if (const auto window = show->resolveWindow()) {
-				const auto closeParent = crl::guard(box, [=] {
-					box->closeBox();
-				});
-				using namespace Ui;
-				ShowGiftCraftInfoBox(window, unique, savedId, closeParent);
+				Ui::ShowGiftCraftInfoBox(window, unique, savedId);
 			}
 		} : Fn<void()>();
 		AddUniqueCloseMoreButton(box, st, [=](not_null<Ui::PopupMenu*> menu) {

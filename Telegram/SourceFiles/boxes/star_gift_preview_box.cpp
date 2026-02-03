@@ -258,6 +258,15 @@ private:
 
 };
 
+[[nodiscard]] QColor MakeOpaque(QColor color, QColor bg) {
+	return (color.alpha() == 255)
+		? color
+		: anim::color(
+			bg,
+			QColor(color.red(), color.green(), color.blue(), 255),
+			color.alphaF());
+}
+
 void CacheBackdropBackground(
 		not_null<GiftBackdrop*> backdrop,
 		int width,
@@ -470,7 +479,12 @@ void AttributeButton::paintBackground(
 		return;
 	}
 	const auto pwidth = progress * st::defaultRoundCheckbox.width;
-	p.setPen(QPen(st::defaultRoundCheckbox.bgActive->c, pwidth));
+	const auto model = std::get_if<GiftModel>(&_descriptor);
+	const auto color = (!model
+		|| (model->rarityType() == Data::UniqueGiftRarity::Default))
+		? st::defaultRoundCheckbox.bgActive->c
+		: Data::UniqueGiftRarityBadgeColors(model->rarityType()).fg;
+	p.setPen(QPen(color, pwidth));
 	p.setBrush(Qt::NoBrush);
 	const auto rounded = rect().marginsRemoved(_extend);
 	const auto phalf = pwidth / 2.;
@@ -650,11 +664,15 @@ void AttributeButton::paintEvent(QPaintEvent *e) {
 	});
 
 	p.setPen(Qt::NoPen);
-	p.setBrush(model
-		? anim::color(st::windowBgOver, st::windowBgActive, progress)
-		: backdrop
+	p.setBrush(backdrop
 		? backdrop->patternColor
-		: _delegate->patternColor());
+		: !model
+		? _delegate->patternColor()
+		: (model->rarityType() == Data::UniqueGiftRarity::Default)
+		? anim::color(st::windowBgOver, st::windowBgActive, progress)
+		: MakeOpaque(
+			Data::UniqueGiftRarityBadgeColors(model->rarityType()).bg,
+			st::boxBg->c));
 	const auto ppadding = st::uniqueAttributePercentPadding;
 	const auto add = int(std::ceil(style::ConvertScaleExact(6.)));
 	const auto pradius = std::max(st::giftBoxGiftRadius - add, 1);
@@ -670,9 +688,11 @@ void AttributeButton::paintEvent(QPaintEvent *e) {
 		_percent.maxWidth(),
 		st::uniqueAttributeType.font->height);
 	p.drawRoundedRect(percent.marginsAdded(ppadding), pradius, pradius);
-	p.setPen(model
+	p.setPen(!model
+		? QColor(255, 255, 255)
+		: (model->rarityType() == Data::UniqueGiftRarity::Default)
 		? anim::color(st::windowSubTextFg, st::windowFgActive, progress)
-		: QColor(255, 255, 255));
+		: Data::UniqueGiftRarityBadgeColors(model->rarityType()).fg);
 	_percent.draw(p, {
 		.position = percent.topLeft(),
 	});
@@ -1251,16 +1271,23 @@ void StarGiftPreviewBox(
 	// If we have selected gift, remove all attributes not of the same type.
 	// If we don't have selected gift, remove non-default-type attributes.
 	const auto filter = [&](auto &list, auto attribute) {
-		const auto rarity = selected
-			? ((*selected).*attribute).rarityType()
-			: Data::UniqueGiftRarity::Default;
 		const auto rarityProj = &Data::UniqueGiftAttribute::rarityType;
-		if (ranges::contains(list, rarity, rarityProj)) {
-			list.erase(ranges::remove_if(list, [&](const auto &attribute) {
-				return attribute.rarityType() != rarity;
-			}), end(list));
-			Assert(!list.empty());
+		const auto simple = Data::UniqueGiftRarity::Default;
+		if (!selected || ((*selected).*attribute).rarityType() == simple) {
+			if (ranges::contains(list, simple, rarityProj)) {
+				list.erase(ranges::remove_if(list, [&](const auto &attribute) {
+					return attribute.rarityType() != simple;
+				}), end(list));
+			}
+		} else {
+			const auto rare = ((*selected).*attribute).rarityType();
+			if (ranges::contains(list, rare, rarityProj)) {
+				list.erase(ranges::remove_if(list, [&](const auto &attribute) {
+					return attribute.rarityType() == simple;
+				}), end(list));
+			}
 		}
+		Assert(!list.empty());
 	};
 	filter(attributes.models, &Data::UniqueGift::model);
 	filter(attributes.patterns, &Data::UniqueGift::pattern);
