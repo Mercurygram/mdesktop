@@ -1519,4 +1519,8 @@ void SelectGiftToUnpin(
 	}));
 }
 
+QColor BurnedBadgeBg() {
+	return QColor(0xd0, 0x3a, 0x3b);
+}
+
 } // namespace Info::PeerGifts

@@ -3836,6 +3836,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_limited_of_one" = "unique";
 "lng_gift_limited_of_count" = "1 of {amount}";
 "lng_gift_collectible_tag" = "gift";
+"lng_gift_burned_tag" = "burned";
 "lng_gift_crafted_tag" = "crafted";
 "lng_gift_uncommon_tag" = "uncommon";
 "lng_gift_rare_tag" = "rare";
@@ -3847,6 +3848,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_hidden_hint" = "This gift is hidden. Only you can see it.";
 "lng_gift_hidden_unique" = "This gift is not displayed on your page.";
 "lng_gift_visible_hint" = "This gift is visible on your page.";
+"lng_gift_burned_message" = "This gift was burned in crafting.";
 "lng_gift_hidden_hint_channel" = "This gift is hidden from visitors of your channel.";
 "lng_gift_visible_hint_channel" = "This gift is visible in your channel's Gifts.";
 "lng_gift_in_blockchain" = "This gift is in TON blockchain. {link}";

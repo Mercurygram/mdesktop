@@ -324,4 +324,6 @@ void SelectGiftToUnpin(
 	const std::vector<Data::CreditsHistoryEntry> &pinned,
 	Fn<void(Data::SavedStarGiftId)> chosen);
 
+[[nodiscard]] QColor BurnedBadgeBg();
+
 } // namespace Info::PeerGifts

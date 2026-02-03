@@ -998,7 +998,19 @@ void Craft(
 		)).done([=](const MTPUpdates &result) {
 			session->api().applyUpdates(result);
 			session->data().nextForUpgradeGiftInvalidate(session->user());
-			done(FindUniqueGift(session, result));
+			const auto gift = FindUniqueGift(session, result);
+			const auto slug = gift ? gift->info.unique->slug : QString();
+			for (const auto &input : gifts) {
+				const auto action = (slug == input.unique->slug)
+					? Data::GiftUpdate::Action::Upgraded
+					: Data::GiftUpdate::Action::Delete;
+				controller->session().data().notifyGiftUpdate({
+					.id = input.manageId,
+					.slug = input.unique->slug,
+					.action = action,
+				});
+			}
+			done(gift);
 		}).fail([=](const MTP::Error &error) {
 			const auto type = error.type();
 			const auto waitPrefix = u"STARGIFT_CRAFT_TOO_EARLY_"_q;

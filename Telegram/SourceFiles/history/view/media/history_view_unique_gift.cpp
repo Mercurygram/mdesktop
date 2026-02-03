@@ -495,11 +495,16 @@ auto UniqueGiftBg(
 			? QMargins()
 			: st::chatUniqueGiftBadgePadding;
 		p.setClipRect(inner.marginsAdded(padding));
+
+		const auto burned = gift->burned;
+		const auto burnedBg = Info::PeerGifts::BurnedBadgeBg();
 		auto badge = Info::PeerGifts::GiftBadge{
-			.text = tr::lng_gift_collectible_tag(tr::now),
-			.bg1 = gift->backdrop.edgeColor,
-			.bg2 = gift->backdrop.patternColor,
-			.fg = gift->backdrop.textColor,
+			.text = (burned
+				? tr::lng_gift_burned_tag(tr::now)
+				: tr::lng_gift_collectible_tag(tr::now)),
+			.bg1 = (burned ? burnedBg : gift->backdrop.edgeColor),
+			.bg2 = (burned ? burnedBg : gift->backdrop.patternColor),
+			.fg = (burned ? st::white->c : gift->backdrop.textColor),
 		};
 		if (state->badgeCache.isNull() || state->badgeKey != badge) {
 			state->badgeKey = badge;

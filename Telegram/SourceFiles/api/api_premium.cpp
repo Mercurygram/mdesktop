@@ -953,6 +953,7 @@ std::optional<Data::StarGift> FromTL(
 				.onlyAcceptTon = data.is_resale_ton_only(),
 				.canBeTheme = data.is_theme_available(),
 				.crafted = data.is_crafted(),
+				.burned = data.is_burned(),
 				.model = *model,
 				.pattern = *pattern,
 				.value = (data.vvalue_amount()

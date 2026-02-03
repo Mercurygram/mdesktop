@@ -135,6 +135,7 @@ struct UniqueGift {
 	bool onlyAcceptTon = false;
 	bool canBeTheme = false;
 	bool crafted = false;
+	bool burned = false;
 	TimeId exportAt = 0;
 	TimeId canTransferAt = 0;
 	TimeId canResellAt = 0;
