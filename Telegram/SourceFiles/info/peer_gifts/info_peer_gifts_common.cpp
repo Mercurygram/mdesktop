@@ -826,7 +826,9 @@ void GiftButton::paint(QPainter &p, float64 craftProgress) {
 					: small()
 					? st::giftBoxSmallStickerTop
 					: _text.isEmpty()
-					? st::giftBoxStickerStarTop
+					? (unique
+						? st::giftBoxStickerUniqueTop
+						: st::giftBoxStickerStarTop)
 					: _byStars.isEmpty()
 					? st::giftBoxStickerTop
 					: st::giftBoxStickerTopByStars),
@@ -840,7 +842,9 @@ void GiftButton::paint(QPainter &p, float64 craftProgress) {
 			(small()
 				? st::giftBoxSmallStickerTop
 				: _text.isEmpty()
-				? st::giftBoxStickerStarTop
+				? (unique
+					? st::giftBoxStickerUniqueTop
+					: st::giftBoxStickerStarTop)
 				: _byStars.isEmpty()
 				? st::giftBoxStickerTop
 				: st::giftBoxStickerTopByStars));
@@ -1211,10 +1215,7 @@ not_null<StickerPremiumMark*> Delegate::hiddenMark() {
 QImage Delegate::cachedBadge(const GiftBadge &badge) {
 	auto &image = _badges[badge];
 	if (image.isNull()) {
-		const auto &extend = buttonExtend();
-		const auto line = st::lineWidth;
-		const auto padding = QMargins(extend.top(), 0, extend.top(), line);
-		image = ValidateRotatedBadge(badge, padding);
+		image = ValidateRotatedBadge(badge, QMargins());
 	}
 	return image;
 }
