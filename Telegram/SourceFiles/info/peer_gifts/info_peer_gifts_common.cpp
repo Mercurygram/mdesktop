@@ -265,12 +265,12 @@ void GiftButton::setDescriptor(const GiftDescriptor &descriptor, Mode mode) {
 		const auto soldOut = data.info.limitedCount
 			&& !data.userpic
 			&& !data.info.limitedLeft;
-		_userpic = (!data.userpic || _mode == GiftButtonMode::Selection)
+		_userpic = (!data.userpic || (_mode == Mode::Selection))
 			? nullptr
 			: data.from
 			? Ui::MakeUserpicThumbnail(data.from)
 			: Ui::MakeHiddenAuthorThumbnail();
-		if (small() && !resale || (_mode == GiftButtonMode::Craft)) {
+		if (small() && !resale || (_mode == Mode::Craft)) {
 			_price = {};
 			_stars.reset();
 			return;
@@ -442,7 +442,7 @@ QMargins GiftButton::currentExtend() const {
 }
 
 bool GiftButton::small() const {
-	return _mode != GiftButtonMode::Full;
+	return (_mode != Mode::Full) && (_mode != Mode::CraftResale);
 }
 
 void GiftButton::toggleSelected(
@@ -816,9 +816,9 @@ void GiftButton::paint(QPainter &p, float64 craftProgress) {
 		p.drawImage(
 			QRect(
 				(width - size.width()) / 2,
-				((_mode == GiftButtonMode::CraftPreview
-					|| _mode == GiftButtonMode::Minimal
-					|| _mode == GiftButtonMode::Craft)
+				((_mode == Mode::CraftPreview
+					|| _mode == Mode::Minimal
+					|| _mode == Mode::Craft)
 					? (extend.top()
 						+ ((height
 							- extend.top()
@@ -969,10 +969,11 @@ void GiftButton::paint(QPainter &p, float64 craftProgress) {
 			cached);
 	}
 
+	auto percentSkip = 0;
 	v::match(_descriptor, [](const GiftTypePremium &) {
 	}, [&](const GiftTypeStars &data) {
 		if (!unique || _mode == Mode::Craft || _mode == Mode::CraftPreview) {
-		} else if (data.pinned && _mode != GiftButtonMode::Selection) {
+		} else if (data.pinned && _mode != Mode::Selection) {
 			auto hq = PainterHighQualityEnabler(p);
 			const auto &icon = st::giftBoxPinIcon;
 			const auto skip = st::giftBoxUserpicSkip;
@@ -987,6 +988,7 @@ void GiftButton::paint(QPainter &p, float64 craftProgress) {
 		} else if (!data.forceTon
 			&& unique->nanoTonForResale
 			&& unique->onlyAcceptTon) {
+			auto hq = PainterHighQualityEnabler(p);
 			if (_tonIcon.isNull()) {
 				_tonIcon = st::tonIconEmojiLarge.icon.instance(
 					QColor(255, 255, 255));
@@ -1004,8 +1006,34 @@ void GiftButton::paint(QPainter &p, float64 craftProgress) {
 				extend.left() + skip + add,
 				extend.top() + skip + add,
 				_tonIcon);
+			percentSkip += st::giftBoxUserpicSize;
 		}
 	});
+
+	if (unique
+		&& unique->craftChancePermille > 0
+		&& (_mode == Mode::Craft || _mode == Mode::CraftResale)) {
+		auto hq = PainterHighQualityEnabler(p);
+		p.setPen(Qt::NoPen);
+		p.setBrush(unique->backdrop.patternColor);
+
+		const auto rounded = (unique->craftChancePermille + 5) / 10;
+		const auto percent = QString::number(rounded) + '%';
+		const auto &font = st::giftBoxGiftBadgeFont;
+		const auto height = font->height + st::lineWidth;
+		const auto radius = height / 2.;
+		const auto skip = st::giftBoxUserpicSkip
+			+ (_selected ? inset : st::giftBoxUserpicSkip);
+		const auto space = font->spacew;
+		const auto x = extend.left() + skip + percentSkip;
+		const auto y = extend.top() + skip;
+		const auto width = font->width(percent) + 2 * space;
+		p.drawRoundedRect(x, y, width, height, radius, radius);
+
+		p.setPen(st::white);
+		p.setFont(font);
+		p.drawText(x + space, y + font->ascent, percent);
+	}
 
 	if (!_button.isEmpty()) {
 		p.setBrush(onsale
@@ -1078,7 +1106,7 @@ void GiftButton::paint(QPainter &p, float64 craftProgress) {
 }
 
 QSize GiftButton::stickerSize() const {
-	return (_mode == GiftButtonMode::CraftPreview)
+	return (_mode == Mode::CraftPreview)
 		? st::giftBoxStickerTiny
 		: st::giftBoxStickerSize;
 }
@@ -1129,7 +1157,8 @@ QSize Delegate::buttonSize() {
 	const auto available = width - padding.left() - padding.right();
 	const auto singlew = (available - 2 * st::giftBoxGiftSkip.x())
 		/ kGiftsPerRow;
-	const auto minimal = (_mode != GiftButtonMode::Full);
+	const auto minimal = (_mode != GiftButtonMode::Full)
+		&& (_mode != GiftButtonMode::CraftResale);
 	const auto tiny = (_mode == GiftButtonMode::CraftPreview);
 	_single = QSize(
 		tiny ? st::giftBoxGiftTiny : singlew,

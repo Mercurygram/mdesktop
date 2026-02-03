@@ -4529,6 +4529,8 @@ object_ptr<RpWidget> MakeGiftsList(GiftsListArgs &&args) {
 	};
 	const auto buttonMode = (mode == GiftsListMode::Craft)
 		? GiftButtonMode::Craft
+		: (mode == GiftsListMode::CraftResale)
+		? GiftButtonMode::CraftResale
 		: GiftButtonMode::Full;
 	const auto state = raw->lifetime().make_state<State>(State{
 		.delegate = Delegate(session, buttonMode),
