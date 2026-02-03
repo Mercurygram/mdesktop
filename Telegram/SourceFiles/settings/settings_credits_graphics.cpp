@@ -1648,7 +1648,9 @@ void GenericCreditsEntryBody(
 					: (isStarGift && !starGiftCanManage)
 					? tr::lng_gift_link_label_gift(tr::now)
 					: giftToSelf
-					? tr::lng_action_gift_self_subtitle(tr::now)
+					? ((uniqueGift && uniqueGift->crafted)
+						? tr::lng_action_gift_crafted_subtitle(tr::now)
+						: tr::lng_action_gift_self_subtitle(tr::now))
 					: e.gift
 					? tr::lng_credits_box_history_entry_gift_name(tr::now)
 					: (peer && !e.reaction)

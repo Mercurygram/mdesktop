@@ -2350,6 +2350,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_action_gift_self_auction" = "You've successfully bought a gift in the auction for {cost}.";
 "lng_action_gift_auction_won" = "You won the auction with a bid of {cost}.";
 "lng_action_gift_self_subtitle" = "Saved Gift";
+"lng_action_gift_crafted_subtitle" = "Crafted Gift";
 "lng_action_gift_self_about#one" = "Display this gift on your page or convert it to **{count}** Star.";
 "lng_action_gift_self_about#other" = "Display this gift on your page or convert it to **{count}** Stars.";
 "lng_action_gift_self_about_unique" = "You can display this gift on your page or turn it into unique collectible and send to others.";

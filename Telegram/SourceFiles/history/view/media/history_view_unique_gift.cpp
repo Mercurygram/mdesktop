@@ -361,7 +361,9 @@ auto GenerateUniqueGiftMedia(
 		const auto peer = parent->history()->peer;
 		pushText(
 			tr::bold(peer->isSelf()
-				? tr::lng_action_gift_self_subtitle(tr::now)
+				? (gift->crafted
+					? tr::lng_action_gift_crafted_subtitle(tr::now)
+					: tr::lng_action_gift_self_subtitle(tr::now))
 				: peer->isServiceUser()
 				? tr::lng_gift_link_label_gift(tr::now)
 				: (outgoing

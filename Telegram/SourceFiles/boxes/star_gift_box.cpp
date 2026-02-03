@@ -481,7 +481,9 @@ auto GenerateGiftMedia(
 				tr::bold);
 		}, [&](const GiftTypeStars &gift) {
 			return recipient->isSelf()
-				? tr::lng_action_gift_self_subtitle(tr::now, tr::bold)
+				? ((gift.info.unique && gift.info.unique->crafted)
+					? tr::lng_action_gift_crafted_subtitle(tr::now, tr::bold)
+					: tr::lng_action_gift_self_subtitle(tr::now, tr::bold))
 				: tr::lng_action_gift_got_subtitle(
 					tr::now,
 					lt_user,
