@@ -633,6 +633,8 @@ craftProgressTitleMargin: margins(0px, 12px, 0px, 16px);
 craftProgressAboutMargin: margins(0px, 4px, 0px, 16px);
 craftProgressWarningMargin: margins(0px, 4px, 0px, 16px);
 craftProgressChanceMargin: margins(0px, 40px, 0px, 16px);
+craftProgressIconSize: size(24px, 24px);
+craftProgressIconSkip: 4px;
 craftFailureThumbsTop: 36px;
 craftFailureTitleMargin: margins(0px, 88px, 0px, 12px);
 craftFailureAboutMargin: margins(0px, 0px, 0px, 16px);

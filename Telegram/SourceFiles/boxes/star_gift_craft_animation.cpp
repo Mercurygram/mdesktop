@@ -22,6 +22,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/peer_gifts/info_peer_gifts_common.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_common.h"
+#include "lottie/lottie_icon.h"
 #include "main/main_session.h"
 #include "settings/settings_credits_graphics.h"
 #include "ui/boxes/boost_box.h"
@@ -1354,6 +1355,76 @@ CraftState::EmptySide CraftState::prepareEmptySide(int index) const {
 	return { .bg = bg, .frame = result };
 }
 
+void SetupCraftProgressTitle(
+		not_null<VerticalLayout*> container,
+		not_null<rpl::variable<float64>*> opacity) {
+	const auto row = container->add(
+		object_ptr<RpWidget>(container),
+		st::boxRowPadding + st::craftProgressTitleMargin,
+		style::al_top);
+
+	const auto label = CreateChild<FlatLabel>(
+		row,
+		tr::lng_gift_craft_progress(),
+		st::uniqueGiftTitle);
+	label->setTextColorOverride(st::white->c);
+
+	const auto iconSize = st::craftProgressIconSize;
+	const auto iconWidget = CreateChild<RpWidget>(row);
+	iconWidget->resize(iconSize);
+
+	auto owned = Lottie::MakeIcon({
+		.name = u"craft_progress"_q,
+		.sizeOverride = iconSize,
+		.limitFps = true,
+	});
+	const auto icon = owned.get();
+	iconWidget->lifetime().add([kept = std::move(owned)] {});
+
+	const auto startAnimation = [=] {
+		icon->animate(
+			[=] { iconWidget->update(); },
+			0,
+			icon->framesCount() - 1);
+	};
+	startAnimation();
+
+	iconWidget->paintRequest(
+	) | rpl::on_next([=] {
+		auto p = QPainter(iconWidget);
+		p.setOpacity(opacity->current());
+		icon->paint(p, 0, 0);
+		if (!icon->animating() && icon->frameIndex() > 0) {
+			startAnimation();
+		}
+	}, iconWidget->lifetime());
+
+	rpl::combine(
+		label->sizeValue(),
+		row->sizeValue()
+	) | rpl::on_next([=](QSize labelSize, QSize rowSize) {
+		const auto skip = st::craftProgressIconSkip;
+		const auto totalWidth = iconSize.width() + skip + labelSize.width();
+		const auto rowHeight = std::max(iconSize.height(), labelSize.height());
+		if (rowSize.height() != rowHeight) {
+			row->resize(rowSize.width(), rowHeight);
+			return;
+		}
+		const auto left = (rowSize.width() - totalWidth) / 2;
+		iconWidget->move(left, (rowHeight - iconSize.height()) / 2);
+		label->move(
+			left + iconSize.width() + skip,
+			(rowHeight - labelSize.height()) / 2);
+	}, row->lifetime());
+
+	opacity->value(
+	) | rpl::on_next([=](float64 value) {
+		label->setOpacity(value);
+		iconWidget->update();
+	}, row->lifetime());
+
+}
+
 void SetupProgressControls(
 		not_null<CraftAnimationState*> state,
 		not_null<RpWidget*> canvas) {
@@ -1367,15 +1438,7 @@ void SetupProgressControls(
 	controls->resizeToWidth(canvas->width());
 	controls->move(0, state->shared->craftingBottom);
 
-	const auto title = controls->add(
-		object_ptr<FlatLabel>(
-			controls,
-			tr::lng_gift_craft_progress(),
-			st::uniqueGiftTitle),
-		st::boxRowPadding + st::craftProgressTitleMargin,
-		style::al_top);
-	add(title);
-	title->setTextColorOverride(st::white->c);
+	SetupCraftProgressTitle(controls, &state->progressOpacity);
 
 	const auto subColor = QColor(255, 255, 255, 178);
 	const auto about = controls->add(
