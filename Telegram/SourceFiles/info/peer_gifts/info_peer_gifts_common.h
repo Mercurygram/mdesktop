@@ -317,7 +317,8 @@ private:
 
 [[nodiscard]] QImage ValidateRotatedBadge(
 	const GiftBadge &badge,
-	QMargins padding);
+	QMargins padding,
+	bool left = false);
 
 void SelectGiftToUnpin(
 	std::shared_ptr<ChatHelpers::Show> show,

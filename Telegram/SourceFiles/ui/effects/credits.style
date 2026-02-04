@@ -295,6 +295,11 @@ uniqueGiftPretitle: FlatLabel(defaultFlatLabel) {
 uniqueGiftTitle: FlatLabel(boxTitle) {
 	align: align(top);
 }
+uniqueGiftNumber: FlatLabel(uniqueGiftTitle) {
+	style: TextStyle(defaultTextStyle) {
+		font: semiboldFont;
+	}
+}
 uniqueGiftResalePrice: FlatLabel(defaultFlatLabel) {
 	style: semiboldTextStyle;
 }
@@ -308,6 +313,11 @@ uniqueGiftSubtitle: FlatLabel(defaultFlatLabel) {
 uniqueGiftReleasedBy: FlatLabel(uniqueGiftSubtitle) {
 	style: TextStyle(defaultTextStyle) {
 		font: font(10px);
+	}
+}
+uniqueGiftOnSale: FlatLabel(uniqueGiftSubtitle) {
+	style: TextStyle(defaultTextStyle) {
+		font: font(10px semibold);
 	}
 }
 uniqueGiftSubtitleTop: 170px;

@@ -3334,7 +3334,14 @@ void AddUpgradeGiftCover(
 		const auto null = nullptr;
 		show->show(Box(StarGiftPreviewBox, title, list, type, null));
 	};
+	auto numberText = state->upgraded.value(
+	) | rpl::map([](const std::shared_ptr<Data::GiftUpgradeResult> &v) {
+		return (v && v->info.unique && v->info.unique->number > 0)
+			? u"#"_q + QString::number(v->info.unique->number)
+			: QString();
+	});
 	AddUniqueGiftCover(container, std::move(gifts), {
+		.numberText = std::move(numberText),
 		.subtitle = std::move(subtitle),
 		.subtitleClick = hasAll ? showAll : Fn<void()>(),
 		.subtitleLinkColored = hasAll,

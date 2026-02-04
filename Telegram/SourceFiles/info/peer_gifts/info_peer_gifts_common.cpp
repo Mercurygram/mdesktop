@@ -1296,7 +1296,10 @@ rpl::producer<not_null<DocumentData*>> GiftStickerValue(
 	});
 }
 
-QImage ValidateRotatedBadge(const GiftBadge &badge, QMargins padding) {
+QImage ValidateRotatedBadge(
+		const GiftBadge &badge,
+		QMargins padding,
+		bool left) {
 	const auto &font = badge.small
 		? st::giftBoxGiftBadgeFont
 		: st::msgServiceGiftBoxBadgeFont;
@@ -1308,7 +1311,10 @@ QImage ValidateRotatedBadge(const GiftBadge &badge, QMargins padding) {
 	const auto multiplier = ratio * 3;
 	const auto size = (twidth + font->height * 2);
 	const auto height = padding.top() + font->height + padding.bottom();
-	const auto textpos = QPoint(size - skip, padding.top());
+	const auto angle = left ? -45. : 45.;
+	const auto textpos = left
+		? QPoint(padding.top(), size - skip)
+		: QPoint(size - skip, padding.top());
 	auto image = QImage(
 		QSize(size, size) * multiplier,
 		QImage::Format_ARGB32_Premultiplied);
@@ -1318,7 +1324,7 @@ QImage ValidateRotatedBadge(const GiftBadge &badge, QMargins padding) {
 		auto p = QPainter(&image);
 		auto hq = PainterHighQualityEnabler(p);
 		p.translate(textpos);
-		p.rotate(45.);
+		p.rotate(angle);
 		p.setFont(font);
 		p.setPen(badge.fg);
 		p.drawText(
@@ -1343,7 +1349,7 @@ QImage ValidateRotatedBadge(const GiftBadge &badge, QMargins padding) {
 
 		p.save();
 		p.translate(textpos);
-		p.rotate(45.);
+		p.rotate(angle);
 		const auto rect = QRect(-5 * twidth, 0, twidth * 12, height);
 		if (badge.border.alpha() > 0) {
 			p.setPen(badge.border);

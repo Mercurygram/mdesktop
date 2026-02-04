@@ -22,6 +22,7 @@ class VerticalLayout;
 
 struct UniqueGiftCoverArgs {
 	rpl::producer<QString> pretitle;
+	rpl::producer<QString> numberText;
 	rpl::producer<TextWithEntities> subtitle;
 	Fn<void()> subtitleClick;
 	bool subtitleLinkColored = false;
@@ -41,12 +42,6 @@ struct UniqueGiftCover {
 	bool spinner = false;
 	bool force = false;
 };
-
-void SetupResalePriceButton(
-	not_null<RpWidget*> parent,
-	rpl::producer<QColor> background,
-	rpl::producer<CreditsAmount> price,
-	Fn<void()> click);
 
 void GiftReleasedByHandler(not_null<PeerData*> peer);
 

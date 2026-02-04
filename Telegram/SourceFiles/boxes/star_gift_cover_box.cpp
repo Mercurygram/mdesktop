@@ -30,7 +30,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/widgets/labels.h"
-#include "ui/wrap/fade_wrap.h"
+#include "info/peer_gifts/info_peer_gifts_common.h"
+#include "styles/style_chat.h"
 #include "styles/style_credits.h"
 #include "styles/style_giveaway.h"
 #include "styles/style_layers.h"
@@ -164,6 +165,14 @@ struct UniqueGiftCoverWidget::State {
 		updateColorsFromBackdrops;
 	Fn<void(ModelView &, const Data::UniqueGiftModel &)> setupModel;
 	Fn<void(PatternView &, const Data::UniqueGiftPattern &)> setupPattern;
+
+	FlatLabel *number = nullptr;
+	rpl::variable<int> numberTextWidth;
+	QImage craftedBadge;
+	Info::PeerGifts::GiftBadge craftedBadgeKey;
+	rpl::variable<CreditsAmount> resaleAmount;
+	Fn<void()> resaleClick;
+
 };
 
 UniqueGiftCoverWidget::UniqueGiftCoverWidget(
@@ -422,7 +431,14 @@ UniqueGiftCoverWidget::UniqueGiftCoverWidget(
 				: QColor(255, 255, 255));
 		}
 		_state->released.fg = color;
-		_state->released.subtitle->setTextColorOverride(color);
+		const auto onSale = !_state->released.subtitleCustom.current()
+			&& _state->resaleAmount.current()
+			&& _state->resaleAmount.current().value() > 0;
+		_state->released.subtitle->setTextColorOverride(
+			onSale ? QColor(255, 255, 255) : color);
+		if (_state->number) {
+			_state->number->setTextColorOverride(color);
+		}
 	};
 	_state->updateColors = [this, repaintedHook](float64 progress) {
 		if (repaintedHook) {
@@ -435,19 +451,11 @@ UniqueGiftCoverWidget::UniqueGiftCoverWidget(
 	};
 
 	if (args.resalePrice) {
-		auto background = rpl::duplicate(
-			data
-		) | rpl::map([](const UniqueGiftCover &cover) {
-			auto result = cover.values.backdrop.patternColor;
-			result.setAlphaF(kGradientButtonBgOpacity * result.alphaF());
-			return result;
-		});
-		SetupResalePriceButton(
-			this,
-			std::move(background),
-			std::move(args.resalePrice),
-			std::move(args.resaleClick));
+		std::move(args.resalePrice) | rpl::on_next([this](CreditsAmount value) {
+			_state->resaleAmount = value;
+		}, lifetime());
 	}
+	_state->resaleClick = std::move(args.resaleClick);
 
 	_state->pretitle = args.pretitle
 		? CreateChild<FlatLabel>(
@@ -494,6 +502,24 @@ UniqueGiftCoverWidget::UniqueGiftCoverWidget(
 		st::uniqueGiftTitle);
 	_state->title->setTextColorOverride(QColor(255, 255, 255));
 
+	auto numberTextDup = args.numberText
+		? rpl::duplicate(args.numberText)
+		: rpl::producer<QString>();
+	_state->number = args.numberText
+		? CreateChild<FlatLabel>(
+			this,
+			std::move(args.numberText),
+			st::uniqueGiftNumber)
+		: nullptr;
+	if (_state->number) {
+		_state->number->setTextColorOverride(QColor(255, 255, 255));
+		std::move(
+			numberTextDup
+		) | rpl::on_next([this](const QString &text) {
+			_state->numberTextWidth = text.isEmpty() ? 0 : 1;
+		}, lifetime());
+	}
+
 	_state->released.by = rpl::duplicate(
 		data
 	) | rpl::map([](const UniqueGiftCover &cover) {
@@ -501,38 +527,53 @@ UniqueGiftCoverWidget::UniqueGiftCoverWidget(
 	});
 	_state->released.subtitleText = rpl::combine(
 		std::move(subtitleCustomText),
+		_state->resaleAmount.value(),
 		rpl::duplicate(data)
-	) | rpl::map([](TextWithEntities custom, const UniqueGiftCover &cover) {
+	) | rpl::map([](
+			TextWithEntities custom,
+			CreditsAmount resalePrice,
+			const UniqueGiftCover &cover) {
 		if (!custom.empty()) {
 			return custom;
 		}
 		const auto &gift = cover.values;
-		return gift.releasedBy
-			? tr::lng_gift_unique_number_by(
+		if (resalePrice && resalePrice.value() > 0) {
+			auto priceText = resalePrice.ton()
+				? Text::IconEmoji(&st::tonIconEmojiInSmall).append(
+					Lang::FormatCreditsAmountDecimal(resalePrice))
+				: Text::IconEmoji(&st::starIconEmojiSmall).append(
+					Lang::FormatCountDecimal(resalePrice.whole()));
+			return tr::lng_gift_on_sale_for(
 				tr::now,
-				lt_index,
-				tr::marked(QString::number(gift.number)),
+				lt_price,
+				priceText,
+				tr::marked);
+		}
+		if (gift.releasedBy) {
+			return tr::lng_gift_released_by(
+				tr::now,
 				lt_name,
 				tr::link('@' + gift.releasedBy->username()),
-				tr::marked)
-			: tr::lng_gift_unique_number(
-				tr::now,
-				lt_index,
-				tr::marked(QString::number(gift.number)),
 				tr::marked);
+		}
+		return tr::marked(gift.model.name);
 	});
 
 	const auto subtitleOutlined = args.subtitleOutlined;
 	const auto subtitleClick = args.subtitleClick;
 	rpl::combine(
 		_state->released.by.value(),
-		_state->released.subtitleCustom.value()
-	) | rpl::on_next([=](PeerData *by, bool subtitleCustom) {
-		_state->released.outlined = by
-			|| (subtitleCustom && subtitleOutlined);
-		_state->released.st = _state->released.outlined
-			? st::uniqueGiftReleasedBy
-			: st::uniqueGiftSubtitle;
+		_state->released.subtitleCustom.value(),
+		_state->resaleAmount.value()
+	) | rpl::on_next([=](PeerData *by, bool subtitleCustom, CreditsAmount resale) {
+		const auto hasResale = resale && resale.value() > 0;
+		_state->released.outlined = (subtitleCustom && subtitleOutlined)
+			|| (!subtitleCustom && (hasResale || by));
+		_state->released.st = !_state->released.outlined
+			? st::uniqueGiftSubtitle
+			: (!subtitleCustom && hasResale)
+			? st::uniqueGiftOnSale
+			: st::uniqueGiftReleasedBy;
 		_state->released.st.palette.linkFg = _state->released.link.color();
 
 		const auto session = &_state->now.gift->model.document->session();
@@ -557,10 +598,17 @@ UniqueGiftCoverWidget::UniqueGiftCoverWidget(
 		_state->released.subtitleHeight.force_assign(subtitle->height());
 		_state->released.subtitleHeight = subtitle->heightValue();
 
-		const auto handler = subtitleCustom ? subtitleClick : Fn<void()>();
-		if (!subtitleOutlined && handler) {
+		const auto handler = subtitleCustom
+			? (subtitleClick ? subtitleClick : Fn<void()>())
+			: hasResale
+			? _state->resaleClick
+			: by
+			? Fn<void()>([=] { GiftReleasedByHandler(by); })
+			: Fn<void()>();
+
+		if (!_state->released.outlined && handler) {
 			subtitle->setClickHandlerFilter([=](const auto &...) {
-				subtitleClick();
+				handler();
 				return false;
 			});
 		} else if (_state->released.outlined) {
@@ -572,9 +620,11 @@ UniqueGiftCoverWidget::UniqueGiftCoverWidget(
 			subtitle->raise();
 			subtitle->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-			button->setClickedCallback(handler
-				? handler
-				: [=] { GiftReleasedByHandler(by); });
+			if (handler) {
+				button->setClickedCallback(handler);
+			} else {
+				button->setAttribute(Qt::WA_TransparentForMouseEvents);
+			}
 			subtitle->geometryValue(
 			) | rpl::on_next([=](QRect geometry) {
 				button->setGeometry(
@@ -713,24 +763,40 @@ UniqueGiftCoverWidget::UniqueGiftCoverWidget(
 
 	rpl::combine(
 		widthValue(),
-		_state->released.subtitleHeight.value()
-	) | rpl::on_next([this](int width, int subtitleHeight) {
+		_state->released.subtitleHeight.value(),
+		_state->numberTextWidth.value()
+	) | rpl::on_next([this](int width, int subtitleHeight, int) {
 		const auto skip = st::uniqueGiftBottom;
 		if (width <= 3 * skip) {
 			return;
 		}
 		const auto available = width - 2 * skip;
-		_state->title->resizeToWidth(available);
-
 		auto top = st::uniqueGiftTitleTop;
 		if (_state->pretitle) {
+			_state->title->resizeToWidth(available);
 			_state->pretitle->move((width - _state->pretitle->width()) / 2, top);
 			top += _state->pretitle->height()
 				+ (st::uniqueGiftSubtitleTop - st::uniqueGiftTitleTop)
 				- _state->title->height();
 		}
 
-		_state->title->moveToLeft(skip, top);
+		if (_state->number && _state->number->textMaxWidth() > 0) {
+			const auto titleWidth = _state->title->textMaxWidth();
+			_state->title->resizeToWidth(titleWidth);
+			const auto numberWidth = _state->number->textMaxWidth();
+			_state->number->resizeToWidth(numberWidth);
+			const auto gap = st::normalFont->spacew;
+			const auto totalWidth = titleWidth + gap + numberWidth;
+			const auto groupLeft = (width - totalWidth) / 2;
+			_state->title->moveToLeft(groupLeft, top);
+			_state->number->moveToLeft(
+				groupLeft + titleWidth + gap,
+				top + (_state->title->height()
+					- _state->number->height()) / 2);
+		} else {
+			_state->title->resizeToWidth(available);
+			_state->title->moveToLeft(skip, top);
+		}
 		if (_state->pretitle) {
 			top += _state->title->height() + st::defaultVerticalListSkip;
 		} else {
@@ -963,7 +1029,24 @@ bool UniqueGiftCoverWidget::paintGift(
 	if (gift.gift->pattern.document != gift.gift->model.document) {
 		paintPattern(p, gift.pattern, gift.backdrop, context, shown);
 	}
-	return paintModel(p, gift.model, context);
+	const auto finished = paintModel(p, gift.model, context);
+	if (gift.gift->crafted) {
+		const auto padding = st::chatUniqueGiftBadgePadding;
+		auto badge = Info::PeerGifts::GiftBadge{
+			.text = tr::lng_gift_crafted_tag(tr::now),
+			.bg1 = gift.gift->backdrop.edgeColor,
+			.bg2 = gift.gift->backdrop.patternColor,
+			.fg = gift.gift->backdrop.textColor,
+		};
+		if (_state->craftedBadge.isNull()
+			|| _state->craftedBadgeKey != badge) {
+			_state->craftedBadgeKey = badge;
+			_state->craftedBadge = Info::PeerGifts::ValidateRotatedBadge(
+				badge, padding, true);
+		}
+		p.drawImage(0, 0, _state->craftedBadge);
+	}
+	return finished;
 }
 
 QColor UniqueGiftCoverWidget::backgroundColor() const {
@@ -1218,68 +1301,6 @@ void UniqueGiftCoverWidget::paintNormalAnimation(
 	if (progress > 0.) {
 		p.setOpacity(progress);
 		paintGift(p, _state->next, context, progress);
-	}
-}
-
-void SetupResalePriceButton(
-		not_null<RpWidget*> parent,
-		rpl::producer<QColor> background,
-		rpl::producer<CreditsAmount> price,
-		Fn<void()> click) {
-	const auto resale = CreateChild<
-		FadeWrapScaled<AbstractButton>
-	>(parent, object_ptr<AbstractButton>(parent));
-	resale->move(0, 0);
-
-	const auto button = resale->entity();
-	const auto text = CreateChild<FlatLabel>(
-		button,
-		QString(),
-		st::uniqueGiftResalePrice);
-	text->setAttribute(Qt::WA_TransparentForMouseEvents);
-	text->sizeValue() | rpl::on_next([=](QSize size) {
-		const auto padding = st::uniqueGiftResalePadding;
-		const auto margin = st::uniqueGiftResaleMargin;
-		button->resize(size.grownBy(padding + margin));
-		text->move((margin + padding).left(), (margin + padding).top());
-	}, button->lifetime());
-	text->setTextColorOverride(QColor(255, 255, 255, 255));
-
-	std::move(price) | rpl::on_next([=](CreditsAmount value) {
-		if (value) {
-			text->setMarkedText(value.ton()
-				? Text::IconEmoji(&st::tonIconEmoji).append(
-					Lang::FormatCreditsAmountDecimal(value))
-				: Text::IconEmoji(&st::starIconEmoji).append(
-					Lang::FormatCountDecimal(value.whole())));
-			resale->toggle(true, anim::type::normal);
-		} else {
-			resale->toggle(false, anim::type::normal);
-		}
-	}, resale->lifetime());
-	resale->finishAnimating();
-
-	const auto bg = button->lifetime().make_state<rpl::variable<QColor>>(
-		std::move(background));
-	button->paintRequest() | rpl::on_next([=] {
-		auto p = QPainter(button);
-		auto hq = PainterHighQualityEnabler(p);
-
-		const auto inner = button->rect().marginsRemoved(
-			st::uniqueGiftResaleMargin);
-		const auto radius = inner.height() / 2.;
-		p.setPen(Qt::NoPen);
-		p.setBrush(bg->current());
-		p.drawRoundedRect(inner, radius, radius);
-	}, button->lifetime());
-	bg->changes() | rpl::on_next([=] {
-		button->update();
-	}, button->lifetime());
-
-	if (click) {
-		resale->entity()->setClickedCallback(std::move(click));
-	} else {
-		resale->setAttribute(Qt::WA_TransparentForMouseEvents);
 	}
 }
 

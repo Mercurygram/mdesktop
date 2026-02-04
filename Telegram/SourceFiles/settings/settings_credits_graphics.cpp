@@ -1356,6 +1356,9 @@ void GenericCreditsEntryCover(
 			}
 			: Fn<void()>();
 		AddUniqueGiftCover(content, rpl::single(cover), {
+			.numberText = (uniqueGift->number > 0)
+				? rpl::single(u"#"_q + QString::number(uniqueGift->number))
+				: rpl::producer<QString>(),
 			.resalePrice = UniqueGiftResalePrice(e.uniqueGift, forceTon),
 			.resaleClick = resaleClick,
 		});
