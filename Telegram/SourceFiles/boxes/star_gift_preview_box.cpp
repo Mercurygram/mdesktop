@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "ui/top_background_gradient.h"
 #include "settings/settings_credits_graphics.h"
+#include "styles/style_chat.h"
 #include "styles/style_credits.h"
 #include "styles/style_layers.h"
 
@@ -200,10 +201,13 @@ public:
 		QWidget *parent,
 		not_null<Delegate*> delegate,
 		not_null<const Data::UniqueGiftAttributes*> attributes,
+		std::vector<Data::UniqueGiftModel> otherModels,
 		rpl::producer<Tab> tab,
 		Selection initialSelection);
 
 	[[nodiscard]] rpl::producer<Selection> selected() const;
+	[[nodiscard]] auto modelsToggled() const
+		-> rpl::producer<std::vector<Data::UniqueGiftModel>>;
 
 private:
 	struct Entry {
@@ -231,6 +235,7 @@ private:
 
 	int resizeGetHeight(int width) override;
 	void clicked(int index);
+	void toggleModels();
 
 	const not_null<Delegate*> _delegate;
 	const not_null<const Data::UniqueGiftAttributes*> _attributes;
@@ -257,6 +262,10 @@ private:
 	int _visibleTill = 0;
 
 	bool _craftedModels = false;
+	std::vector<Data::UniqueGiftModel> _activeModels;
+	std::vector<Data::UniqueGiftModel> _otherModels;
+	std::unique_ptr<Ui::FlatLabel> _toggleLink;
+	rpl::event_stream<std::vector<Data::UniqueGiftModel>> _modelsToggled;
 
 };
 
@@ -970,6 +979,7 @@ AttributesList::AttributesList(
 	QWidget *parent,
 	not_null<Delegate*> delegate,
 	not_null<const Data::UniqueGiftAttributes*> attributes,
+	std::vector<Data::UniqueGiftModel> otherModels,
 	rpl::producer<Tab> tab,
 	Selection initialSelection)
 : BoxContentDivider(parent)
@@ -980,9 +990,13 @@ AttributesList::AttributesList(
 , _entries(&_models)
 , _list(&_entries->list) {
 	_singleMin = _delegate->buttonSize();
+	_activeModels.assign(
+		attributes->models.begin(),
+		attributes->models.end());
+	_otherModels = std::move(otherModels);
 
-	_craftedModels = !attributes->models.empty()
-		&& (attributes->models.front().rarityType()
+	_craftedModels = !_activeModels.empty()
+		&& (_activeModels.front().rarityType()
 			!= Data::UniqueGiftRarity::Default);
 
 	fill();
@@ -998,8 +1012,8 @@ AttributesList::AttributesList(
 			Unexpected("Tab in AttributesList.");
 		}();
 		_list = &_entries->list;
-		refreshButtons();
 		refreshAbout();
+		refreshButtons();
 	}, lifetime());
 
 	_selected.value() | rpl::combine_previous() | rpl::on_next([=](
@@ -1034,6 +1048,11 @@ auto AttributesList::selected() const -> rpl::producer<Selection> {
 	return _selected.value();
 }
 
+auto AttributesList::modelsToggled() const
+	-> rpl::producer<std::vector<Data::UniqueGiftModel>> {
+	return _modelsToggled.events();
+}
+
 void AttributesList::fill() {
 	const auto addEntries = [&](
 			const auto &source,
@@ -1047,7 +1066,7 @@ void AttributesList::fill() {
 			target.list.emplace_back(Entry{ { item }, { value } });
 		}
 	};
-	addEntries(_attributes->models, _models, &Selection::model);
+	addEntries(_activeModels, _models, &Selection::model);
 	addEntries(_attributes->patterns, _patterns, &Selection::pattern);
 	addEntries(_attributes->backdrops, _backdrops, &Selection::backdrop);
 }
@@ -1226,7 +1245,40 @@ void AttributesList::refreshAbout() {
 		st::giftListAbout);
 	about->show();
 	_about = std::move(about);
+
+	if (_tab.current() == Tab::Model && !_otherModels.empty()) {
+		auto linkText = (_craftedModels
+			? tr::lng_auction_preview_view_primary
+			: tr::lng_auction_preview_view_craftable)(
+			lt_arrow,
+			rpl::single(Ui::Text::IconEmoji(&st::textMoreIconEmoji)),
+			tr::link);
+		auto link = std::make_unique<Ui::FlatLabel>(
+			this,
+			std::move(linkText),
+			st::giftListAboutToggle);
+		link->overrideLinkClickHandler([=] { toggleModels(); });
+		link->show();
+		_toggleLink = std::move(link);
+	} else {
+		_toggleLink = nullptr;
+	}
+
 	resizeToWidth(width());
+}
+
+void AttributesList::toggleModels() {
+	std::swap(_activeModels, _otherModels);
+	_craftedModels = !_craftedModels;
+	fill();
+	_entries = &_models;
+	_list = &_entries->list;
+	_modelsToggled.fire_copy(_activeModels);
+	auto sel = _selected.current();
+	sel.model = -1;
+	_selected.force_assign(sel);
+	refreshAbout();
+	refreshButtons();
 }
 
 int AttributesList::resizeGetHeight(int width) {
@@ -1243,9 +1295,25 @@ int AttributesList::resizeGetHeight(int width) {
 	auto result = 0;
 
 	const auto margin = st::giftListAboutMargin;
-	_about->resizeToWidth(width - margin.left() - margin.right());
-	_about->moveToLeft(margin.left(), result + margin.top());
-	result += margin.top() + _about->height() + margin.bottom();
+	const auto contentWidth = width - margin.left() - margin.right();
+	_about->resizeToWidth(contentWidth);
+	if (_toggleLink) {
+		_toggleLink->resizeToWidth(contentWidth);
+	}
+	const auto addedSpace = _toggleLink
+		? (st::giftListAboutToggleSkip + _toggleLink->height())
+		: 0;
+	const auto marginTop = margin.top() - addedSpace / 2;
+	const auto marginBottom = margin.bottom()
+		- (addedSpace - addedSpace / 2);
+	_about->moveToLeft(margin.left(), result + marginTop);
+	result += marginTop + _about->height();
+	if (_toggleLink) {
+		result += st::giftListAboutToggleSkip;
+		_toggleLink->moveToLeft(margin.left(), result);
+		result += _toggleLink->height();
+	}
+	result += marginBottom;
 
 	const auto singlew = std::min(
 		((available + skipw) / _perRow) - skipw,
@@ -1276,8 +1344,6 @@ void StarGiftPreviewBox(
 	Expects(!attributes.patterns.empty());
 	Expects(!attributes.backdrops.empty());
 
-	// If we have selected gift, remove all attributes not of the same type.
-	// If we don't have selected gift, remove non-default-type attributes.
 	const auto filter = [&](auto &list, auto attribute) {
 		const auto rarityProj = &Data::UniqueGiftAttribute::rarityType;
 		const auto simple = Data::UniqueGiftRarity::Default;
@@ -1297,9 +1363,37 @@ void StarGiftPreviewBox(
 		}
 		Assert(!list.empty());
 	};
-	filter(attributes.models, &Data::UniqueGift::model);
 	filter(attributes.patterns, &Data::UniqueGift::pattern);
 	filter(attributes.backdrops, &Data::UniqueGift::backdrop);
+
+	auto otherModels = std::vector<Data::UniqueGiftModel>();
+	{
+		const auto simple = Data::UniqueGiftRarity::Default;
+		const auto showCrafted = selected
+			&& (selected->model.rarityType() != simple);
+		auto defaultModels = std::vector<Data::UniqueGiftModel>();
+		auto craftedModels = std::vector<Data::UniqueGiftModel>();
+		for (auto &model : attributes.models) {
+			if (model.rarityType() == simple) {
+				defaultModels.push_back(std::move(model));
+			} else {
+				craftedModels.push_back(std::move(model));
+			}
+		}
+		if (!defaultModels.empty() && !craftedModels.empty()) {
+			if (showCrafted) {
+				attributes.models = std::move(craftedModels);
+				otherModels = std::move(defaultModels);
+			} else {
+				attributes.models = std::move(defaultModels);
+				otherModels = std::move(craftedModels);
+			}
+		} else if (!defaultModels.empty()) {
+			attributes.models = std::move(defaultModels);
+		} else {
+			attributes.models = std::move(craftedModels);
+		}
+	}
 
 	box->setStyle(st::uniqueAttributesBox);
 	box->setWidth(st::boxWideWidth);
@@ -1436,6 +1530,7 @@ void StarGiftPreviewBox(
 		box,
 		&state->delegate,
 		&state->attributes,
+		std::move(otherModels),
 		state->tab.value(),
 		state->fixed));
 	state->list->selected(
@@ -1445,6 +1540,11 @@ void StarGiftPreviewBox(
 			|| (value.pattern >= 0)
 			|| (value.backdrop >= 0);
 		state->push();
+	}, box->lifetime());
+	state->list->modelsToggled(
+	) | rpl::on_next([=](std::vector<Data::UniqueGiftModel> models) {
+		state->attributes.models = std::move(models);
+		state->models.clear();
 	}, box->lifetime());
 
 	const auto button = box->addButton(rpl::single(u""_q), [] {});

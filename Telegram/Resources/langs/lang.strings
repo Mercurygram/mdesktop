@@ -4279,6 +4279,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_auction_preview_models_button" = "Models";
 "lng_auction_preview_crafted#one" = "This collectible features **{count}** crafted model.";
 "lng_auction_preview_crafted#other" = "This collectible features **{count}** crafted models.";
+"lng_auction_preview_view_craftable" = "View craftable models {arrow}";
+"lng_auction_preview_view_primary" = "View primary models {arrow}";
 "lng_auction_preview_backdrop" = "backdrop";
 "lng_auction_preview_backdrops#one" = "This collectible features **{count}** unique backdrop.";
 "lng_auction_preview_backdrops#other" = "This collectible features **{count}** unique backdrops.";
