@@ -122,8 +122,9 @@ struct CraftState {
 	QString giftName;
 	int successPermille = 0;
 	struct LostGift {
-		QImage thumbnail;
+		int cornerIndex = -1;
 		QString number;
+		mutable QImage badgeCache;
 	};
 	std::vector<LostGift> lostGifts;
 	QImage lostRadial;

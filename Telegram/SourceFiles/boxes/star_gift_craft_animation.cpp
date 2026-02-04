@@ -940,7 +940,7 @@ void PaintFailureThumbnails(
 		not_null<const CraftState*> shared,
 		QSize canvasSize,
 		float64 fadeProgress) {
-	if (fadeProgress <= 0.) {
+	if (fadeProgress <= 0. || shared->lostGifts.empty()) {
 		return;
 	}
 
@@ -948,14 +948,18 @@ void PaintFailureThumbnails(
 
 	const auto width = canvasSize.width();
 	const auto giftsCount = int(shared->lostGifts.size());
-	const auto thumbSize = shared->lostGifts.front().thumbnail.size()
-		/ style::DevicePixelRatio();
+	const auto &firstCorner = shared->corners[
+		shared->lostGifts.front().cornerIndex];
+	if (!firstCorner.giftButton) {
+		p.setOpacity(1.);
+		return;
+	}
+	const auto thumbSize = firstCorner.giftButton->size();
+	const auto &extend = st::defaultDropdownMenu.wrap.shadow.extend;
 	const auto thumbSpacing = st::boxRowPadding.left() / 2;
 	const auto totalThumbWidth = giftsCount * thumbSize.width()
 		+ (giftsCount - 1) * thumbSpacing;
-	const auto available = width
-		- st::boxRowPadding.left()
-		- st::boxRowPadding.right();
+	const auto available = width - extend.left() - extend.right();
 	const auto skip = (totalThumbWidth > available)
 		? (available - giftsCount * thumbSize.width()) / (giftsCount - 1)
 		: thumbSpacing;
@@ -963,11 +967,42 @@ void PaintFailureThumbnails(
 		+ (giftsCount - 1) * skip;
 	auto x = (width - full) / 2;
 	const auto y = shared->forgeRect.bottom() + st::craftFailureThumbsTop;
+	const auto rubberOut = st::lineWidth;
 
 	for (const auto &gift : shared->lostGifts) {
-		if (!gift.thumbnail.isNull()) {
+		if (gift.cornerIndex < 0) {
+			x += thumbSize.width() + skip;
+			continue;
+		}
+		const auto &corner = shared->corners[gift.cornerIndex];
+		const auto giftFrame = corner.gift(0.);
+		if (!giftFrame.isNull()) {
 			const auto targetRect = QRect(QPoint(x, y), thumbSize);
-			p.drawImage(targetRect, gift.thumbnail);
+			p.drawImage(targetRect, giftFrame);
+
+			if (!gift.number.isEmpty()) {
+				if (gift.badgeCache.isNull()) {
+					const auto burnedBg = BurnedBadgeBg();
+					gift.badgeCache = ValidateRotatedBadge(GiftBadge{
+						.text = gift.number,
+						.bg1 = burnedBg,
+						.bg2 = burnedBg,
+						.fg = st::white->c,
+						.small = true,
+					}, QMargins());
+				}
+				const auto inner = targetRect.marginsRemoved(extend);
+				p.save();
+				p.setClipRect(inner.marginsAdded(
+					{ rubberOut, rubberOut, rubberOut, rubberOut }));
+				const auto badgeW = gift.badgeCache.width()
+					/ gift.badgeCache.devicePixelRatio();
+				p.drawImage(
+					inner.x() + inner.width() + rubberOut - badgeW,
+					inner.y() - rubberOut,
+					gift.badgeCache);
+				p.restore();
+			}
 		}
 		x += thumbSize.width() + skip;
 	}

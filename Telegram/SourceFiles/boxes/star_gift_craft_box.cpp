@@ -508,8 +508,7 @@ AbstractButton *MakeRemoveButton(
 					corner.removeButton = GrabWidgetToImage(entry.remove);
 				}
 				if (lostIndex < craftState->lostGifts.size()) {
-					craftState->lostGifts[lostIndex].thumbnail
-						= GrabWidgetToImage(entry.button);
+					craftState->lostGifts[lostIndex].cornerIndex = i;
 					++lostIndex;
 				}
 				corner.giftButton.reset(entry.button);
