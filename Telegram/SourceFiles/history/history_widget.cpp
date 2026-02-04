@@ -4699,16 +4699,30 @@ Api::SendAction HistoryWidget::prepareSendAction(
 
 	if (const auto forum = _history->asForum()) {
 		if (Data::IsBotCanManageTopics(_history->peer)) {
-			if (!_creatingBotTopic) {
-				const auto &colors = Data::ForumTopicColorIds();
-				const auto colorId = colors[base::RandomIndex(colors.size())];
-				_creatingBotTopic = forum->topicFor(forum->reserveCreatingId(
-					tr::lng_bot_new_chat(tr::now),
-					colorId,
-					DocumentId()));
+			const auto readyRootId = [&]() -> MsgId {
+				if (const auto id = result.replyTo.messageId) {
+					if (const auto item = session().data().message(id)) {
+						return item->topicRootId();
+					}
+				}
+				return {};
+			}();
+			if (readyRootId) {
+				result.replyTo.topicRootId = readyRootId;
+			} else {
+				if (!_creatingBotTopic) {
+					const auto &colors = Data::ForumTopicColorIds();
+					const auto colorId
+						= colors[base::RandomIndex(colors.size())];
+					_creatingBotTopic = forum->topicFor(
+						forum->reserveCreatingId(
+							tr::lng_bot_new_chat(tr::now),
+							colorId,
+							DocumentId()));
+				}
+				result = Api::SendAction(_creatingBotTopic, options);
+				result.replyTo.topicRootId = _creatingBotTopic->rootId();
 			}
-			result = Api::SendAction(_creatingBotTopic, options);
-			result.replyTo.topicRootId = _creatingBotTopic->rootId();
 		}
 	}
 
@@ -8779,7 +8793,9 @@ void HistoryWidget::processReply() {
 	} else if (const auto forum = _peer->forum()
 		; forum && _processingReplyItem->history() == _history) {
 		const auto topicRootId = _processingReplyItem->topicRootId();
-		if (forum->topicDeleted(topicRootId)) {
+		using namespace Data;
+		if (forum->topicDeleted(topicRootId)
+			&& !(topicRootId == ForumTopic::kGeneralId && _peer->isBot())) {
 			return processCancel();
 		} else if (const auto topic = forum->topicFor(topicRootId)) {
 			if (!Data::CanSendAnything(topic)) {
