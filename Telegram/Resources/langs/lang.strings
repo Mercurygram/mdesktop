@@ -5243,6 +5243,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_link_move_down" = "Move Down";
 "lng_link_shrink_photo" = "Shrink Photo";
 "lng_link_enlarge_photo" = "Enlarge Photo";
+"lng_link_shrink_video" = "Shrink Video";
+"lng_link_enlarge_video" = "Enlarge Video";
 "lng_link_remove" = "Do Not Preview";
 "lng_link_about_choose" = "Click on a link to generate its preview.";
 
