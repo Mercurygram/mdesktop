@@ -5,11 +5,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(mkdir:*), Bash(ls:*), AskUser
 
 # Task Planner - Create Automated Task Workflows
 
-You are setting up a new **repetitive task automation** for Claude Code. The goal is to create a folder in `docs/ai/work/<featurename>/` containing:
+You are setting up a new **repetitive task automation** for Claude Code. The goal is to create a folder in `.ai/<featurename>/` containing:
 - `prompt.md` - Detailed instructions for the autonomous agent
 - `tasks.json` - List of tasks with completion tracking
 
-This pair can then be executed via `docs/ai/iterate.ps1 <featurename>`.
+This pair can then be executed via `.claude/iterate.ps1 <featurename>`.
 
 ## Your Workflow
 
@@ -28,11 +28,11 @@ The `<featurename>` should be:
 - Short (1-2 words, lowercase, hyphen-separated)
 - Easy to type on command line
 - Descriptive of the work being done
-- Not already used in `docs/ai/work/`
+- Not already used in `.ai/`
 
 Check existing folders:
 ```bash
-ls docs/ai/work/
+ls .ai/
 ```
 
 Suggest a name to the user or let them specify one directly via $ARGUMENTS.
@@ -48,7 +48,7 @@ Before writing the prompt, use `/ultrathink` to carefully plan:
 
 ### 4. Create the Folder and Files
 
-Create `docs/ai/work/<featurename>/`:
+Create `.ai/<featurename>/`:
 
 **prompt.md** should include:
 - Overview of what we're doing
@@ -72,7 +72,7 @@ First line: Short summary ending with a dot (aim for ~50 chars, max 76 chars)
 
 <Optional body with details, also ending with a dot.>
 
-IMPORTANT: Never commit files in docs/ai/ unless explicitly required by a task.
+IMPORTANT: Never try to commit files in .ai/
 ```
 
 **tasks.json** format:
@@ -114,7 +114,7 @@ If empty, you'll need to determine/suggest a name based on the discussion.
 ```
 /taskplanner settings-upgrade
 ```
-Creates `docs/ai/work/settings-upgrade/` with prompt and tasks for migrating settings sections.
+Creates `.ai/settings-upgrade/` with prompt and tasks for migrating settings sections.
 
 ### Example 2: Open-ended
 ```

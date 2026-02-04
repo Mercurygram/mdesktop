@@ -5,7 +5,7 @@
 # Usage: .\docs\ai\iterate.ps1 <featurename> [-MaxIterations N] [-Interactive] [-DryRun] [-SingleCommit] [-NoCommit]
 #
 # Arguments:
-#   featurename     Name of the folder in docs/ai/work/ containing prompt.md and tasks.json
+#   featurename     Name of the folder in .ai/ containing prompt.md and tasks.json
 #   -MaxIterations  Maximum iterations before stopping (default: 50)
 #   -Interactive    Pause between iterations for user confirmation (default: auto/no pause)
 #   -DryRun         Show what would be executed without running
@@ -165,8 +165,8 @@ $Prompt = @"
 You are an autonomous coding agent working on: $FeatureName
 
 Read these files for context:
-- docs/ai/work/$FeatureName/prompt.md - Detailed instructions and architecture
-- docs/ai/work/$FeatureName/tasks.json - Task list with completion status
+- .ai/$FeatureName/prompt.md - Detailed instructions and architecture
+- .ai/$FeatureName/tasks.json - Task list with completion status
 
 Do exactly ONE task per iteration.
 
@@ -183,7 +183,7 @@ $AfterImplementation
 - Only mark a task complete if you verified the work is done (build passes, etc.)
 - If stuck, document the issue in the task's notes field and move on
 - Do ONE task per iteration, then stop
-- NEVER commit files in docs/ai/ unless explicitly required by the task
+- NEVER try to commit files in .ai/
 $CommitRule
 
 ## Completion Signal
@@ -206,7 +206,7 @@ Your job: Create a single commit with all the changes.
 
 ## Critical Rules
 
-- NEVER commit files in docs/ai/
+- NEVER try to commit files in .ai/
 - Use a concise commit message that captures the essence of the work done
 "@
 

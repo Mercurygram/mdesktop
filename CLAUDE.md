@@ -253,6 +253,24 @@ primaryButton: MyButtonStyle(defaultButton) {
 - `font` - Font: `font(14px semibold)`
 - `double` - Floating point
 
+**Never hardcode sizes in code:**
+
+The app supports different interface scale options. Style `px` values are automatically scaled at runtime, but raw integer constants in code are not. Never use hardcoded numbers for margins, paddings, spacing, sizes, coordinates, or any other dimensional values. Always define them in `.style` files and reference via `st::`.
+
+```cpp
+// BAD - breaks at non-100% interface scale:
+p.drawText(10, 20, text);
+widget->setFixedHeight(48);
+auto margin = 8;
+auto iconSize = QSize(24, 24);
+
+// GOOD - define in .style file and reference:
+p.drawText(st::myWidgetTextLeft, st::myWidgetTextTop, text);
+widget->setFixedHeight(st::myWidgetHeight);
+auto margin = st::myWidgetMargin;
+auto iconSize = st::myWidgetIconSize;
+```
+
 ### Usage in Code
 
 ```cpp

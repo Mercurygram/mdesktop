@@ -13,7 +13,7 @@ If `$ARGUMENTS` is provided, it's the task description. If empty, ask the user w
 
 ## Overview
 
-The workflow produces `docs/ai/work/<feature-name>/` containing:
+The workflow produces `.ai/<feature-name>/` containing:
 - `context.md` - Gathered codebase context relevant to the task
 - `plan.md` - Detailed implementation plan with phases
 
@@ -22,8 +22,8 @@ Then spawns implementation agents to execute each phase, and finally verifies th
 ## Phase 0: Setup
 
 1. Understand the task from `$ARGUMENTS` or ask the user.
-2. Check existing folders in `docs/ai/work/` to pick a unique short name (1-2 lowercase words, hyphen-separated).
-3. Create the folder `docs/ai/work/<feature-name>/`.
+2. Check existing folders in `.ai/` to pick a unique short name (1-2 lowercase words, hyphen-separated).
+3. Create the folder `.ai/<feature-name>/`.
 
 ## Phase 1: Context Gathering
 
@@ -50,7 +50,7 @@ Steps:
 7. Check .style files if the task involves UI.
 8. Check lang.strings if the task involves user-visible text.
 
-Write your findings to: docs/ai/work/<feature-name>/context.md
+Write your findings to: .ai/<feature-name>/context.md
 
 The context.md should contain:
 - **Task Description**: The full task restated clearly
@@ -76,12 +76,12 @@ Spawn an agent (Task tool, subagent_type=`general-purpose`) with this prompt str
 You are a planning agent. You must create a detailed implementation plan.
 
 Read these files:
-- docs/ai/work/<feature-name>/context.md - Contains all gathered context
+- .ai/<feature-name>/context.md - Contains all gathered context
 - Then read the specific source files referenced in context.md to understand the code deeply.
 
 Use /ultrathink to reason carefully about the implementation approach.
 
-Create a detailed plan in: docs/ai/work/<feature-name>/plan.md
+Create a detailed plan in: .ai/<feature-name>/plan.md
 
 The plan.md should contain:
 
@@ -135,8 +135,8 @@ Spawn an agent (Task tool, subagent_type=`general-purpose`) with this prompt str
 You are a plan assessment agent. Review and refine an implementation plan.
 
 Read these files:
-- docs/ai/work/<feature-name>/context.md
-- docs/ai/work/<feature-name>/plan.md
+- .ai/<feature-name>/context.md
+- .ai/<feature-name>/plan.md
 - Then read the actual source files referenced to verify the plan makes sense.
 
 Use /ultrathink to assess the plan:
@@ -170,8 +170,8 @@ For each phase in the plan that is not yet marked as done, spawn an implementati
 You are an implementation agent working on phase <N> of an implementation plan.
 
 Read these files first:
-- docs/ai/work/<feature-name>/context.md - Full codebase context
-- docs/ai/work/<feature-name>/plan.md - Implementation plan
+- .ai/<feature-name>/context.md - Full codebase context
+- .ai/<feature-name>/plan.md - Implementation plan
 
 Then read the source files you'll be modifying.
 
@@ -181,7 +181,7 @@ YOUR TASK: Implement ONLY Phase <N> from the plan:
 Rules:
 - Follow the plan precisely
 - Follow CLAUDE.md coding conventions (no comments except complex algorithms, use auto, empty line before closing brace, etc.)
-- Do NOT modify docs/ai/ files except to update the Status section in plan.md
+- Do NOT modify .ai/ files except to update the Status section in plan.md
 - When done, update plan.md Status section: change `- [ ] Phase <N>: ...` to `- [x] Phase <N>: ...`
 - Do NOT work on other phases
 
@@ -203,8 +203,8 @@ Spawn a build verification agent (Task tool, subagent_type=`general-purpose`):
 You are a build verification agent.
 
 Read these files:
-- docs/ai/work/<feature-name>/context.md
-- docs/ai/work/<feature-name>/plan.md
+- .ai/<feature-name>/context.md
+- .ai/<feature-name>/plan.md
 
 The implementation is complete. Your job is to build the project and fix any build errors.
 
