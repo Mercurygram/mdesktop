@@ -256,6 +256,8 @@ private:
 	int _visibleFrom = 0;
 	int _visibleTill = 0;
 
+	bool _craftedModels = false;
+
 };
 
 [[nodiscard]] QColor MakeOpaque(QColor color, QColor bg) {
@@ -979,6 +981,10 @@ AttributesList::AttributesList(
 , _list(&_entries->list) {
 	_singleMin = _delegate->buttonSize();
 
+	_craftedModels = !attributes->models.empty()
+		&& (attributes->models.front().rarityType()
+			!= Data::UniqueGiftRarity::Default);
+
 	fill();
 
 	_tab.value(
@@ -1206,7 +1212,9 @@ void AttributesList::clicked(int index) {
 void AttributesList::refreshAbout() {
 	auto text = [&] {
 		switch (_tab.current()) {
-		case Tab::Model: return tr::lng_auction_preview_models;
+		case Tab::Model: return _craftedModels
+			? tr::lng_auction_preview_crafted
+			: tr::lng_auction_preview_models;
 		case Tab::Pattern: return tr::lng_auction_preview_symbols;
 		case Tab::Backdrop: return tr::lng_auction_preview_backdrops;
 		}
