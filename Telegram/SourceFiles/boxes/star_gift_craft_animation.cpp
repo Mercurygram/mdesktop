@@ -454,6 +454,10 @@ std::unique_ptr<CraftFailAnimation> SetupFailureAnimation(
 		not_null<RpWidget*> canvas,
 		not_null<CraftAnimationState*> state) {
 	auto result = std::make_unique<CraftFailAnimation>();
+	result->lottie = Lottie::MakeIcon({
+		.name = u"craft_failed"_q,
+		.sizeOverride = st::craftFailLottieSize,
+	});
 	return result;
 }
 
@@ -489,6 +493,13 @@ void FailureAnimationCheck(
 			}, 0., 1., left);
 			break;
 		}
+	}
+
+	const auto lottie = animation->lottie.get();
+	if (lottie->framesCount() > 1) {
+		lottie->animate([=] {
+			canvas->update();
+		}, 0, lottie->framesCount() - 1);
 	}
 
 	state->failureShown = true;
@@ -534,7 +545,7 @@ void FailureAnimationPrepareFrame(
 	} else {
 		p.fillRect(rect, bg);
 	}
-	st::craftFail.paintInCenter(p, rect, st::white->c);
+	animation->lottie->paintInCenter(p, rect);
 	p.setOpacity(progress);
 	p.drawImage(
 		st::craftForgePadding,
@@ -1317,9 +1328,7 @@ void CraftState::updateForGiftCount(int count, Fn<void()> repaint) {
 	}
 }
 
-CraftState::EmptySide CraftState::prepareEmptySide(
-		int index,
-		bool fail) const {
+CraftState::EmptySide CraftState::prepareEmptySide(int index) const {
 	const auto size = forgeRect.size();
 	const auto ratio = style::DevicePixelRatio();
 	auto result = QImage(size * ratio, QImage::Format_ARGB32_Premultiplied);
@@ -1329,11 +1338,7 @@ CraftState::EmptySide CraftState::prepareEmptySide(
 	result.fill(bg);
 
 	auto p = QPainter(&result);
-	if (fail) {
-		st::craftFail.paintInCenter(p, QRect(QPoint(), size), st::white->c);
-	} else {
-		st::craftForge.paintInCenter(p, QRect(QPoint(), size), st::white->c);
-	}
+	st::craftForge.paintInCenter(p, QRect(QPoint(), size), st::white->c);
 
 //#if _DEBUG
 //	p.setFont(st::semiboldFont);

@@ -638,7 +638,7 @@ craftFailureTitleMargin: margins(0px, 88px, 0px, 12px);
 craftFailureAboutMargin: margins(0px, 0px, 0px, 16px);
 
 craftForge: icon{{ "chat/filled_forge-48x48", windowFg }};
-craftFail: icon{{ "chat/filled_forge_fail-36x36", windowFg }};
+craftFailLottieSize: size(36px, 36px);
 craftForgePadding: 12px;
 craftForgePercent: CraftRadialPercent {
 	stroke: 4px;

@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_star_gift.h"
 #include "ui/effects/animations.h"
 #include "ui/effects/radial_animation.h"
+#include "lottie/lottie_icon.h"
 #include "ui/text/text_custom_emoji.h"
 
 namespace ChatHelpers {
@@ -135,9 +136,7 @@ struct CraftState {
 		int craftingHeight,
 		float64 slideProgress = 0.);
 	void updateForGiftCount(int count, Fn<void()> repaint);
-	[[nodiscard]] EmptySide prepareEmptySide(
-		int index,
-		bool fail = false) const;
+	[[nodiscard]] EmptySide prepareEmptySide(int index) const;
 };
 
 struct FacePlacement {
@@ -160,6 +159,7 @@ struct CraftDoneAnimation {
 
 struct CraftFailAnimation {
 	QImage frame;
+	std::unique_ptr<Lottie::Icon> lottie;
 	bool started = false;
 	int finalCoverIndex = -1;
 	rpl::lifetime lifetime;
