@@ -3337,7 +3337,7 @@ void AddUpgradeGiftCover(
 	auto numberText = state->upgraded.value(
 	) | rpl::map([](const std::shared_ptr<Data::GiftUpgradeResult> &v) {
 		return (v && v->info.unique && v->info.unique->number > 0)
-			? u"#"_q + QString::number(v->info.unique->number)
+			? u"#"_q + Lang::FormatCountDecimal(v->info.unique->number)
 			: QString();
 	});
 	AddUniqueGiftCover(container, std::move(gifts), {

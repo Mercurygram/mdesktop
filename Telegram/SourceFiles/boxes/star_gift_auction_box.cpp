@@ -1193,7 +1193,7 @@ void AuctionGotGiftsBox(
 		).append(' ').append(
 			helper.paletteDependent(
 				Text::CustomEmojiTextBadge(
-					'#' + QString::number(entry.position),
+					'#' + Lang::FormatCountDecimal(entry.position),
 					st::defaultTableSmallButton)));
 		AddTableRow(
 			table,

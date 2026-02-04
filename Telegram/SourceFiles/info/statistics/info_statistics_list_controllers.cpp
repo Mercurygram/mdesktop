@@ -888,7 +888,7 @@ void CreditsRow::init() {
 		: _entry.postsSearch
 		? tr::lng_credits_box_history_entry_posts_search(tr::now)
 		: (_entry.giftUpgraded && _entry.uniqueGift && !isSpecial)
-		? u"%1 #%2"_q.arg(_entry.uniqueGift->title).arg(_entry.uniqueGift->number)
+		? u"%1 #%2"_q.arg(_entry.uniqueGift->title).arg(Lang::FormatCountDecimal(_entry.uniqueGift->number))
 		: ((!_entry.subscriptionUntil.isNull() && !isSpecial)
 			|| (_entry.giftResale && !isSpecial)
 			|| _entry.title.isEmpty())

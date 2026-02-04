@@ -65,7 +65,7 @@ QString UniqueGiftName(const UniqueGift &gift) {
 }
 
 QString UniqueGiftName(const QString &title, int number) {
-	return title + u" #"_q + QString::number(number);
+	return title + u" #"_q + Lang::FormatCountDecimal(number);
 }
 
 QString UniqueGiftRarityText(UniqueGiftRarity type) {
