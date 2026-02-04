@@ -4138,6 +4138,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_gift_craft_about1" = "Add up to **4** gifts to craft new\n{gift}.";
 "lng_gift_craft_about2" = "If crafting fails, all used gifts\nwill be lost.";
 "lng_gift_craft_view_all" = "{emoji} View all craftable models {arrow}";
+"lng_gift_craft_chance_backdrop" = "{percent} chance the crafted gift will have **{name}** background.";
+"lng_gift_craft_chance_symbol" = "{percent} chance the crafted gift will have **{name}** symbol.";
 "lng_gift_craft_button" = "Craft {gift}";
 "lng_gift_craft_button_chance" = "{percent} Success Chance";
 "lng_gift_craft_select_title" = "Select Gifts";

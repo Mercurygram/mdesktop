@@ -661,6 +661,7 @@ craftAttributePercent: CraftRadialPercent {
 	stroke: 3px;
 	font: font(10px semibold);
 }
+craftAttributeRowSkip: 8px;
 craftYourListEmpty: FlatLabel(defaultFlatLabel) {
 	minWidth: 128px;
 	align: align(top);

@@ -8,7 +8,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/star_gift_craft_box.h"
 
 #include "base/call_delayed.h"
+#include "base/event_filter.h"
 #include "base/random.h"
+#include "base/timer_rpl.h"
 #include "base/unixtime.h"
 #include "boxes/star_gift_auction_box.h"
 #include "boxes/star_gift_craft_animation.h"
@@ -37,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/layers/generic_box.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/gradient_round_button.h"
+#include "ui/widgets/tooltip.h"
 #include "ui/wrap/slide_wrap.h"
 #include "ui/painter.h"
 #include "ui/top_background_gradient.h"
@@ -762,9 +765,10 @@ void ShowSelectGiftBox(
 	auto result = object_ptr<RpWidget>(parent);
 	const auto raw = result.data();
 
-	struct State {
-		rpl::variable<int> backdropPermille;
-		rpl::variable<int> patternPermille;
+	struct AttributeState {
+		rpl::variable<int> permille;
+		bool isBackdrop = false;
+		QString name;
 
 		Animations::Simple backdropAnimation;
 		Data::UniqueGiftBackdrop wasBackdrop;
@@ -777,12 +781,233 @@ void ShowSelectGiftBox(
 		DocumentData *nowPattern = nullptr;
 		std::unique_ptr<Text::CustomEmoji> wasEmoji;
 		std::unique_ptr<Text::CustomEmoji> nowEmoji;
+
+		AbstractButton *button = nullptr;
+		RpWidget *radial = nullptr;
+	};
+
+	struct State {
+		std::array<AttributeState, 8> attrs;
+		int count = 0;
+		ImportantTooltip *tooltip = nullptr;
 	};
 
 	const auto state = raw->lifetime().make_state<State>();
 
+	const auto single = st::craftAttributeSize;
+	const auto skip = st::craftAttributeSkip;
+
+	for (auto i = 0; i != 8; ++i) {
+		auto &attr = state->attrs[i];
+		const auto btn = CreateChild<AbstractButton>(raw);
+		attr.button = btn;
+		btn->resize(single, single);
+		btn->hide();
+
+		const auto idx = i;
+		btn->paintOn([=](QPainter &p) {
+			auto &a = state->attrs[idx];
+			const auto sub = st::craftAttributePadding;
+			const auto inner = QRect(0, 0, single, single).marginsRemoved(
+				{ sub, sub, sub, sub });
+			if (a.isBackdrop) {
+				const auto progress = a.backdropAnimation.value(1.);
+				if (progress < 1.) {
+					p.drawImage(inner.topLeft(), a.wasFrame);
+					p.setOpacity(progress);
+				}
+				if (a.nowFrame.isNull()) {
+					const auto ratio = style::DevicePixelRatio();
+					a.nowFrame = QImage(
+						inner.size() * ratio,
+						QImage::Format_ARGB32_Premultiplied);
+					a.nowFrame.fill(Qt::transparent);
+					a.nowFrame.setDevicePixelRatio(ratio);
+					auto q = QPainter(&a.nowFrame);
+					auto hq = PainterHighQualityEnabler(q);
+					auto gradient = QLinearGradient(
+						QPointF(inner.width(), 0),
+						QPointF(0, inner.height()));
+					gradient.setColorAt(0., a.nowBackdrop.centerColor);
+					gradient.setColorAt(1., a.nowBackdrop.edgeColor);
+					q.setPen(Qt::NoPen);
+					q.setBrush(gradient);
+					q.drawEllipse(
+						0,
+						0,
+						inner.width(),
+						inner.height());
+
+					q.setCompositionMode(
+						QPainter::CompositionMode_Source);
+					q.setBrush(Qt::transparent);
+					const auto max = u"100%"_q;
+					const auto &font = st::craftAttributePercent.font;
+					const auto tw = font->width(max);
+					q.drawRoundedRect(
+						(inner.width() - tw) / 2,
+						inner.height() + sub - font->height,
+						tw,
+						font->height,
+						font->height / 2.,
+						font->height / 2.);
+				}
+				p.drawImage(inner.topLeft(), a.nowFrame);
+				p.setOpacity(1.);
+			} else {
+				const auto center = QRect(0, 0, single, single).center();
+				const auto emojiShift
+					= (single - Emoji::GetCustomSizeNormal()) / 2;
+				const auto pos = QPoint(emojiShift, emojiShift);
+				const auto progress = a.patternAnimation.value(1.);
+				if (progress < 1.) {
+					p.translate(center);
+					p.save();
+					p.setOpacity(1. - progress);
+					p.scale(1. - progress, 1. - progress);
+					p.translate(-center);
+					a.wasEmoji->paint(p, {
+						.textColor = st::white->c,
+						.position = pos,
+					});
+					p.restore();
+					p.scale(progress, progress);
+					p.setOpacity(progress);
+					p.translate(-center);
+				}
+				if (!a.nowEmoji) {
+					a.nowEmoji = session->data().customEmojiManager().create(
+						a.nowPattern,
+						[=] { btn->update(); });
+				}
+				a.nowEmoji->paint(p, {
+					.textColor = st::white->c,
+					.position = pos,
+				});
+			}
+		});
+
+		attr.radial = MakeRadialPercent(
+			btn,
+			st::craftAttributePercent,
+			attr.permille.value());
+		attr.radial->setGeometry(0, 0, single, single);
+
+		btn->setClickedCallback([=] {
+			auto &a = state->attrs[idx];
+			if (state->tooltip) {
+				state->tooltip->toggleAnimated(false);
+			}
+
+			auto text = a.isBackdrop
+				? tr::lng_gift_craft_chance_backdrop(
+					tr::now,
+					lt_percent,
+					TextWithEntities{ FormatPercent(a.permille.current()) },
+					lt_name,
+					TextWithEntities{ a.name },
+					Ui::Text::RichLangValue)
+				: tr::lng_gift_craft_chance_symbol(
+					tr::now,
+					lt_percent,
+					TextWithEntities{ FormatPercent(a.permille.current()) },
+					lt_name,
+					TextWithEntities{ a.name },
+					Ui::Text::RichLangValue);
+			const auto tooltip = CreateChild<ImportantTooltip>(
+				parent,
+				MakeNiceTooltipLabel(
+					parent,
+					rpl::single(std::move(text)),
+					st::boxWideWidth / 2,
+					st::defaultImportantTooltipLabel,
+					st::defaultPopupMenu),
+				st::defaultImportantTooltip);
+			tooltip->toggleFast(false);
+
+			base::install_event_filter(tooltip, qApp, [=](not_null<QEvent*> e) {
+				if (e->type() == QEvent::MouseButtonPress) {
+					tooltip->toggleAnimated(false);
+				}
+				return base::EventFilterResult::Continue;
+			});
+
+			const auto geometry = MapFrom(parent, btn, btn->rect());
+			const auto countPosition = [=](QSize size) {
+				const auto left = geometry.x()
+					+ (geometry.width() - size.width()) / 2;
+				const auto right = parent->width()
+					- st::normalFont->spacew;
+				return QPoint(
+					std::max(std::min(left, right - size.width()), 0),
+					geometry.y()
+						- size.height()
+						- st::normalFont->descent);
+			};
+			tooltip->pointAt(geometry, RectPart::Top, countPosition);
+			tooltip->toggleAnimated(true);
+
+			state->tooltip = tooltip;
+			tooltip->shownValue() | rpl::filter(
+				!rpl::mappers::_1
+			) | rpl::on_next([=] {
+				crl::on_main(tooltip, [=] {
+					if (tooltip->isHidden()) {
+						if (state->tooltip == tooltip) {
+							state->tooltip = nullptr;
+						}
+						delete tooltip;
+					}
+				});
+			}, tooltip->lifetime());
+
+			base::timer_once(
+				3000
+			) | rpl::on_next([=] {
+				tooltip->toggleAnimated(false);
+			}, tooltip->lifetime());
+		});
+	}
+
+	const auto relayout = [=](int count) {
+		const auto twoRows = (count > 5);
+		const auto row1 = twoRows ? ((count + 1) / 2) : count;
+		const auto row2 = twoRows ? (count - row1) : 0;
+		const auto rowWidth = [&](int n) {
+			return n * single + (n - 1) * skip;
+		};
+		const auto w1 = rowWidth(row1);
+		const auto w2 = row2 ? rowWidth(row2) : 0;
+		const auto naturalWidth = std::max(w1, w2);
+		const auto totalHeight = twoRows
+			? (2 * single + st::craftAttributeRowSkip)
+			: single;
+
+		for (auto i = 0; i != 8; ++i) {
+			auto &attr = state->attrs[i];
+			if (i < count) {
+				const auto inRow1 = (i < row1);
+				const auto rowItems = inRow1 ? row1 : row2;
+				const auto rowW = rowWidth(rowItems);
+				const auto indexInRow = inRow1 ? i : (i - row1);
+				const auto x = (naturalWidth - rowW) / 2
+					+ indexInRow * (single + skip);
+				const auto y = inRow1
+					? 0
+					: (single + st::craftAttributeRowSkip);
+				attr.button->setGeometry(x, y, single, single);
+				attr.button->show();
+			} else {
+				attr.button->hide();
+			}
+		}
+
+		raw->setNaturalWidth(naturalWidth);
+		raw->resize(naturalWidth, totalHeight);
+	};
+
 	const auto permilles = session->appConfig().craftAttributePermilles();
-	const auto permille = [=](int total, int count) {
+	const auto computePermille = [=](int total, int count) {
 		Expects(total > 0);
 		Expects(count > 0);
 
@@ -795,155 +1020,91 @@ void ShowSelectGiftBox(
 	std::move(
 		gifts
 	) | rpl::on_next([=](const std::vector<GiftForCraft> &list) {
-		struct Backdrop {
+		struct BackdropEntry {
 			Data::UniqueGiftBackdrop fields;
+			QString name;
 			int count = 0;
 		};
-		struct Pattern {
+		struct PatternEntry {
 			not_null<DocumentData*> document;
+			QString name;
 			int count = 0;
 		};
-		auto backdrops = std::vector<Backdrop>();
-		auto patterns = std::vector<Pattern>();
+		auto backdrops = std::vector<BackdropEntry>();
+		auto patterns = std::vector<PatternEntry>();
 		for (const auto &gift : list) {
 			const auto &backdrop = gift.unique->backdrop;
-			const auto &pattern = gift.unique->pattern.document;
-			const auto proj1 = &Backdrop::fields;
+			const auto &pattern = gift.unique->pattern;
+			const auto proj1 = &BackdropEntry::fields;
 			const auto i = ranges::find(backdrops, backdrop, proj1);
 			if (i != end(backdrops)) {
 				++i->count;
 			} else {
-				backdrops.push_back({ backdrop, 1 });
+				backdrops.push_back({ backdrop, backdrop.name, 1 });
 			}
-			const auto proj2 = &Pattern::document;
-			const auto j = ranges::find(patterns, pattern, proj2);
+			const auto proj2 = &PatternEntry::document;
+			const auto j = ranges::find(
+				patterns,
+				pattern.document,
+				proj2);
 			if (j != end(patterns)) {
 				++j->count;
 			} else {
-				patterns.push_back({ pattern, 1 });
+				patterns.push_back({ pattern.document, pattern.name, 1 });
 			}
 		}
-		ranges::sort(backdrops, ranges::greater(), &Backdrop::count);
-		ranges::sort(patterns, ranges::greater(), &Pattern::count);
+		ranges::sort(backdrops, ranges::greater(), &BackdropEntry::count);
+		ranges::sort(patterns, ranges::greater(), &PatternEntry::count);
 
 		const auto total = int(list.size());
-		const auto &backdrop = backdrops.front();
-		state->backdropPermille = permille(total, backdrop.count);
-		if (state->nowBackdrop != backdrop.fields) {
-			if (!state->nowFrame.isNull()) {
-				state->wasBackdrop = state->nowBackdrop;
-				state->wasFrame = base::take(state->nowFrame);
-				state->backdropAnimation.stop();
-				state->backdropAnimation.start([=] {
-					raw->update();
-				}, 0., 1., st::fadeWrapDuration);
+		auto slotIndex = 0;
+		for (const auto &b : backdrops) {
+			if (slotIndex >= 8) break;
+			auto &a = state->attrs[slotIndex];
+			a.isBackdrop = true;
+			a.name = b.name;
+			a.permille = computePermille(total, b.count);
+			if (a.nowBackdrop != b.fields) {
+				if (!a.nowFrame.isNull()) {
+					a.wasBackdrop = a.nowBackdrop;
+					a.wasFrame = base::take(a.nowFrame);
+					a.backdropAnimation.stop();
+					a.backdropAnimation.start([=, btn = a.button] {
+						btn->update();
+					}, 0., 1., st::fadeWrapDuration);
+				}
+				a.nowBackdrop = b.fields;
+				a.nowFrame = QImage();
 			}
-			state->nowBackdrop = backdrop.fields;
+			++slotIndex;
+		}
+		for (const auto &pt : patterns) {
+			if (slotIndex >= 8) break;
+			auto &a = state->attrs[slotIndex];
+			a.isBackdrop = false;
+			a.name = pt.name;
+			a.permille = computePermille(total, pt.count);
+			if (a.nowPattern != pt.document) {
+				if (a.nowEmoji) {
+					a.wasPattern = a.nowPattern;
+					a.wasEmoji = base::take(a.nowEmoji);
+					a.patternAnimation.stop();
+					a.patternAnimation.start([=, btn = a.button] {
+						btn->update();
+					}, 0., 1., st::fadeWrapDuration);
+				}
+				a.nowPattern = pt.document;
+				a.nowEmoji = nullptr;
+			}
+			++slotIndex;
 		}
 
-		const auto &pattern = patterns.front();
-		state->patternPermille = permille(total, pattern.count);
-		if (state->nowPattern != pattern.document) {
-			if (state->nowEmoji) {
-				state->wasPattern = state->nowPattern;
-				state->wasEmoji = base::take(state->nowEmoji);
-				state->patternAnimation.stop();
-				state->patternAnimation.start([=] {
-					raw->update();
-				}, 0., 1., st::fadeWrapDuration);
-			}
-			state->nowPattern = pattern.document;
+		const auto newCount = slotIndex;
+		if (state->count != newCount) {
+			state->count = newCount;
+			relayout(newCount);
 		}
 	}, raw->lifetime());
-
-	const auto single = st::craftAttributeSize;
-	const auto width = 2 * single + st::craftAttributeSkip;
-	MakeRadialPercent(
-		raw,
-		st::craftAttributePercent,
-		state->backdropPermille.value()
-	)->setGeometry(0, 0, single, single);
-	MakeRadialPercent(
-		raw,
-		st::craftAttributePercent,
-		state->patternPermille.value()
-	)->setGeometry(width - single, 0, single, single);
-
-	raw->setNaturalWidth(width);
-	raw->resize(width, single);
-	raw->paintOn([=](QPainter &p) {
-		const auto sub = st::craftAttributePadding;
-		const auto backdrop = QRect(0, 0, single, single).marginsRemoved(
-			{ sub, sub, sub, sub });
-		const auto backdropProgress = state->backdropAnimation.value(1.);
-		if (backdropProgress < 1.) {
-			p.drawImage(backdrop.topLeft(), state->wasFrame);
-			p.setOpacity(backdropProgress);
-		}
-		if (state->nowFrame.isNull()) {
-			const auto ratio = style::DevicePixelRatio();
-			state->nowFrame = QImage(
-				backdrop.size() * ratio,
-				QImage::Format_ARGB32_Premultiplied);
-			state->nowFrame.fill(Qt::transparent);
-			state->nowFrame.setDevicePixelRatio(ratio);
-			auto q = QPainter(&state->nowFrame);
-			auto hq = PainterHighQualityEnabler(q);
-			auto gradient = QLinearGradient(
-				QPointF(backdrop.width(), 0),
-				QPointF(0, backdrop.height()));
-			gradient.setColorAt(0., state->nowBackdrop.centerColor);
-			gradient.setColorAt(1., state->nowBackdrop.edgeColor);
-			q.setPen(Qt::NoPen);
-			q.setBrush(gradient);
-			q.drawEllipse(0, 0, backdrop.width(), backdrop.height());
-
-			q.setCompositionMode(QPainter::CompositionMode_Source);
-			q.setBrush(Qt::transparent);
-			const auto max = u"100%"_q;
-			const auto &font = st::craftAttributePercent.font;
-			const auto width = font->width(max);
-			q.drawRoundedRect(
-				(backdrop.width() - width) / 2,
-				backdrop.height() + sub - font->height,
-				width,
-				font->height,
-				font->height / 2.,
-				font->height / 2.);
-		}
-		p.drawImage(backdrop.topLeft(), state->nowFrame);
-		p.setOpacity(1);
-
-		const auto pattern = QRect(width - single, 0, single, single);
-		const auto center = pattern.center();
-		const auto shift = (single - Emoji::GetCustomSizeNormal()) / 2;
-		const auto position = pattern.topLeft() + QPoint(shift, shift);
-		const auto patternProgress = state->patternAnimation.value(1.);
-		if (patternProgress < 1.) {
-			p.translate(center);
-			p.save();
-			p.setOpacity(1. - patternProgress);
-			p.scale(1. - patternProgress, 1. - patternProgress);
-			p.translate(-center);
-			state->wasEmoji->paint(p, {
-				.textColor = st::white->c,
-				.position = position,
-			});
-			p.restore();
-			p.scale(patternProgress, patternProgress);
-			p.setOpacity(patternProgress);
-			p.translate(-center);
-		}
-		if (!state->nowEmoji) {
-			state->nowEmoji = session->data().customEmojiManager().create(
-				state->nowPattern,
-				[=] { raw->update(); });
-		}
-		state->nowEmoji->paint(p, {
-			.textColor = st::white->c,
-			.position = position,
-		});
-	});
 
 	return result;
 }
@@ -1049,7 +1210,8 @@ void AddPreviewNewModels(
 		not_null<VerticalLayout*> container,
 		std::shared_ptr<Main::SessionShow> show,
 		const QString &giftName,
-		Data::UniqueGiftAttributes attributes) {
+		Data::UniqueGiftAttributes attributes,
+		rpl::producer<bool> visible) {
 	auto exceptional = std::vector<Data::UniqueGiftModel>();
 	for (const auto &model : attributes.models) {
 		if (Data::UniqueGiftAttributeHasSpecialRarity(model)) {
@@ -1122,10 +1284,15 @@ void AddPreviewNewModels(
 			nullptr));
 	});
 
-	container->add(
-		std::move(badge),
-		st::craftPreviewAllMargin,
+	const auto wrap = container->add(
+		object_ptr<SlideWrap<AbstractButton>>(
+			container,
+			std::move(badge),
+			st::craftPreviewAllMargin),
 		style::al_top);
+	std::move(visible) | rpl::on_next([=](bool shown) {
+		wrap->toggle(shown, anim::type::instant);
+	}, wrap->lifetime());
 }
 
 void MakeCraftContent(
@@ -1295,11 +1462,23 @@ void MakeCraftContent(
 		st::craftAttributesMargin,
 		style::al_top);
 
+	auto viewAllVisible = state->chosen.value(
+	) | rpl::map([](const std::vector<GiftForCraft> &list) {
+		auto backdropIds = base::flat_set<int>();
+		auto patternPtrs = base::flat_set<DocumentData*>();
+		for (const auto &gift : list) {
+			backdropIds.emplace(gift.unique->backdrop.id);
+			patternPtrs.emplace(gift.unique->pattern.document.get());
+		}
+		return int(backdropIds.size() + patternPtrs.size()) <= 5;
+	});
+
 	AddPreviewNewModels(
 		raw,
 		controller->uiShow(),
 		giftName,
-		std::move(attributes));
+		std::move(attributes),
+		std::move(viewAllVisible));
 
 	raw->paintOn([=](QPainter &p) {
 		const auto &cs = state->craftState;
