@@ -1850,9 +1850,13 @@ ServiceAction ParseServiceAction(
 		content.offerPrice = CreditsAmountFromTL(data.vprice());
 		result.content = content;
 	}, [&](const MTPDmessageActionNewCreatorPending &data) {
-		AssertIsDebug();
+		auto content = ActionNewCreatorPending();
+		content.newCreatorId = data.vnew_creator_id().v;
+		result.content = content;
 	}, [&](const MTPDmessageActionChangeCreator &data) {
-		AssertIsDebug();
+		auto content = ActionChangeCreator();
+		content.newCreatorId = data.vnew_creator_id().v;
+		result.content = content;
 	}, [](const MTPDmessageActionEmpty &data) {});
 	return result;
 }
