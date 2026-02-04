@@ -86,10 +86,10 @@ UniqueGiftRarityColors UniqueGiftRarityBadgeColors(UniqueGiftRarity type) {
 	constexpr auto kBgOpacity = 0.15;
 	const auto base = [&] {
 		switch (type) {
-		case UniqueGiftRarity::Uncommon: return st::historyPeer2NameFg->c;
-		case UniqueGiftRarity::Rare: return st::historyPeer7NameFg->c;
-		case UniqueGiftRarity::Epic: return st::historyPeer5NameFg->c;
-		case UniqueGiftRarity::Legendary: return st::historyPeer8NameFg->c;
+		case UniqueGiftRarity::Uncommon: return QColor(0x40, 0xA9, 0x20);
+		case UniqueGiftRarity::Rare: return QColor(0x11, 0xAA, 0xBE);
+		case UniqueGiftRarity::Epic: return QColor(0x95, 0x5C, 0xDB);
+		case UniqueGiftRarity::Legendary: return QColor(0xBF, 0x76, 0x00);
 		}
 		Unexpected("Invalid rarity type.");
 	}();
