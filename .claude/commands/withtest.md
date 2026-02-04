@@ -34,8 +34,80 @@ These phases are identical to the `/task` workflow.
 ### Phase 0: Setup
 
 1. Understand the task from `$ARGUMENTS` or ask the user.
-2. Check existing folders in `.ai/` to pick a unique short name (1-2 lowercase words, hyphen-separated).
-3. Create the folder `.ai/<feature-name>/`.
+2. **Follow-up detection:** Check if `$ARGUMENTS` starts with a task name (the first word/token before any whitespace or newline). Look for `.ai/<that-name>/` directory:
+   - If `.ai/<that-name>/` exists AND contains both `context.md` and `plan.md`, this is a **follow-up task**. Read both files. The rest of `$ARGUMENTS` (after the task name) is the follow-up task description describing what additional changes are needed.
+   - If no matching directory exists, this is a **new task** - proceed normally.
+3. For new tasks: check existing folders in `.ai/` to pick a unique short name (1-2 lowercase words, hyphen-separated) and create `.ai/<feature-name>/`.
+4. For follow-up tasks: the folder already exists, skip creation.
+
+### Follow-up Task Flow
+
+When a follow-up task is detected (existing `.ai/<name>/` with `context.md` and `plan.md`):
+
+1. Skip Phase 1 (Context Gathering) - context already exists.
+2. Skip Phase 2 (Planning) - original plan already exists.
+3. Go directly to **Phase 2F (Follow-up Planning)** instead of Phase 3.
+
+**Phase 2F: Follow-up Planning**
+
+Spawn an agent (Task tool, subagent_type=`general-purpose`) with this prompt:
+
+```
+You are a planning agent for a follow-up task on an existing implementation.
+
+Read these files:
+- .ai/<feature-name>/context.md - Previously gathered codebase context
+- .ai/<feature-name>/plan.md - Previous implementation plan (already completed)
+
+Then read the source files referenced in context.md and plan.md to understand what was already implemented.
+
+FOLLOW-UP TASK: <paste the follow-up task description here>
+
+The previous plan was already implemented and tested. Now there are follow-up changes needed.
+
+YOUR JOB:
+1. Understand what was already done from plan.md (look at the completed phases).
+2. Read the actual source files to see the current state of the code.
+3. If context.md needs updates for the follow-up task (new files relevant, new patterns needed), update it with additional sections marked "## Follow-up Context (iteration 2)" or similar.
+4. Create a NEW follow-up plan. Update plan.md by:
+   - Keep the existing content as history (do NOT delete it)
+   - Add a new section at the end:
+
+   ---
+   ## Follow-up Task
+   <description>
+
+   ## Follow-up Approach
+   <high-level description>
+
+   ## Follow-up Files to Modify
+   <list>
+
+   ## Follow-up Implementation Steps
+
+   ### Phase F1: <name>
+   1. <specific step>
+   2. ...
+
+   ### Phase F2: <name> (if needed)
+   ...
+
+   ## Follow-up Status
+   Phases: <N>
+   - [ ] Phase F1: <name>
+   - [ ] Phase F2: <name> (if applicable)
+   - [ ] Build verification
+   - [ ] Testing
+   Assessed: yes
+
+Use /ultrathink to reason carefully. The follow-up plan should be self-contained enough that an implementation agent can execute it by reading context.md and the updated plan.md.
+```
+
+After this agent completes, read `plan.md` to verify the follow-up plan was written. Then proceed to Phase 4 (Implementation), using the follow-up phases (F1, F2, etc.) instead of the original phases. After implementation and build verification, proceed to Stage 2 (Testing Loop) as normal.
+
+### New Task Flow
+
+When this is a new task (no existing folder), proceed with Phases 1-5 as described below.
 
 ### Phase 1: Context Gathering
 
