@@ -151,6 +151,34 @@ private:
 };
 ```
 
+**Multi-line expressions — operators at the start of continuation lines:**
+
+When splitting an expression across multiple lines, place operators (like `&&`, `||`, `;`, `+`, etc.) at the **beginning** of continuation lines, not at the end of the previous line. This makes it immediately obvious from the left edge whether a line is a continuation or new code.
+
+```cpp
+// BAD - continuation looks like scope code:
+if (const auto &lottie = animation->lottie;
+	lottie && lottie->valid() && lottie->framesCount() > 1) {
+	lottie->animate([=] {
+
+// GOOD - semicolon at start signals continuation:
+if (const auto &lottie = animation->lottie
+	; lottie && lottie->valid() && lottie->framesCount() > 1) {
+	lottie->animate([=] {
+
+// BAD - trailing && makes next line look like independent code:
+if (veryLongExpression() &&
+	anotherLongExpression() &&
+	anotherOne()) {
+	doSomething();
+
+// GOOD - leading && clearly marks continuation:
+if (veryLongExpression()
+	&& anotherLongExpression()
+	&& anotherOne()) {
+	doSomething();
+```
+
 **Use `auto` for type deduction:**
 
 Prefer `auto` (or `const auto`, `const auto &`) instead of explicit types:
