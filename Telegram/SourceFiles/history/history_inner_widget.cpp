@@ -4719,7 +4719,10 @@ void HistoryInner::refreshAboutView(bool force) {
 				updateBotInfo();
 			}, _aboutView->lifetime());
 			_aboutView->destroyRequests() | rpl::on_next([=] {
-				refreshAboutView(true);
+				crl::on_main(this, [=] {
+					refreshAboutView(true);
+					update();
+				});
 			}, _aboutView->lifetime());
 			_aboutView->sendIntroSticker() | rpl::start_to_stream(
 				_sendIntroSticker,

@@ -610,14 +610,6 @@ AboutView::AboutView(
 	not_null<ElementDelegate*> delegate)
 : _history(history)
 , _delegate(delegate) {
-	if (_history->peer->isBot() && _history->peer->isForum()) {
-		_history->session().data().newItemAdded(
-		) | rpl::on_next([=](not_null<HistoryItem*> item) {
-			if (item->history() == _history) {
-				_destroyRequests.fire({});
-			}
-		}, lifetime());
-	}
 }
 
 AboutView::~AboutView() {
@@ -718,6 +710,14 @@ bool AboutView::refresh() {
 		return false;
 	}
 	_version = version;
+	if (_history->peer->isBot() && _history->peer->isForum()) {
+		_history->session().data().newItemAdded(
+		) | rpl::on_next([=](not_null<HistoryItem*> item) {
+			if (item->history() == _history) {
+				_destroyRequests.fire({});
+			}
+		}, lifetime());
+	}
 	setItem(makeAboutBot(info), nullptr);
 	return true;
 }
