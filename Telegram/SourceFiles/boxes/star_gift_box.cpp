@@ -4735,6 +4735,8 @@ void SendGiftBox(
 		: Api::DisallowedGiftTypes();
 	const auto disallowLimited = !peer->isSelf()
 		&& (disallowed & Api::DisallowedGiftType::Limited);
+	const auto disallowUnique = !peer->isSelf()
+		&& (disallowed & Api::DisallowedGiftType::Unique);
 	box->setStyle((limited && !auction) ? st::giftLimitedBox : st::giftBox);
 	box->setWidth(st::boxWideWidth);
 	box->setTitle(tr::lng_gift_send_title());
@@ -4758,7 +4760,7 @@ void SendGiftBox(
 	state->details = GiftSendDetails{
 		.descriptor = descriptor,
 		.randomId = base::RandomValue<uint64>(),
-		.upgraded = disallowLimited && (costToUpgrade > 0),
+		.upgraded = disallowLimited && (costToUpgrade > 0) && !disallowUnique,
 	};
 	peer->updateFull();
 	state->messageAllowed = peer->session().changes().peerFlagsValue(
@@ -4857,7 +4859,7 @@ void SendGiftBox(
 		session,
 		{ .suggestCustomEmoji = true, .allowCustomWithoutPremium = allow });
 	if (stars) {
-		if (costToUpgrade > 0 && !peer->isSelf() && !disallowLimited) {
+		if (costToUpgrade > 0 && !peer->isSelf() && !disallowLimited && !disallowUnique) {
 			const auto stargiftInfo = stars->info;
 			const auto showing = std::make_shared<bool>();
 			AddDivider(container);
