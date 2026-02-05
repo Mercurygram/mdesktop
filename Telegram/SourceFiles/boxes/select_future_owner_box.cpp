@@ -222,7 +222,7 @@ void SelectFutureOwnerbox(
 		st::boxRowPadding);
 	Ui::AddSkip(content);
 	Ui::AddSkip(content);
-	const auto adminsAreEqual = false;
+	const auto adminsAreEqual = (channel->adminsCount() <= 1);
 	content->add(
 		object_ptr<Ui::FlatLabel>(
 			content,
