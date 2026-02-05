@@ -26,48 +26,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace UrlAuthBox {
 namespace {
 
-class TextWithTooltip final
-	: public Ui::FlatLabel
-	, public Ui::AbstractTooltipShower {
-public:
-	using Ui::FlatLabel::FlatLabel;
-
-	void setTooltip(QString text) {
-		_tooltip = std::move(text);
-	}
-
-	QString tooltipText() const override {
-		return _tooltip;
-	}
-
-	QPoint tooltipPos() const override {
-		return QCursor::pos();
-	}
-
-	bool tooltipWindowActive() const override {
-		return Ui::AppInFocus()
-			&& Ui::InFocusChain(window())
-			&& textMaxWidth() > width();
-	}
-
-private:
-	void mouseMoveEvent(QMouseEvent *e) override {
-		Ui::Tooltip::Show(1000, this);
-		Ui::FlatLabel::mouseMoveEvent(e);
-	}
-	void enterEventHook(QEnterEvent *e) override {
-		Ui::Tooltip::Show(1000, this);
-		Ui::FlatLabel::enterEventHook(e);
-	}
-	void leaveEventHook(QEvent *e) override {
-		Ui::Tooltip::Hide();
-		Ui::FlatLabel::leaveEventHook(e);
-	}
-
-	QString _tooltip;
-
-};
-
 } // namespace
 
 SwitchableUserpicButton::SwitchableUserpicButton(
@@ -144,18 +102,26 @@ void AddAuthInfoRow(
 		object_ptr<Ui::RpWidget>(container),
 		st::boxRowPadding);
 
-	const auto topLabel = Ui::CreateChild<TextWithTooltip>(
+	const auto topLabel = Ui::CreateChild<Ui::FlatLabel>(
 		row,
 		topText,
 		st::urlAuthBoxRowTopLabel);
 	topLabel->setSelectable(true);
-	topLabel->setTooltip(topText);
-	const auto bottomLabel = Ui::CreateChild<TextWithTooltip>(
+	Ui::InstallTooltip(topLabel, [=] {
+		return (topLabel->textMaxWidth() > topLabel->width())
+			? topText
+			: QString();
+	});
+	const auto bottomLabel = Ui::CreateChild<Ui::FlatLabel>(
 		row,
 		bottomText,
 		st::urlAuthBoxRowBottomLabel);
 	bottomLabel->setSelectable(true);
-	bottomLabel->setTooltip(bottomText);
+	Ui::InstallTooltip(bottomLabel, [=] {
+		return (bottomLabel->textMaxWidth() > bottomLabel->width())
+			? bottomText
+			: QString();
+	});
 	const auto leftLabel = Ui::CreateChild<Ui::FlatLabel>(
 		row,
 		leftText,
