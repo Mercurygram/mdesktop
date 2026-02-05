@@ -399,6 +399,13 @@ HistoryWidget::HistoryWidget(
 	}, _field->lifetime());
 	_field->cancelled(
 	) | rpl::on_next([=] {
+		if (_peer->amMonoforumAdmin()) {
+			QWidget::setEnabled(false);
+			crl::on_main([=] {
+				QWidget::setEnabled(true);
+				QWidget::setFocus();
+			});
+		}
 		escape();
 	}, _field->lifetime());
 	_field->tabbed(
