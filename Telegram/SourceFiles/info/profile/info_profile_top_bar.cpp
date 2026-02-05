@@ -1955,10 +1955,11 @@ void TopBar::showTopBarMenu(
 	}
 	_peerMenu->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
 	_peerMenu->popup(_actionMore
-		? _actionMore->mapToGlobal(
-			QPoint(
+		? Ui::PopupMenu::ConstrainToParentScreen(
+			_peerMenu,
+			_actionMore->mapToGlobal(QPoint(
 				_actionMore->width() + _peerMenu->st().shadow.extend.right(),
-				_actionMore->height() + st::infoProfileTopBarActionMenuSkip))
+				_actionMore->height() + st::infoProfileTopBarActionMenuSkip)))
 		: QCursor::pos());
 }
 

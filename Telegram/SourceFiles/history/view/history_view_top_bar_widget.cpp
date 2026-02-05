@@ -381,11 +381,14 @@ void TopBarWidget::showPeerMenu() {
 		_menu = nullptr;
 	} else {
 		_menu->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
-		_menu->popup(mapToGlobal(QPoint(
-			width()
-				+ st::topBarMenuPosition.x()
-				+ _menu->st().shadow.extend.right(),
-			st::topBarMenuPosition.y())));
+		_menu->popup(Ui::PopupMenu::ConstrainToParentScreen(
+			_menu,
+			mapToGlobal(
+				QPoint(
+					width()
+						+ st::topBarMenuPosition.x()
+						+ _menu->st().shadow.extend.right(),
+					st::topBarMenuPosition.y()))));
 	}
 }
 
