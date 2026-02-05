@@ -789,10 +789,13 @@ UniqueGiftCoverWidget::UniqueGiftCoverWidget(
 			const auto totalWidth = titleWidth + gap + numberWidth;
 			const auto groupLeft = (width - totalWidth) / 2;
 			_state->title->moveToLeft(groupLeft, top);
+			const auto &stTitle = _state->title->st();
+			const auto &stNumber = _state->number->st();
 			_state->number->moveToLeft(
 				groupLeft + titleWidth + gap,
-				top + (_state->title->height()
-					- _state->number->height()) / 2);
+				(top
+					+ stTitle.style.font->ascent
+					- stNumber.style.font->ascent));
 		} else {
 			_state->title->resizeToWidth(available);
 			_state->title->moveToLeft(skip, top);
