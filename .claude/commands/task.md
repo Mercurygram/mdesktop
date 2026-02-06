@@ -338,9 +338,7 @@ Read these files:
 <if R > 1, also read:>
 - .ai/<feature-name>/review<R-1>.md - Previous review (to see what was already addressed)
 
-Then run this command to see all changes made by the implementation:
-  git diff HEAD~<number-of-implementation-commits>
-(Ask git log to figure out how many commits back the implementation started, or diff against the base branch. The goal is to see the implementation diff.)
+Then run `git diff` to see all uncommitted changes made by the implementation. Implementation agents do not commit, so `git diff` shows exactly the current feature's changes.
 
 Then read the modified source files in full to understand changes in context.
 
@@ -352,15 +350,17 @@ REVIEW CRITERIA (in order of importance):
 
 2. **Dead code**: Any code added or left behind that is never called or used, within the scope of the changes. Unused variables, unreachable branches, leftover scaffolding.
 
-3. **Code duplication**: Unnecessary repetition of logic that should be shared. Look for near-identical blocks that differ only in minor details and could be unified.
+3. **Redundant changes**: Changes in the diff that have no functional effect — moving declarations or code blocks to a different location without reason, reformatting untouched code, reordering includes or fields with no purpose. Every line in the diff should serve the feature. If a file appears in `git diff` but contains only no-op rearrangements, flag it for revert.
 
-4. **Wrong placement**: Code added to a module where it doesn't logically belong. If another existing module is a clearly better fit for the new code, flag it. Consider the existing module boundaries and responsibilities visible in context.md.
+4. **Code duplication**: Unnecessary repetition of logic that should be shared. Look for near-identical blocks that differ only in minor details and could be unified.
 
-5. **Function decomposition**: For longer functions (roughly 50+ lines), consider whether a logical sub-task could be cleanly extracted into a separate function. This is NOT a hard rule — a 100-line function that flows naturally and isn't easily divisible is perfectly fine. But sometimes even a 20-line function contains a clear isolated subtask that reads better as two 10-line functions. The key is to think about it each time: does extracting improve readability and reduce cognitive load, or does it just scatter logic across call sites for no real benefit? Only suggest extraction when there's a genuinely self-contained piece of logic with a clear name and purpose.
+5. **Wrong placement**: Code added to a module where it doesn't logically belong. If another existing module is a clearly better fit for the new code, flag it. Consider the existing module boundaries and responsibilities visible in context.md.
 
-6. **Module structure**: Only in exceptional cases — if a large amount of newly added code (hundreds of lines) is logically distinct from the rest of its host module, suggest extracting it into a new module. But do NOT suggest new modules lightly: every module adds significant build overhead due to PCH and heavy template usage. Only suggest this when the new code is both large enough AND logically separated enough to justify it. At the same time, don't let modules grow into multi-thousand-line monoliths either.
+6. **Function decomposition**: For longer functions (roughly 50+ lines), consider whether a logical sub-task could be cleanly extracted into a separate function. This is NOT a hard rule — a 100-line function that flows naturally and isn't easily divisible is perfectly fine. But sometimes even a 20-line function contains a clear isolated subtask that reads better as two 10-line functions. The key is to think about it each time: does extracting improve readability and reduce cognitive load, or does it just scatter logic across call sites for no real benefit? Only suggest extraction when there's a genuinely self-contained piece of logic with a clear name and purpose.
 
-7. **Style compliance**: Verify adherence to REVIEW.md rules (empty line before closing brace, operators at start of continuation lines, minimize type checks with direct cast instead of is+as, no if-with-initializer when simpler alternatives exist) and CLAUDE.md conventions (no unnecessary comments, `auto` usage, no hardcoded sizes — must use .style definitions), etc.
+7. **Module structure**: Only in exceptional cases — if a large amount of newly added code (hundreds of lines) is logically distinct from the rest of its host module, suggest extracting it into a new module. But do NOT suggest new modules lightly: every module adds significant build overhead due to PCH and heavy template usage. Only suggest this when the new code is both large enough AND logically separated enough to justify it. At the same time, don't let modules grow into multi-thousand-line monoliths either.
+
+8. **Style compliance**: Verify adherence to REVIEW.md rules (empty line before closing brace, operators at start of continuation lines, minimize type checks with direct cast instead of is+as, no if-with-initializer when simpler alternatives exist) and CLAUDE.md conventions (no unnecessary comments, `auto` usage, no hardcoded sizes — must use .style definitions), etc.
 
 IMPORTANT GUIDELINES:
 - Review ONLY the changes made, not pre-existing code in the repository.

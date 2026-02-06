@@ -94,9 +94,19 @@ Read:
 - .ai/<SLUG>/plan.md
 - .ai/<SLUG>/implementation.md
 
-Perform a code review focused on:
-- Style and formatting rules from REVIEW.md
-- Regressions, thread-safety, performance, and missing tests
+Run `git diff` to see all uncommitted changes made by the implementation. Implementation phases do not commit, so `git diff` shows exactly the current feature's changes. Then read the modified source files in full.
+
+Perform a code review using these criteria (in order of importance):
+
+1. Correctness and safety: logic errors, null-check gaps at API boundaries, crashes, use-after-free, dangling references, race conditions.
+2. Dead code: code added or left behind that is never called or used. Unused variables, unreachable branches, leftover scaffolding.
+3. Redundant changes: changes in the diff with no functional effect — moving declarations or code blocks without reason, reformatting untouched code, reordering includes or fields with no purpose. Every line in the diff should serve the feature. If a file appears in `git diff` but contains only no-op rearrangements, flag it for revert.
+4. Code duplication: unnecessary repetition of logic that should be shared.
+5. Wrong placement: code added to a module where it doesn't logically belong.
+6. Function decomposition: for longer functions (~50+ lines), consider whether a sub-task could be cleanly extracted. Only suggest when there is a genuinely self-contained piece of logic.
+7. Module structure: only flag if a large amount of new code (hundreds of lines) is logically distinct from its host module.
+8. Style compliance: verify adherence to REVIEW.md rules and AGENTS.md conventions.
+
 Write:
 - .ai/<SLUG>/review.md
 
