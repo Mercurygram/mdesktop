@@ -334,12 +334,13 @@ You are a code review agent for Telegram Desktop (C++ / Qt).
 Read these files:
 - .ai/<feature-name>/context.md - Codebase context
 - .ai/<feature-name>/plan.md - Implementation plan
+- REVIEW.md - Style and formatting rules to enforce
 <if R > 1, also read:>
 - .ai/<feature-name>/review<R-1>.md - Previous review (to see what was already addressed)
 
 Then run this command to see all changes made by the implementation:
-  git diff HEAD~<number-of-implementation-commits> -- . ":(exclude).ai"
-(Ask git log to figure out how many commits back the implementation started, or diff against the base branch. The goal is to see ONLY the implementation diff, excluding .ai/ files.)
+  git diff HEAD~<number-of-implementation-commits>
+(Ask git log to figure out how many commits back the implementation started, or diff against the base branch. The goal is to see the implementation diff.)
 
 Then read the modified source files in full to understand changes in context.
 
@@ -359,7 +360,7 @@ REVIEW CRITERIA (in order of importance):
 
 6. **Module structure**: Only in exceptional cases — if a large amount of newly added code (hundreds of lines) is logically distinct from the rest of its host module, suggest extracting it into a new module. But do NOT suggest new modules lightly: every module adds significant build overhead due to PCH and heavy template usage. Only suggest this when the new code is both large enough AND logically separated enough to justify it. At the same time, don't let modules grow into multi-thousand-line monoliths either.
 
-7. **Style compliance**: Verify adherence to CLAUDE.md conventions — no unnecessary comments, `auto` usage, empty line before closing brace, operators at start of continuation lines, no hardcoded sizes (must use .style definitions), etc.
+7. **Style compliance**: Verify adherence to REVIEW.md rules (empty line before closing brace, operators at start of continuation lines, minimize type checks with direct cast instead of is+as, no if-with-initializer when simpler alternatives exist) and CLAUDE.md conventions (no unnecessary comments, `auto` usage, no hardcoded sizes — must use .style definitions), etc.
 
 IMPORTANT GUIDELINES:
 - Review ONLY the changes made, not pre-existing code in the repository.

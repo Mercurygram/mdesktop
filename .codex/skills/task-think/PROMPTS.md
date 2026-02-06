@@ -86,14 +86,17 @@ If blocked by locked files or access errors, stop and report exact blocker.
 ```text
 You are the review phase for task "<TASK>" in repository <REPO_ROOT>.
 
-Read CLAUDE.md for the basic coding rules and guidelines.
+Read AGENTS.md for the basic coding rules and guidelines.
+Read REVIEW.md for the style and formatting rules you must enforce.
 
 Read:
 - .ai/<SLUG>/context.md
 - .ai/<SLUG>/plan.md
 - .ai/<SLUG>/implementation.md
 
-Perform a code review focused on regressions, thread-safety, performance, and missing tests.
+Perform a code review focused on:
+- Style and formatting rules from REVIEW.md
+- Regressions, thread-safety, performance, and missing tests
 Write:
 - .ai/<SLUG>/review.md
 

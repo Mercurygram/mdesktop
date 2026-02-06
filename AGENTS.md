@@ -125,58 +125,7 @@ if (user->isPremium()) {
 // with the first message in each group.
 ```
 
-**Empty line before closing brace:**
-
-Always add an empty line before the closing brace of a class (after all private fields):
-
-```cpp
-// GOOD:
-class MyClass {
-public:
-    void foo();
-
-private:
-    int _value = 0;
-
-};
-
-// BAD:
-class MyClass {
-public:
-    void foo();
-
-private:
-    int _value = 0;
-};
-```
-
-**Multi-line expressions â€” operators at the start of continuation lines:**
-
-When splitting an expression across multiple lines, place operators (like `&&`, `||`, `;`, `+`, etc.) at the **beginning** of continuation lines, not at the end of the previous line. This makes it immediately obvious from the left edge whether a line is a continuation or new code.
-
-```cpp
-// BAD - continuation looks like scope code:
-if (const auto &lottie = animation->lottie;
-	lottie && lottie->valid() && lottie->framesCount() > 1) {
-	lottie->animate([=] {
-
-// GOOD - semicolon at start signals continuation:
-if (const auto &lottie = animation->lottie
-	; lottie && lottie->valid() && lottie->framesCount() > 1) {
-	lottie->animate([=] {
-
-// BAD - trailing && makes next line look like independent code:
-if (veryLongExpression() &&
-	anotherLongExpression() &&
-	anotherOne()) {
-	doSomething();
-
-// GOOD - leading && clearly marks continuation:
-if (veryLongExpression()
-	&& anotherLongExpression()
-	&& anotherOne()) {
-	doSomething();
-```
+**Style and formatting rules** are in `REVIEW.md` — see that file for empty-line-before-closing-brace, operator placement in multi-line expressions, if-with-initializer, and other mechanical style rules.
 
 **Use `auto` for type deduction:**
 
