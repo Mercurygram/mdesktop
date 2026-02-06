@@ -16,8 +16,9 @@ If `$ARGUMENTS` is provided, it's the task description. If empty, ask the user w
 The workflow produces `.ai/<feature-name>/` containing:
 - `context.md` - Gathered codebase context relevant to the task
 - `plan.md` - Detailed implementation plan with phases
+- `review1.md`, `review2.md`, `review3.md` - Code review documents (up to 3 iterations)
 
-Then spawns implementation agents to execute each phase, and finally verifies the build.
+Then spawns implementation agents to execute each phase, verifies the build, and runs up to 3 review-fix iterations to improve code quality.
 
 ## Phase 0: Setup
 
@@ -85,6 +86,7 @@ YOUR JOB:
    - [ ] Phase F1: <name>
    - [ ] Phase F2: <name> (if applicable)
    - [ ] Build verification
+   - [ ] Code review
    Assessed: yes
 
 Use /ultrathink to reason carefully. The follow-up plan should be self-contained enough that an implementation agent can execute it by reading context.md and the updated plan.md.
@@ -194,6 +196,7 @@ Number every step. Group steps into phases if there are more than ~8 steps.
 - [ ] Phase 1: <name>
 - [ ] Phase 2: <name> (if applicable)
 - [ ] Build verification
+- [ ] Code review
 ```
 
 After this agent completes, read `plan.md` to verify it was written properly.
@@ -297,17 +300,153 @@ Rules:
 When finished, report the build result.
 ```
 
-After the build agent returns, read `plan.md` to confirm the final status.
+After the build agent returns, read `plan.md` to confirm the final status. Then proceed to Phase 6.
+
+## Phase 6: Code Review Loop
+
+After build verification passes, run up to 3 review-fix iterations to improve code quality. Set iteration counter `R = 1`.
+
+### Review Loop
+
+```
+LOOP:
+  1. Spawn review agent (Step 6a) with iteration R
+  2. Read review<R>.md verdict:
+     - "APPROVED" → go to FINISH
+     - Has improvement suggestions → spawn fix agent (Step 6b)
+  3. After fix agent completes and build passes:
+     R = R + 1
+     If R > 3 → go to FINISH (stop iterating, accept current state)
+     Otherwise → go to step 1
+
+FINISH:
+  - Update plan.md: change `- [ ] Code review` to `- [x] Code review`
+  - Proceed to Completion
+```
+
+### Step 6a: Code Review Agent
+
+Spawn an agent (Task tool, subagent_type=`general-purpose`):
+
+```
+You are a code review agent for Telegram Desktop (C++ / Qt).
+
+Read these files:
+- .ai/<feature-name>/context.md - Codebase context
+- .ai/<feature-name>/plan.md - Implementation plan
+<if R > 1, also read:>
+- .ai/<feature-name>/review<R-1>.md - Previous review (to see what was already addressed)
+
+Then run this command to see all changes made by the implementation:
+  git diff HEAD~<number-of-implementation-commits> -- . ":(exclude).ai"
+(Ask git log to figure out how many commits back the implementation started, or diff against the base branch. The goal is to see ONLY the implementation diff, excluding .ai/ files.)
+
+Then read the modified source files in full to understand changes in context.
+
+Use /ultrathink to perform a thorough code review.
+
+REVIEW CRITERIA (in order of importance):
+
+1. **Correctness and safety**: Obvious logic errors, missing null checks at API boundaries, potential crashes, use-after-free, dangling references, race conditions. This is the highest priority — bugs and safety issues must be caught first. Do NOT nitpick internal code that relies on framework guarantees.
+
+2. **Dead code**: Any code added or left behind that is never called or used, within the scope of the changes. Unused variables, unreachable branches, leftover scaffolding.
+
+3. **Code duplication**: Unnecessary repetition of logic that should be shared. Look for near-identical blocks that differ only in minor details and could be unified.
+
+4. **Wrong placement**: Code added to a module where it doesn't logically belong. If another existing module is a clearly better fit for the new code, flag it. Consider the existing module boundaries and responsibilities visible in context.md.
+
+5. **Function decomposition**: For longer functions (roughly 50+ lines), consider whether a logical sub-task could be cleanly extracted into a separate function. This is NOT a hard rule — a 100-line function that flows naturally and isn't easily divisible is perfectly fine. But sometimes even a 20-line function contains a clear isolated subtask that reads better as two 10-line functions. The key is to think about it each time: does extracting improve readability and reduce cognitive load, or does it just scatter logic across call sites for no real benefit? Only suggest extraction when there's a genuinely self-contained piece of logic with a clear name and purpose.
+
+6. **Module structure**: Only in exceptional cases — if a large amount of newly added code (hundreds of lines) is logically distinct from the rest of its host module, suggest extracting it into a new module. But do NOT suggest new modules lightly: every module adds significant build overhead due to PCH and heavy template usage. Only suggest this when the new code is both large enough AND logically separated enough to justify it. At the same time, don't let modules grow into multi-thousand-line monoliths either.
+
+7. **Style compliance**: Verify adherence to CLAUDE.md conventions — no unnecessary comments, `auto` usage, empty line before closing brace, operators at start of continuation lines, no hardcoded sizes (must use .style definitions), etc.
+
+IMPORTANT GUIDELINES:
+- Review ONLY the changes made, not pre-existing code in the repository.
+- Be pragmatic. Don't suggest changes for the sake of it. Each suggestion should have a clear, concrete benefit.
+- Don't suggest adding comments, docstrings, or type annotations — the codebase style avoids these.
+- Don't suggest error handling for impossible scenarios or over-engineering.
+
+Write your review to: .ai/<feature-name>/review<R>.md
+
+The review document should contain:
+
+## Code Review - Iteration <R>
+
+## Summary
+<1-2 sentence overall assessment>
+
+## Verdict: <APPROVED or NEEDS_CHANGES>
+
+<If APPROVED, stop here. Everything looks good.>
+
+<If NEEDS_CHANGES, continue with:>
+
+## Changes Required
+
+### <Issue 1 title>
+- **Category**: <dead code | duplication | wrong placement | function decomposition | module structure | style | correctness>
+- **File(s)**: <file paths>
+- **Problem**: <clear description of what's wrong>
+- **Fix**: <specific description of what to change>
+
+### <Issue 2 title>
+...
+
+Keep the list focused. Only include issues that genuinely improve the code. If you find yourself listing more than ~5-6 issues, prioritize the most impactful ones.
+
+When finished, report your verdict clearly as: APPROVED or NEEDS_CHANGES.
+```
+
+After the review agent returns, read `review<R>.md`. If the verdict is APPROVED, proceed to Completion. If NEEDS_CHANGES, spawn the fix agent.
+
+### Step 6b: Review Fix Agent
+
+Spawn an agent (Task tool, subagent_type=`general-purpose`):
+
+```
+You are a review fix agent. You implement improvements identified during code review.
+
+Read these files:
+- .ai/<feature-name>/context.md - Codebase context
+- .ai/<feature-name>/plan.md - Original implementation plan
+- .ai/<feature-name>/review<R>.md - Code review with required changes
+
+Then read the source files mentioned in the review.
+
+YOUR TASK: Implement ALL changes listed in review<R>.md.
+
+For each issue in the review:
+1. Read the relevant source file(s).
+2. Make the specified change.
+3. Verify the change makes sense in context.
+
+After all changes are made:
+1. Build: cmake --build "c:\Telegram\tdesktop\out" --config Debug --target Telegram
+2. If the build fails, fix build errors and rebuild until it passes.
+3. If build fails with file-locked errors (C1041, LNK1104), STOP and report - do not retry.
+
+Rules:
+- Implement exactly the changes from the review, nothing more.
+- Follow CLAUDE.md coding conventions.
+- Do NOT modify .ai/ files.
+
+When finished, report what changes were made.
+```
+
+After the fix agent returns, increment R and loop back to Step 6a (unless R > 3, in which case proceed to Completion).
 
 ## Completion
 
-When all phases including build verification are done:
+When all phases including build verification and code review are done:
 1. Read the final `plan.md` and report the summary to the user.
 2. Show which files were modified/created.
 3. Note any issues encountered during implementation.
+4. Summarize code review iterations: how many rounds, what was found and fixed, or if it was approved on first pass.
 
 ## Error Handling
 
 - If any agent fails or gets stuck, report the issue to the user and ask how to proceed.
 - If context.md or plan.md is not written properly by an agent, re-spawn that agent with more specific instructions.
 - If build errors persist after the build agent's attempts, report the remaining errors to the user.
+- If a review fix agent introduces new build errors that it cannot resolve, report to the user.
