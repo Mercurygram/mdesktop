@@ -271,7 +271,7 @@ void GiftButton::setDescriptor(const GiftDescriptor &descriptor, Mode mode) {
 			: data.from
 			? Ui::MakeUserpicThumbnail(data.from)
 			: Ui::MakeHiddenAuthorThumbnail();
-		if (small() && !resale || (_mode == Mode::Craft)) {
+		if ((small() && !resale) || (_mode == Mode::Craft)) {
 			_price = {};
 			_stars.reset();
 			return;
