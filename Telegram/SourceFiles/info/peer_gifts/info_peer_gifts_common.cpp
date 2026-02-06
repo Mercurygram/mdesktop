@@ -47,6 +47,7 @@ namespace Info::PeerGifts {
 namespace {
 
 constexpr auto kGiftsPerRow = 3;
+constexpr auto kCraftUnavailableOpacity = 0.5;
 
 [[nodiscard]] bool AllowedToSend(
 		const GiftTypeStars &gift,
@@ -686,8 +687,38 @@ void GiftButton::paintUniqueBackgroundPattern(
 }
 
 void GiftButton::paintEvent(QPaintEvent *e) {
+	const auto canCraftAt = [&] {
+		if (_mode != Mode::Craft) {
+			return 0;
+		}
+		const auto stargift = std::get_if<GiftTypeStars>(&_descriptor);
+		const auto unique = stargift ? stargift->info.unique.get() : nullptr;
+		return unique ? unique->canCraftAt : TimeId();
+	}();
+
 	auto p = QPainter(this);
-	paint(p);
+	if (!canCraftAt || base::unixtime::now() >= canCraftAt) {
+		paint(p);
+		return;
+	}
+	const auto ratio = style::DevicePixelRatio();
+	const auto w = width() * ratio;
+	const auto h = height() * ratio;
+	auto cache = _delegate->craftUnavailableFrameCache(this, canCraftAt);
+	if (cache.width() < w || cache.height() < h) {
+		cache = QImage(
+			std::max(w, cache.width()),
+			std::max(h, cache.height()),
+			QImage::Format_ARGB32_Premultiplied);
+		cache.setDevicePixelRatio(ratio);
+	}
+	cache.fill(Qt::transparent);
+	auto q = QPainter(&cache);
+	paint(q);
+	q.end();
+
+	p.setOpacity(kCraftUnavailableOpacity);
+	p.drawImage(rect(), cache, QRect(0, 0, w, h));
 }
 
 void GiftButton::paint(QPainter &p, float64 craftProgress) {
@@ -1117,7 +1148,10 @@ Delegate::Delegate(not_null<Main::Session*> session, GiftButtonMode mode)
 	_session,
 	st::giftBoxHiddenMark,
 	RectPart::Center))
-, _mode(mode) {
+, _mode(mode)
+, _craftUnavailableTimer(
+	std::make_unique<base::Timer>(
+		[=] { updateCraftUnavailables(); })) {
 	_ministarEmoji = _emojiHelper.paletteDependent(
 		Ui::Earn::IconCreditsEmojiSmall());
 	_starEmoji = _emojiHelper.paletteDependent(
@@ -1257,6 +1291,37 @@ bool Delegate::amPremium() {
 void Delegate::invalidateCache() {
 	_bg = QImage();
 	_badges.clear();
+}
+
+QImage &Delegate::craftUnavailableFrameCache(
+		not_null<GiftButton*> button,
+		TimeId until) {
+	const auto weak = QPointer<QWidget>(button.get());
+	if (!ranges::contains(_craftUnavailables, weak)) {
+		_craftUnavailables.push_back(weak);
+	}
+	if (!_craftUnavailableTimer->isActive()
+		|| _craftUnavailableUntil > until) {
+		_craftUnavailableUntil = until;
+		const auto left = until - base::unixtime::now();
+		_craftUnavailableTimer->callOnce(
+			std::clamp(left, 1, 86400) * crl::time(1000));
+	}
+	return _craftUnavailableFrameCache;
+}
+
+void Delegate::updateCraftUnavailables() {
+	_craftUnavailableTimer->cancel();
+	_craftUnavailableUntil = 0;
+
+	for (auto i = begin(_craftUnavailables); i != end(_craftUnavailables);) {
+		if (const auto raw = i->data()) {
+			raw->update();
+			++i;
+		} else {
+			i = _craftUnavailables.erase(i);
+		}
+	}
 }
 
 DocumentData *LookupGiftSticker(

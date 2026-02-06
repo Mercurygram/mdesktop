@@ -695,8 +695,10 @@ void ShowSelectGiftBox(
 
 		const auto got = crl::guard(box, [=](
 				std::shared_ptr<Data::UniqueGift> gift) {
-			chosen(GiftForCraft{ .unique = gift });
-			box->closeBox();
+			if (!ShowCraftLaterError(box->uiShow(), gift)) {
+				chosen(GiftForCraft{ .unique = gift });
+				box->closeBox();
+			}
 		});
 
 		AddCraftGiftsList(
@@ -1191,10 +1193,7 @@ void Craft(
 		}
 		*requested = true;
 		ShowSelectGiftBox(controller, giftId, [=](GiftForCraft chosen) {
-			const auto unique = chosen.unique;
-			if (!ShowCraftLaterError(show, unique)) {
-				ShowGiftCraftBox(controller, { chosen }, false);
-			}
+			ShowGiftCraftBox(controller, { chosen }, false);
 			closeCurrent();
 		}, {}, [=] { *requested = false; });
 	};
@@ -1413,16 +1412,13 @@ void MakeCraftContent(
 		}
 		state->requestingIndex = index;
 		const auto callback = [=](GiftForCraft chosen) {
-			const auto unique = chosen.unique;
-			if (!ShowCraftLaterError(controller->uiShow(), unique)) {
-				auto copy = state->chosen.current();
-				if (state->requestingIndex < copy.size()) {
-					copy[state->requestingIndex] = chosen;
-				} else {
-					copy.push_back(chosen);
-				}
-				state->chosen = std::move(copy);
+			auto copy = state->chosen.current();
+			if (state->requestingIndex < copy.size()) {
+				copy[state->requestingIndex] = chosen;
+			} else {
+				copy.push_back(chosen);
 			}
+			state->chosen = std::move(copy);
 		};
 		ShowSelectGiftBox(
 			controller,
