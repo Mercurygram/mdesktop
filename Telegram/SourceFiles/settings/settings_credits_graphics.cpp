@@ -2286,6 +2286,8 @@ void GenericCreditsEntryBody(
 			? tr::lng_credits_subscription_off_button()
 			: toRejoin
 			? tr::lng_credits_subscription_off_rejoin_button()
+			: e.craftAnotherCallback
+			? tr::lng_gift_craft_another_button()
 			: canUpgradeFree
 			? tr::lng_gift_upgrade_free()
 			: canUpgrade
@@ -2349,6 +2351,9 @@ void GenericCreditsEntryBody(
 				const auto close = crl::guard(box, [=] { box->closeBox(); });
 				showNextToUpgrade();
 				close();
+				return;
+			} else if (e.craftAnotherCallback) {
+				e.craftAnotherCallback();
 				return;
 			} else if (state->confirmButtonBusy.current()
 				|| state->convertButtonBusy.current()) {

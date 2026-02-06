@@ -183,7 +183,8 @@ void SendGiftBox(
 [[nodiscard]] Data::CreditsHistoryEntry EntryForUpgradedGift(
 	const std::shared_ptr<Data::GiftUpgradeResult> &gift,
 	uint64 nextToUpgradeStickerId = 0,
-	Fn<void()> nextToUpgradeShow = nullptr);
+	Fn<void()> nextToUpgradeShow = nullptr,
+	Fn<void()> craftAnother = nullptr);
 
 [[nodiscard]] std::shared_ptr<Data::GiftUpgradeResult> FindUniqueGift(
 	not_null<Main::Session*> session,

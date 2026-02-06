@@ -1897,8 +1897,15 @@ void StartCraftAnimation(
 
 					box->setStyle(st::giftBox);
 
+					auto craftAnotherCallback = crl::guard(box, [=] {
+						retryWithNewGift([=] { box->closeBox(); });
+					});
+
 					const auto entry = EntryForUpgradedGift(
-						*state->craftResult);
+						*state->craftResult,
+						0,
+						nullptr,
+						craftAnotherCallback);
 					Settings::GenericCreditsEntryBody(box, show, entry);
 					container->resizeToWidth(st::boxWideWidth);
 

@@ -3355,7 +3355,8 @@ void AddUpgradeGiftCover(
 Data::CreditsHistoryEntry EntryForUpgradedGift(
 		const std::shared_ptr<Data::GiftUpgradeResult> &gift,
 		uint64 nextToUpgradeStickerId,
-		Fn<void()> nextToUpgradeShow) {
+		Fn<void()> nextToUpgradeShow,
+		Fn<void()> craftAnother) {
 	Expects(gift != nullptr);
 
 	const auto unique = gift->info.unique;
@@ -3378,6 +3379,7 @@ Data::CreditsHistoryEntry EntryForUpgradedGift(
 		.uniqueGift = unique,
 		.nextToUpgradeStickerId = nextToUpgradeStickerId,
 		.nextToUpgradeShow = nextToUpgradeShow,
+		.craftAnotherCallback = craftAnother,
 		.peerType = Data::CreditsHistoryEntry::PeerType::Peer,
 		.limitedCount = gift->info.limitedCount,
 		.limitedLeft = gift->info.limitedLeft,
