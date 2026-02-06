@@ -93,4 +93,8 @@ if (const auto peer = session().data().peerLoaded(peerId)
 // GOOD - simple nested ifs when direct lookup isn't available:
 if (const auto peer = session().data().peerLoaded(peerId)) {
 	if (const auto user = peer->asUser()) {
+
+## std::optional access — avoid value()
+
+Do not call `std::optional::value()` because it throws an exception that is not available on older macOS targets. Use `has_value()`, `value_or()`, `operator bool()`, or `operator*` instead.
 ```
