@@ -1642,7 +1642,7 @@ void AddStarGiftTable(
 			tr::lng_credits_box_history_entry_peer_in(),
 			MakePeerTableValue(table, show, peerId, send, handler),
 			st::giveawayGiftCodePeerMargin);
-	} else if (!entry.soldOutInfo) {
+	} else if (!entry.soldOutInfo && !giftToSelf) {
 		AddTableRow(
 			table,
 			tr::lng_credits_box_history_entry_peer_in(),
