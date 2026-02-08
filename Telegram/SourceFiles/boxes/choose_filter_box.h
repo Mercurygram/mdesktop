@@ -7,7 +7,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+namespace Main {
+class Session;
+} // namespace Main
+
 namespace Ui {
+class RpWidget;
 class PopupMenu;
 } // namespace Ui
 
@@ -52,3 +57,9 @@ bool FillChooseFilterWithAdminedGroupsMenu(
 	std::shared_ptr<rpl::event_stream<>> listUpdates,
 	std::vector<not_null<PeerData*>> common,
 	std::shared_ptr<std::vector<PeerId>> collectCommon);
+
+void SetupFilterDragAndDrop(
+	not_null<Ui::RpWidget*> outer,
+	not_null<Main::Session*> session,
+	Fn<std::optional<FilterId>(QPoint)> filterIdAtPosition,
+	Fn<FilterId()> activeFilterId);

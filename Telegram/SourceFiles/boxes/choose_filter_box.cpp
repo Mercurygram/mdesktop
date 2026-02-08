@@ -469,3 +469,85 @@ bool FillChooseFilterWithAdminedGroupsMenu(
 
 	return added;
 }
+
+void SetupFilterDragAndDrop(
+		not_null<Ui::RpWidget*> outer,
+		not_null<Main::Session*> session,
+		Fn<std::optional<FilterId>(QPoint)> filterIdAtPosition,
+		Fn<FilterId()> activeFilterId) {
+	const auto mimeFormat = u"application/x-telegram-dialog"_q;
+	const auto peerIdFromMime = [=](const QMimeData *mimeData) {
+		auto filterId = int64(-1);
+		if (mimeData->hasFormat(mimeFormat)) {
+			auto stream = QDataStream(mimeData->data(mimeFormat));
+			stream >> filterId;
+		}
+		return filterId;
+	};
+	const auto historyFromMime = [=](const QMimeData *mime) {
+		return session->data().historyLoaded(PeerId(peerIdFromMime(mime)));
+	};
+	const auto hasAction = [=](not_null<QDropEvent*> drop, bool perform) {
+		const auto mimeData = drop->mimeData();
+		const auto filterId = filterIdAtPosition(
+			outer->mapToGlobal(drop->pos()));
+		if (!filterId) {
+			return false;
+		}
+		const auto id = *filterId;
+		if (const auto h = historyFromMime(mimeData)) {
+			auto v = ChooseFilterValidator(h);
+			if (id) {
+				if (v.canAdd(id)) {
+					if (!v.limitReached(id, true).reached) {
+						if (perform) {
+							v.add(id);
+						}
+						return true;
+					}
+				}
+			} else {
+				if (const auto active = activeFilterId();
+						active && v.canRemove(active)) {
+					if (perform) {
+						v.remove(active);
+					}
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+	outer->setAcceptDrops(true);
+	outer->events(
+	) | rpl::filter([](not_null<QEvent*> e) {
+		return e->type() == QEvent::DragEnter
+			|| e->type() == QEvent::DragMove
+			|| e->type() == QEvent::DragLeave
+			|| e->type() == QEvent::Drop;
+	}) | rpl::on_next([=](not_null<QEvent*> e) {
+		if (e->type() == QEvent::DragEnter) {
+			const auto de = static_cast<QDragEnterEvent*>(e.get());
+			if (hasAction(de, false)) {
+				de->acceptProposedAction();
+			} else {
+				de->ignore();
+			}
+		} else if (e->type() == QEvent::DragMove) {
+			const auto dm = static_cast<QDragMoveEvent*>(e.get());
+			if (hasAction(dm, false)) {
+				dm->acceptProposedAction();
+			} else {
+				dm->ignore();
+			}
+		} else if (e->type() == QEvent::DragLeave) {
+		} else if (e->type() == QEvent::Drop) {
+			const auto drop = static_cast<QDropEvent*>(e.get());
+			if (hasAction(drop, true)) {
+				drop->acceptProposedAction();
+			} else {
+				drop->ignore();
+			}
+		}
+	}, outer->lifetime());
+}
