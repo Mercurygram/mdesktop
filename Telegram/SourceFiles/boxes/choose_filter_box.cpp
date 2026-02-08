@@ -216,6 +216,17 @@ bool ChooseFilterValidator::canAdd() const {
 	return false;
 }
 
+bool ChooseFilterValidator::canAdd(FilterId filterId) const {
+	Expects(filterId != 0);
+
+	const auto list = _history->owner().chatsFilters().list();
+	const auto i = ranges::find(list, filterId, &Data::ChatFilter::id);
+	if (i != end(list)) {
+		return !i->contains(_history);
+	}
+	return false;
+}
+
 bool ChooseFilterValidator::canRemove(FilterId filterId) const {
 	Expects(filterId != 0);
 

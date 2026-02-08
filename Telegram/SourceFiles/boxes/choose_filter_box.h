@@ -26,6 +26,7 @@ public:
 	};
 
 	[[nodiscard]] bool canAdd() const;
+	[[nodiscard]] bool canAdd(FilterId filterId) const;
 	[[nodiscard]] bool canRemove(FilterId filterId) const;
 	[[nodiscard]] LimitData limitReached(
 		FilterId filterId,
