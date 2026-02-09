@@ -500,7 +500,7 @@ void RegisterSettingsHandlers(Router &router) {
 		.path = u"privacy/blocked/block-user"_q,
 		.action = SettingsControl{
 			::Settings::BlockedPeersId(),
-			u"privacy/blocked/block-user"_q,
+			u"blocked/block-user"_q,
 		},
 	});
 
@@ -1786,14 +1786,14 @@ void RegisterSettingsHandlers(Router &router) {
 		.path = u"devices/terminate-sessions"_q,
 		.action = SettingsControl{
 			::Settings::SessionsId(),
-			u"devices/terminate-sessions"_q,
+			u"sessions/terminate-all"_q,
 		},
 	});
 	router.add(u"settings"_q, {
 		.path = u"devices/auto-terminate"_q,
 		.action = SettingsControl{
 			::Settings::SessionsId(),
-			u"devices/auto-terminate"_q,
+			u"sessions/auto-terminate"_q,
 		},
 	});
 
