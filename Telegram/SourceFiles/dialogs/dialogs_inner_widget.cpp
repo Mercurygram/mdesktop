@@ -1734,6 +1734,7 @@ void InnerWidget::performDrag() {
 
 	Ui::Animations::Manager::SetScheduleWithInvokeQueued(true);
 
+	_controller->cancelScheduledPreview();
 	// This call enters event loop and can destroy any QObject.
 	_controller->widget()->launchDrag(
 		std::move(mimeData),
