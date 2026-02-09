@@ -60,6 +60,12 @@ private:
 	void buildIndex();
 	void rebuildResults(const QString &query);
 	void rebuildFaqResults();
+	void selectByKeyboard(int newSelected);
+	void clearSelection();
+	void handleKeyNavigation(int key);
+	void scrollToButton(not_null<Ui::SettingsButton*> button);
+	void setupButtonMouseTracking(not_null<Ui::SettingsButton*> button);
+	void addButton(not_null<Ui::SettingsButton*> button);
 
 	std::unique_ptr<Ui::SearchFieldController> _searchController;
 	Ui::InputField *_searchField = nullptr;
@@ -71,6 +77,9 @@ private:
 	base::flat_map<QChar, base::flat_set<int>> _firstLetterIndex;
 	base::flat_map<int, Ui::SettingsButton*> _buttonCache;
 	int _faqStartIndex = 0;
+	std::vector<Ui::SettingsButton*> _visibleButtons;
+	base::flat_set<not_null<Ui::SettingsButton*>> _trackedButtons;
+	int _selected = -1;
 
 };
 
