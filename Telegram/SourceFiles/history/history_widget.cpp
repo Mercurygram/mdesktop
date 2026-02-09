@@ -409,8 +409,11 @@ HistoryWidget::HistoryWidget(
 		escape();
 	}, _field->lifetime());
 	_field->tabbed(
-	) | rpl::on_next([=] {
-		fieldTabbed();
+	) | rpl::on_next([=](not_null<bool*> handled) {
+		if (_supportAutocomplete) {
+			_supportAutocomplete->activate(_field.data());
+			*handled = true;
+		}
 	}, _field->lifetime());
 	_field->heightChanges(
 	) | rpl::on_next([=] {
@@ -7879,14 +7882,6 @@ bool HistoryWidget::showSlowmodeError() {
 	}
 	controller()->showToast(text);
 	return true;
-}
-
-void HistoryWidget::fieldTabbed() {
-	if (_supportAutocomplete) {
-		_supportAutocomplete->activate(_field.data());
-	}else{
-		focusNextPrevChild(true);
-	}
 }
 
 void HistoryWidget::sendInlineResult(InlineBots::ResultSelected result) {
