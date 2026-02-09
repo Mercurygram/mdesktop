@@ -9035,9 +9035,6 @@ bool HistoryWidget::cancelReply(
 			_fieldBarCancel->hide();
 			updateMouseTracking();
 		}
-		if (!keepHighlighterState) {
-			_highlighter.clear();
-		}
 		updateBotKeyboard();
 		refreshTopBarActiveChat();
 		updateCanSendMessage();
@@ -9064,6 +9061,9 @@ bool HistoryWidget::cancelReply(
 		if (_kbReplyTo) {
 			toggleKeyboard(false);
 		}
+	}
+	if (!keepHighlighterState) {
+		_highlighter.clear();
 	}
 	return wasReply;
 }
