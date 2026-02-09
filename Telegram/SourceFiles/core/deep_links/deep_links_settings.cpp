@@ -23,6 +23,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/chat_style.h"
 #include "boxes/star_gift_box.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/text/text_utilities.h"
 #include "ui/widgets/buttons.h"
 #include "boxes/username_box.h"
 #include "core/application.h"
@@ -56,6 +57,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/cloud_password/settings_cloud_password_email_confirm.h"
 #include "settings/cloud_password/settings_cloud_password_input.h"
 #include "settings/cloud_password/settings_cloud_password_start.h"
+#include "settings/cloud_password/settings_cloud_password_login_email.h"
 #include "api/api_cloud_password.h"
 #include "core/core_cloud_password.h"
 #include "settings/sections/settings_notifications.h"
@@ -68,6 +70,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/connection_box.h"
 #include "boxes/local_storage_box.h"
 #include "mainwindow.h"
+#include "window/window_controller.h"
 #include "window/window_session_controller.h"
 
 namespace Core::DeepLinks {
@@ -267,6 +270,48 @@ Result ShowAutoDeleteSetCustom(const Context &ctx) {
 	}
 	ctx.controller->setHighlightControlId(u"auto-delete/set-custom"_q);
 	ctx.controller->showSettings(::Settings::GlobalTTLId());
+	return Result::Handled;
+}
+
+Result ShowLoginEmail(const Context &ctx) {
+	if (!ctx.controller) {
+		return Result::NeedsAuth;
+	}
+	const auto controller = ctx.controller;
+	controller->session().api().cloudPassword().reload();
+	controller->uiShow()->show(Box([=](not_null<Ui::GenericBox*> box) {
+		{
+			box->getDelegate()->setTitle(
+				controller->session().api().cloudPassword().state(
+				) | rpl::map([](const Core::CloudPasswordState &state) {
+					return state.loginEmailPattern;
+				}) | rpl::map([](QString email) {
+					if (email.contains(' ')) {
+						return tr::lng_settings_cloud_login_email_section_title(
+							tr::now,
+							tr::rich);
+					}
+					return Ui::Text::WrapEmailPattern(std::move(email));
+				}));
+			for (const auto &child : ranges::views::reverse(
+					box->parentWidget()->children())) {
+				if (child && child->isWidgetType()) {
+					(static_cast<QWidget*>(child))->setAttribute(
+						Qt::WA_TransparentForMouseEvents);
+					break;
+				}
+			}
+		}
+		Ui::ConfirmBox(box, Ui::ConfirmBoxArgs{
+			.text = tr::lng_settings_cloud_login_email_box_about(),
+			.confirmed = [=](Fn<void()> close) {
+				controller->showSettings(::Settings::CloudLoginEmailId());
+				controller->window().activate();
+				close();
+			},
+			.confirmText = tr::lng_settings_cloud_login_email_box_ok(),
+		});
+	}));
 	return Result::Handled;
 }
 
@@ -2014,6 +2059,41 @@ void RegisterSettingsHandlers(Router &router) {
 			::Settings::NotificationsId(),
 			u"notifications/events/pinned"_q,
 		},
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"themes"_q,
+		.action = AliasTo{ u"settings"_q, u"appearance"_q },
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"change_number"_q,
+		.action = AliasTo{ u"settings"_q, u"edit/change-number"_q },
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"auto_delete"_q,
+		.action = AliasTo{ u"settings"_q, u"privacy/auto-delete"_q },
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"information"_q,
+		.action = AliasTo{ u"settings"_q, u"edit"_q },
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"edit_profile"_q,
+		.action = SettingsSection{ ::Settings::InformationId() },
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"phone_privacy"_q,
+		.action = AliasTo{ u"settings"_q, u"privacy/phone-number"_q },
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"login_email"_q,
+		.action = CodeBlock{ ShowLoginEmail },
 	});
 }
 
