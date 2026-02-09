@@ -1736,15 +1736,15 @@ void InnerWidget::performDrag() {
 	// This call enters event loop and can destroy any QObject.
 	_controller->widget()->launchDrag(
 		std::move(mimeData),
-		crl::guard(this, [=] {
+		[=, weak = base::make_weak(this)] {
 			Ui::Animations::Manager::SetScheduleWithInvokeQueued(false);
-			_qdragging = nullptr;
-			{
+			if (weak) {
+				_qdragging = nullptr;
 				clearPressed();
 				finishReorderOnRelease();
 				selectByMouse(QCursor::pos());
 			}
-		}),
+		},
 		pixmap);
 }
 
