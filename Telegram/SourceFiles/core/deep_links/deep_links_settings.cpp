@@ -2080,7 +2080,17 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"themes"_q,
-		.action = AliasTo{ u"settings"_q, u"appearance"_q },
+		.action = AliasTo{ u"settings"_q, u"appearance/themes"_q },
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"themes/edit"_q,
+		.action = AliasTo{ u"settings"_q, u"appearance/themes/edit"_q },
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"themes/create"_q,
+		.action = AliasTo{ u"settings"_q, u"appearance/themes/create"_q },
 	});
 
 	router.add(u"settings"_q, {
