@@ -1714,6 +1714,7 @@ void InnerWidget::performDrag() {
 		auto data = QByteArray();
 		auto stream = QDataStream(&data, QIODevice::WriteOnly);
 		stream << history->peer->id.value;
+		stream << history->session().isTestMode();
 		return data;
 	}();
 	mimeData->setData(

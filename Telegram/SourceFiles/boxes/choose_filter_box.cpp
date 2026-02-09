@@ -477,12 +477,17 @@ void SetupFilterDragAndDrop(
 		Fn<FilterId()> activeFilterId) {
 	const auto mimeFormat = u"application/x-telegram-dialog"_q;
 	const auto peerIdFromMime = [=](const QMimeData *mimeData) {
-		auto filterId = int64(-1);
+		auto peerId = int64(-1);
+		auto isTestMode = false;
 		if (mimeData->hasFormat(mimeFormat)) {
 			auto stream = QDataStream(mimeData->data(mimeFormat));
-			stream >> filterId;
+			stream >> peerId;
+			stream >> isTestMode;
+			if (isTestMode != session->isTestMode()) {
+				return int64(-1);
+			}
 		}
-		return filterId;
+		return peerId;
 	};
 	const auto historyFromMime = [=](const QMimeData *mime) {
 		return session->data().historyLoaded(PeerId(peerIdFromMime(mime)));
