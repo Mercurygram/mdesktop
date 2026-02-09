@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/notify/data_notify_settings.h"
 #include "info/info_memento.h"
 #include "info/peer_gifts/info_peer_gifts_widget.h"
+#include "info/settings/info_settings_widget.h"
 #include "info/stories/info_stories_widget.h"
 #include "lang/lang_keys.h"
 #include "ui/boxes/peer_qr_box.h"
@@ -63,6 +64,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_notifications.h"
 #include "settings/sections/settings_notifications_type.h"
 #include "settings/settings_power_saving.h"
+#include "settings/settings_search.h"
 #include "settings/sections/settings_premium.h"
 #include "ui/power_saving.h"
 #include "settings/sections/settings_privacy_security.h"
@@ -1724,7 +1726,22 @@ void RegisterSettingsHandlers(Router &router) {
 
 	router.add(u"settings"_q, {
 		.path = u"search"_q,
-		.action = SettingsSection{ ::Settings::MainId() },
+		.action = CodeBlock{ [](const Context &ctx) {
+			if (!ctx.controller) {
+				return Result::NeedsAuth;
+			}
+			const auto self = ctx.controller->session().user();
+			auto stack = std::vector<std::shared_ptr<Info::ContentMemento>>();
+			stack.push_back(std::make_shared<Info::Settings::Memento>(
+				self,
+				::Settings::MainId()));
+			stack.push_back(std::make_shared<Info::Settings::Memento>(
+				self,
+				::Settings::Search::Id()));
+			ctx.controller->showSection(
+				std::make_shared<Info::Memento>(std::move(stack)));
+			return Result::Handled;
+		}},
 	});
 
 	router.add(u"settings"_q, {
