@@ -37,7 +37,8 @@ public:
 	[[nodiscard]] rpl::producer<QString> title() override;
 
 	void setInnerFocus() override;
-	void setStepDataReference(std::any &data) override;
+	void sectionSaveState(std::any &state) override;
+	void sectionRestoreState(const std::any &state) override;
 	[[nodiscard]] base::weak_qptr<Ui::RpWidget> createPinnedToTop(
 		not_null<QWidget*> parent) override;
 
@@ -71,7 +72,6 @@ private:
 	Ui::InputField *_searchField = nullptr;
 	Ui::VerticalLayout *_list = nullptr;
 	base::flat_map<QString, ResultCustomization> _customizations;
-	std::any *_stepData = nullptr;
 	QString _pendingQuery;
 	std::vector<IndexedEntry> _entries;
 	base::flat_map<QChar, base::flat_set<int>> _firstLetterIndex;

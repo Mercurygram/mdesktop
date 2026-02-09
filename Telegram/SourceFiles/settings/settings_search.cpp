@@ -169,9 +169,6 @@ base::weak_qptr<Ui::RpWidget> Search::createPinnedToTop(
 	}, searchContainer->lifetime());
 
 	_searchController->queryChanges() | rpl::on_next([=](QString &&query) {
-		if (_stepData) {
-			*_stepData = SearchSectionState{ query };
-		}
 		rebuildResults(std::move(query));
 	}, searchContainer->lifetime());
 
@@ -201,7 +198,7 @@ base::weak_qptr<Ui::RpWidget> Search::createPinnedToTop(
 	}, lifetime());
 
 	if (!_pendingQuery.isEmpty()) {
-		_searchController->setQuery(base::take(_pendingQuery));
+		_searchField->setText(base::take(_pendingQuery));
 	}
 
 	return base::make_weak(not_null<Ui::RpWidget*>{ searchContainer });
@@ -566,16 +563,22 @@ void Search::rebuildResults(const QString &query) {
 	_list->resizeToWidth(_list->width());
 }
 
-void Search::setStepDataReference(std::any &data) {
-	_stepData = &data;
-	if (_stepData->has_value()) {
-		const auto state = std::any_cast<SearchSectionState>(_stepData);
-		if (state && !state->query.isEmpty()) {
-			if (_searchController) {
-				_searchController->setQuery(state->query);
-			} else {
-				_pendingQuery = state->query;
-			}
+void Search::sectionSaveState(std::any &state) {
+	const auto query = _searchController
+		? _searchController->query()
+		: _pendingQuery;
+	if (!query.isEmpty()) {
+		state = SearchSectionState{ query };
+	}
+}
+
+void Search::sectionRestoreState(const std::any &state) {
+	const auto saved = std::any_cast<SearchSectionState>(&state);
+	if (saved && !saved->query.isEmpty()) {
+		if (_searchField) {
+			_searchField->setText(saved->query);
+		} else {
+			_pendingQuery = saved->query;
 		}
 	}
 }
