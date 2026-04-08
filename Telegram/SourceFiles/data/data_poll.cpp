@@ -542,6 +542,7 @@ MTPPoll PollDataToMTP(not_null<const PollData*> poll, bool close) {
 		MTP_vector<MTPPollAnswer>(answers),
 		MTP_int(poll->closePeriod),
 		MTP_int(poll->closeDate),
+		MTP_vector<MTPstring>(), // countries_iso2
 		MTP_long(0));
 }
 
