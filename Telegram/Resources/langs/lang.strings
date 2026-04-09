@@ -7020,6 +7020,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_polls_solution_about" = "Users will see this comment after choosing a wrong answer, good for educational purposes.";
 "lng_polls_media_uploading_toast_title" = "Please wait";
 "lng_polls_media_uploading_toast" = "Poll media is still uploading...";
+"lng_polls_vote_restricted_subscribers_channel" = "Only subscribers of {channel} can vote.";
+"lng_polls_vote_restricted_subscribers" = "Only subscribers can vote.";
+"lng_polls_vote_restricted_subscribers_recent" = "Only subscribers who joined more than 24 hours ago can vote.";
+"lng_polls_vote_restricted_countries_list" = "Only users from {countries} can vote.";
+"lng_polls_vote_restricted_countries" = "Only users from selected countries can vote.";
 "lng_polls_ends_toast" = "Results will appear after the poll ends.";
 
 "lng_polls_poll_results_title" = "Poll results";

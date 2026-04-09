@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_updates.h"
 #include "apiwrap.h"
 #include "base/random.h"
+#include "countries/countries_instance.h"
 #include "data/business/data_shortcut_messages.h"
 #include "data/data_changes.h"
 #include "data/data_histories.h"
@@ -20,7 +21,164 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 #include "history/history_item.h"
 #include "history/history_item_helpers.h" // ShouldSendSilent
+#include "lang/lang_keys.h"
 #include "main/main_session.h"
+#include "styles/style_polls.h"
+#include "ui/toast/toast.h"
+#include "window/window_session_controller.h"
+
+namespace {
+
+constexpr auto kVoteRestrictionToastDuration = 5 * crl::time(1000);
+
+enum class VoteRestrictionError {
+	None,
+	SubscribersOnly,
+	SubscribersJoinedTooRecently,
+	Countries,
+};
+
+const auto kSubscribersOnlyVoteErrorPatterns = std::array{
+	u"POLL_SUBSCRIBERS_ONLY"_q,
+	u"POLL_MEMBER_RESTRICTED"_q,
+	u"VOTE_SUBSCRIBERS_ONLY"_q,
+	u"SUBSCRIBERS_ONLY"_q,
+	u"SUBSCRIBER_REQUIRED"_q,
+	u"SUBSCRIBER_ONLY"_q,
+};
+
+const auto kSubscribersJoinedTooRecentlyVoteErrorPatterns = std::array{
+	u"POLL_SUBSCRIBERS_TOO_RECENT"_q,
+	u"VOTE_SUBSCRIBERS_TOO_RECENT"_q,
+	u"SUBSCRIBERS_TOO_RECENT"_q,
+	u"SUBSCRIBER_TOO_RECENT"_q,
+	u"JOINED_TOO_RECENTLY"_q,
+	u"24_HOURS"_q,
+};
+
+const auto kCountriesVoteErrorPatterns = std::array{
+	u"POLL_COUNTRIES_ISO2"_q,
+	u"VOTE_COUNTRIES_ISO2"_q,
+	u"COUNTRIES_ISO2"_q,
+	u"COUNTRY_RESTRICTED"_q,
+	u"COUNTRY_ISO2"_q,
+};
+
+template <size_t Size>
+[[nodiscard]] bool MatchesErrorPattern(
+		const QString &type,
+		const std::array<QString, Size> &patterns) {
+	for (const auto &pattern : patterns) {
+		if (!pattern.isEmpty()
+			&& type.contains(pattern, Qt::CaseInsensitive)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+[[nodiscard]] VoteRestrictionError ParseVoteRestrictionError(
+		const QString &type) {
+	if (MatchesErrorPattern(
+			type,
+			kSubscribersJoinedTooRecentlyVoteErrorPatterns)) {
+		return VoteRestrictionError::SubscribersJoinedTooRecently;
+	} else if (MatchesErrorPattern(
+			type,
+			kSubscribersOnlyVoteErrorPatterns)) {
+		return VoteRestrictionError::SubscribersOnly;
+	} else if (MatchesErrorPattern(
+			type,
+			kCountriesVoteErrorPatterns)) {
+		return VoteRestrictionError::Countries;
+	}
+	return VoteRestrictionError::None;
+}
+
+[[nodiscard]] QString JoinCountryNames(
+		const std::vector<QString> &countriesIso2) {
+	auto countries = QStringList();
+	countries.reserve(int(countriesIso2.size()));
+	const auto &instance = Countries::Instance();
+	for (const auto &iso2 : countriesIso2) {
+		const auto name = instance.countryNameByISO2(iso2);
+		countries.push_back(name.isEmpty() ? iso2 : name);
+	}
+	if (countries.empty()) {
+		return QString();
+	}
+	auto result = countries.front();
+	for (auto i = 1, count = int(countries.size()); i != count; ++i) {
+		result = ((i + 1 == count)
+			? tr::lng_prizes_countries_and_last
+			: tr::lng_prizes_countries_and_one)(
+				tr::now,
+				lt_countries,
+				result,
+				lt_country,
+				countries[i]);
+	}
+	return result;
+}
+
+[[nodiscard]] TextWithEntities VoteRestrictionToastText(
+		VoteRestrictionError error,
+		not_null<PeerData*> peer,
+		not_null<const PollData*> poll) {
+	switch (error) {
+	case VoteRestrictionError::SubscribersOnly: {
+		const auto channel = peer->name();
+		return channel.isEmpty()
+			? tr::lng_polls_vote_restricted_subscribers(tr::now, tr::rich)
+			: tr::lng_polls_vote_restricted_subscribers_channel(
+				tr::now,
+				lt_channel,
+				tr::bold(channel),
+				tr::rich);
+	}
+	case VoteRestrictionError::SubscribersJoinedTooRecently:
+		return tr::lng_polls_vote_restricted_subscribers_recent(
+			tr::now,
+			tr::rich);
+	case VoteRestrictionError::Countries: {
+		const auto countries = JoinCountryNames(poll->countries);
+		return countries.isEmpty()
+			? tr::lng_polls_vote_restricted_countries(tr::now, tr::rich)
+			: tr::lng_polls_vote_restricted_countries_list(
+				tr::now,
+				lt_countries,
+				tr::bold(countries),
+				tr::rich);
+	}
+	case VoteRestrictionError::None:
+		break;
+	}
+	return {};
+}
+
+void ShowVoteRestrictionToast(
+		not_null<PeerData*> peer,
+		not_null<const PollData*> poll,
+		const MTP::Error &error) {
+	const auto parsed = ParseVoteRestrictionError(error.type());
+	if (parsed == VoteRestrictionError::None) {
+		return;
+	}
+	auto text = VoteRestrictionToastText(parsed, peer, poll);
+	if (text.text.isEmpty()) {
+		return;
+	}
+	if (const auto window = peer->session().tryResolveWindow(peer)) {
+		window->showToast({
+			.text = std::move(text),
+			.iconLottie = u"ban"_q,
+			.iconLottieSize = st::pollToastIconSize,
+			.duration = kVoteRestrictionToastDuration,
+		});
+	}
+}
+
+} // namespace
 
 namespace Api {
 
@@ -151,6 +309,7 @@ void Polls::sendVotes(
 	if (!item) {
 		return;
 	}
+	const auto peer = item->history()->peer;
 
 	const auto showSending = poll && !options.empty();
 	const auto hideSending = [=] {
@@ -179,16 +338,19 @@ void Polls::sendVotes(
 		ranges::back_inserter(prepared),
 		[](const QByteArray &option) { return MTP_bytes(option); });
 	const auto requestId = _api.request(MTPmessages_SendVote(
-		item->history()->peer->input(),
+		peer->input(),
 		MTP_int(item->id),
 		MTP_vector<MTPbytes>(prepared)
 	)).done([=](const MTPUpdates &result) {
 		_pollVotesRequestIds.erase(itemId);
 		hideSending();
 		_session->updates().applyUpdates(result);
-	}).fail([=] {
+	}).fail([=](const MTP::Error &error) {
 		_pollVotesRequestIds.erase(itemId);
 		hideSending();
+		if (poll) {
+			ShowVoteRestrictionToast(peer, poll, error);
+		}
 	}).send();
 	_pollVotesRequestIds.emplace(itemId, requestId);
 }
