@@ -105,7 +105,8 @@ bool PollData::applyChanges(const MTPDpoll &poll) {
 		| (poll.is_hide_results_until_close()
 			? Flag::HideResultsUntilClose
 			: Flag(0))
-		| (poll.is_creator() ? Flag::Creator : Flag(0));
+		| (poll.is_creator() ? Flag::Creator : Flag(0))
+		| (poll.is_subscribers_only() ? Flag::SubscribersOnly : Flag(0));
 	const auto newCloseDate = poll.vclose_date().value_or_empty();
 	const auto newClosePeriod = poll.vclose_period().value_or_empty();
 	auto newAnswers = ranges::views::all(
@@ -368,6 +369,10 @@ bool PollData::creator() const {
 	return (_flags & Flag::Creator);
 }
 
+bool PollData::subscribersOnly() const {
+	return (_flags & Flag::SubscribersOnly);
+}
+
 QString PollData::debugString() const {
 	auto result = QString();
 	result += u"Poll #"_q + QString::number(id) + u'\n';
@@ -383,6 +388,9 @@ QString PollData::debugString() const {
 	}
 	if (publicVotes()) {
 		result += u"[PublicVotes]"_q;
+	}
+	if (subscribersOnly()) {
+		result += u"[SubscribersOnly]"_q;
 	}
 	if (!result.endsWith(u'\n')) {
 		result += u'\n';
@@ -531,6 +539,7 @@ MTPPoll PollDataToMTP(not_null<const PollData*> poll, bool close) {
 		| (poll->hideResultsUntilClose()
 			? Flag::f_hide_results_until_close
 			: Flag(0))
+		| (poll->subscribersOnly() ? Flag::f_subscribers_only : Flag(0))
 		| (poll->closePeriod > 0 ? Flag::f_close_period : Flag(0))
 		| (poll->closeDate > 0 ? Flag::f_close_date : Flag(0));
 	return MTP_poll(

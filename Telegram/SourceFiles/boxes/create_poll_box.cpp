@@ -2537,6 +2537,7 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 
 	Ui::AddSkip(container);
 	Ui::AddSubsectionTitle(container, tr::lng_polls_create_settings());
+	const auto isBroadcastChannel = _peer->isChannel();
 
 	const auto showWhoVoted = (!(_disabled & PollData::Flag::PublicVotes))
 		? AddPollToggleButton(
@@ -2732,10 +2733,18 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 			st::settingsButtonNoIcon)
 	)->toggleOn(rpl::single(false));
 
-	Ui::AddSkip(durationInner);
-	Ui::AddDividerText(
-		durationInner,
-		tr::lng_polls_create_hide_results_about());
+	const auto restrictToSubscribers = isBroadcastChannel
+		? AddPollToggleButton(
+			container,
+			tr::lng_polls_create_restrict_to_subscribers(),
+			tr::lng_polls_create_restrict_to_subscribers_about(),
+			{
+				.icon = &st::pollBoxFilledPollSubscribersIcon,
+				.background = &st::settingsIconBg4,
+			},
+			rpl::single(!!(_chosen & PollData::Flag::SubscribersOnly)),
+			st::detailedSettingsButtonStyle).get()
+		: nullptr;
 
 	const auto solution = setupSolution(
 		container,
@@ -2775,6 +2784,10 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 	};
 	quiz->setToggleLocked(_disabled & PollData::Flag::Quiz);
 	shuffle->setToggleLocked(_disabled & PollData::Flag::ShuffleAnswers);
+	if (restrictToSubscribers) {
+		restrictToSubscribers->setToggleLocked(
+			_disabled & PollData::Flag::SubscribersOnly);
+	}
 	updateQuizDependentLocks(quiz->toggled());
 
 	using namespace rpl::mappers;
@@ -2862,6 +2875,8 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 		}
 		const auto publicVotes = (showWhoVoted && showWhoVoted->toggled());
 		const auto multiChoice = multiple->toggled();
+		const auto subscribersOnly = (restrictToSubscribers
+			&& restrictToSubscribers->toggled());
 		const auto hideResultsEnabled = duration->toggled()
 			&& hideResults->toggled();
 		result.setFlags(Flag(0)
@@ -2871,6 +2886,7 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 			| (!revoting->toggled() ? Flag::RevotingDisabled : Flag(0))
 			| (shuffle->toggled() ? Flag::ShuffleAnswers : Flag(0))
 			| (quiz->toggled() ? Flag::Quiz : Flag(0))
+			| (subscribersOnly ? Flag::SubscribersOnly : Flag(0))
 			| (hideResultsEnabled
 				? Flag::HideResultsUntilClose
 				: Flag(0)));
@@ -3049,6 +3065,9 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 	duration->finishAnimating();
 	durationWrap->finishAnimating();
 	hideResults->finishAnimating();
+	if (restrictToSubscribers) {
+		restrictToSubscribers->finishAnimating();
+	}
 
 	return result;
 }
