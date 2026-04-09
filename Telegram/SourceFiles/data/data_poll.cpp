@@ -8,11 +8,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_poll.h"
 
 #include "api/api_text_entities.h"
+#include "countries/countries_instance.h"
 #include "data/data_document.h"
 #include "data/data_photo.h"
 #include "data/data_user.h"
 #include "data/data_session.h"
 #include "base/call_delayed.h"
+#include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "ui/text/text_options.h"
 
@@ -645,4 +647,41 @@ MTPInputMedia PollDataToInputMedia(
 		poll->solutionMedia
 			? PollMediaToMTP(poll->solutionMedia)
 			: MTPInputMedia());
+}
+
+QString JoinPollCountries(const std::vector<QString> &countriesIso2) {
+	auto countries = QStringList();
+	countries.reserve(int(countriesIso2.size()));
+	const auto &instance = Countries::Instance();
+	for (const auto &iso2 : countriesIso2) {
+		const auto name = instance.countryNameByISO2(iso2);
+		countries.push_back(name.isEmpty() ? iso2 : name);
+	}
+	if (countries.empty()) {
+		return QString();
+	}
+	auto result = countries.front();
+	for (auto i = 1, count = int(countries.size()); i != count; ++i) {
+		result = ((i + 1 == count)
+			? tr::lng_prizes_countries_and_last
+			: tr::lng_prizes_countries_and_one)(
+				tr::now,
+				lt_countries,
+				result,
+				lt_country,
+				countries[i]);
+	}
+	return result;
+}
+
+TextWithEntities PollCountriesRestrictionText(
+		const std::vector<QString> &countries) {
+	const auto joined = JoinPollCountries(countries);
+	return joined.isEmpty()
+		? tr::lng_polls_vote_restricted_countries(tr::now, tr::rich)
+		: tr::lng_polls_vote_restricted_countries_list(
+			tr::now,
+			lt_countries,
+			tr::bold(joined),
+			tr::rich);
 }

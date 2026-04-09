@@ -3444,8 +3444,14 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 	if (leaderOrSelf && !_menu->empty()) {
 		const auto media = leaderOrSelf->media();
 		const auto poll = media ? media->poll() : nullptr;
-		if (poll && !poll->closed() && poll->hideResultsUntilClose()) {
-			HistoryView::InsertPollHiddenResultsLabel(_menu.get());
+		if (poll && !poll->closed()) {
+			if (poll->hideResultsUntilClose()) {
+				HistoryView::InsertPollHiddenResultsLabel(_menu.get());
+			}
+			HistoryView::InsertPollVoteRestrictionsLabel(
+				_menu.get(),
+				leaderOrSelf,
+				poll);
 		}
 	}
 

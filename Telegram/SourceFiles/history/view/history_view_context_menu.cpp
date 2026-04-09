@@ -1310,22 +1310,74 @@ rpl::producer<QString> VoiceTimecodeUpdates(FullMsgId itemId) {
 	}) | rpl::distinct_until_changed();
 }
 
-void InsertPollHiddenResultsLabel(not_null<Ui::PopupMenu*> menu) {
+void InsertPollMenuLabel(
+		not_null<Ui::PopupMenu*> menu,
+		TextWithEntities text,
+		const style::MenuSeparator &separatorSt) {
 	auto label = base::make_unique_q<Ui::Menu::MultilineAction>(
 		menu->menu(),
 		menu->st().menu,
 		st::historyHasCustomEmoji,
 		st::historyHasCustomEmojiPosition,
-		tr::lng_polls_context_ends(tr::now, tr::rich));
+		std::move(text));
+	label->setAttribute(Qt::WA_TransparentForMouseEvents);
 	menu->insertAction(0, std::move(label));
 	const auto sepAction = new QAction(menu->menu());
 	sepAction->setSeparator(true);
 	auto separator = base::make_unique_q<Ui::Menu::Separator>(
 		menu->menu(),
 		menu->st().menu,
-		menu->st().menu.separator,
+		separatorSt,
 		sepAction);
 	menu->insertAction(1, std::move(separator));
+}
+
+void InsertPollHiddenResultsLabel(not_null<Ui::PopupMenu*> menu) {
+	InsertPollMenuLabel(
+		menu,
+		tr::lng_polls_context_ends(tr::now, tr::rich),
+		menu->st().menu.separator);
+}
+
+[[nodiscard]] TextWithEntities PollVoteRestrictionsLabelText(
+		not_null<HistoryItem*> item,
+		not_null<PollData*> poll) {
+	auto result = TextWithEntities();
+	if (poll->subscribersOnly()) {
+		const auto peer = item->history()->peer.get();
+		const auto channel = peer->isBroadcast()
+			? peer->name()
+			: QString();
+		result = channel.isEmpty()
+			? tr::lng_polls_vote_restricted_subscribers_recent(
+				tr::now,
+				tr::rich)
+			: tr::lng_polls_vote_restricted_subscribers_channel(
+				tr::now,
+				lt_channel,
+				tr::bold(channel),
+				tr::rich);
+	}
+	if (!poll->countries.empty()) {
+		auto countriesText = PollCountriesRestrictionText(poll->countries);
+		if (result.text.isEmpty()) {
+			result = std::move(countriesText);
+		} else {
+			result.append('\n').append(std::move(countriesText));
+		}
+	}
+	return result;
+}
+
+void InsertPollVoteRestrictionsLabel(
+		not_null<Ui::PopupMenu*> menu,
+		not_null<HistoryItem*> item,
+		not_null<PollData*> poll) {
+	auto text = PollVoteRestrictionsLabelText(item, poll);
+	if (text.text.isEmpty()) {
+		return;
+	}
+	InsertPollMenuLabel(menu, std::move(text), st::expandedMenuSeparator);
 }
 
 ContextMenuRequest::ContextMenuRequest(
@@ -1528,8 +1580,11 @@ base::unique_qptr<Ui::PopupMenu> FillContextMenu(
 	if (item) {
 		const auto media = item->media();
 		const auto poll = media ? media->poll() : nullptr;
-		if (poll && !poll->closed() && poll->hideResultsUntilClose()) {
-			InsertPollHiddenResultsLabel(result.get());
+		if (poll && !poll->closed()) {
+			if (poll->hideResultsUntilClose()) {
+				InsertPollHiddenResultsLabel(result.get());
+			}
+			InsertPollVoteRestrictionsLabel(result.get(), item, poll);
 		}
 	}
 

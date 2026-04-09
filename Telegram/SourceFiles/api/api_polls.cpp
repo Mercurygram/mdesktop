@@ -15,7 +15,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/call_delayed.h"
 #include "base/qt/qt_key_modifiers.h"
 #include "base/random.h"
-#include "countries/countries_instance.h"
 #include "data/business/data_shortcut_messages.h"
 #include "data/data_changes.h"
 #include "data/data_histories.h"
@@ -99,32 +98,6 @@ template <size_t Size>
 	return VoteRestrictionError::None;
 }
 
-[[nodiscard]] QString JoinCountryNames(
-		const std::vector<QString> &countriesIso2) {
-	auto countries = QStringList();
-	countries.reserve(int(countriesIso2.size()));
-	const auto &instance = Countries::Instance();
-	for (const auto &iso2 : countriesIso2) {
-		const auto name = instance.countryNameByISO2(iso2);
-		countries.push_back(name.isEmpty() ? iso2 : name);
-	}
-	if (countries.empty()) {
-		return QString();
-	}
-	auto result = countries.front();
-	for (auto i = 1, count = int(countries.size()); i != count; ++i) {
-		result = ((i + 1 == count)
-			? tr::lng_prizes_countries_and_last
-			: tr::lng_prizes_countries_and_one)(
-				tr::now,
-				lt_countries,
-				result,
-				lt_country,
-				countries[i]);
-	}
-	return result;
-}
-
 [[nodiscard]] TextWithEntities VoteRestrictionToastText(
 		VoteRestrictionError error,
 		not_null<PeerData*> peer,
@@ -144,16 +117,8 @@ template <size_t Size>
 		return tr::lng_polls_vote_restricted_subscribers_recent(
 			tr::now,
 			tr::rich);
-	case VoteRestrictionError::Countries: {
-		const auto countries = JoinCountryNames(poll->countries);
-		return countries.isEmpty()
-			? tr::lng_polls_vote_restricted_countries(tr::now, tr::rich)
-			: tr::lng_polls_vote_restricted_countries_list(
-				tr::now,
-				lt_countries,
-				tr::bold(countries),
-				tr::rich);
-	}
+	case VoteRestrictionError::Countries:
+		return PollCountriesRestrictionText(poll->countries);
 	case VoteRestrictionError::None:
 		break;
 	}

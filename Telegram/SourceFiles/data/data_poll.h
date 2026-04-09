@@ -141,6 +141,11 @@ inline constexpr auto kDefaultPollCreateFlags = PollData::Flag::PublicVotes
 	| PollData::Flag::OpenAnswers
 	| PollData::Flag::ShuffleAnswers;
 
+[[nodiscard]] QString JoinPollCountries(
+	const std::vector<QString> &countriesIso2);
+[[nodiscard]] TextWithEntities PollCountriesRestrictionText(
+	const std::vector<QString> &countries);
+
 [[nodiscard]] QByteArray PollOptionFromLink(const QString &value);
 [[nodiscard]] QString PollOptionToLink(const QByteArray &option);
 
