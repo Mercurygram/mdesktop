@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_polls.h"
 
 #include "api/api_common.h"
+#include "api/api_statistics_data_deserialize.h"
 #include "api/api_text_entities.h"
 #include "api/api_updates.h"
 #include "apiwrap.h"
@@ -18,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_histories.h"
 #include "data/data_poll.h"
 #include "data/data_session.h"
+#include "data/data_statistics_chart.h"
 #include "history/history.h"
 #include "history/history_item.h"
 #include "history/history_item_helpers.h" // ShouldSendSilent
@@ -471,6 +473,52 @@ void Polls::reloadResults(not_null<HistoryItem*> item) {
 		_pollReloadRequestIds.erase(itemId);
 	}).send();
 	_pollReloadRequestIds.emplace(itemId, requestId);
+}
+
+void Polls::requestStats(
+		FullMsgId itemId,
+		Fn<void(Data::StatisticalGraph)> done,
+		Fn<void(QString)> fail) {
+	const auto item = _session->data().message(itemId);
+	if (!item || !item->isRegular()) {
+		if (fail) {
+			fail(QString());
+		}
+		return;
+	}
+	const auto requestGraph = [=](const QString &token) {
+		_api.request(MTPstats_LoadAsyncGraph(
+			MTP_flags(MTPstats_LoadAsyncGraph::Flag(0)),
+			MTP_string(token),
+			MTP_long(0)
+		)).done([=](const MTPStatsGraph &result) {
+			if (done) {
+				done(Api::StatisticalGraphFromTL(result));
+			}
+		}).fail([=](const MTP::Error &error) {
+			if (fail) {
+				fail(error.type());
+			}
+		}).send();
+	};
+	_api.request(MTPstats_GetPollStats(
+		MTP_flags(MTPstats_GetPollStats::Flags(0)),
+		item->history()->peer->input(),
+		MTP_int(item->id)
+	)).done([=](const MTPstats_PollStats &result) {
+		auto graph = Api::StatisticalGraphFromTL(result.data().vvotes_graph());
+		if (graph.chart || !graph.error.isEmpty() || graph.zoomToken.isEmpty()) {
+			if (done) {
+				done(std::move(graph));
+			}
+		} else {
+			requestGraph(graph.zoomToken);
+		}
+	}).fail([=](const MTP::Error &error) {
+		if (fail) {
+			fail(error.type());
+		}
+	}).send();
 }
 
 } // namespace Api

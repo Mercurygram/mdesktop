@@ -77,6 +77,7 @@ struct PollData {
 		HideResultsUntilClose = 0x080,
 		Creator               = 0x100,
 		SubscribersOnly       = 0x200,
+		CanViewStats          = 0x400,
 	};
 	friend inline constexpr bool is_flag_type(Flag) { return true; };
 	using Flags = base::flags<Flag>;
@@ -103,6 +104,7 @@ struct PollData {
 	[[nodiscard]] bool hideResultsUntilClose() const;
 	[[nodiscard]] bool creator() const;
 	[[nodiscard]] bool subscribersOnly() const;
+	[[nodiscard]] bool canViewStats() const;
 
 	[[nodiscard]] QString debugString() const;
 

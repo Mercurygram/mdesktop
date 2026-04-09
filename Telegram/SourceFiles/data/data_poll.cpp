@@ -188,6 +188,21 @@ bool PollData::applyResults(const MTPPollResults &results) {
 		const auto newTotalVoters
 			= results.vtotal_voters().value_or(totalVoters);
 		auto changed = (newTotalVoters != totalVoters);
+		const auto setCanViewStats = [&](bool value) {
+			const auto previous = (_flags & Flag::CanViewStats);
+			if (previous == value) {
+				return;
+			}
+			if (value) {
+				_flags |= Flag::CanViewStats;
+			} else {
+				_flags &= ~Flag::CanViewStats;
+			}
+			changed = true;
+		};
+		if (!results.is_min() || results.is_can_view_stats()) {
+			setCanViewStats(results.is_can_view_stats());
+		}
 		if (const auto list = results.vresults()) {
 			for (const auto &result : list->v) {
 				if (applyResultToAnswers(result, results.is_min())) {
@@ -382,6 +397,10 @@ bool PollData::subscribersOnly() const {
 	return (_flags & Flag::SubscribersOnly);
 }
 
+bool PollData::canViewStats() const {
+	return (_flags & Flag::CanViewStats);
+}
+
 QString PollData::debugString() const {
 	auto result = QString();
 	result += u"Poll #"_q + QString::number(id) + u'\n';
@@ -400,6 +419,9 @@ QString PollData::debugString() const {
 	}
 	if (subscribersOnly()) {
 		result += u"[SubscribersOnly]"_q;
+	}
+	if (canViewStats()) {
+		result += u"[CanViewStats]"_q;
 	}
 	if (!result.endsWith(u'\n')) {
 		result += u'\n';

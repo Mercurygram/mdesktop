@@ -27,6 +27,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_item_text.h"
 #include "history/view/history_view_schedule_box.h"
 #include "history/view/media/history_view_media.h"
+#include "history/view/media/menu/history_view_poll_menu.h"
 #include "history/view/media/history_view_save_document_action.h"
 #include "history/view/media/history_view_web_page.h"
 #include "history/view/reactions/history_view_reactions_list.h"
@@ -1891,10 +1892,15 @@ void AddPollActions(
 		&& (context != Context::ChatPreview)) {
 		return;
 	}
+	const auto itemId = item->fullId();
+	if (poll->canViewStats() && item->isRegular()) {
+		menu->addAction(tr::lng_polls_view_stats(tr::now), [=] {
+			ShowPollStatsBox(controller, itemId);
+		}, &st::menuIconStats);
+	}
 	if (poll->closed()) {
 		return;
 	}
-	const auto itemId = item->fullId();
 	if (!skipRetractVote
 		&& poll->voted()
 		&& !poll->quiz()

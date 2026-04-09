@@ -6947,7 +6947,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_polls_answers_count#other" = "{count} answers";
 "lng_polls_answers_none" = "No answers";
 "lng_polls_submit_votes" = "Vote";
+"lng_polls_view_stats" = "View Stats";
 "lng_polls_view_results" = "View results";
+"lng_polls_stats_title" = "Poll Stats";
 "lng_polls_view_votes#one" = "View Votes ({count})";
 "lng_polls_view_votes#other" = "View Votes ({count})";
 "lng_polls_admin_votes#one" = "{count} vote {arrow}";
