@@ -114,6 +114,7 @@ struct PollData {
 	TextWithEntities solution;
 	PollMedia attachedMedia;
 	PollMedia solutionMedia;
+	std::vector<QString> countries;
 	TimeId closePeriod = 0;
 	TimeId closeDate = 0;
 	int totalVoters = 0;

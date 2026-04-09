@@ -6997,6 +6997,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_polls_create_hide_results_about" = "If you switch this on, results will appear only after the poll closes.";
 "lng_polls_create_restrict_to_subscribers" = "Restrict to Subscribers";
 "lng_polls_create_restrict_to_subscribers_about" = "Only subscribers who joined 24+ hours ago can vote.";
+"lng_polls_create_limit_by_country" = "Limit by Country";
+"lng_polls_create_limit_by_country_about" = "Only users from selected countries can vote.";
+"lng_polls_create_allowed_countries" = "Allowed Countries";
+"lng_polls_create_countries_count#one" = "{count} country";
+"lng_polls_create_countries_count#other" = "{count} countries";
+"lng_polls_create_choose_country" = "Please choose at least one country.";
 "lng_polls_create_duration_custom" = "Custom";
 "lng_polls_create_deadline_title" = "Deadline";
 "lng_polls_create_deadline_button" = "Set Deadline";

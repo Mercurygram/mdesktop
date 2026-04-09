@@ -109,6 +109,13 @@ bool PollData::applyChanges(const MTPDpoll &poll) {
 		| (poll.is_subscribers_only() ? Flag::SubscribersOnly : Flag(0));
 	const auto newCloseDate = poll.vclose_date().value_or_empty();
 	const auto newClosePeriod = poll.vclose_period().value_or_empty();
+	auto newCountries = std::vector<QString>();
+	if (const auto countries = poll.vcountries_iso2()) {
+		newCountries.reserve(countries->v.size());
+		for (const auto &country : countries->v) {
+			newCountries.push_back(qs(country));
+		}
+	}
 	auto newAnswers = ranges::views::all(
 		poll.vanswers().v
 	) | ranges::views::transform([&](const MTPPollAnswer &data) {
@@ -146,6 +153,7 @@ bool PollData::applyChanges(const MTPDpoll &poll) {
 	const auto changed1 = (question != newQuestion)
 		|| (closeDate != newCloseDate)
 		|| (closePeriod != newClosePeriod)
+		|| (countries != newCountries)
 		|| (_flags != newFlags);
 	const auto changed2 = (answers != newAnswers);
 	if (!changed1 && !changed2) {
@@ -155,6 +163,7 @@ bool PollData::applyChanges(const MTPDpoll &poll) {
 		question = newQuestion;
 		closeDate = newCloseDate;
 		closePeriod = newClosePeriod;
+		countries = std::move(newCountries);
 		_flags = newFlags;
 	}
 	if (changed2) {
@@ -410,6 +419,13 @@ QString PollData::debugString() const {
 	if (!solution.text.isEmpty()) {
 		result += u"Solution: "_q + solution.text + u'\n';
 	}
+	if (!countries.empty()) {
+		result += u"Countries: "_q + countries.front();
+		for (auto i = 1, count = int(countries.size()); i != count; ++i) {
+			result += u", "_q + countries[i];
+		}
+		result += u'\n';
+	}
 	return result;
 }
 
@@ -528,6 +544,11 @@ MTPPoll PollDataToMTP(not_null<const PollData*> poll, bool close) {
 		poll->answers,
 		ranges::back_inserter(answers),
 		convert);
+	auto countries = QVector<MTPstring>();
+	countries.reserve(poll->countries.size());
+	for (const auto &country : poll->countries) {
+		countries.push_back(MTP_string(country));
+	}
 	using Flag = MTPDpoll::Flag;
 	const auto flags = ((poll->closed() || close) ? Flag::f_closed : Flag(0))
 		| (poll->multiChoice() ? Flag::f_multiple_choice : Flag(0))
@@ -541,7 +562,8 @@ MTPPoll PollDataToMTP(not_null<const PollData*> poll, bool close) {
 			: Flag(0))
 		| (poll->subscribersOnly() ? Flag::f_subscribers_only : Flag(0))
 		| (poll->closePeriod > 0 ? Flag::f_close_period : Flag(0))
-		| (poll->closeDate > 0 ? Flag::f_close_date : Flag(0));
+		| (poll->closeDate > 0 ? Flag::f_close_date : Flag(0))
+		| (countries.isEmpty() ? Flag(0) : Flag::f_countries_iso2);
 	return MTP_poll(
 		MTP_long(poll->id),
 		MTP_flags(flags),
@@ -551,7 +573,7 @@ MTPPoll PollDataToMTP(not_null<const PollData*> poll, bool close) {
 		MTP_vector<MTPPollAnswer>(answers),
 		MTP_int(poll->closePeriod),
 		MTP_int(poll->closeDate),
-		MTP_vector<MTPstring>(), // countries_iso2
+		MTP_vector<MTPstring>(std::move(countries)), // countries_iso2
 		MTP_long(0));
 }
 

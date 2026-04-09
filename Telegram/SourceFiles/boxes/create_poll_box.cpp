@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/event_filter.h"
 #include "base/random.h"
 #include "base/unique_qptr.h"
+#include "countries/countries_instance.h"
 #include "chat_helpers/emoji_suggestions_widget.h"
 #include "chat_helpers/message_field.h"
 #include "chat_helpers/tabbed_panel.h"
@@ -38,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/stickers/data_custom_emoji.h"
 #include "history/view/media/menu/history_view_poll_menu.h"
 #include "history/view/history_view_schedule_box.h"
+#include "info/channel_statistics/boosts/giveaway/select_countries_box.h"
 #include "lang/lang_keys.h"
 #include "layout/layout_document_generic_preview.h"
 #include "main/main_app_config.h"
@@ -1458,6 +1460,7 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 		rpl::event_stream<bool> showWhoVotedForceOn;
 		rpl::variable<int> closePeriod = 0;
 		rpl::variable<TimeId> closeDate = TimeId(0);
+		rpl::variable<std::vector<QString>> countriesValue;
 		std::shared_ptr<PollMediaState> descriptionMedia
 			= std::make_shared<PollMediaState>();
 		std::shared_ptr<PollMediaState> solutionMedia
@@ -2745,6 +2748,68 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 			rpl::single(!!(_chosen & PollData::Flag::SubscribersOnly)),
 			st::detailedSettingsButtonStyle).get()
 		: nullptr;
+	const auto limitByCountry = isBroadcastChannel
+		? AddPollToggleButton(
+			container,
+			tr::lng_polls_create_limit_by_country(),
+			tr::lng_polls_create_limit_by_country_about(),
+			{
+				.icon = &st::pollBoxFilledPollCountryIcon,
+				.background = &st::settingsIconBg6,
+			},
+			rpl::single(false),
+			st::detailedSettingsButtonStyle).get()
+		: nullptr;
+	const auto countriesWrap = limitByCountry
+		? container->add(
+			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+				container,
+				object_ptr<Ui::VerticalLayout>(container)))
+		: nullptr;
+	const auto countriesButton = [=] {
+		if (!countriesWrap) {
+			return (Ui::SettingsButton*)(nullptr);
+		}
+		const auto inner = countriesWrap->entity();
+		return AddButtonWithLabel(
+			inner,
+			tr::lng_polls_create_allowed_countries(),
+			state->countriesValue.value(
+			) | rpl::map([=](const std::vector<QString> &countries) {
+				if (countries.empty()) {
+					return QString();
+				}
+				if (countries.size() == 1) {
+					return Countries::Instance().countryNameByISO2(
+						countries.front());
+				}
+				return tr::lng_polls_create_countries_count(
+					tr::now,
+					lt_count,
+					countries.size());
+			}),
+			st::settingsButtonNoIcon).get();
+	}();
+	if (countriesWrap) {
+		countriesWrap->toggleOn(
+			rpl::single(limitByCountry->toggled())
+				| rpl::then(limitByCountry->toggledChanges()));
+	}
+	if (countriesButton) {
+		countriesButton->setClickedCallback([=] {
+			const auto done = [=](std::vector<QString> countries) {
+				state->countriesValue = std::move(countries);
+			};
+			const auto checkError = [](int) {
+				return false;
+			};
+			show->show(Box(
+				Ui::SelectCountriesBox,
+				state->countriesValue.current(),
+				done,
+				checkError));
+		});
+	}
 
 	const auto solution = setupSolution(
 		container,
@@ -2879,6 +2944,10 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 			&& restrictToSubscribers->toggled());
 		const auto hideResultsEnabled = duration->toggled()
 			&& hideResults->toggled();
+		result.countries = (limitByCountry
+			&& limitByCountry->toggled())
+			? state->countriesValue.current()
+			: std::vector<QString>();
 		result.setFlags(Flag(0)
 			| (publicVotes ? Flag::PublicVotes : Flag(0))
 			| (multiChoice ? Flag::MultiChoice : Flag(0))
@@ -2950,6 +3019,13 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 		} else {
 			state->error &= ~Error::Deadline;
 		}
+		if (limitByCountry
+			&& limitByCountry->toggled()
+			&& state->countriesValue.current().empty()) {
+			state->error |= Error::Country;
+		} else {
+			state->error &= ~Error::Country;
+		}
 	};
 	const auto showError = [show = uiShow()](
 			tr::phrase<> text) {
@@ -3009,6 +3085,11 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 			ShowMediaUploadingToast();
 		} else if (state->error & Error::Deadline) {
 			showError(tr::lng_polls_create_deadline_expired);
+		} else if (state->error & Error::Country) {
+			showError(tr::lng_polls_create_choose_country);
+			if (countriesButton) {
+				scrollToWidget(countriesButton);
+			}
 		} else if (!state->error) {
 			auto result = collectResult();
 			result.options = sendOptions;
@@ -3067,6 +3148,12 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 	hideResults->finishAnimating();
 	if (restrictToSubscribers) {
 		restrictToSubscribers->finishAnimating();
+	}
+	if (limitByCountry) {
+		limitByCountry->finishAnimating();
+	}
+	if (countriesWrap) {
+		countriesWrap->finishAnimating();
 	}
 
 	return result;
