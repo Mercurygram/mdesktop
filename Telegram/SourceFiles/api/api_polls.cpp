@@ -12,6 +12,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_text_entities.h"
 #include "api/api_updates.h"
 #include "apiwrap.h"
+#include "base/call_delayed.h"
+#include "base/qt/qt_key_modifiers.h"
 #include "base/random.h"
 #include "countries/countries_instance.h"
 #include "data/business/data_shortcut_messages.h"
@@ -179,6 +181,102 @@ void ShowVoteRestrictionToast(
 		});
 	}
 }
+
+#ifdef _DEBUG
+[[nodiscard]] Data::StatisticalGraph GenerateMockupPollStats(
+		const PollData &poll) {
+	auto chart = Data::StatisticalChart();
+	const auto colorKeys = std::array<QString, 10>{
+		u"BLUE"_q,
+		u"GREEN"_q,
+		u"RED"_q,
+		u"GOLDEN"_q,
+		u"LIGHTBLUE"_q,
+		u"LIGHTGREEN"_q,
+		u"ORANGE"_q,
+		u"INDIGO"_q,
+		u"PURPLE"_q,
+		u"CYAN"_q,
+	};
+
+	constexpr auto kPoints = 14;
+	constexpr auto kOneDay = float64(24 * 60 * 60 * 1000);
+	constexpr auto kStart = float64(1704067200000);
+	chart.x.reserve(kPoints);
+	for (auto i = 0; i != kPoints; ++i) {
+		chart.x.push_back(kStart + i * kOneDay);
+	}
+	chart.timeStep = kOneDay;
+
+	auto lineId = 0;
+	chart.lines.reserve(poll.answers.size());
+	for (const auto &answer : poll.answers) {
+		auto line = Data::StatisticalChart::Line();
+		line.id = ++lineId;
+		line.idString = u"answer_%1"_q.arg(line.id);
+		line.name = answer.text.text.trimmed();
+		if (line.name.isEmpty()) {
+			line.name = QString("#%1").arg(line.id);
+		}
+		line.colorKey = colorKeys[(line.id - 1) % int(colorKeys.size())];
+		line.y.reserve(kPoints);
+
+		auto seed = int64(13 * line.id + 17);
+		for (const auto byte : answer.option) {
+			seed += uchar(byte);
+		}
+		const auto base = std::max(int64(answer.votes), int64(1));
+		for (auto i = 0; i != kPoints; ++i) {
+			const auto wave = int64(
+				((i + line.id) % 5) * ((i + 2 * line.id) % 4));
+			const auto trend = int64((i * (line.id + 1)) / 3);
+			const auto noise = int64((seed + i * 7 + line.id * 11) % 6);
+			const auto value = std::max(
+				base + wave + trend + noise - 2,
+				int64(1));
+			line.y.push_back(value);
+			line.maxValue = std::max(line.maxValue, value);
+			line.minValue = std::min(line.minValue, value);
+		}
+		chart.lines.push_back(std::move(line));
+	}
+	if (chart.lines.empty()) {
+		auto line = Data::StatisticalChart::Line();
+		line.id = 1;
+		line.idString = u"votes"_q;
+		line.name = tr::lng_notification_reactions_poll_votes(tr::now);
+		line.colorKey = u"BLUE"_q;
+		line.y.reserve(kPoints);
+
+		const auto base = std::max(int64(poll.totalVoters), int64(1));
+		for (auto i = 0; i != kPoints; ++i) {
+			const auto value = std::max(
+				base + i * 2 + ((i * 5) % 7),
+				int64(1));
+			line.y.push_back(value);
+			line.maxValue = std::max(line.maxValue, value);
+			line.minValue = std::min(line.minValue, value);
+		}
+		chart.lines.push_back(std::move(line));
+	}
+
+	chart.defaultZoomXIndex = {
+		.min = std::max(0, kPoints - 8),
+		.max = kPoints - 1,
+	};
+	chart.measure();
+	if (chart.maxValue == chart.minValue) {
+		if (chart.minValue) {
+			chart.minValue = 0;
+		} else {
+			chart.maxValue = 1;
+		}
+	}
+	return {
+		.chart = std::move(chart),
+	};
+}
+#endif
 
 } // namespace
 
@@ -480,12 +578,27 @@ void Polls::requestStats(
 		Fn<void(Data::StatisticalGraph)> done,
 		Fn<void(QString)> fail) {
 	const auto item = _session->data().message(itemId);
-	if (!item || !item->isRegular()) {
+	const auto media = item ? item->media() : nullptr;
+	const auto poll = media ? media->poll() : nullptr;
+	if (!item || !item->isRegular() || !poll) {
 		if (fail) {
 			fail(QString());
 		}
 		return;
 	}
+#ifdef _DEBUG
+	if (base::IsCtrlPressed()) {
+		auto callback = std::move(done);
+		if (callback) {
+			constexpr auto kMockupStatsDelay = 2 * crl::time(1000);
+			auto graph = GenerateMockupPollStats(*poll);
+			base::call_delayed(kMockupStatsDelay, _session, [=]() mutable {
+				callback(std::move(graph));
+			});
+		}
+		return;
+	}
+#endif
 	const auto requestGraph = [=](const QString &token) {
 		_api.request(MTPstats_LoadAsyncGraph(
 			MTP_flags(MTPstats_LoadAsyncGraph::Flag(0)),
