@@ -34,13 +34,6 @@ namespace {
 
 constexpr auto kVoteRestrictionToastDuration = 5 * crl::time(1000);
 
-enum class VoteRestrictionError {
-	None,
-	SubscribersOnly,
-	SubscribersJoinedTooRecently,
-	Countries,
-};
-
 const auto kSubscribersOnlyVoteErrorPatterns = std::array{
 	u"POLL_SUBSCRIBERS_ONLY"_q,
 	u"POLL_MEMBER_RESTRICTED"_q,
@@ -80,60 +73,32 @@ template <size_t Size>
 	return false;
 }
 
-[[nodiscard]] VoteRestrictionError ParseVoteRestrictionError(
+[[nodiscard]] PollData::VoteRestriction ParseVoteRestrictionError(
 		const QString &type) {
 	if (MatchesErrorPattern(
 			type,
 			kSubscribersJoinedTooRecentlyVoteErrorPatterns)) {
-		return VoteRestrictionError::SubscribersJoinedTooRecently;
+		return PollData::VoteRestriction::SubscribersJoinedTooRecently;
 	} else if (MatchesErrorPattern(
 			type,
 			kSubscribersOnlyVoteErrorPatterns)) {
-		return VoteRestrictionError::SubscribersOnly;
+		return PollData::VoteRestriction::SubscribersOnly;
 	} else if (MatchesErrorPattern(
 			type,
 			kCountriesVoteErrorPatterns)) {
-		return VoteRestrictionError::Countries;
+		return PollData::VoteRestriction::Countries;
 	}
-	return VoteRestrictionError::None;
-}
-
-[[nodiscard]] TextWithEntities VoteRestrictionToastText(
-		VoteRestrictionError error,
-		not_null<PeerData*> peer,
-		not_null<const PollData*> poll) {
-	switch (error) {
-	case VoteRestrictionError::SubscribersOnly: {
-		const auto channel = peer->name();
-		return channel.isEmpty()
-			? tr::lng_polls_vote_restricted_subscribers(tr::now, tr::rich)
-			: tr::lng_polls_vote_restricted_subscribers_channel(
-				tr::now,
-				lt_channel,
-				tr::bold(channel),
-				tr::rich);
-	}
-	case VoteRestrictionError::SubscribersJoinedTooRecently:
-		return tr::lng_polls_vote_restricted_subscribers_recent(
-			tr::now,
-			tr::rich);
-	case VoteRestrictionError::Countries:
-		return PollCountriesRestrictionText(poll->countries);
-	case VoteRestrictionError::None:
-		break;
-	}
-	return {};
+	return PollData::VoteRestriction::None;
 }
 
 void ShowVoteRestrictionToast(
 		not_null<PeerData*> peer,
 		not_null<const PollData*> poll,
-		const MTP::Error &error) {
-	const auto parsed = ParseVoteRestrictionError(error.type());
-	if (parsed == VoteRestrictionError::None) {
+		PollData::VoteRestriction restriction) {
+	if (restriction == PollData::VoteRestriction::None) {
 		return;
 	}
-	auto text = VoteRestrictionToastText(parsed, peer, poll);
+	auto text = PollVoteRestrictionText(restriction, peer, poll);
 	if (text.text.isEmpty()) {
 		return;
 	}
@@ -409,12 +374,26 @@ void Polls::sendVotes(
 	)).done([=](const MTPUpdates &result) {
 		_pollVotesRequestIds.erase(itemId);
 		hideSending();
+		if (poll) {
+			if (poll->voteRestriction() != PollData::VoteRestriction::None) {
+				poll->setVoteRestriction(PollData::VoteRestriction::None);
+				_session->data().notifyPollUpdateDelayed(poll);
+			}
+		}
 		_session->updates().applyUpdates(result);
 	}).fail([=](const MTP::Error &error) {
 		_pollVotesRequestIds.erase(itemId);
 		hideSending();
 		if (poll) {
-			ShowVoteRestrictionToast(peer, poll, error);
+			const auto restriction = ParseVoteRestrictionError(error.type());
+			if (restriction != PollData::VoteRestriction::None) {
+				poll->setVoteRestriction(restriction);
+				_session->data().notifyPollUpdateDelayed(poll);
+				if (const auto item = _session->data().message(itemId)) {
+					_session->data().requestItemResize(item);
+				}
+				ShowVoteRestrictionToast(peer, poll, restriction);
+			}
 		}
 	}).send();
 	_pollVotesRequestIds.emplace(itemId, requestId);

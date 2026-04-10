@@ -81,6 +81,12 @@ struct PollData {
 	};
 	friend inline constexpr bool is_flag_type(Flag) { return true; };
 	using Flags = base::flags<Flag>;
+	enum class VoteRestriction {
+		None,
+		SubscribersOnly,
+		SubscribersJoinedTooRecently,
+		Countries,
+	};
 
 	bool closeByTimer();
 	bool applyChanges(const MTPDpoll &poll);
@@ -105,6 +111,9 @@ struct PollData {
 	[[nodiscard]] bool creator() const;
 	[[nodiscard]] bool subscribersOnly() const;
 	[[nodiscard]] bool canViewStats() const;
+	void setVoteRestriction(VoteRestriction restriction);
+	[[nodiscard]] VoteRestriction voteRestriction() const;
+	[[nodiscard]] crl::time voteRestrictionUpdated() const;
 
 	[[nodiscard]] QString debugString() const;
 
@@ -132,6 +141,8 @@ private:
 
 	const not_null<Data::Session*> _owner;
 	Flags _flags = Flags();
+	VoteRestriction _voteRestriction = VoteRestriction::None;
+	crl::time _voteRestrictionUpdated = 0;
 	crl::time _lastResultsUpdate = 0; // < 0 means force reload.
 
 };
@@ -145,6 +156,10 @@ inline constexpr auto kDefaultPollCreateFlags = PollData::Flag::PublicVotes
 	const std::vector<QString> &countriesIso2);
 [[nodiscard]] TextWithEntities PollCountriesRestrictionText(
 	const std::vector<QString> &countries);
+[[nodiscard]] TextWithEntities PollVoteRestrictionText(
+	PollData::VoteRestriction restriction,
+	not_null<PeerData*> peer,
+	not_null<const PollData*> poll);
 
 [[nodiscard]] QByteArray PollOptionFromLink(const QString &value);
 [[nodiscard]] QString PollOptionToLink(const QByteArray &option);

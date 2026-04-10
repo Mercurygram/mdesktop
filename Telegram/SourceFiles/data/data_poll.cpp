@@ -403,6 +403,24 @@ bool PollData::canViewStats() const {
 	return (_flags & Flag::CanViewStats);
 }
 
+void PollData::setVoteRestriction(VoteRestriction restriction) {
+	_voteRestrictionUpdated = (restriction == VoteRestriction::None)
+		? 0
+		: crl::now();
+	if (_voteRestriction != restriction) {
+		_voteRestriction = restriction;
+		++version;
+	}
+}
+
+PollData::VoteRestriction PollData::voteRestriction() const {
+	return _voteRestriction;
+}
+
+crl::time PollData::voteRestrictionUpdated() const {
+	return _voteRestrictionUpdated;
+}
+
 QString PollData::debugString() const {
 	auto result = QString();
 	result += u"Poll #"_q + QString::number(id) + u'\n';
@@ -684,4 +702,31 @@ TextWithEntities PollCountriesRestrictionText(
 			lt_countries,
 			tr::bold(joined),
 			tr::rich);
+}
+
+TextWithEntities PollVoteRestrictionText(
+		PollData::VoteRestriction restriction,
+		not_null<PeerData*> peer,
+		not_null<const PollData*> poll) {
+	switch (restriction) {
+	case PollData::VoteRestriction::SubscribersOnly: {
+		const auto channel = peer->name();
+		return channel.isEmpty()
+			? tr::lng_polls_vote_restricted_subscribers(tr::now, tr::rich)
+			: tr::lng_polls_vote_restricted_subscribers_channel(
+				tr::now,
+				lt_channel,
+				tr::bold(channel),
+				tr::rich);
+	}
+	case PollData::VoteRestriction::SubscribersJoinedTooRecently:
+		return tr::lng_polls_vote_restricted_subscribers_recent(
+			tr::now,
+			tr::rich);
+	case PollData::VoteRestriction::Countries:
+		return PollCountriesRestrictionText(poll->countries);
+	case PollData::VoteRestriction::None:
+		break;
+	}
+	return {};
 }
