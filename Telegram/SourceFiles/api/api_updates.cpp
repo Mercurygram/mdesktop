@@ -1209,6 +1209,7 @@ void Updates::applyUpdatesNoPtsCheck(const MTPUpdates &updates) {
 				d.vfwd_from() ? *d.vfwd_from() : MTPMessageFwdHeader(),
 				MTP_long(d.vvia_bot_id().value_or_empty()),
 				MTPlong(), // via_business_bot_id
+				MTPPeer(), // guestchat_via_from
 				d.vreply_to() ? *d.vreply_to() : MTPMessageReplyHeader(),
 				d.vdate(),
 				d.vmessage(),
@@ -1252,6 +1253,7 @@ void Updates::applyUpdatesNoPtsCheck(const MTPUpdates &updates) {
 				d.vfwd_from() ? *d.vfwd_from() : MTPMessageFwdHeader(),
 				MTP_long(d.vvia_bot_id().value_or_empty()),
 				MTPlong(), // via_business_bot_id
+				MTPPeer(), // guestchat_via_from
 				d.vreply_to() ? *d.vreply_to() : MTPMessageReplyHeader(),
 				d.vdate(),
 				d.vmessage(),
