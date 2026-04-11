@@ -4455,6 +4455,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 "lng_inline_bot_no_results" = "No results.";
 "lng_inline_bot_via" = "via {inline_bot}";
+"lng_guest_chat_for" = "for {user}";
 
 "lng_box_remove" = "Remove";
 

@@ -891,6 +891,9 @@ QSize Message::performCountOptimalSize() {
 					namew += st::msgServiceFont->spacew + via->maxWidth
 						+ (_fromNameStatus ? st::msgServiceFont->spacew : 0);
 				}
+				if (const auto guestChat = item->Get<HistoryMessageGuestChat>()) {
+					namew += st::msgServiceFont->spacew + guestChat->maxWidth;
+				}
 				if (Has<RightBadge>()) {
 					namew += st::msgPadding.right() + rightBadgeWidth();
 				}
@@ -1903,6 +1906,20 @@ void Message::paintFromName(
 		auto skipWidth = via->width + st::msgServiceFont->spacew;
 		availableLeft += skipWidth;
 		availableWidth -= skipWidth;
+	}
+	if (const auto guestChat = item->Get<HistoryMessageGuestChat>()) {
+		if (availableWidth > 0) {
+			p.setPen(stm->msgServiceFg);
+			paintLinkRipple(
+				p,
+				guestChat->link,
+				QRect(availableLeft, trect.top(), guestChat->width, st::msgServiceFont->height),
+				trect.topLeft());
+			p.drawText(availableLeft, trect.top() + st::msgServiceFont->ascent, guestChat->text);
+			auto skipWidth = guestChat->width + st::msgServiceFont->spacew;
+			availableLeft += skipWidth;
+			availableWidth -= skipWidth;
+		}
 	}
 	if (badgeWidth) {
 		p.setPen(stm->msgDateFg);
@@ -2927,6 +2944,9 @@ bool Message::hasFromPhoto() const {
 				return !hasOutLayout();
 			}
 		}
+		if (item->isGuestChatBotMessage()) {
+			return true;
+		}
 		return !item->out() && !item->history()->peer->isUser();
 	} break;
 	case Context::ContactPreview:
@@ -3324,6 +3344,24 @@ bool Message::getStateFromName(
 			outResult->link = via->link;
 			recordLinkRipplePoint(point, trect.topLeft());
 			return true;
+		}
+		if (const auto guestChat = item->Get<HistoryMessageGuestChat>()) {
+			auto guestChatLeft = availableLeft + nameText->maxWidth()
+				+ st::msgServiceFont->spacew;
+			if (via && !displayForwardedFrom()) {
+				guestChatLeft += via->width + st::msgServiceFont->spacew;
+			}
+			if (_fromNameStatus) {
+				guestChatLeft += st::dialogsPremiumIcon.icon.width()
+					+ st::msgServiceFont->spacew;
+			}
+			if (point.x() >= guestChatLeft
+				&& point.x() < availableLeft + availableWidth
+				&& point.x() < guestChatLeft + guestChat->width) {
+				outResult->link = guestChat->link;
+				recordLinkRipplePoint(point, trect.topLeft());
+				return true;
+			}
 		}
 		if (badgeWidth) {
 			const auto badge = Get<RightBadge>();
@@ -4338,7 +4376,7 @@ bool Message::hasFromName() const {
 				}
 			}
 			return false;
-		} else if (!peer->isUser()) {
+		} else if (!peer->isUser() || item->isGuestChatBotMessage()) {
 			if (const auto media = this->media()) {
 				return !media->hideFromName();
 			}
@@ -4415,6 +4453,9 @@ bool Message::hasOutLayout() const {
 				return false;
 			}
 		}
+	}
+	if (item->isGuestChatBotMessage()) {
+		return false;
 	}
 	return item->out() && !item->isPost();
 }
@@ -4921,6 +4962,33 @@ void Message::fromNameUpdated(int width) const {
 					: 0)
 				- st::msgServiceFont->spacew);
 		}
+	}
+	if (const auto guestChat = item->Get<HistoryMessageGuestChat>()) {
+		const auto nameText = [&]() -> const Ui::Text::String * {
+			if (from) {
+				return &_fromName;
+			} else if (const auto info = item->originalHiddenSenderInfo()) {
+				return &info->nameText();
+			} else {
+				Unexpected("Corrupted forwarded information in message.");
+			}
+		}();
+		auto viaWidth = 0;
+		if (const auto via = item->Get<HistoryMessageVia>()) {
+			if (!displayForwardedFrom()) {
+				viaWidth = st::msgServiceFont->spacew + via->width;
+			}
+		}
+		guestChat->resize(width
+			- st::msgPadding.left()
+			- st::msgPadding.right()
+			- nameText->maxWidth()
+			- (_fromNameStatus
+				? (st::dialogsPremiumIcon.icon.width()
+					+ st::msgServiceFont->spacew)
+				: 0)
+			- st::msgServiceFont->spacew
+			- viaWidth);
 	}
 }
 

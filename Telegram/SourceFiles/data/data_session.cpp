@@ -591,6 +591,7 @@ not_null<UserData*> Session::processUser(const MTPUser &data) {
 				info->hasMainApp = data.is_bot_has_main_app();
 				info->userCreatesTopics = data.is_bot_forum_can_manage_topics();
 				info->canManageBots = data.is_bot_can_manage_bots();
+				info->supportsGuestChat = data.is_bot_guestchat();
 			}
 		}
 
