@@ -2761,6 +2761,14 @@ bool History::loadedAtTop() const {
 	return _loadedAtTop;
 }
 
+bool History::hasGuestChatBotMessages() const {
+	return _flags & Flag::HasGuestChatBotMessages;
+}
+
+void History::setHasGuestChatBotMessages() {
+	_flags |= Flag::HasGuestChatBotMessages;
+}
+
 bool History::isReadyFor(MsgId msgId) {
 	if (msgId < 0 && -msgId < ServerMaxMsgId && peer->migrateFrom()) {
 		// Old group history.

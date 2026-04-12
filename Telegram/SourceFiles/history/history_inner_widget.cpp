@@ -912,7 +912,8 @@ bool HistoryInner::canHaveFromUserpics() const {
 		&& !_peer->isSelf()
 		&& !_peer->isRepliesChat()
 		&& !_peer->isVerifyCodes()
-		&& !_isChatWide) {
+		&& !_isChatWide
+		&& !_history->hasGuestChatBotMessages()) {
 		return false;
 	} else if (const auto channel = _peer->asBroadcast()) {
 		return channel->signatureProfiles();

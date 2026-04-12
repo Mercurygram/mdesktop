@@ -813,6 +813,9 @@ HistoryItem::HistoryItem(
 	if (_effectId) {
 		_history->owner().reactions().preloadEffectImageFor(_effectId);
 	}
+	if (isGuestChatBotMessage()) {
+		_history->setHasGuestChatBotMessages();
+	}
 }
 
 HistoryItem::HistoryItem(

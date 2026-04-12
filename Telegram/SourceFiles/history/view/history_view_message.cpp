@@ -2538,6 +2538,10 @@ void Message::clickHandlerPressedChanged(
 		&& (handler == via->link)
 		&& !displayForwardedFrom()) {
 		startLinkRipple();
+	} else if (const auto guestChat = data()->Get<HistoryMessageGuestChat>()
+		; guestChat
+		&& (handler == guestChat->link)) {
+		startLinkRipple();
 	} else if (const auto forwarded = data()->Get<HistoryMessageForwarded>()
 		; forwarded
 		&& displayForwardedFrom()
