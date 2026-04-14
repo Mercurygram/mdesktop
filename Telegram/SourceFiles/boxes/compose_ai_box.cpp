@@ -24,7 +24,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/stickers/data_custom_emoji.h"
 #include "lang/lang_keys.h"
 #include "main/session/session_show.h"
-#include "main/main_app_config.h"
 #include "main/main_session.h"
 #include "settings/sections/settings_premium.h"
 #include "spellcheck/platform/platform_language.h"
@@ -218,25 +217,6 @@ enum class CardState {
 	return ComposeAiColorWithAlpha(
 		ripple.color,
 		opacity);
-}
-
-[[nodiscard]] Ui::LabeledEmojiTab ResolveStyleDescriptor(
-		const Main::AppConfig::AiComposeStyle &style) {
-	return {
-		.id = style.type,
-		.label = style.title,
-		.customEmojiData = Data::SerializeCustomEmojiId(style.emojiId),
-	};
-}
-
-[[nodiscard]] std::vector<Ui::LabeledEmojiTab> ResolveStyleDescriptors(
-		const std::vector<Main::AppConfig::AiComposeStyle> &styles) {
-	auto result = std::vector<Ui::LabeledEmojiTab>();
-	result.reserve(styles.size());
-	for (const auto &style : styles) {
-		result.push_back(ResolveStyleDescriptor(style));
-	}
-	return result;
 }
 
 [[nodiscard]] Ui::LabeledEmojiTab ResolveStyleDescriptor(
