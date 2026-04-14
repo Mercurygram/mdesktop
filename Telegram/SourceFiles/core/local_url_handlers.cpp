@@ -40,6 +40,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/toast/toast.h"
 #include "ui/vertical_list.h"
 #include "data/components/credits.h"
+#include "data/data_ai_compose_tones.h"
 #include "data/data_birthday.h"
 #include "data/data_channel.h"
 #include "data/data_document.h"
@@ -290,6 +291,48 @@ bool ShowTheme(
 		&controller->window(),
 		match->captured(1),
 		fromMessageId);
+	controller->window().activate();
+	return true;
+}
+
+bool ShowAiStyle(
+		Window::SessionController *controller,
+		const Match &match,
+		const QVariant &context) {
+	if (!controller) {
+		return false;
+	}
+	const auto slug = match->captured(1);
+	Core::App().hideMediaView();
+	const auto weak = base::make_weak(controller);
+	auto &tones = controller->session().data().aiComposeTones();
+	tones.resolve(slug, [=](Data::AiComposeTone tone) {
+		const auto strong = weak.get();
+		if (!strong) {
+			return;
+		}
+		strong->window().show(Ui::MakeConfirmBox({
+			.text = tr::lng_ai_compose_tone_save_sure(
+				tr::now,
+				lt_title,
+				tone.title),
+			.confirmed = [=](Fn<void()> &&close) {
+				close();
+				strong->session().data().aiComposeTones().save(
+					tone,
+					false);
+				strong->window().showToast(
+					tr::lng_ai_compose_tone_saved(tr::now));
+			},
+			.confirmText = tr::lng_ai_compose_tone_save(),
+		}));
+	}, [=](const MTP::Error &error) {
+		const auto strong = weak.get();
+		if (!strong) {
+			return;
+		}
+		strong->window().showToast(tr::lng_ai_compose_error(tr::now));
+	});
 	controller->window().activate();
 	return true;
 }
@@ -1662,6 +1705,10 @@ const std::vector<LocalUrlHandler> &LocalUrlHandlers() {
 			ShowTheme
 		},
 		{
+			u"^aistyle/?\\?slug=([a-zA-Z0-9\\.\\_]+)(&|$)"_q,
+			ShowAiStyle
+		},
+		{
 			u"^setlanguage/?(\\?lang=([a-zA-Z0-9\\.\\_\\-]+))?(&|$)"_q,
 			SetLanguage
 		},
@@ -1878,6 +1925,8 @@ QString TryConvertUrlToLocal(QString url) {
 			return u"tg://"_q + stickerSetMatch->captured(1) + "?set=" + url_encode(stickerSetMatch->captured(2));
 		} else if (const auto themeMatch = regex_match(u"^addtheme/([a-zA-Z0-9\\.\\_]+)(\\?|$)"_q, query, matchOptions)) {
 			return u"tg://addtheme?slug="_q + url_encode(themeMatch->captured(1));
+		} else if (const auto aiStyleMatch = regex_match(u"^aistyle/([a-zA-Z0-9\\.\\_]+)(\\?|$)"_q, query, matchOptions)) {
+			return u"tg://aistyle?slug="_q + url_encode(aiStyleMatch->captured(1));
 		} else if (const auto languageMatch = regex_match(u"^setlanguage/([a-zA-Z0-9\\.\\_\\-]+)(\\?|$)"_q, query, matchOptions)) {
 			return u"tg://setlanguage?lang="_q + url_encode(languageMatch->captured(1));
 		} else if (const auto shareUrlMatch = regex_match(u"^share/url/?\\?(.+)$"_q, query, matchOptions)) {

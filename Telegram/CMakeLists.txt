@@ -386,6 +386,8 @@ PRIVATE
     boxes/transfer_gift_box.h
     boxes/compose_ai_box.cpp
     boxes/compose_ai_box.h
+    boxes/create_ai_tone_box.cpp
+    boxes/create_ai_tone_box.h
     boxes/translate_box.cpp
     boxes/translate_box.h
     boxes/url_auth_box.cpp
@@ -611,6 +613,8 @@ PRIVATE
     data/data_abstract_sparse_ids.h
     data/data_abstract_structure.cpp
     data/data_abstract_structure.h
+    data/data_ai_compose_tones.cpp
+    data/data_ai_compose_tones.h
     data/data_audio_msg_id.cpp
     data/data_audio_msg_id.h
     data/data_auto_download.cpp

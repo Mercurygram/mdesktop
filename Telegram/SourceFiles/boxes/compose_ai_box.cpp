@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "api/api_compose_with_ai.h"
 #include "apiwrap.h"
+#include "boxes/create_ai_tone_box.h"
 #include "boxes/premium_preview_box.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "chat_helpers/stickers_lottie.h"
@@ -16,10 +17,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/click_handler_types.h"
 #include "core/core_settings.h"
 #include "core/ui_integration.h"
+#include "data/data_ai_compose_tones.h"
 #include "data/data_document.h"
+#include "data/data_session.h"
 #include "data/data_user.h"
 #include "data/stickers/data_custom_emoji.h"
-#include "data/data_session.h"
 #include "lang/lang_keys.h"
 #include "main/session/session_show.h"
 #include "main/main_app_config.h"
@@ -28,6 +30,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "spellcheck/platform/platform_language.h"
 #include "ui/boxes/about_cocoon_box.h"
 #include "ui/boxes/choose_language_box.h"
+#include "ui/boxes/confirm_box.h"
 #include "ui/chat/chat_style.h"
 #include "ui/controls/labeled_emoji_tabs.h"
 #include "ui/controls/send_button.h"
@@ -46,15 +49,19 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/labels.h"
+#include "ui/widgets/popup_menu.h"
 #include "ui/widgets/tooltip.h"
 #include "styles/style_basic.h"
 #include "styles/style_boxes.h"
 #include "styles/style_chat_helpers.h"
 #include "styles/style_layers.h"
+#include "styles/style_menu_icons.h"
 #include "styles/style_widgets.h"
 
 #include <algorithm>
 #include <array>
+
+#include <QtGui/QGuiApplication>
 
 namespace HistoryView::Controls {
 namespace {
@@ -232,6 +239,27 @@ enum class CardState {
 	return result;
 }
 
+[[nodiscard]] Ui::LabeledEmojiTab ResolveStyleDescriptor(
+		const Data::AiComposeTone &tone) {
+	return {
+		.id = tone.isDefault ? tone.defaultType : QString::number(tone.id),
+		.label = tone.title,
+		.customEmojiData = tone.emojiId
+			? Data::SerializeCustomEmojiId(tone.emojiId)
+			: QString(),
+	};
+}
+
+[[nodiscard]] std::vector<Ui::LabeledEmojiTab> ResolveStyleDescriptors(
+		const std::vector<Data::AiComposeTone> &tones) {
+	auto result = std::vector<Ui::LabeledEmojiTab>();
+	result.reserve(tones.size());
+	for (const auto &tone : tones) {
+		result.push_back(ResolveStyleDescriptor(tone));
+	}
+	return result;
+}
+
 [[nodiscard]] std::vector<Ui::LabeledEmojiTab> ResolveTranslateStyleDescriptors(
 		not_null<Main::Session*> session,
 		const std::vector<Ui::LabeledEmojiTab> &styles) {
@@ -247,6 +275,17 @@ enum class CardState {
 	});
 	result.insert(end(result), begin(styles), end(styles));
 	return result;
+}
+
+[[nodiscard]] auto WithAddStyleTab(std::vector<Ui::LabeledEmojiTab> tabs)
+-> std::vector<Ui::LabeledEmojiTab> {
+	tabs.push_back({
+		.id = u"_add_style"_q,
+		.label = tr::lng_ai_compose_add_style(tr::now),
+		.icon = &st::aiComposeAddStyleIcon,
+		.iconActive = &st::aiComposeAddStyleIconOver,
+	});
+	return tabs;
 }
 
 [[nodiscard]] TextWithEntities LoadingTitleSparkle(
@@ -364,6 +403,7 @@ public:
 	[[nodiscard]] bool hasResult() const;
 	[[nodiscard]] const TextWithEntities &result() const;
 	[[nodiscard]] const std::vector<Ui::LabeledEmojiTab> &stylesData() const;
+	[[nodiscard]] const std::vector<Data::AiComposeTone> &tones() const;
 	void setReadyChangedCallback(Fn<void(bool)> callback);
 	void setLoadingChangedCallback(Fn<void(bool)> callback);
 	void setPremiumFloodCallback(Fn<void()> callback);
@@ -400,6 +440,7 @@ private:
 	const TextWithEntities _original;
 	const LanguageId _detectedFrom;
 	LanguageId _to;
+	const std::vector<Data::AiComposeTone> _tones;
 	const std::vector<Ui::LabeledEmojiTab> _stylesData;
 	const std::vector<Ui::LabeledEmojiTab> _translateStylesData;
 	QPointer<ComposeAiModeTabs> _tabs;
@@ -934,8 +975,8 @@ ComposeAiContent::ComposeAiContent(
 , _original(std::move(args.text))
 , _detectedFrom(Platform::Language::Recognize(_original.text))
 , _to(DefaultAiTranslateTo(_detectedFrom))
-, _stylesData(ResolveStyleDescriptors(
-	_session->appConfig().aiComposeStyles()))
+, _tones(_session->data().aiComposeTones().list())
+, _stylesData(ResolveStyleDescriptors(_tones))
 , _translateStylesData(ResolveTranslateStyleDescriptors(_session, _stylesData))
 , _preview(
 	Ui::CreateChild<ComposeAiPreviewCard>(
@@ -971,6 +1012,10 @@ const std::vector<Ui::LabeledEmojiTab> &ComposeAiContent::stylesData() const {
 	return _stylesData;
 }
 
+const std::vector<Data::AiComposeTone> &ComposeAiContent::tones() const {
+	return _tones;
+}
+
 void ComposeAiContent::setReadyChangedCallback(Fn<void(bool)> callback) {
 	_readyChanged = std::move(callback);
 }
@@ -994,7 +1039,7 @@ void ComposeAiContent::setStyleTabs(
 	_stylesWrap->setDuration(0);
 	_styles = stylesWrap->entity();
 	_styles->setChangedCallback([=](int index) {
-		if (index >= 0 && index < int(_stylesData.size())) {
+		if (index >= 0 && index < int(_tones.size())) {
 			const auto wasNoSelection = (_styleIndex < 0);
 			_styleIndex = index;
 			updateTitles();
@@ -1004,6 +1049,9 @@ void ComposeAiContent::setStyleTabs(
 					_styleSelected();
 				}
 			}
+		} else if (index == int(_tones.size())) {
+			_styles->setActive(_styleIndex);
+			_box->uiShow()->show(Box(CreateAiToneBox, _session, nullptr));
 		}
 	});
 	_styles->setActive(_styleIndex);
@@ -1173,13 +1221,21 @@ void ComposeAiContent::request() {
 		.emojify = (_mode != ComposeAiMode::Fix) && _emojify,
 	};
 	switch (_mode) {
-	case ComposeAiMode::Translate:
+	case ComposeAiMode::Translate: {
 		request.translateToLang = _to.twoLetterCode();
-		request.changeTone = currentTranslateStyle();
-		break;
+		const auto style = currentTranslateStyle();
+		if (!style.isEmpty()) {
+			request.setDefaultTone(style);
+		}
+	} break;
 	case ComposeAiMode::Style:
-		if (_styleIndex >= 0) {
-			request.changeTone = _stylesData[_styleIndex].id;
+		if (_styleIndex >= 0 && _styleIndex < int(_tones.size())) {
+			const auto &tone = _tones[_styleIndex];
+			if (tone.isDefault) {
+				request.setDefaultTone(tone.defaultType);
+			} else {
+				request.setCustomTone(tone.id, tone.accessHash);
+			}
 		}
 		break;
 	case ComposeAiMode::Fix:
@@ -1440,11 +1496,63 @@ void ComposeAiBox(not_null<Ui::GenericBox*> box, ComposeAiBoxArgs &&args) {
 			pinnedToTop,
 			object_ptr<Ui::LabeledEmojiScrollTabs>(
 				pinnedToTop,
-				content->stylesData(),
+				WithAddStyleTab(content->stylesData()),
 				std::move(emojiFactory)),
 			tabsSkip),
 		st::aiComposeContentMargin);
 	stylesWrap->hide(anim::type::instant);
+
+	const auto contextMenu = box->lifetime().make_state<
+		base::unique_qptr<Ui::PopupMenu>>();
+	stylesWrap->entity()->setContextMenuCallback([=](int index, QPoint globalPos) {
+		const auto &tones = content->tones();
+		if (index < 0 || index >= int(tones.size())) {
+			return;
+		}
+		const auto &tone = tones[index];
+		if (!tone.creator) {
+			return;
+		}
+		*contextMenu = base::make_unique_q<Ui::PopupMenu>(
+			stylesWrap->entity(),
+			st::popupMenuWithIcons);
+		const auto toneCopy = tone;
+		(*contextMenu)->addAction(
+			tr::lng_ai_compose_tone_edit(tr::now),
+			[=] {
+				box->uiShow()->show(Box(
+					EditAiToneBox,
+					session,
+					toneCopy,
+					nullptr));
+			},
+			&st::menuIconEdit);
+		(*contextMenu)->addAction(
+			tr::lng_ai_compose_tone_share(tr::now),
+			[=] {
+				QGuiApplication::clipboard()->setText(
+					session->createInternalLinkFull(
+						"aistyle/" + toneCopy.slug));
+				box->showToast(
+					tr::lng_ai_compose_tone_link_copied(tr::now));
+			},
+			&st::menuIconShare);
+		(*contextMenu)->addAction(
+			tr::lng_ai_compose_tone_delete(tr::now),
+			[=] {
+				box->uiShow()->show(Ui::MakeConfirmBox({
+					.text = tr::lng_ai_compose_tone_delete_sure(),
+					.confirmed = [=](Fn<void()> &&close) {
+						close();
+						session->data().aiComposeTones().remove(toneCopy);
+					},
+					.confirmText = tr::lng_ai_compose_tone_delete(),
+				}));
+			},
+			&st::menuIconDelete);
+		(*contextMenu)->popup(globalPos);
+	});
+
 	content->setModeTabs(tabs);
 	content->setStyleTabs(stylesWrap);
 

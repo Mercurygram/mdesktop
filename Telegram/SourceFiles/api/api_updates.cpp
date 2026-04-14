@@ -30,6 +30,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/top_peers.h"
 #include "data/notify/data_notify_settings.h"
 #include "data/stickers/data_stickers.h"
+#include "data/data_ai_compose_tones.h"
 #include "data/data_saved_messages.h"
 #include "data/data_saved_sublist.h"
 #include "data/data_session.h"
@@ -2777,6 +2778,10 @@ void Updates::feedUpdate(const MTPUpdate &update) {
 
 	case mtpc_updateSavedRingtones: {
 		session().api().ringtones().applyUpdate();
+	} break;
+
+	case mtpc_updateAiComposeTones: {
+		session().data().aiComposeTones().applyUpdate();
 	} break;
 
 	case mtpc_updateTranscribedAudio: {

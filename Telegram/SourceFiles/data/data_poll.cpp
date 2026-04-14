@@ -192,7 +192,7 @@ bool PollData::applyResults(const MTPPollResults &results) {
 		auto changed = (newTotalVoters != totalVoters);
 		const auto setCanViewStats = [&](bool value) {
 			const auto previous = (_flags & Flag::CanViewStats);
-			if (previous == value) {
+			if (bool(previous) == value) {
 				return;
 			}
 			if (value) {

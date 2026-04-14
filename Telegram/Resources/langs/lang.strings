@@ -7919,6 +7919,19 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_ai_compose_select_style" = "Select Style";
 "lng_ai_compose_apply_style" = "Apply Style";
 "lng_ai_compose_style_tooltip" = "Choose Style";
+"lng_ai_compose_add_style" = "Add Style";
+"lng_ai_compose_create_tone_title" = "New Style";
+"lng_ai_compose_edit_tone_title" = "Edit Style";
+"lng_ai_compose_tone_name" = "Name";
+"lng_ai_compose_tone_prompt" = "Prompt";
+"lng_ai_compose_tone_save" = "Save";
+"lng_ai_compose_tone_edit" = "Edit";
+"lng_ai_compose_tone_share" = "Share";
+"lng_ai_compose_tone_delete" = "Delete";
+"lng_ai_compose_tone_delete_sure" = "Are you sure you want to delete this style?";
+"lng_ai_compose_tone_save_sure" = "Do you want to save the style {title}?";
+"lng_ai_compose_tone_saved" = "Style saved.";
+"lng_ai_compose_tone_link_copied" = "Style link copied.";
 
 "lng_send_as_file_tooltip" = "Send text as a file.";
 

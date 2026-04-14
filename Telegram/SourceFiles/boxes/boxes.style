@@ -1246,6 +1246,9 @@ aiComposeBadge: RoundButton(customEmojiTextBadge) {
 }
 aiComposeBadgeMargin: margins(0px, 2px, 0px, 0px);
 
+aiComposeAddStyleIcon: icon {{ "menu/edit_stars_add", aiComposeButtonFg }};
+aiComposeAddStyleIconOver: icon {{ "menu/edit_stars_add", aiComposeButtonFgActive }};
+
 aiComposeCardBg: boxBg;
 aiComposeCardRadius: 22px;
 aiComposeCardPadding: margins(12px, 16px, 16px, 16px);
