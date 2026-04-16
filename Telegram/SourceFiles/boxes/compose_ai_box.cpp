@@ -337,6 +337,7 @@ public:
 	void setEmojifyChecked(bool checked);
 	void setState(CardState state);
 	void setResultText(TextWithEntities text);
+	void setAuthorId(UserId authorId);
 	void setShow(std::shared_ptr<Ui::Show> show);
 
 protected:
@@ -348,6 +349,7 @@ private:
 	void updateOriginalToggleIcon();
 
 	const Ui::Text::MarkedContext _context;
+	const not_null<Main::Session*> _session;
 	const TextWithEntities _original;
 	const not_null<Ui::FlatLabel*> _originalTitle;
 	const not_null<Ui::FlatLabel*> _originalBody;
@@ -355,6 +357,7 @@ private:
 	const not_null<Ui::FlatLabel*> _resultTitle;
 	const not_null<Ui::FlatLabel*> _resultBody;
 	const not_null<Ui::IconButton*> _copy;
+	const not_null<Ui::FlatLabel*> _authorLabel;
 	const not_null<Ui::Checkbox*> _emojify;
 	Fn<void()> _resized;
 	Fn<void()> _chooseCallback;
@@ -367,6 +370,7 @@ private:
 	bool _dividerVisible = false;
 	int _dividerTop = 0;
 	CardState _state = CardState::Waiting;
+	UserId _authorId = UserId(0);
 	Ui::SkeletonAnimation _skeleton;
 	std::array<Ui::Text::SpecialColor, 2> _diffColors;
 
@@ -393,6 +397,7 @@ public:
 	[[nodiscard]] bool hasStyleSelection() const;
 	void setModeTabs(not_null<ComposeAiModeTabs*> tabs);
 	void setStyleTabs(not_null<Ui::SlideWrap<Ui::LabeledEmojiScrollTabs>*> stylesWrap);
+	void refreshTones();
 	void start();
 
 protected:
@@ -420,9 +425,9 @@ private:
 	const TextWithEntities _original;
 	const LanguageId _detectedFrom;
 	LanguageId _to;
-	const std::vector<Data::AiComposeTone> _tones;
-	const std::vector<Ui::LabeledEmojiTab> _stylesData;
-	const std::vector<Ui::LabeledEmojiTab> _translateStylesData;
+	std::vector<Data::AiComposeTone> _tones;
+	std::vector<Ui::LabeledEmojiTab> _stylesData;
+	std::vector<Ui::LabeledEmojiTab> _translateStylesData;
 	QPointer<ComposeAiModeTabs> _tabs;
 	QPointer<Ui::LabeledEmojiScrollTabs> _styles;
 	QPointer<Ui::SlideWrap<Ui::LabeledEmojiScrollTabs>> _stylesWrap;
@@ -599,6 +604,7 @@ ComposeAiPreviewCard::ComposeAiPreviewCard(
 	std::shared_ptr<Ui::ChatStyle> chatStyle)
 : RpWidget(parent)
 , _context(Core::TextContext({ .session = session }))
+, _session(session)
 , _original(std::move(original))
 , _originalTitle(Ui::CreateChild<Ui::FlatLabel>(
 	this,
@@ -618,6 +624,9 @@ ComposeAiPreviewCard::ComposeAiPreviewCard(
 , _copy(Ui::CreateChild<Ui::IconButton>(
 	this,
 	st::aiComposeCopyButton))
+, _authorLabel(Ui::CreateChild<Ui::FlatLabel>(
+	this,
+	st::aiComposeAuthorLabel))
 , _emojify(
 	Ui::CreateChild<Ui::Checkbox>(
 		this,
@@ -644,6 +653,7 @@ ComposeAiPreviewCard::ComposeAiPreviewCard(
 	};
 	watchHeight(_originalBody);
 	watchHeight(_resultBody);
+	watchHeight(_authorLabel);
 	_diffColors[0] = { &st::boxTextFgGood->p, &st::boxTextFgGood->p };
 	_diffColors[1] = { &st::attentionButtonFg->p, &st::attentionButtonFg->p };
 	_resultBody->setColors(_diffColors);
@@ -669,6 +679,7 @@ ComposeAiPreviewCard::ComposeAiPreviewCard(
 	setResultTitle(tr::lng_ai_compose_result(tr::now, tr::marked));
 	_resultBody->setMarkedText(_original, _context);
 	_copy->setVisible(false);
+	_authorLabel->setVisible(false);
 	updateOriginalToggleIcon();
 	if (chatStyle) {
 		const auto style = chatStyle;
@@ -747,6 +758,7 @@ void ComposeAiPreviewCard::setState(CardState state) {
 	case CardState::Failed:
 		_resultBody->setMarkedText(_original, _context);
 		_copy->setVisible(false);
+		_authorLabel->setVisible(false);
 		if (wasLoading) {
 			_skeleton.stop();
 		}
@@ -754,10 +766,12 @@ void ComposeAiPreviewCard::setState(CardState state) {
 	case CardState::Loading:
 		_resultBody->setMarkedText(_original, _context);
 		_copy->setVisible(false);
+		_authorLabel->setVisible(false);
 		_skeleton.start();
 		break;
 	case CardState::Ready:
 		_copy->setVisible(true);
+		_authorLabel->setVisible(_authorId != 0);
 		if (wasLoading) {
 			_skeleton.stop();
 		}
@@ -768,6 +782,37 @@ void ComposeAiPreviewCard::setState(CardState state) {
 
 void ComposeAiPreviewCard::setResultText(TextWithEntities text) {
 	_resultBody->setMarkedText(std::move(text), _context);
+	refreshGeometry();
+}
+
+void ComposeAiPreviewCard::setAuthorId(UserId authorId) {
+	if (_authorId == authorId) {
+		return;
+	}
+	_authorId = authorId;
+	if (const auto user = _session->data().userLoaded(authorId)) {
+		const auto name = user->shortName();
+		auto mention = tr::marked(name);
+		mention.entities.push_back(EntityInText(
+			EntityType::MentionName,
+			0,
+			name.size(),
+			TextUtilities::MentionNameDataFromFields({
+				.selfId = _session->userId().bare,
+				.userId = authorId.bare,
+				.accessHash = user->accessHash(),
+			})));
+		_authorLabel->setMarkedText(
+			tr::lng_ai_compose_author(
+				tr::now,
+				lt_user,
+				std::move(mention),
+				tr::marked),
+			_context);
+	} else {
+		_authorLabel->setMarkedText({});
+		_authorId = UserId(0);
+	}
 	refreshGeometry();
 }
 
@@ -790,6 +835,7 @@ void ComposeAiPreviewCard::setShow(std::shared_ptr<Ui::Show> show) {
 	};
 	setupFilter(_originalBody);
 	setupFilter(_resultBody);
+	setupFilter(_authorLabel);
 }
 
 int ComposeAiPreviewCard::resizeGetHeight(int newWidth) {
@@ -883,7 +929,8 @@ int ComposeAiPreviewCard::resizeGetHeight(int newWidth) {
 	const auto lineHeight = _resultBody->st().style.lineHeight
 		? _resultBody->st().style.lineHeight
 		: _resultBody->st().style.font->height;
-	if (!_copy->isHidden()) {
+	const auto authorVisible = !_authorLabel->isHidden();
+	if (!_copy->isHidden() && !authorVisible) {
 		_resultBody->setSkipBlock(
 			_copy->width(),
 			lineHeight);
@@ -897,13 +944,32 @@ int ComposeAiPreviewCard::resizeGetHeight(int newWidth) {
 		contentWidth,
 		_resultBody->height(),
 		newWidth);
-	if (!_copy->isHidden()) {
+	if (authorVisible) {
+		y += _resultBody->height() + st::aiComposeAuthorLabelTop;
+		const auto authorWidth = contentWidth
+			- _copy->width()
+			- st::aiComposeCardControlSkip;
+		_authorLabel->resizeToWidth(authorWidth);
+		_authorLabel->setGeometryToLeft(
+			padding.left(),
+			y,
+			authorWidth,
+			_authorLabel->height(),
+			newWidth);
 		_copy->moveToRight(
 			padding.right(),
-			y + _resultBody->height() - lineHeight,
+			y + (_authorLabel->height() - _copy->height()) / 2,
 			newWidth);
+		y += std::max(_authorLabel->height(), _copy->height());
+	} else {
+		if (!_copy->isHidden()) {
+			_copy->moveToRight(
+				padding.right(),
+				y + _resultBody->height() - lineHeight,
+				newWidth);
+		}
+		y += _resultBody->height();
 	}
-	y += _resultBody->height();
 
 	return y + padding.bottom();
 }
@@ -1036,6 +1102,37 @@ void ComposeAiContent::setStyleTabs(
 	});
 	_styles->setActive(_styleIndex);
 	_stylesWrap->toggle(_mode == ComposeAiMode::Style, anim::type::instant);
+}
+
+void ComposeAiContent::refreshTones() {
+	auto previousKey = QString();
+	auto hadSelection = false;
+	if (_styleIndex >= 0 && _styleIndex < int(_tones.size())) {
+		const auto &prev = _tones[_styleIndex];
+		previousKey = prev.isDefault
+			? prev.defaultType
+			: QString::number(prev.id);
+		hadSelection = true;
+	}
+	_tones = _session->data().aiComposeTones().list();
+	_stylesData = ResolveStyleDescriptors(_tones);
+	_translateStylesData = ResolveTranslateStyleDescriptors(
+		_session,
+		_stylesData);
+	auto remapped = -1;
+	if (hadSelection) {
+		for (auto i = 0; i != int(_tones.size()); ++i) {
+			const auto &tone = _tones[i];
+			const auto key = tone.isDefault
+				? tone.defaultType
+				: QString::number(tone.id);
+			if (key == previousKey) {
+				remapped = i;
+				break;
+			}
+		}
+	}
+	_styleIndex = remapped;
 }
 
 void ComposeAiContent::start() {
@@ -1250,6 +1347,7 @@ void ComposeAiContent::request() {
 void ComposeAiContent::resetState(CardState state) {
 	_state = state;
 	_result = {};
+	_preview->setAuthorId(UserId(0));
 	_preview->setState(state);
 	notifyLoadingChanged();
 	updateTitles();
@@ -1270,6 +1368,13 @@ void ComposeAiContent::applyResult(Api::ComposeWithAi::Result &&result) {
 	notifyLoadingChanged();
 	if (_state == CardState::Ready) {
 		_preview->setResultText(std::move(display));
+		if (_mode == ComposeAiMode::Style
+			&& _styleIndex >= 0
+			&& _styleIndex < int(_tones.size())) {
+			_preview->setAuthorId(_tones[_styleIndex].authorId);
+		} else {
+			_preview->setAuthorId(UserId(0));
+		}
 	}
 	updateTitles();
 	notifyReadyChanged();
@@ -1356,7 +1461,12 @@ bool ComposeAiContent::hasStyleSelection() const {
 	return _styleIndex >= 0;
 }
 
-[[nodiscard]] Fn<void(bool)> SetupStyleTooltip(
+struct StyleTooltipHandle {
+	QPointer<Ui::ImportantTooltip> tooltip;
+	Fn<void(bool)> updateVisibility;
+};
+
+[[nodiscard]] StyleTooltipHandle SetupStyleTooltip(
 		not_null<Ui::GenericBox*> box,
 		not_null<Ui::RpWidget*> pinnedToTop,
 		not_null<Ui::RpWidget*> stylesWrap,
@@ -1429,7 +1539,7 @@ bool ComposeAiContent::hasStyleSelection() const {
 		}
 	}, tooltip->lifetime());
 
-	return updateVisibility;
+	return { tooltip, updateVisibility };
 }
 
 } // namespace
@@ -1469,78 +1579,100 @@ void ComposeAiBox(not_null<Ui::GenericBox*> box, ComposeAiBoxArgs &&args) {
 	const auto content = body->add(
 		object_ptr<ComposeAiContent>(box, box, args),
 		st::aiComposeContentMargin);
-	auto emojiFactory = session->data().customEmojiManager().factory(
-		Data::CustomEmojiSizeTag::Large);
-	const auto stylesWrap = pinnedToTop->add(
-		object_ptr<Ui::SlideWrap<Ui::LabeledEmojiScrollTabs>>(
+	const auto contextMenu = box->lifetime().make_state<
+		base::unique_qptr<Ui::PopupMenu>>();
+	const auto stylesWrapHolder = box->lifetime().make_state<
+		QPointer<Ui::SlideWrap<Ui::LabeledEmojiScrollTabs>>>();
+	const auto styleTooltipHolder = box->lifetime().make_state<
+		QPointer<Ui::ImportantTooltip>>();
+	const auto styleTooltipUpdater = box->lifetime().make_state<
+		Fn<void(bool)>>();
+
+	content->setModeTabs(tabs);
+
+	const auto rebuildStylesWrap = [=] {
+		if (const auto old = stylesWrapHolder->data()) {
+			delete old;
+		}
+		if (const auto old = styleTooltipHolder->data()) {
+			delete old;
+		}
+		auto emojiFactory = session->data().customEmojiManager().factory(
+			Data::CustomEmojiSizeTag::Large);
+		auto wrap = object_ptr<Ui::SlideWrap<Ui::LabeledEmojiScrollTabs>>(
 			pinnedToTop,
 			object_ptr<Ui::LabeledEmojiScrollTabs>(
 				pinnedToTop,
 				WithAddStyleTab(content->stylesData()),
 				std::move(emojiFactory)),
-			tabsSkip),
-		st::aiComposeContentMargin);
-	stylesWrap->hide(anim::type::instant);
+			tabsSkip);
+		const auto ptr = wrap.data();
+		pinnedToTop->add(std::move(wrap), st::aiComposeContentMargin);
+		*stylesWrapHolder = ptr;
+		ptr->entity()->setContextMenuCallback([=](int index, QPoint globalPos) {
+			const auto &tones = content->tones();
+			if (index < 0 || index >= int(tones.size())) {
+				return;
+			}
+			const auto &tone = tones[index];
+			if (!tone.creator) {
+				return;
+			}
+			*contextMenu = base::make_unique_q<Ui::PopupMenu>(
+				ptr->entity(),
+				st::popupMenuWithIcons);
+			const auto toneCopy = tone;
+			(*contextMenu)->addAction(
+				tr::lng_ai_compose_tone_edit(tr::now),
+				[=] {
+					box->uiShow()->show(Box(
+						EditAiToneBox,
+						session,
+						toneCopy,
+						nullptr));
+				},
+				&st::menuIconEdit);
+			(*contextMenu)->addAction(
+				tr::lng_ai_compose_tone_share(tr::now),
+				[=] {
+					QGuiApplication::clipboard()->setText(
+						session->createInternalLinkFull(
+							"aistyle/" + toneCopy.slug));
+					box->showToast(
+						tr::lng_ai_compose_tone_link_copied(tr::now));
+				},
+				&st::menuIconShare);
+			(*contextMenu)->addAction(
+				tr::lng_ai_compose_tone_delete(tr::now),
+				[=] {
+					box->uiShow()->show(Ui::MakeConfirmBox({
+						.text = tr::lng_ai_compose_tone_delete_sure(),
+						.confirmed = [=](Fn<void()> &&close) {
+							close();
+							session->data().aiComposeTones().remove(toneCopy);
+						},
+						.confirmText = tr::lng_ai_compose_tone_delete(),
+					}));
+				},
+				&st::menuIconDelete);
+			(*contextMenu)->popup(globalPos);
+		});
+		content->setStyleTabs(ptr);
+		auto handle = SetupStyleTooltip(
+			box,
+			pinnedToTop,
+			ptr,
+			[=] { return content->mode(); });
+		*styleTooltipHolder = handle.tooltip;
+		*styleTooltipUpdater = std::move(handle.updateVisibility);
+	};
+	rebuildStylesWrap();
 
-	const auto contextMenu = box->lifetime().make_state<
-		base::unique_qptr<Ui::PopupMenu>>();
-	stylesWrap->entity()->setContextMenuCallback([=](int index, QPoint globalPos) {
-		const auto &tones = content->tones();
-		if (index < 0 || index >= int(tones.size())) {
-			return;
-		}
-		const auto &tone = tones[index];
-		if (!tone.creator) {
-			return;
-		}
-		*contextMenu = base::make_unique_q<Ui::PopupMenu>(
-			stylesWrap->entity(),
-			st::popupMenuWithIcons);
-		const auto toneCopy = tone;
-		(*contextMenu)->addAction(
-			tr::lng_ai_compose_tone_edit(tr::now),
-			[=] {
-				box->uiShow()->show(Box(
-					EditAiToneBox,
-					session,
-					toneCopy,
-					nullptr));
-			},
-			&st::menuIconEdit);
-		(*contextMenu)->addAction(
-			tr::lng_ai_compose_tone_share(tr::now),
-			[=] {
-				QGuiApplication::clipboard()->setText(
-					session->createInternalLinkFull(
-						"aistyle/" + toneCopy.slug));
-				box->showToast(
-					tr::lng_ai_compose_tone_link_copied(tr::now));
-			},
-			&st::menuIconShare);
-		(*contextMenu)->addAction(
-			tr::lng_ai_compose_tone_delete(tr::now),
-			[=] {
-				box->uiShow()->show(Ui::MakeConfirmBox({
-					.text = tr::lng_ai_compose_tone_delete_sure(),
-					.confirmed = [=](Fn<void()> &&close) {
-						close();
-						session->data().aiComposeTones().remove(toneCopy);
-					},
-					.confirmText = tr::lng_ai_compose_tone_delete(),
-				}));
-			},
-			&st::menuIconDelete);
-		(*contextMenu)->popup(globalPos);
-	});
-
-	content->setModeTabs(tabs);
-	content->setStyleTabs(stylesWrap);
-
-	const auto updateStyleTooltipVisibility = SetupStyleTooltip(
-		box,
-		pinnedToTop,
-		stylesWrap,
-		[=] { return content->mode(); });
+	session->data().aiComposeTones().updated(
+	) | rpl::on_next([=] {
+		content->refreshTones();
+		rebuildStylesWrap();
+	}, box->lifetime());
 
 	const auto sparkle = LoadingTitleSparkle(session);
 	const auto loading = box->lifetime().make_state<
@@ -1702,14 +1834,14 @@ void ComposeAiBox(not_null<Ui::GenericBox*> box, ComposeAiBoxArgs &&args) {
 	});
 	content->setModeChangedCallback([=](ComposeAiMode mode) {
 		rebuildButtons();
-		updateStyleTooltipVisibility(mode == ComposeAiMode::Style);
+		(*styleTooltipUpdater)(mode == ComposeAiMode::Style);
 	});
 	content->setStyleSelectedCallback([=] {
 		rebuildButtons();
 		if (!Core::App().settings().readPref<bool>(kAiComposeStyleTooltipHiddenPref)) {
 			Core::App().settings().writePref<bool>(kAiComposeStyleTooltipHiddenPref, true);
 		}
-		updateStyleTooltipVisibility(false);
+		(*styleTooltipUpdater)(false);
 	});
 
 	rebuildButtons();

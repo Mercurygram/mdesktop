@@ -2163,11 +2163,13 @@ inputAiComposeToneDefault#1fe9a9bf tone:string = InputAiComposeTone;
 inputAiComposeToneID#773c080 id:long access_hash:long = InputAiComposeTone;
 inputAiComposeToneSlug#1fa01357 slug:string = InputAiComposeTone;
 
-aiComposeTone#12ea1465 flags:# creator:flags.0?true id:long access_hash:long slug:string title:string emoji_id:flags.1?long prompt:string installs_count:flags.2?int author_id:flags.3?long = AiComposeTone;
+aiComposeTone#cff63ea9 flags:# creator:flags.0?true id:long access_hash:long slug:string title:string emoji_id:flags.1?long prompt:flags.4?string installs_count:flags.2?int author_id:flags.3?long example_english:flags.5?AiComposeToneExample = AiComposeTone;
 aiComposeToneDefault#9bad6414 tone:string emoji_id:long title:string = AiComposeTone;
 
 aicompose.tonesNotModified#c1f46103 = aicompose.Tones;
-aicompose.tones#65175942 hash:long tones:Vector<AiComposeTone> = aicompose.Tones;
+aicompose.tones#6c9d0efe hash:long tones:Vector<AiComposeTone> users:Vector<User> = aicompose.Tones;
+
+aiComposeToneExample#a8dc3b99 from:string to:string = AiComposeToneExample;
 
 ---functions---
 
@@ -2972,7 +2974,8 @@ aicompose.createTone#70f76f8 flags:# display_author:flags.0?true emoji_id:flags.
 aicompose.updateTone#903bcf59 flags:# tone:InputAiComposeTone display_author:flags.0?Bool emoji_id:flags.1?long title:flags.2?string prompt:flags.3?string = AiComposeTone;
 aicompose.saveTone#1782cbb1 tone:InputAiComposeTone unsave:Bool = Bool;
 aicompose.deleteTone#dd39316a tone:InputAiComposeTone = Bool;
-aicompose.getTone#4679e1df tone:InputAiComposeTone = AiComposeTone;
+aicompose.getTone#b2e8ba03 tone:InputAiComposeTone = aicompose.Tones;
 aicompose.getTones#abd59201 hash:long = aicompose.Tones;
+aicompose.getToneExample#d1b4ab14 tone:InputAiComposeTone num:int = AiComposeToneExample;
 
 // LAYER 225

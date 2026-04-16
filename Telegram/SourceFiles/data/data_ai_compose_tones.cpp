@@ -7,8 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_ai_compose_tones.h"
 
-#include "main/main_session.h"
 #include "apiwrap.h"
+#include "data/data_session.h"
+#include "main/main_session.h"
 
 namespace Data {
 namespace {
@@ -33,6 +34,7 @@ void AiComposeTones::refresh() {
 	)).done([=](const MTPaicompose_Tones &result) {
 		_refreshRequestId = 0;
 		result.match([&](const MTPDaicompose_tones &data) {
+			_session->data().processUsers(data.vusers());
 			_hash = data.vhash().v;
 			parseTones(data.vtones().v);
 			_updates.fire({});
@@ -60,7 +62,7 @@ AiComposeTone AiComposeTones::parseTone(
 			.slug = qs(data.vslug()),
 			.title = qs(data.vtitle()),
 			.emojiId = data.vemoji_id().value_or_empty(),
-			.prompt = qs(data.vprompt()),
+			.prompt = qs(data.vprompt().value_or_empty()),
 			.installsCount = data.vinstalls_count().value_or_empty(),
 			.authorId = data.vauthor_id()
 				? UserId(data.vauthor_id()->v)
@@ -99,6 +101,9 @@ void AiComposeTones::create(
 		MTP_string(prompt)
 	)).done([=](const MTPAiComposeTone &result) {
 		auto parsed = parseTone(result);
+		_list.push_back(parsed);
+		_hash = 0;
+		_updates.fire({});
 		if (done) {
 			done(parsed);
 		}
@@ -143,6 +148,14 @@ void AiComposeTones::update(
 		MTP_string(prompt.value_or(QString()))
 	)).done([=](const MTPAiComposeTone &result) {
 		auto parsed = parseTone(result);
+		const auto i = ranges::find(_list, parsed.id, &AiComposeTone::id);
+		if (i != end(_list)) {
+			*i = parsed;
+		} else {
+			_list.push_back(parsed);
+		}
+		_hash = 0;
+		_updates.fire({});
 		if (done) {
 			done(parsed);
 		}
@@ -173,9 +186,21 @@ void AiComposeTones::save(
 void AiComposeTones::remove(
 		const AiComposeTone &tone,
 		Fn<void()> done) {
+	const auto toneCopy = tone;
 	_session->api().request(MTPaicompose_DeleteTone(
 		toneToMTP(tone)
 	)).done([=] {
+		if (!toneCopy.isDefault) {
+			const auto i = ranges::find(
+				_list,
+				toneCopy.id,
+				&AiComposeTone::id);
+			if (i != end(_list)) {
+				_list.erase(i);
+			}
+		}
+		_hash = 0;
+		_updates.fire({});
 		if (done) {
 			done();
 		}
@@ -190,10 +215,26 @@ void AiComposeTones::resolve(
 		Fn<void(const MTP::Error &)> fail) {
 	_session->api().request(MTPaicompose_GetTone(
 		MTP_inputAiComposeToneSlug(MTP_string(slug))
-	)).done([=](const MTPAiComposeTone &result) {
-		if (done) {
-			done(parseTone(result));
-		}
+	)).done([=](const MTPaicompose_Tones &result) {
+		result.match([&](const MTPDaicompose_tones &data) {
+			_session->data().processUsers(data.vusers());
+			const auto &tones = data.vtones().v;
+			if (!tones.isEmpty()) {
+				if (done) {
+					done(parseTone(tones.front()));
+				}
+			} else if (fail) {
+				fail(MTP::Error::Local(
+					"TONE_NOT_FOUND",
+					"Tone not found."));
+			}
+		}, [&](const MTPDaicompose_tonesNotModified &) {
+			if (fail) {
+				fail(MTP::Error::Local(
+					"TONE_NOT_MODIFIED",
+					"Tone not modified."));
+			}
+		});
 	}).fail([=](const MTP::Error &error) {
 		if (fail) {
 			fail(error);
