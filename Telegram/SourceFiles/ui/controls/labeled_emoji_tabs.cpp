@@ -586,6 +586,7 @@ void LabeledEmojiScrollTabs::scrollToActive() {
 	const auto index = _inner->_active;
 	if (index < 0 || index >= int(_inner->_buttons.size())) {
 		_scrollToActivePending = false;
+		_pendingScrollLeft.reset();
 		return;
 	}
 	const auto button = _inner->_buttons[index];
@@ -594,7 +595,21 @@ void LabeledEmojiScrollTabs::scrollToActive() {
 		return;
 	}
 	_scrollToActivePending = false;
+	_pendingScrollLeft.reset();
 	scrollToButton(button->x(), button->x() + button->width(), false);
+}
+
+int LabeledEmojiScrollTabs::scrollLeft() const {
+	return _scroll->scrollLeft();
+}
+
+void LabeledEmojiScrollTabs::setScrollLeft(int value) {
+	if (_scroll->width() <= 0) {
+		_pendingScrollLeft = value;
+		return;
+	}
+	_pendingScrollLeft.reset();
+	_scroll->scrollToX(std::max(0, value));
 }
 
 QString LabeledEmojiScrollTabs::currentId() const {
@@ -634,6 +649,8 @@ int LabeledEmojiScrollTabs::resizeGetHeight(int newWidth) {
 	}
 	if (_scrollToActivePending) {
 		scrollToActive();
+	} else if (_pendingScrollLeft) {
+		setScrollLeft(*_pendingScrollLeft);
 	}
 
 	updateFades();

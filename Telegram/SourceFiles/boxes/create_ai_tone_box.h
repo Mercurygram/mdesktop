@@ -17,6 +17,7 @@ class Session;
 
 namespace Ui {
 class GenericBox;
+class Show;
 } // namespace Ui
 
 void CreateAiToneBox(
@@ -29,3 +30,9 @@ void EditAiToneBox(
 	not_null<Main::Session*> session,
 	const Data::AiComposeTone &tone,
 	Fn<void(Data::AiComposeTone)> saved = nullptr);
+
+void ConfirmDeleteAiTone(
+	std::shared_ptr<Ui::Show> show,
+	not_null<Main::Session*> session,
+	const Data::AiComposeTone &tone,
+	Fn<void()> done = nullptr);

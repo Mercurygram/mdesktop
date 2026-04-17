@@ -20,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "ui/abstract_button.h"
+#include "ui/boxes/confirm_box.h"
 #include "ui/controls/custom_emoji_toast_icon.h"
 #include "ui/controls/warning_tooltip.h"
 #include "ui/effects/animations.h"
@@ -29,6 +30,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_utilities.h"
 #include "ui/toast/toast.h"
 #include "ui/vertical_list.h"
+#include "ui/widgets/buttons.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/labels.h"
@@ -309,7 +311,8 @@ void SetupToneBox(
 		bool initialDisplayAuthor,
 		rpl::producer<QString> title,
 		rpl::producer<QString> submitLabel,
-		Fn<void(DocumentId, QString, QString, bool)> submit) {
+		Fn<void(DocumentId, QString, QString, bool)> submit,
+		Fn<void()> requestDelete = nullptr) {
 	box->setStyle(st::aiComposeBox);
 	box->setNoContentMargin(true);
 	box->setWidth(st::boxWideWidth);
@@ -458,18 +461,43 @@ void SetupToneBox(
 		st::aiToneAuthorCheckboxMargin,
 		style::al_top);
 
+	const auto deleteButton = requestDelete
+		? box->addRow(
+			object_ptr<Ui::RoundButton>(
+				box,
+				tr::lng_ai_compose_tone_delete(),
+				st::aiToneDeleteButton),
+			st::aiToneDeleteButtonMargin)
+		: nullptr;
+	if (deleteButton) {
+		deleteButton->setFullRadius(true);
+		deleteButton->setClickedCallback(std::move(requestDelete));
+		box->widthValue(
+		) | rpl::on_next([=](int width) {
+			const auto &margin = st::aiToneDeleteButtonMargin;
+			deleteButton->setFullWidth(
+				width - margin.left() - margin.right());
+		}, deleteButton->lifetime());
+	}
+
 	rpl::combine(
 		prompt->topValue(),
 		promptDecor->placeholder->heightValue(),
 		box->getDelegate()->contentHeightMaxValue()
 	) | rpl::on_next([=](int top, int phHeight, int contentHeight) {
 		const auto pad = st::aiToneFieldPadding;
+		const auto deleteBlock = deleteButton
+			? (deleteButton->heightNoMargins()
+				+ st::aiToneDeleteButtonMargin.top()
+				+ st::aiToneDeleteButtonMargin.bottom())
+			: 0;
 		prompt->setMaxHeight(contentHeight
 			- top
 			- st::aiToneFieldsMargin.bottom()
 			- authorCheckbox->heightNoMargins()
 			- st::aiToneAuthorCheckboxMargin.top()
-			- st::aiToneAuthorCheckboxMargin.bottom());
+			- st::aiToneAuthorCheckboxMargin.bottom()
+			- deleteBlock);
 		prompt->setMinHeight(phHeight + pad.top() + pad.bottom());
 	}, prompt->lifetime());
 
@@ -552,7 +580,8 @@ void CreateAiToneBox(
 						saved(tone);
 					}
 				});
-		});
+		},
+		nullptr);
 }
 
 void EditAiToneBox(
@@ -592,5 +621,35 @@ void EditAiToneBox(
 						saved(updated);
 					}
 				});
+		},
+		[=] {
+			auto toneCopy = Data::AiComposeTone();
+			toneCopy.id = toneId;
+			toneCopy.accessHash = toneAccessHash;
+			ConfirmDeleteAiTone(
+				box->uiShow(),
+				session,
+				toneCopy,
+				[=] { box->closeBox(); });
 		});
+}
+
+void ConfirmDeleteAiTone(
+		std::shared_ptr<Ui::Show> show,
+		not_null<Main::Session*> session,
+		const Data::AiComposeTone &tone,
+		Fn<void()> done) {
+	show->show(Ui::MakeConfirmBox({
+		.text = tr::lng_ai_compose_tone_delete_sure(),
+		.confirmed = [=](Fn<void()> &&close) {
+			close();
+			session->data().aiComposeTones().remove(tone);
+			if (done) {
+				done();
+			}
+		},
+		.confirmText = tr::lng_box_delete(),
+		.confirmStyle = &st::attentionBoxButton,
+		.title = tr::lng_ai_compose_tone_delete(),
+	}));
 }

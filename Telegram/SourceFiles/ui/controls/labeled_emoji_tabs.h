@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_custom_emoji.h"
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace Ui {
@@ -75,6 +76,8 @@ public:
 	void setActive(int index);
 	void setPaintOuterCorners(bool paint);
 	void scrollToActive();
+	[[nodiscard]] int scrollLeft() const;
+	void setScrollLeft(int value);
 	[[nodiscard]] QString currentId() const;
 	[[nodiscard]] int buttonCount() const;
 	[[nodiscard]] rpl::producer<ScrollToRequest> requestShown() const;
@@ -98,6 +101,7 @@ private:
 	std::unique_ptr<DragScroll> _dragScroll;
 	bool _paintOuterCorners = true;
 	bool _scrollToActivePending = false;
+	std::optional<int> _pendingScrollLeft;
 
 };
 

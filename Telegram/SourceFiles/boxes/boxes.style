@@ -1288,6 +1288,17 @@ aiTonePlaceholderLabel: FlatLabel(defaultFlatLabel) {
 	}
 }
 aiToneAuthorCheckboxMargin: margins(0px, 12px, 0px, 8px);
+aiToneDeleteButton: RoundButton(defaultActiveButton) {
+	textFg: attentionButtonFg;
+	textFgOver: attentionButtonFg;
+	textBg: boxBg;
+	textBgOver: boxBg;
+	height: 42px;
+	textTop: 12px;
+	style: semiboldTextStyle;
+	ripple: defaultRippleAnimation;
+}
+aiToneDeleteButtonMargin: margins(16px, 8px, 16px, 0px);
 aiComposeToneToastIconSize: size(32px, 32px);
 aiComposeToneToastIconPadding: margins(12px, 6px, 12px, 6px);
 
@@ -1336,7 +1347,7 @@ aiComposeAuthorLabel: FlatLabel(defaultFlatLabel) {
 		linkUnderline: kLinkUnderlineActive;
 	}
 }
-aiComposeAuthorLabelTop: 4px;
+aiComposeAuthorLabelTop: 8px;
 
 aiComposeBoxButton: RoundButton(defaultActiveButton) {
 	height: 42px;

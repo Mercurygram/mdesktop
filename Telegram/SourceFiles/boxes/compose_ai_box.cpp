@@ -29,7 +29,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "spellcheck/platform/platform_language.h"
 #include "ui/boxes/about_cocoon_box.h"
 #include "ui/boxes/choose_language_box.h"
-#include "ui/boxes/confirm_box.h"
 #include "ui/chat/chat_style.h"
 #include "ui/controls/labeled_emoji_tabs.h"
 #include "ui/controls/send_button.h"
@@ -48,6 +47,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/labels.h"
+#include "ui/widgets/menu/menu_action.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/widgets/tooltip.h"
 #include "styles/style_basic.h"
@@ -337,7 +337,6 @@ public:
 	void setEmojifyChecked(bool checked);
 	void setState(CardState state);
 	void setResultText(TextWithEntities text);
-	void setAuthorId(UserId authorId);
 	void setShow(std::shared_ptr<Ui::Show> show);
 
 protected:
@@ -349,7 +348,6 @@ private:
 	void updateOriginalToggleIcon();
 
 	const Ui::Text::MarkedContext _context;
-	const not_null<Main::Session*> _session;
 	const TextWithEntities _original;
 	const not_null<Ui::FlatLabel*> _originalTitle;
 	const not_null<Ui::FlatLabel*> _originalBody;
@@ -357,7 +355,6 @@ private:
 	const not_null<Ui::FlatLabel*> _resultTitle;
 	const not_null<Ui::FlatLabel*> _resultBody;
 	const not_null<Ui::IconButton*> _copy;
-	const not_null<Ui::FlatLabel*> _authorLabel;
 	const not_null<Ui::Checkbox*> _emojify;
 	Fn<void()> _resized;
 	Fn<void()> _chooseCallback;
@@ -370,7 +367,6 @@ private:
 	bool _dividerVisible = false;
 	int _dividerTop = 0;
 	CardState _state = CardState::Waiting;
-	UserId _authorId = UserId(0);
 	Ui::SkeletonAnimation _skeleton;
 	std::array<Ui::Text::SpecialColor, 2> _diffColors;
 
@@ -416,6 +412,7 @@ private:
 	void resetState(CardState state);
 	void applyResult(Api::ComposeWithAi::Result &&result);
 	void showError(const QString &error = {});
+	void setAuthorId(UserId authorId);
 	void notifyLoadingChanged();
 	void notifyReadyChanged();
 	[[nodiscard]] QString currentTranslateStyle() const;
@@ -433,6 +430,7 @@ private:
 	QPointer<Ui::LabeledEmojiScrollTabs> _styles;
 	QPointer<Ui::SlideWrap<Ui::LabeledEmojiScrollTabs>> _stylesWrap;
 	const not_null<ComposeAiPreviewCard*> _preview;
+	const not_null<Ui::FlatLabel*> _authorLabel;
 	Fn<void(bool)> _readyChanged;
 	Fn<void(bool)> _loadingChanged;
 	Fn<void()> _premiumFlood;
@@ -441,6 +439,7 @@ private:
 	ComposeAiMode _mode = ComposeAiMode::Style;
 	int _styleIndex = -1;
 	int _translateStyleIndex = 0;
+	UserId _authorId = UserId(0);
 	bool _emojify = false;
 	CardState _state = CardState::Waiting;
 	mtpRequestId _requestId = 0;
@@ -605,7 +604,6 @@ ComposeAiPreviewCard::ComposeAiPreviewCard(
 	std::shared_ptr<Ui::ChatStyle> chatStyle)
 : RpWidget(parent)
 , _context(Core::TextContext({ .session = session }))
-, _session(session)
 , _original(std::move(original))
 , _originalTitle(Ui::CreateChild<Ui::FlatLabel>(
 	this,
@@ -625,9 +623,6 @@ ComposeAiPreviewCard::ComposeAiPreviewCard(
 , _copy(Ui::CreateChild<Ui::IconButton>(
 	this,
 	st::aiComposeCopyButton))
-, _authorLabel(Ui::CreateChild<Ui::FlatLabel>(
-	this,
-	st::aiComposeAuthorLabel))
 , _emojify(
 	Ui::CreateChild<Ui::Checkbox>(
 		this,
@@ -654,7 +649,6 @@ ComposeAiPreviewCard::ComposeAiPreviewCard(
 	};
 	watchHeight(_originalBody);
 	watchHeight(_resultBody);
-	watchHeight(_authorLabel);
 	_diffColors[0] = { &st::boxTextFgGood->p, &st::boxTextFgGood->p };
 	_diffColors[1] = { &st::attentionButtonFg->p, &st::attentionButtonFg->p };
 	_resultBody->setColors(_diffColors);
@@ -680,7 +674,6 @@ ComposeAiPreviewCard::ComposeAiPreviewCard(
 	setResultTitle(tr::lng_ai_compose_result(tr::now, tr::marked));
 	_resultBody->setMarkedText(_original, _context);
 	_copy->setVisible(false);
-	_authorLabel->setVisible(false);
 	updateOriginalToggleIcon();
 	if (chatStyle) {
 		const auto style = chatStyle;
@@ -759,7 +752,6 @@ void ComposeAiPreviewCard::setState(CardState state) {
 	case CardState::Failed:
 		_resultBody->setMarkedText(_original, _context);
 		_copy->setVisible(false);
-		_authorLabel->setVisible(false);
 		if (wasLoading) {
 			_skeleton.stop();
 		}
@@ -767,12 +759,10 @@ void ComposeAiPreviewCard::setState(CardState state) {
 	case CardState::Loading:
 		_resultBody->setMarkedText(_original, _context);
 		_copy->setVisible(false);
-		_authorLabel->setVisible(false);
 		_skeleton.start();
 		break;
 	case CardState::Ready:
 		_copy->setVisible(true);
-		_authorLabel->setVisible(_authorId != 0);
 		if (wasLoading) {
 			_skeleton.stop();
 		}
@@ -783,37 +773,6 @@ void ComposeAiPreviewCard::setState(CardState state) {
 
 void ComposeAiPreviewCard::setResultText(TextWithEntities text) {
 	_resultBody->setMarkedText(std::move(text), _context);
-	refreshGeometry();
-}
-
-void ComposeAiPreviewCard::setAuthorId(UserId authorId) {
-	if (_authorId == authorId) {
-		return;
-	}
-	_authorId = authorId;
-	if (const auto user = _session->data().userLoaded(authorId)) {
-		const auto name = user->shortName();
-		auto mention = tr::marked(name);
-		mention.entities.push_back(EntityInText(
-			EntityType::MentionName,
-			0,
-			name.size(),
-			TextUtilities::MentionNameDataFromFields({
-				.selfId = _session->userId().bare,
-				.userId = authorId.bare,
-				.accessHash = user->accessHash(),
-			})));
-		_authorLabel->setMarkedText(
-			tr::lng_ai_compose_author(
-				tr::now,
-				lt_user,
-				std::move(mention),
-				tr::marked),
-			_context);
-	} else {
-		_authorLabel->setMarkedText({});
-		_authorId = UserId(0);
-	}
 	refreshGeometry();
 }
 
@@ -836,7 +795,6 @@ void ComposeAiPreviewCard::setShow(std::shared_ptr<Ui::Show> show) {
 	};
 	setupFilter(_originalBody);
 	setupFilter(_resultBody);
-	setupFilter(_authorLabel);
 }
 
 int ComposeAiPreviewCard::resizeGetHeight(int newWidth) {
@@ -930,11 +888,8 @@ int ComposeAiPreviewCard::resizeGetHeight(int newWidth) {
 	const auto lineHeight = _resultBody->st().style.lineHeight
 		? _resultBody->st().style.lineHeight
 		: _resultBody->st().style.font->height;
-	const auto authorVisible = !_authorLabel->isHidden();
-	if (!_copy->isHidden() && !authorVisible) {
-		_resultBody->setSkipBlock(
-			_copy->width(),
-			lineHeight);
+	if (!_copy->isHidden()) {
+		_resultBody->setSkipBlock(_copy->width(), lineHeight);
 	} else {
 		_resultBody->setSkipBlock(0, 0);
 	}
@@ -945,32 +900,13 @@ int ComposeAiPreviewCard::resizeGetHeight(int newWidth) {
 		contentWidth,
 		_resultBody->height(),
 		newWidth);
-	if (authorVisible) {
-		y += _resultBody->height() + st::aiComposeAuthorLabelTop;
-		const auto authorWidth = contentWidth
-			- _copy->width()
-			- st::aiComposeCardControlSkip;
-		_authorLabel->resizeToWidth(authorWidth);
-		_authorLabel->setGeometryToLeft(
-			padding.left(),
-			y,
-			authorWidth,
-			_authorLabel->height(),
-			newWidth);
+	if (!_copy->isHidden()) {
 		_copy->moveToRight(
 			padding.right(),
-			y + (_authorLabel->height() - _copy->height()) / 2,
+			y + _resultBody->height() - lineHeight,
 			newWidth);
-		y += std::max(_authorLabel->height(), _copy->height());
-	} else {
-		if (!_copy->isHidden()) {
-			_copy->moveToRight(
-				padding.right(),
-				y + _resultBody->height() - lineHeight,
-				newWidth);
-		}
-		y += _resultBody->height();
 	}
+	y += _resultBody->height();
 
 	return y + padding.bottom();
 }
@@ -1030,7 +966,10 @@ ComposeAiContent::ComposeAiContent(
 		this,
 		_session,
 		_original,
-		args.chatStyle)) {
+		args.chatStyle))
+, _authorLabel(Ui::CreateChild<Ui::FlatLabel>(
+	this,
+	st::aiComposeAuthorLabel)) {
 	_preview->setResizeCallback([=] { refreshLayout(); });
 	_preview->setChooseCallback([=] { chooseLanguage(); });
 	_preview->setCopyCallback([=] { copyResult(); });
@@ -1041,6 +980,26 @@ ComposeAiContent::ComposeAiContent(
 		}
 	});
 	_preview->setShow(_box->uiShow());
+	_authorLabel->setVisible(false);
+	_authorLabel->heightValue(
+	) | rpl::skip(1) | rpl::on_next([=] {
+		refreshLayout();
+	}, lifetime());
+	const auto show = _box->uiShow();
+	_authorLabel->setClickHandlerFilter([=](
+			const ClickHandlerPtr &handler,
+			Qt::MouseButton button) {
+		if (dynamic_cast<Ui::Text::PreClickHandler*>(handler.get())) {
+			ActivateClickHandler(_authorLabel, handler, ClickContext{
+				.button = button,
+				.other = QVariant::fromValue(ClickHandlerContext{
+					.show = show,
+				})
+			});
+			return false;
+		}
+		return true;
+	});
 }
 
 ComposeAiContent::~ComposeAiContent() {
@@ -1150,6 +1109,7 @@ void ComposeAiContent::selectToneById(uint64 id) {
 			updateTitles();
 			if (_styles) {
 				_styles->setActive(_styleIndex);
+				_styles->scrollToActive();
 			}
 			if (_mode == ComposeAiMode::Style) {
 				request();
@@ -1171,7 +1131,16 @@ void ComposeAiContent::start() {
 int ComposeAiContent::resizeGetHeight(int newWidth) {
 	_preview->resizeToWidth(newWidth);
 	_preview->moveToLeft(0, 0, newWidth);
-	return _preview->height();
+	auto y = _preview->height();
+	if (!_authorLabel->isHidden()) {
+		_authorLabel->resizeToWidth(newWidth);
+		_authorLabel->moveToLeft(
+			0,
+			y + st::aiComposeAuthorLabelTop,
+			newWidth);
+		y += st::aiComposeAuthorLabelTop + _authorLabel->height();
+	}
+	return y;
 }
 
 void ComposeAiContent::refreshLayout() {
@@ -1257,6 +1226,7 @@ void ComposeAiContent::setMode(ComposeAiMode mode) {
 	_mode = mode;
 	_state = CardState::Waiting;
 	_preview->setState(CardState::Waiting);
+	setAuthorId(UserId(0));
 	notifyLoadingChanged();
 	if (_modeChanged) {
 		_modeChanged(_mode);
@@ -1371,10 +1341,43 @@ void ComposeAiContent::request() {
 		});
 }
 
+void ComposeAiContent::setAuthorId(UserId authorId) {
+	if (_authorId == authorId) {
+		return;
+	}
+	_authorId = authorId;
+	if (const auto user = _session->data().userLoaded(authorId)) {
+		const auto name = user->shortName();
+		auto mention = tr::marked(name);
+		mention.entities.push_back(EntityInText(
+			EntityType::MentionName,
+			0,
+			name.size(),
+			TextUtilities::MentionNameDataFromFields({
+				.selfId = _session->userId().bare,
+				.userId = authorId.bare,
+				.accessHash = user->accessHash(),
+			})));
+		_authorLabel->setMarkedText(
+			tr::lng_ai_compose_author(
+				tr::now,
+				lt_user,
+				std::move(mention),
+				tr::marked),
+			Core::TextContext({ .session = _session }));
+		_authorLabel->setVisible(true);
+	} else {
+		_authorLabel->setMarkedText({});
+		_authorLabel->setVisible(false);
+		_authorId = UserId(0);
+	}
+	refreshLayout();
+}
+
 void ComposeAiContent::resetState(CardState state) {
 	_state = state;
 	_result = {};
-	_preview->setAuthorId(UserId(0));
+	setAuthorId(UserId(0));
 	_preview->setState(state);
 	notifyLoadingChanged();
 	updateTitles();
@@ -1398,9 +1401,9 @@ void ComposeAiContent::applyResult(Api::ComposeWithAi::Result &&result) {
 		if (_mode == ComposeAiMode::Style
 			&& _styleIndex >= 0
 			&& _styleIndex < int(_tones.size())) {
-			_preview->setAuthorId(_tones[_styleIndex].authorId);
+			setAuthorId(_tones[_styleIndex].authorId);
 		} else {
-			_preview->setAuthorId(UserId(0));
+			setAuthorId(UserId(0));
 		}
 	}
 	updateTitles();
@@ -1410,6 +1413,7 @@ void ComposeAiContent::applyResult(Api::ComposeWithAi::Result &&result) {
 
 void ComposeAiContent::showError(const QString &error) {
 	_state = CardState::Failed;
+	setAuthorId(UserId(0));
 	_preview->setState(CardState::Failed);
 	notifyLoadingChanged();
 	updateTitles();
@@ -1618,7 +1622,9 @@ void ComposeAiBox(not_null<Ui::GenericBox*> box, ComposeAiBoxArgs &&args) {
 	content->setModeTabs(tabs);
 
 	const auto rebuildStylesWrap = [=] {
+		auto savedScroll = -1;
 		if (const auto old = stylesWrapHolder->data()) {
+			savedScroll = old->entity()->scrollLeft();
 			delete old;
 		}
 		if (const auto old = styleTooltipHolder->data()) {
@@ -1671,22 +1677,26 @@ void ComposeAiBox(not_null<Ui::GenericBox*> box, ComposeAiBoxArgs &&args) {
 						tr::lng_ai_compose_tone_link_copied(tr::now));
 				},
 				&st::menuIconShare);
-			(*contextMenu)->addAction(
-				tr::lng_ai_compose_tone_delete(tr::now),
-				[=] {
-					box->uiShow()->show(Ui::MakeConfirmBox({
-						.text = tr::lng_ai_compose_tone_delete_sure(),
-						.confirmed = [=](Fn<void()> &&close) {
-							close();
-							session->data().aiComposeTones().remove(toneCopy);
-						},
-						.confirmText = tr::lng_ai_compose_tone_delete(),
-					}));
-				},
-				&st::menuIconDelete);
+			(*contextMenu)->addAction(base::make_unique_q<Ui::Menu::Action>(
+				(*contextMenu)->menu(),
+				st::menuWithIconsAttention,
+				Ui::Menu::CreateAction(
+					(*contextMenu)->menu().get(),
+					tr::lng_ai_compose_tone_delete(tr::now),
+					[=] {
+						ConfirmDeleteAiTone(
+							box->uiShow(),
+							session,
+							toneCopy);
+					}),
+				&st::menuIconDeleteAttention,
+				&st::menuIconDeleteAttention));
 			(*contextMenu)->popup(globalPos);
 		});
 		content->setStyleTabs(ptr);
+		if (savedScroll >= 0) {
+			ptr->entity()->setScrollLeft(savedScroll);
+		}
 		auto handle = SetupStyleTooltip(
 			box,
 			pinnedToTop,
