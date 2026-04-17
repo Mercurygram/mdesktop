@@ -20,9 +20,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "ui/abstract_button.h"
+#include "ui/controls/custom_emoji_toast_icon.h"
+#include "ui/controls/warning_tooltip.h"
 #include "ui/effects/animations.h"
 #include "ui/layers/generic_box.h"
+#include "ui/layers/show.h"
 #include "ui/painter.h"
+#include "ui/text/text_utilities.h"
+#include "ui/toast/toast.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/fields/input_field.h"
@@ -38,6 +43,35 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_layers.h"
 
 namespace {
+
+constexpr auto kAiComposeToneToastDuration = crl::time(4000);
+
+void ShowToneToast(
+		std::shared_ptr<Ui::Show> show,
+		not_null<Main::Session*> session,
+		const Data::AiComposeTone &tone,
+		bool created) {
+	const auto size = QSize(
+		st::aiComposeToneToastIconSize.width(),
+		st::aiComposeToneToastIconSize.height());
+	show->showToast(Ui::Toast::Config{
+		.title = (created
+			? tr::lng_ai_compose_tone_created
+			: tr::lng_ai_compose_tone_updated)(
+				tr::now,
+				lt_title,
+				tone.title),
+		.text = tr::lng_ai_compose_tone_created_description(
+			tr::now,
+			Ui::Text::WithEntities),
+		.iconContent = Ui::MakeCustomEmojiToastIcon(
+			session,
+			tone.emojiId,
+			size),
+		.iconPadding = st::aiComposeToneToastIconPadding,
+		.duration = kAiComposeToneToastDuration,
+	});
+}
 
 void ChooseToneIconBox(
 		not_null<Ui::GenericBox*> box,
@@ -121,7 +155,7 @@ void ChooseToneIconBox(
 	box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
 }
 
-void AddIconPreview(
+not_null<Ui::AbstractButton*> AddIconPreview(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Main::Session*> session,
 		rpl::producer<DocumentId> emojiIdValue,
@@ -262,6 +296,8 @@ void AddIconPreview(
 				emojiIdChosen(id);
 			})));
 	});
+
+	return button;
 }
 
 void SetupToneBox(
@@ -284,7 +320,7 @@ void SetupToneBox(
 	const auto emojiId = container->lifetime().make_state<
 		rpl::variable<DocumentId>>(initialEmojiId);
 
-	AddIconPreview(
+	const auto iconButton = AddIconPreview(
 		container,
 		session,
 		emojiId->value(),
@@ -441,18 +477,38 @@ void SetupToneBox(
 		name->setFocusFast();
 	});
 
+	const auto warning = box->lifetime().make_state<Ui::WarningTooltip>();
 	const auto save = [=] {
 		const auto nameText = name->getLastText().trimmed();
 		const auto promptText = prompt->getLastText().trimmed();
-		if (nameText.isEmpty() || promptText.isEmpty()) {
-			if (nameText.isEmpty()) {
-				name->showError();
-			}
-			if (promptText.isEmpty()) {
-				prompt->showError();
-			}
+		const auto showWarning = [=](
+				not_null<QWidget*> target,
+				rpl::producer<TextWithEntities> text) {
+			warning->show({
+				.parent = box,
+				.target = target,
+				.text = std::move(text),
+			});
+		};
+		if (!emojiId->current()) {
+			showWarning(
+				iconButton,
+				tr::lng_ai_compose_tone_warn_icon(tr::marked));
+			return;
+		} else if (nameText.isEmpty()) {
+			name->showError();
+			showWarning(
+				name,
+				tr::lng_ai_compose_tone_warn_name(tr::marked));
+			return;
+		} else if (promptText.isEmpty()) {
+			prompt->showError();
+			showWarning(
+				prompt,
+				tr::lng_ai_compose_tone_warn_prompt(tr::marked));
 			return;
 		}
+		warning->hide(anim::type::normal);
 		submit(
 			emojiId->current(),
 			nameText,
@@ -469,7 +525,7 @@ void SetupToneBox(
 void CreateAiToneBox(
 		not_null<Ui::GenericBox*> box,
 		not_null<Main::Session*> session,
-		Fn<void()> saved) {
+		Fn<void(Data::AiComposeTone)> saved) {
 	SetupToneBox(
 		box,
 		session,
@@ -488,10 +544,12 @@ void CreateAiToneBox(
 				prompt,
 				emojiId,
 				displayAuthor,
-				[=](Data::AiComposeTone) {
+				[=](Data::AiComposeTone tone) {
+					const auto show = box->uiShow();
 					box->closeBox();
+					ShowToneToast(show, session, tone, true);
 					if (saved) {
-						saved();
+						saved(tone);
 					}
 				});
 		});
@@ -501,7 +559,7 @@ void EditAiToneBox(
 		not_null<Ui::GenericBox*> box,
 		not_null<Main::Session*> session,
 		const Data::AiComposeTone &tone,
-		Fn<void()> saved) {
+		Fn<void(Data::AiComposeTone)> saved) {
 	const auto toneId = tone.id;
 	const auto toneAccessHash = tone.accessHash;
 	SetupToneBox(
@@ -526,10 +584,12 @@ void EditAiToneBox(
 				prompt,
 				std::make_optional(emojiId),
 				std::make_optional(displayAuthor),
-				[=](Data::AiComposeTone) {
+				[=](Data::AiComposeTone updated) {
+					const auto show = box->uiShow();
 					box->closeBox();
+					ShowToneToast(show, session, updated, false);
 					if (saved) {
-						saved();
+						saved(updated);
 					}
 				});
 		});

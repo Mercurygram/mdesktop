@@ -398,6 +398,7 @@ public:
 	void setModeTabs(not_null<ComposeAiModeTabs*> tabs);
 	void setStyleTabs(not_null<Ui::SlideWrap<Ui::LabeledEmojiScrollTabs>*> stylesWrap);
 	void refreshTones();
+	void selectToneById(uint64 id);
 	void start();
 
 protected:
@@ -1097,7 +1098,12 @@ void ComposeAiContent::setStyleTabs(
 			}
 		} else if (index == int(_tones.size())) {
 			_styles->setActive(_styleIndex);
-			_box->uiShow()->show(Box(CreateAiToneBox, _session, nullptr));
+			_box->uiShow()->show(Box(
+				CreateAiToneBox,
+				_session,
+				crl::guard(this, [=](Data::AiComposeTone tone) {
+					selectToneById(tone.id);
+				})));
 		}
 	});
 	_styles->setActive(_styleIndex);
@@ -1133,6 +1139,27 @@ void ComposeAiContent::refreshTones() {
 		}
 	}
 	_styleIndex = remapped;
+}
+
+void ComposeAiContent::selectToneById(uint64 id) {
+	for (auto i = 0; i != int(_tones.size()); ++i) {
+		const auto &tone = _tones[i];
+		if (!tone.isDefault && tone.id == id) {
+			const auto wasNoSelection = (_styleIndex < 0);
+			_styleIndex = i;
+			updateTitles();
+			if (_styles) {
+				_styles->setActive(_styleIndex);
+			}
+			if (_mode == ComposeAiMode::Style) {
+				request();
+				if (wasNoSelection && _styleSelected) {
+					_styleSelected();
+				}
+			}
+			return;
+		}
+	}
 }
 
 void ComposeAiContent::start() {
@@ -1629,7 +1656,9 @@ void ComposeAiBox(not_null<Ui::GenericBox*> box, ComposeAiBoxArgs &&args) {
 						EditAiToneBox,
 						session,
 						toneCopy,
-						nullptr));
+						crl::guard(content, [=](Data::AiComposeTone tone) {
+							content->selectToneById(tone.id);
+						})));
 				},
 				&st::menuIconEdit);
 			(*contextMenu)->addAction(

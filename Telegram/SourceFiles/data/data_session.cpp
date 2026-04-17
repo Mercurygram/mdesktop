@@ -4012,6 +4012,8 @@ void Session::webpageApplyFields(
 					return (DocumentData*)nullptr;
 				}, [](const MTPDwebPageAttributeStarGiftAuction &) {
 					return (DocumentData*)nullptr;
+				}, [](const MTPDwebPageAttributeAiComposeTone &) {
+					return (DocumentData*)nullptr;
 				});
 				if (result) {
 					return result;

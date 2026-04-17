@@ -1324,6 +1324,7 @@ webPageAttributeStickerSet#50cc03d3 flags:# emojis:flags.0?true text_color:flags
 webPageAttributeUniqueStarGift#cf6f6db8 gift:StarGift = WebPageAttribute;
 webPageAttributeStarGiftCollection#31cad303 icons:Vector<Document> = WebPageAttribute;
 webPageAttributeStarGiftAuction#1c641c2 gift:StarGift end_date:int = WebPageAttribute;
+webPageAttributeAiComposeTone#7781fe18 emoji_id:long = WebPageAttribute;
 
 messages.votesList#4899484e flags:# count:int votes:Vector<MessagePeerVote> chats:Vector<Chat> users:Vector<User> next_offset:flags.0?string = messages.VotesList;
 
@@ -2171,6 +2172,8 @@ aicompose.tones#6c9d0efe hash:long tones:Vector<AiComposeTone> users:Vector<User
 
 aiComposeToneExample#a8dc3b99 from:string to:string = AiComposeToneExample;
 
+bots.accessSettings#dd1fbf93 flags:# restricted:flags.0?true add_users:flags.1?Vector<User> = bots.AccessSettings;
+
 ---functions---
 
 invokeAfterMsg#cb9f372d {X:Type} msg_id:long query:!X = X;
@@ -2768,6 +2771,8 @@ bots.createBot#e5b17f2b flags:# via_deeplink:flags.0?true name:string username:s
 bots.exportBotToken#bd0d99eb bot:InputUser revoke:Bool = bots.ExportedBotToken;
 bots.requestWebViewButton#31a2a35e user_id:InputUser button:KeyboardButton = bots.RequestedButton;
 bots.getRequestedWebViewButton#bf25b7f3 bot:InputUser webapp_req_id:string = KeyboardButton;
+bots.getAccessSettings#213853a3 bot:InputUser = bots.AccessSettings;
+bots.editAccessSettings#31813cd8 flags:# restricted:flags.0?true bot:InputUser add_users:flags.1?Vector<InputUser> = Bool;
 
 payments.getPaymentForm#37148dbb flags:# invoice:InputInvoice theme_params:flags.0?DataJSON = payments.PaymentForm;
 payments.getPaymentReceipt#2478d1cc peer:InputPeer msg_id:int = payments.PaymentReceipt;
@@ -2970,7 +2975,7 @@ smsjobs.finishJob#4f1ebf24 flags:# job_id:string error:flags.0?string = Bool;
 
 fragment.getCollectibleInfo#be1e85ba collectible:InputCollectible = fragment.CollectibleInfo;
 
-aicompose.createTone#70f76f8 flags:# display_author:flags.0?true emoji_id:flags.1?long title:string prompt:string = AiComposeTone;
+aicompose.createTone#4aa83913 flags:# display_author:flags.0?true emoji_id:long title:string prompt:string = AiComposeTone;
 aicompose.updateTone#903bcf59 flags:# tone:InputAiComposeTone display_author:flags.0?Bool emoji_id:flags.1?long title:flags.2?string prompt:flags.3?string = AiComposeTone;
 aicompose.saveTone#1782cbb1 tone:InputAiComposeTone unsave:Bool = Bool;
 aicompose.deleteTone#dd39316a tone:InputAiComposeTone = Bool;

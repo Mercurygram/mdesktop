@@ -1288,6 +1288,8 @@ aiTonePlaceholderLabel: FlatLabel(defaultFlatLabel) {
 	}
 }
 aiToneAuthorCheckboxMargin: margins(0px, 12px, 0px, 8px);
+aiComposeToneToastIconSize: size(32px, 32px);
+aiComposeToneToastIconPadding: margins(12px, 6px, 12px, 6px);
 
 aiComposeCardBg: boxBg;
 aiComposeCardRadius: 22px;

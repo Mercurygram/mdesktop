@@ -91,9 +91,6 @@ void AiComposeTones::create(
 	if (displayAuthor) {
 		flags |= Flag::f_display_author;
 	}
-	if (emojiId) {
-		flags |= Flag::f_emoji_id;
-	}
 	_session->api().request(MTPaicompose_CreateTone(
 		MTP_flags(flags),
 		MTP_long(emojiId),

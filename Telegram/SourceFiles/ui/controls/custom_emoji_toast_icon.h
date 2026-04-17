@@ -7,25 +7,21 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-namespace Data {
-struct AiComposeTone;
-} // namespace Data
+#include "base/object_ptr.h"
 
 namespace Main {
 class Session;
 } // namespace Main
 
 namespace Ui {
-class GenericBox;
+class RpWidget;
 } // namespace Ui
 
-void CreateAiToneBox(
-	not_null<Ui::GenericBox*> box,
-	not_null<Main::Session*> session,
-	Fn<void(Data::AiComposeTone)> saved = nullptr);
+namespace Ui {
 
-void EditAiToneBox(
-	not_null<Ui::GenericBox*> box,
+[[nodiscard]] object_ptr<RpWidget> MakeCustomEmojiToastIcon(
 	not_null<Main::Session*> session,
-	const Data::AiComposeTone &tone,
-	Fn<void(Data::AiComposeTone)> saved = nullptr);
+	DocumentId emojiId,
+	QSize size);
+
+} // namespace Ui
