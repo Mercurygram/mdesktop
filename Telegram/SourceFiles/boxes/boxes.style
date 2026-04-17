@@ -1252,8 +1252,42 @@ aiComposeAddStyleIconOver: icon {{ "menu/edit_stars_add", aiComposeButtonFgActiv
 aiToneIconPreviewSize: 80px;
 aiToneIconPreviewBottomSkip: 12px;
 aiToneIconPreviewTopSkip: 4px;
-aiToneIconPreviewBg: windowBgOver;
+aiToneIconPreviewBg: boxBg;
 aiToneIconPreviewInnerSize: 54px;
+
+aiToneIconPreviewPlaceholder: icon {{ "chat/ai_style_tone", windowSubTextFg }};
+
+aiToneFieldBg: boxBg;
+aiToneFieldRadius: 12px;
+aiToneFieldPadding: margins(16px, 12px, 16px, 12px);
+aiToneFieldsMargin: margins(16px, 0px, 16px, 0px);
+aiToneFieldsSkip: 8px;
+
+aiToneNameField: InputField(defaultInputField) {
+	textBg: transparent;
+	textBgActive: transparent;
+	textMargins: margins(16px, 12px, 16px, 12px);
+	border: 0px;
+	borderActive: 0px;
+	heightMin: 44px;
+}
+aiTonePromptField: InputField(newGroupDescription) {
+	textBg: transparent;
+	textBgActive: transparent;
+	textMargins: margins(16px, 12px, 16px, 12px);
+	border: 0px;
+	borderActive: 0px;
+	heightMin: 140px;
+	heightMax: 240px;
+}
+aiTonePlaceholderLabel: FlatLabel(defaultFlatLabel) {
+	textFg: windowSubTextFg;
+	minWidth: 80px;
+	style: TextStyle(defaultTextStyle) {
+		font: font(14px);
+	}
+}
+aiToneAuthorCheckboxMargin: margins(0px, 12px, 0px, 8px);
 
 aiComposeCardBg: boxBg;
 aiComposeCardRadius: 22px;
@@ -1267,6 +1301,8 @@ aiComposeCardTitle: FlatLabel(defaultSubsectionTitle) {
 	maxHeight: 22px;
 }
 aiComposeEmojifyCheckbox: Checkbox(defaultBoxCheckbox) {
+	textFg: windowSubTextFg;
+	textFgActive: windowSubTextFg;
 	width: 0px;
 }
 

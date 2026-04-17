@@ -7,7 +7,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/create_ai_tone_box.h"
 
-#include "base/random.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "chat_helpers/emoji_list_widget.h"
 #include "chat_helpers/stickers_lottie.h"
@@ -21,11 +20,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "ui/abstract_button.h"
+#include "ui/effects/animations.h"
 #include "ui/layers/generic_box.h"
 #include "ui/painter.h"
 #include "ui/vertical_list.h"
-#include "ui/widgets/shadow.h"
+#include "ui/widgets/checkbox.h"
 #include "ui/widgets/fields/input_field.h"
+#include "ui/widgets/labels.h"
+#include "ui/widgets/shadow.h"
 #include "ui/wrap/padding_wrap.h"
 #include "ui/wrap/vertical_layout.h"
 #include "window/window_session_controller.h"
@@ -157,22 +159,6 @@ void AddIconPreview(
 		state->emojiId = id;
 	}, button->lifetime());
 
-	const auto icons = &session->data().forumIcons();
-	icons->requestDefaultIfUnknown();
-	const auto seedRandom = [=] {
-		if (state->emojiId) {
-			return;
-		}
-		const auto &list = icons->list();
-		if (list.empty()) {
-			return;
-		}
-		emojiIdChosen(list[base::RandomIndex(list.size())]);
-	};
-	seedRandom();
-	icons->defaultUpdates(
-	) | rpl::on_next(seedRandom, button->lifetime());
-
 	emojiIdVar->value(
 	) | rpl::map([=](DocumentId id) -> rpl::producer<DocumentData*> {
 		if (!id) {
@@ -256,6 +242,10 @@ void AddIconPreview(
 					sz.height()),
 				frame);
 			state->player->markFrameShown();
+		} else if (!state->emojiId) {
+			st::aiToneIconPreviewPlaceholder.paintInCenter(
+				p,
+				button->rect());
 		}
 	}, button->lifetime());
 
@@ -280,8 +270,14 @@ void SetupToneBox(
 		DocumentId initialEmojiId,
 		const QString &initialName,
 		const QString &initialPrompt,
+		bool initialDisplayAuthor,
 		rpl::producer<QString> title,
-		Fn<void(DocumentId, QString, QString)> submit) {
+		rpl::producer<QString> submitLabel,
+		Fn<void(DocumentId, QString, QString, bool)> submit) {
+	box->setStyle(st::aiComposeBox);
+	box->setNoContentMargin(true);
+	box->setWidth(st::boxWideWidth);
+	box->addTopButton(st::aiComposeBoxClose, [=] { box->closeBox(); });
 	box->setTitle(std::move(title));
 
 	const auto container = box->verticalLayout();
@@ -294,22 +290,152 @@ void SetupToneBox(
 		emojiId->value(),
 		[=](DocumentId id) { *emojiId = id; });
 
-	const auto name = box->addRow(object_ptr<Ui::InputField>(
-		box,
-		st::defaultInputField,
-		tr::lng_ai_compose_tone_name(),
-		initialName));
+	const auto name = box->addRow(
+		object_ptr<Ui::InputField>(
+			box,
+			st::aiToneNameField,
+			Ui::InputField::Mode::SingleLine,
+			rpl::producer<QString>(),
+			initialName),
+		st::aiToneFieldsMargin);
 
-	Ui::AddSkip(box->verticalLayout());
+	Ui::AddSkip(container, st::aiToneFieldsSkip);
 
 	const auto promptSt = box->lifetime().make_state<style::InputField>(
-		st::newGroupDescription);
-	const auto prompt = box->addRow(object_ptr<Ui::InputField>(
-		box,
-		*promptSt,
-		Ui::InputField::Mode::MultiLine,
-		tr::lng_ai_compose_tone_prompt(),
-		initialPrompt));
+		st::aiTonePromptField);
+	{
+		const auto &placeholderStyle = st::aiTonePlaceholderLabel.style;
+		const auto fieldsMargin = st::aiToneFieldsMargin;
+		const auto contentWidth = st::boxWideWidth
+			- fieldsMargin.left() - fieldsMargin.right()
+			- promptSt->textMargins.left() - promptSt->textMargins.right();
+		auto measure = Ui::Text::String{ contentWidth / 2 };
+		measure.setText(
+			placeholderStyle,
+			tr::lng_ai_compose_tone_prompt_placeholder(tr::now));
+		const auto desiredMin = measure.countHeight(contentWidth)
+			+ promptSt->textMargins.top()
+			+ promptSt->textMargins.bottom();
+		if (promptSt->heightMin < desiredMin) {
+			promptSt->heightMin = desiredMin;
+		}
+		if (promptSt->heightMax < promptSt->heightMin) {
+			promptSt->heightMax = promptSt->heightMin;
+		}
+	}
+
+	const auto prompt = box->addRow(
+		object_ptr<Ui::InputField>(
+			box,
+			*promptSt,
+			Ui::InputField::Mode::MultiLine,
+			rpl::producer<QString>(),
+			initialPrompt),
+		st::aiToneFieldsMargin);
+	prompt->setSubmitSettings(Ui::InputField::SubmitSettings::None);
+
+	struct FieldDecor {
+		not_null<Ui::RpWidget*> bg;
+		not_null<Ui::FlatLabel*> placeholder;
+		Ui::Animations::Simple anim;
+		bool hidden = false;
+	};
+	const auto makeDecor = [=](
+			not_null<Ui::InputField*> field,
+			rpl::producer<QString> placeholderText) {
+		const auto parent = field->parentWidget();
+		const auto decor = field->lifetime().make_state<FieldDecor>(FieldDecor{
+			.bg = Ui::CreateChild<Ui::RpWidget>(parent),
+			.placeholder = Ui::CreateChild<Ui::FlatLabel>(
+				parent,
+				std::move(placeholderText),
+				st::aiTonePlaceholderLabel),
+		});
+		decor->bg->setAttribute(Qt::WA_TransparentForMouseEvents);
+		decor->placeholder->setAttribute(Qt::WA_TransparentForMouseEvents);
+		decor->bg->paintRequest(
+		) | rpl::on_next([bg = decor->bg] {
+			auto p = QPainter(bg);
+			auto hq = PainterHighQualityEnabler(p);
+			p.setPen(Qt::NoPen);
+			p.setBrush(st::aiToneFieldBg);
+			const auto r = st::aiToneFieldRadius;
+			p.drawRoundedRect(bg->rect(), r, r);
+		}, decor->bg->lifetime());
+		decor->bg->lower();
+		decor->placeholder->raise();
+
+		const auto applyPosition = [=] {
+			const auto pad = st::aiToneFieldPadding;
+			const auto progress = decor->anim.value(decor->hidden ? 1. : 0.);
+			const auto shift = int(base::SafeRound(
+				progress * (-st::defaultInputField.placeholderShift)));
+			decor->placeholder->moveToLeft(
+				field->x() + pad.left() + shift,
+				field->y() + pad.top());
+			decor->placeholder->setOpacity(1. - progress);
+		};
+		field->geometryValue(
+		) | rpl::on_next([=](QRect g) {
+			if (g.isEmpty()) {
+				return;
+			}
+			const auto pad = st::aiToneFieldPadding;
+			decor->bg->setGeometry(g);
+			decor->placeholder->resizeToWidth(
+				g.width() - pad.left() - pad.right());
+			applyPosition();
+		}, field->lifetime());
+
+		const auto animate = [=](bool hidden) {
+			if (decor->hidden == hidden) {
+				return;
+			}
+			decor->hidden = hidden;
+			decor->anim.start(
+				applyPosition,
+				hidden ? 0. : 1.,
+				hidden ? 1. : 0.,
+				st::defaultInputField.duration);
+		};
+		field->changes(
+		) | rpl::on_next([=] {
+			animate(!field->getLastText().isEmpty());
+		}, field->lifetime());
+		decor->hidden = !field->getLastText().isEmpty();
+		applyPosition();
+		return decor;
+	};
+	makeDecor(name, tr::lng_ai_compose_tone_name_placeholder());
+	const auto promptDecor = makeDecor(
+		prompt,
+		tr::lng_ai_compose_tone_prompt_placeholder());
+
+	const auto authorCheckbox = box->addRow(
+		object_ptr<Ui::Checkbox>(
+			box,
+			tr::lng_ai_compose_tone_author(tr::now),
+			st::aiComposeEmojifyCheckbox,
+			std::make_unique<Ui::RoundCheckView>(
+				st::defaultCheck,
+				initialDisplayAuthor)),
+		st::aiToneAuthorCheckboxMargin,
+		style::al_top);
+
+	rpl::combine(
+		prompt->topValue(),
+		promptDecor->placeholder->heightValue(),
+		box->getDelegate()->contentHeightMaxValue()
+	) | rpl::on_next([=](int top, int phHeight, int contentHeight) {
+		const auto pad = st::aiToneFieldPadding;
+		prompt->setMaxHeight(contentHeight
+			- top
+			- st::aiToneFieldsMargin.bottom()
+			- authorCheckbox->heightNoMargins()
+			- st::aiToneAuthorCheckboxMargin.top()
+			- st::aiToneAuthorCheckboxMargin.bottom());
+		prompt->setMinHeight(phHeight + pad.top() + pad.bottom());
+	}, prompt->lifetime());
 
 	box->setFocusCallback([=] {
 		name->setFocusFast();
@@ -327,11 +453,15 @@ void SetupToneBox(
 			}
 			return;
 		}
-		submit(emojiId->current(), nameText, promptText);
+		submit(
+			emojiId->current(),
+			nameText,
+			promptText,
+			authorCheckbox->checked());
 	};
 
-	box->addButton(tr::lng_ai_compose_tone_save(), save);
-	box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
+	const auto submitBtn = box->addButton(std::move(submitLabel), save);
+	submitBtn->setFullRadius(true);
 }
 
 } // namespace
@@ -346,15 +476,18 @@ void CreateAiToneBox(
 		DocumentId(0),
 		QString(),
 		QString(),
+		false,
 		tr::lng_ai_compose_create_tone_title(),
+		tr::lng_ai_compose_tone_create(),
 		[=](DocumentId emojiId,
 				const QString &name,
-				const QString &prompt) {
+				const QString &prompt,
+				bool displayAuthor) {
 			session->data().aiComposeTones().create(
 				name,
 				prompt,
 				emojiId,
-				false,
+				displayAuthor,
 				[=](Data::AiComposeTone) {
 					box->closeBox();
 					if (saved) {
@@ -377,10 +510,13 @@ void EditAiToneBox(
 		tone.emojiId,
 		tone.title,
 		tone.prompt,
+		tone.authorId != 0,
 		tr::lng_ai_compose_edit_tone_title(),
+		tr::lng_ai_compose_tone_save(),
 		[=](DocumentId emojiId,
 				const QString &name,
-				const QString &prompt) {
+				const QString &prompt,
+				bool displayAuthor) {
 			auto toneCopy = Data::AiComposeTone();
 			toneCopy.id = toneId;
 			toneCopy.accessHash = toneAccessHash;
@@ -389,7 +525,7 @@ void EditAiToneBox(
 				name,
 				prompt,
 				std::make_optional(emojiId),
-				std::nullopt,
+				std::make_optional(displayAuthor),
 				[=](Data::AiComposeTone) {
 					box->closeBox();
 					if (saved) {

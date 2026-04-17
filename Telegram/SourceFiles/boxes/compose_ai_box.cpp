@@ -261,7 +261,7 @@ enum class CardState {
 -> std::vector<Ui::LabeledEmojiTab> {
 	tabs.push_back({
 		.id = u"_add_style"_q,
-		.label = tr::lng_ai_compose_add_style(tr::now),
+		.label = tr::lng_ai_compose_tone_create(tr::now),
 		.icon = &st::aiComposeAddStyleIcon,
 		.iconActive = &st::aiComposeAddStyleIconOver,
 	});
