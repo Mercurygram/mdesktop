@@ -1075,6 +1075,7 @@ private:
 		std::unique_ptr<WebPageStickerSet> stickerSet,
 		std::shared_ptr<UniqueGift> uniqueGift,
 		std::unique_ptr<WebPageAuction> auction,
+		DocumentId composeToneEmojiId,
 		int duration,
 		const QString &author,
 		bool hasLargeMedia,

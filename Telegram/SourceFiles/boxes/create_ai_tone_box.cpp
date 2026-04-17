@@ -157,7 +157,9 @@ void ChooseToneIconBox(
 	box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
 }
 
-not_null<Ui::AbstractButton*> AddIconPreview(
+} // namespace
+
+not_null<Ui::AbstractButton*> AddAiToneIconPreview(
 		not_null<Ui::VerticalLayout*> container,
 		not_null<Main::Session*> session,
 		rpl::producer<DocumentId> emojiIdValue,
@@ -285,22 +287,28 @@ not_null<Ui::AbstractButton*> AddIconPreview(
 		}
 	}, button->lifetime());
 
-	button->setClickedCallback([=] {
-		const auto controller = ChatHelpers::ResolveWindowDefault()(
-			session);
-		if (!controller) {
-			return;
-		}
-		controller->uiShow()->showBox(Box(
-			ChooseToneIconBox,
-			controller,
-			crl::guard(button, [=](DocumentId id) {
-				emojiIdChosen(id);
-			})));
-	});
+	if (emojiIdChosen) {
+		button->setClickedCallback([=] {
+			const auto controller = ChatHelpers::ResolveWindowDefault()(
+				session);
+			if (!controller) {
+				return;
+			}
+			controller->uiShow()->showBox(Box(
+				ChooseToneIconBox,
+				controller,
+				crl::guard(button, [=](DocumentId id) {
+					emojiIdChosen(id);
+				})));
+		});
+	} else {
+		button->setAttribute(Qt::WA_TransparentForMouseEvents);
+	}
 
 	return button;
 }
+
+namespace {
 
 void SetupToneBox(
 		not_null<Ui::GenericBox*> box,
@@ -323,7 +331,7 @@ void SetupToneBox(
 	const auto emojiId = container->lifetime().make_state<
 		rpl::variable<DocumentId>>(initialEmojiId);
 
-	const auto iconButton = AddIconPreview(
+	const auto iconButton = AddAiToneIconPreview(
 		container,
 		session,
 		emojiId->value(),
@@ -572,14 +580,14 @@ void CreateAiToneBox(
 				prompt,
 				emojiId,
 				displayAuthor,
-				[=](Data::AiComposeTone tone) {
+				crl::guard(box, [=](Data::AiComposeTone tone) {
 					const auto show = box->uiShow();
 					box->closeBox();
 					ShowToneToast(show, session, tone, true);
 					if (saved) {
 						saved(tone);
 					}
-				});
+				}));
 		},
 		nullptr);
 }
@@ -613,14 +621,14 @@ void EditAiToneBox(
 				prompt,
 				std::make_optional(emojiId),
 				std::make_optional(displayAuthor),
-				[=](Data::AiComposeTone updated) {
+				crl::guard(box, [=](Data::AiComposeTone updated) {
 					const auto show = box->uiShow();
 					box->closeBox();
 					ShowToneToast(show, session, updated, false);
 					if (saved) {
 						saved(updated);
 					}
-				});
+				}));
 		},
 		[=] {
 			auto toneCopy = Data::AiComposeTone();

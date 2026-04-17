@@ -19,6 +19,11 @@ class Error;
 
 namespace Data {
 
+struct AiComposeToneExample {
+	QString from;
+	QString to;
+};
+
 struct AiComposeTone {
 	uint64 id = 0;
 	uint64 accessHash = 0;
@@ -31,6 +36,7 @@ struct AiComposeTone {
 	bool creator = false;
 	bool isDefault = false;
 	QString defaultType;
+	std::optional<AiComposeToneExample> firstExample;
 };
 
 class AiComposeTones final {
@@ -66,6 +72,11 @@ public:
 	void resolve(
 		const QString &slug,
 		Fn<void(AiComposeTone)> done,
+		Fn<void(const MTP::Error &)> fail = nullptr);
+	void getToneExample(
+		const AiComposeTone &tone,
+		int num,
+		Fn<void(AiComposeToneExample)> done,
 		Fn<void(const MTP::Error &)> fail = nullptr);
 
 	void applyUpdate();

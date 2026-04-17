@@ -1302,10 +1302,58 @@ aiToneDeleteButtonMargin: margins(16px, 8px, 16px, 0px);
 aiComposeToneToastIconSize: size(32px, 32px);
 aiComposeToneToastIconPadding: margins(12px, 6px, 12px, 6px);
 
+aiTonePreviewTitleLabel: FlatLabel(defaultFlatLabel) {
+	textFg: windowFg;
+	minWidth: 0px;
+	maxHeight: 28px;
+	align: align(top);
+	style: TextStyle(semiboldTextStyle) {
+		font: font(17px semibold);
+	}
+}
+aiTonePreviewTitleMargin: margins(16px, 6px, 16px, 0px);
+
+aiTonePreviewAboutLabel: FlatLabel(defaultFlatLabel) {
+	textFg: windowSubTextFg;
+	minWidth: 20px;
+	align: align(top);
+	style: TextStyle(defaultTextStyle) {
+		font: font(14px);
+	}
+}
+aiTonePreviewAboutMargin: margins(28px, 6px, 28px, 6px);
+
+aiTonePreviewAttributionLabel: FlatLabel(defaultFlatLabel) {
+	textFg: windowSubTextFg;
+	minWidth: 0px;
+	align: align(top);
+	style: TextStyle(defaultTextStyle) {
+		font: font(12px);
+		linkUnderline: kLinkUnderlineActive;
+	}
+}
+aiTonePreviewAttributionMargin: margins(16px, 10px, 16px, 8px);
+
+aiTonePreviewExampleCardBg: boxBg;
+aiTonePreviewExampleCardRadius: 22px;
+aiTonePreviewExampleCardPadding: margins(14px, 12px, 16px, 12px);
+aiTonePreviewExampleCardSectionSkip: 24px;
+aiTonePreviewExampleCardTitleSkip: 6px;
+aiTonePreviewExampleCardMargin: margins(16px, 6px, 16px, 0px);
+
+aiTonePreviewAnotherExampleButton: RoundButton(defaultLightButton) {
+	width: -12px;
+	height: 26px;
+	radius: 8px;
+	textTop: 4px;
+	style: TextStyle(defaultTextStyle) {
+		font: font(12px semibold);
+	}
+}
+
 aiComposeCardBg: boxBg;
 aiComposeCardRadius: 22px;
 aiComposeCardPadding: margins(12px, 16px, 16px, 16px);
-aiComposeCardDivider: shadowFg;
 aiComposeCardSectionSkip: 12px;
 aiComposeCardControlSkip: 8px;
 aiComposeCardTitle: FlatLabel(defaultSubsectionTitle) {
@@ -1374,3 +1422,4 @@ aiComposeBoxInfoButton: IconButton(boxTitleClose) {
 	iconOver: icon {{ "menu/info", boxTitleCloseFgOver }};
 	ripple: defaultRippleAnimation;
 }
+aiComposeShadowOpacity: 0.3;

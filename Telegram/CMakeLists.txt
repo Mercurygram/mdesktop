@@ -388,6 +388,8 @@ PRIVATE
     boxes/compose_ai_box.h
     boxes/create_ai_tone_box.cpp
     boxes/create_ai_tone_box.h
+    boxes/preview_ai_tone_box.cpp
+    boxes/preview_ai_tone_box.h
     boxes/translate_box.cpp
     boxes/translate_box.h
     boxes/url_auth_box.cpp

@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "boxes/create_ai_tone_box.h"
 #include "boxes/premium_preview_box.h"
+#include "boxes/share_box.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "chat_helpers/stickers_lottie.h"
 #include "core/application.h"
@@ -59,8 +60,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <algorithm>
 #include <array>
-
-#include <QtGui/QGuiApplication>
 
 namespace HistoryView::Controls {
 namespace {
@@ -922,7 +921,9 @@ void ComposeAiPreviewCard::paintEvent(QPaintEvent *e) {
 		st::aiComposeCardRadius);
 	if (_dividerVisible) {
 		p.setBrush(Qt::NoBrush);
-		p.setPen(st::aiComposeCardDivider);
+		auto color = st::windowSubTextFg->c;
+		color.setAlphaF(st::aiComposeShadowOpacity);
+		p.setPen(color);
 		p.drawLine(
 			st::aiComposeCardPadding.left(),
 			_dividerTop,
@@ -1670,11 +1671,11 @@ void ComposeAiBox(not_null<Ui::GenericBox*> box, ComposeAiBoxArgs &&args) {
 			(*contextMenu)->addAction(
 				tr::lng_ai_compose_tone_share(tr::now),
 				[=] {
-					QGuiApplication::clipboard()->setText(
-						session->createInternalLinkFull(
-							"aistyle/" + toneCopy.slug));
-					box->showToast(
-						tr::lng_ai_compose_tone_link_copied(tr::now));
+					const auto url = session->createInternalLinkFull(
+						"addstyle/" + toneCopy.slug);
+					FastShareLink(
+						Main::MakeSessionShow(box->uiShow(), session),
+						url);
 				},
 				&st::menuIconShare);
 			(*contextMenu)->addAction(base::make_unique_q<Ui::Menu::Action>(

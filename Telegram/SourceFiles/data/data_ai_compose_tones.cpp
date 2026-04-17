@@ -56,7 +56,7 @@ void AiComposeTones::parseTones(const QVector<MTPAiComposeTone> &list) {
 AiComposeTone AiComposeTones::parseTone(
 		const MTPAiComposeTone &tone) const {
 	return tone.match([&](const MTPDaiComposeTone &data) {
-		return AiComposeTone{
+		auto result = AiComposeTone{
 			.id = data.vid().v,
 			.accessHash = data.vaccess_hash().v,
 			.slug = qs(data.vslug()),
@@ -69,6 +69,15 @@ AiComposeTone AiComposeTones::parseTone(
 				: UserId(0),
 			.creator = data.is_creator(),
 		};
+		if (const auto example = data.vexample_english()) {
+			example->match([&](const MTPDaiComposeToneExample &d) {
+				result.firstExample = AiComposeToneExample{
+					.from = qs(d.vfrom()),
+					.to = qs(d.vto()),
+				};
+			});
+		}
+		return result;
 	}, [&](const MTPDaiComposeToneDefault &data) {
 		return AiComposeTone{
 			.title = qs(data.vtitle()),
@@ -230,6 +239,30 @@ void AiComposeTones::resolve(
 				fail(MTP::Error::Local(
 					"TONE_NOT_MODIFIED",
 					"Tone not modified."));
+			}
+		});
+	}).fail([=](const MTP::Error &error) {
+		if (fail) {
+			fail(error);
+		}
+	}).send();
+}
+
+void AiComposeTones::getToneExample(
+		const AiComposeTone &tone,
+		int num,
+		Fn<void(AiComposeToneExample)> done,
+		Fn<void(const MTP::Error &)> fail) {
+	_session->api().request(MTPaicompose_GetToneExample(
+		toneToMTP(tone),
+		MTP_int(num)
+	)).done([=](const MTPAiComposeToneExample &result) {
+		result.match([&](const MTPDaiComposeToneExample &data) {
+			if (done) {
+				done(AiComposeToneExample{
+					.from = qs(data.vfrom()),
+					.to = qs(data.vto()),
+				});
 			}
 		});
 	}).fail([=](const MTP::Error &error) {

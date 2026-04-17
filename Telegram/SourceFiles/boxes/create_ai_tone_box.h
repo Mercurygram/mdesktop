@@ -16,9 +16,17 @@ class Session;
 } // namespace Main
 
 namespace Ui {
+class AbstractButton;
 class GenericBox;
 class Show;
+class VerticalLayout;
 } // namespace Ui
+
+not_null<Ui::AbstractButton*> AddAiToneIconPreview(
+	not_null<Ui::VerticalLayout*> container,
+	not_null<Main::Session*> session,
+	rpl::producer<DocumentId> emojiIdValue,
+	Fn<void(DocumentId)> emojiIdChosen = nullptr);
 
 void CreateAiToneBox(
 	not_null<Ui::GenericBox*> box,

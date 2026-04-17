@@ -31,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/gift_premium_box.h"
 #include "boxes/edit_privacy_box.h"
 #include "boxes/premium_preview_box.h"
+#include "boxes/preview_ai_tone_box.h"
 #include "boxes/sticker_set_box.h"
 #include "boxes/star_gift_box.h"
 #include "boxes/language_box.h"
@@ -311,21 +312,10 @@ bool ShowAiStyle(
 		if (!strong) {
 			return;
 		}
-		strong->window().show(Ui::MakeConfirmBox({
-			.text = tr::lng_ai_compose_tone_save_sure(
-				tr::now,
-				lt_title,
-				tone.title),
-			.confirmed = [=](Fn<void()> &&close) {
-				close();
-				strong->session().data().aiComposeTones().save(
-					tone,
-					false);
-				strong->window().showToast(
-					tr::lng_ai_compose_tone_saved(tr::now));
-			},
-			.confirmText = tr::lng_ai_compose_tone_save(),
-		}));
+		strong->window().show(Box(
+			PreviewAiToneBox,
+			&strong->session(),
+			std::move(tone)));
 	}, [=](const MTP::Error &error) {
 		const auto strong = weak.get();
 		if (!strong) {
@@ -1705,7 +1695,7 @@ const std::vector<LocalUrlHandler> &LocalUrlHandlers() {
 			ShowTheme
 		},
 		{
-			u"^aistyle/?\\?slug=([a-zA-Z0-9\\.\\_]+)(&|$)"_q,
+			u"^addstyle/?\\?slug=([a-zA-Z0-9\\.\\_]+)(&|$)"_q,
 			ShowAiStyle
 		},
 		{
@@ -1925,8 +1915,8 @@ QString TryConvertUrlToLocal(QString url) {
 			return u"tg://"_q + stickerSetMatch->captured(1) + "?set=" + url_encode(stickerSetMatch->captured(2));
 		} else if (const auto themeMatch = regex_match(u"^addtheme/([a-zA-Z0-9\\.\\_]+)(\\?|$)"_q, query, matchOptions)) {
 			return u"tg://addtheme?slug="_q + url_encode(themeMatch->captured(1));
-		} else if (const auto aiStyleMatch = regex_match(u"^aistyle/([a-zA-Z0-9\\.\\_]+)(\\?|$)"_q, query, matchOptions)) {
-			return u"tg://aistyle?slug="_q + url_encode(aiStyleMatch->captured(1));
+		} else if (const auto addStyleMatch = regex_match(u"^addstyle/([a-zA-Z0-9\\.\\_]+)(\\?|$)"_q, query, matchOptions)) {
+			return u"tg://addstyle?slug="_q + url_encode(addStyleMatch->captured(1));
 		} else if (const auto languageMatch = regex_match(u"^setlanguage/([a-zA-Z0-9\\.\\_\\-]+)(\\?|$)"_q, query, matchOptions)) {
 			return u"tg://setlanguage?lang="_q + url_encode(languageMatch->captured(1));
 		} else if (const auto shareUrlMatch = regex_match(u"^share/url/?\\?(.+)$"_q, query, matchOptions)) {
