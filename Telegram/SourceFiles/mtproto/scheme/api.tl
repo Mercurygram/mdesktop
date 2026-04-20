@@ -2150,14 +2150,6 @@ bots.requestedButton#f13bbcd7 webapp_req_id:string = bots.RequestedButton;
 
 messages.composedMessageWithAI#90d7adfa flags:# result_text:TextWithEntities diff_text:flags.0?TextWithEntities = messages.ComposedMessageWithAI;
 
-channels.found#3128c4bc flags:# results:Vector<Peer> chats:Vector<Chat> users:Vector<User> next_offset:flags.0?string = channels.Found;
-
-personalChannel#19bc407d user_id:long channel_id:long = PersonalChannel;
-
-channels.personalChannels#d69ae84d channels:Vector<PersonalChannel> chats:Vector<Chat> users:Vector<User> = channels.PersonalChannels;
-
-channelTopic#93a5df73 id:int title:string = ChannelTopic;
-
 stats.pollStats#2999beed votes_graph:StatsGraph = stats.PollStats;
 
 inputAiComposeToneDefault#1fe9a9bf tone:string = InputAiComposeTone;
@@ -2732,9 +2724,6 @@ channels.toggleAutotranslation#167fc0a1 channel:InputChannel enabled:Bool = Upda
 channels.getMessageAuthor#ece2a0e6 channel:InputChannel id:int = User;
 channels.checkSearchPostsFlood#22567115 flags:# query:flags.0?string = SearchPostsFlood;
 channels.setMainProfileTab#3583fcb1 channel:InputChannel tab:ProfileTab = Bool;
-channels.search#27d79557 flags:# q:flags.0?string topic_id:flags.1?int offset:string = channels.Found;
-channels.getContactPersonalChannels#509b3c66 = channels.PersonalChannels;
-channels.getTopics#7ab18dcc lang_code:string = Vector<ChannelTopic>;
 
 bots.sendCustomRequest#aa2769ed custom_method:string params:DataJSON = DataJSON;
 bots.answerWebhookJSONQuery#e6213f4d query_id:long data:DataJSON = Bool;
