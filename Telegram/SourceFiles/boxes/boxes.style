@@ -1350,6 +1350,10 @@ aiTonePreviewAnotherExampleButton: RoundButton(defaultLightButton) {
 		font: font(12px semibold);
 	}
 }
+aiTonePreviewAnotherExampleIcon: IconEmoji {
+	icon: icon {{ "chat/refresh-18x18", lightButtonFg }};
+	padding: margins(0px, 1px, 4px, 0px);
+}
 
 aiComposeCardBg: boxBg;
 aiComposeCardRadius: 22px;

@@ -15,10 +15,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "ui/controls/custom_emoji_toast_icon.h"
+#include "ui/effects/animation_value.h"
+#include "ui/effects/animations.h"
 #include "ui/effects/skeleton_animation.h"
 #include "ui/layers/generic_box.h"
 #include "ui/layers/show.h"
 #include "ui/painter.h"
+#include "ui/text/text_custom_emoji.h"
 #include "ui/text/text_entity.h"
 #include "ui/text/text_utilities.h"
 #include "ui/toast/toast.h"
@@ -34,10 +37,151 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace {
 
 constexpr auto kToastDuration = crl::time(4000);
+constexpr auto kSpinDuration = crl::time(600);
+constexpr auto kWaitDuration = crl::time(1000);
+
+class RefreshSpinEmoji final : public Ui::Text::CustomEmoji {
+public:
+	RefreshSpinEmoji(
+		std::shared_ptr<rpl::variable<bool>> loading,
+		Fn<void()> repaint);
+
+	int width() override;
+	QString entityData() override;
+	void paint(QPainter &p, const Context &context) override;
+	void unload() override;
+	bool ready() override;
+	bool readyInDefaultState() override;
+
+private:
+	enum class Phase : uchar { Idle, Spinning, Waiting };
+
+	void handleLoading(bool now);
+	void tick(crl::time now);
+	[[nodiscard]] float64 angleDegrees(crl::time now) const;
+
+	rpl::variable<bool> _loading;
+	const Fn<void()> _repaint;
+	Ui::Animations::Basic _animation;
+	crl::time _phaseStarted = 0;
+	Phase _phase = Phase::Idle;
+	rpl::lifetime _lifetime;
+
+};
+
+RefreshSpinEmoji::RefreshSpinEmoji(
+	std::shared_ptr<rpl::variable<bool>> loading,
+	Fn<void()> repaint)
+: _loading(loading->value())
+, _repaint(std::move(repaint))
+, _animation([=](crl::time now) { tick(now); }) {
+	_loading.value(
+	) | rpl::on_next([=](bool value) {
+		handleLoading(value);
+	}, _lifetime);
+}
+
+int RefreshSpinEmoji::width() {
+	const auto &e = st::aiTonePreviewAnotherExampleIcon;
+	return e.padding.left() + e.icon.width() + e.padding.right();
+}
+
+QString RefreshSpinEmoji::entityData() {
+	return u"ai-tone-refresh"_q;
+}
+
+float64 RefreshSpinEmoji::angleDegrees(crl::time now) const {
+	if (_phase != Phase::Spinning) {
+		return 0.;
+	}
+	const auto elapsed = now - _phaseStarted;
+	const auto dt = std::clamp(
+		elapsed / float64(kSpinDuration),
+		0.,
+		1.);
+	return anim::easeOutBack(360., dt);
+}
+
+void RefreshSpinEmoji::paint(QPainter &p, const Context &context) {
+	const auto &e = st::aiTonePreviewAnotherExampleIcon;
+	const auto size = e.icon.size();
+	const auto pos = context.position
+		+ QPoint(e.padding.left(), e.padding.top());
+	const auto angle = angleDegrees(context.now);
+	auto hq = PainterHighQualityEnabler(p);
+	if (angle != 0.) {
+		const auto center = QPointF(pos)
+			+ QPointF(size.width() / 2.0, size.height() / 2.0);
+		p.save();
+		p.translate(center);
+		p.rotate(angle);
+		p.translate(-center);
+		e.icon.paint(p, pos, 0, context.textColor);
+		p.restore();
+	} else {
+		e.icon.paint(p, pos, 0, context.textColor);
+	}
+}
+
+void RefreshSpinEmoji::unload() {
+}
+
+bool RefreshSpinEmoji::ready() {
+	return true;
+}
+
+bool RefreshSpinEmoji::readyInDefaultState() {
+	return _phase == Phase::Idle;
+}
+
+void RefreshSpinEmoji::handleLoading(bool now) {
+	if (now) {
+		if (_phase == Phase::Idle) {
+			_phase = Phase::Spinning;
+			_phaseStarted = crl::now();
+			_animation.start();
+			if (_repaint) {
+				_repaint();
+			}
+		}
+	} else if (_phase == Phase::Waiting) {
+		_phase = Phase::Idle;
+		_animation.stop();
+		if (_repaint) {
+			_repaint();
+		}
+	}
+}
+
+void RefreshSpinEmoji::tick(crl::time now) {
+	const auto elapsed = now - _phaseStarted;
+	if (_phase == Phase::Spinning && elapsed >= kSpinDuration) {
+		if (_loading.current()) {
+			_phase = Phase::Waiting;
+			_phaseStarted = now;
+		} else {
+			_phase = Phase::Idle;
+			_animation.stop();
+		}
+	} else if (_phase == Phase::Waiting && elapsed >= kWaitDuration) {
+		if (_loading.current()) {
+			_phase = Phase::Spinning;
+			_phaseStarted = now;
+		} else {
+			_phase = Phase::Idle;
+			_animation.stop();
+		}
+	}
+	if (_repaint) {
+		_repaint();
+	}
+}
 
 class PreviewAiToneExampleCard final : public Ui::RpWidget {
 public:
-	explicit PreviewAiToneExampleCard(QWidget *parent);
+	PreviewAiToneExampleCard(
+		QWidget *parent,
+		std::shared_ptr<rpl::variable<bool>> loading);
 
 	void showExample(Data::AiComposeToneExample example);
 	void showSkeleton(bool shown);
@@ -62,7 +206,9 @@ private:
 
 };
 
-PreviewAiToneExampleCard::PreviewAiToneExampleCard(QWidget *parent)
+PreviewAiToneExampleCard::PreviewAiToneExampleCard(
+	QWidget *parent,
+	std::shared_ptr<rpl::variable<bool>> loading)
 : RpWidget(parent)
 , _layout(Ui::CreateChild<Ui::VerticalLayout>(this))
 , _beforeTitle(_layout->add(
@@ -113,7 +259,7 @@ PreviewAiToneExampleCard::PreviewAiToneExampleCard(QWidget *parent)
 		st::aiTonePreviewExampleCardPadding.bottom())))
 , _another(Ui::CreateChild<Ui::RoundButton>(
 	this,
-	tr::lng_ai_compose_tone_preview_add_example(),
+	rpl::single(QString()),
 	st::aiTonePreviewAnotherExampleButton))
 , _beforeSkeleton(_beforeBody)
 , _afterSkeleton(_afterBody) {
@@ -137,6 +283,21 @@ PreviewAiToneExampleCard::PreviewAiToneExampleCard(QWidget *parent)
 			titleGeometry.top() + shift,
 			width);
 	}, lifetime());
+	auto context = Ui::Text::MarkedContext();
+	context.repaint = [raw = _another.get()] { raw->update(); };
+	context.customEmojiFactory = [loading = std::move(loading)](
+			QStringView data,
+			const Ui::Text::MarkedContext &context
+		) -> std::unique_ptr<Ui::Text::CustomEmoji> {
+		if (data != u"ai-tone-refresh"_q) {
+			return nullptr;
+		}
+		return std::make_unique<RefreshSpinEmoji>(loading, context.repaint);
+	};
+	_another->setContext(context);
+	_another->setText(rpl::single(
+		Ui::Text::SingleCustomEmoji(u"ai-tone-refresh"_q)
+			.append(tr::lng_ai_compose_tone_preview_add_example(tr::now))));
 	_another->setClickedCallback([=] {
 		_anotherExampleRequested.fire({});
 	});
@@ -242,31 +403,32 @@ void PreviewAiToneBox(
 
 	struct State {
 		int examplesCount = 0;
-		bool requesting = false;
+		std::shared_ptr<rpl::variable<bool>> requesting
+			= std::make_shared<rpl::variable<bool>>(false);
 	};
 	const auto state = box->lifetime().make_state<State>();
 	state->examplesCount = tone.firstExample ? 1 : 0;
 
 	const auto card = body->add(
-		object_ptr<PreviewAiToneExampleCard>(body),
+		object_ptr<PreviewAiToneExampleCard>(body, state->requesting),
 		st::aiTonePreviewExampleCardMargin);
 	const auto loadAnother = [=] {
-		if (state->requesting) {
+		if (state->requesting->current()) {
 			return;
 		}
-		state->requesting = true;
+		*state->requesting = true;
 		card->showSkeleton(true);
 		const auto num = state->examplesCount;
 		session->data().aiComposeTones().getToneExample(
 			tone,
 			num,
 			crl::guard(box, [=](Data::AiComposeToneExample example) {
-				state->requesting = false;
+				*state->requesting = false;
 				++state->examplesCount;
 				card->showExample(std::move(example));
 			}),
 			crl::guard(box, [=](const MTP::Error &) {
-				state->requesting = false;
+				*state->requesting = false;
 				card->showSkeleton(false);
 				box->showToast(tr::lng_ai_compose_error(tr::now));
 			}));
