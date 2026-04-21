@@ -3137,7 +3137,7 @@ bool HistoryItem::canReact() const {
 			return (_flags & MessageFlag::ReactionsAllowed);
 		}
 	}
-	return true;
+	return Data::CanSend(history()->peer, ChatRestriction::SendReactions, false);
 }
 
 void HistoryItem::addPaidReaction(

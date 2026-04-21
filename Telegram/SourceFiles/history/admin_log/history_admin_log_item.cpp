@@ -338,6 +338,7 @@ QString GeneratePermissionsChangeText(
 			| Flag::SendInline
 			| Flag::SendGames, tr::lng_admin_log_banned_send_stickers },
 		{ Flag::EmbedLinks, tr::lng_admin_log_banned_embed_links },
+		{ Flag::SendReactions, tr::lng_admin_log_banned_send_reactions },
 		{ Flag::SendPolls, tr::lng_admin_log_banned_send_polls },
 		{ Flag::ChangeInfo, tr::lng_admin_log_admin_change_info },
 		{ Flag::AddParticipants, tr::lng_admin_log_admin_invite_users },

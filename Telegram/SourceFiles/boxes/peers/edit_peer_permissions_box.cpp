@@ -90,6 +90,7 @@ constexpr auto kDefaultChargeStars = 10;
 			| Flag::SendGames
 			| Flag::SendInline, tr::lng_rights_chat_stickers(tr::now) },
 		{ Flag::EmbedLinks, tr::lng_rights_chat_send_links(tr::now) },
+		{ Flag::SendReactions, tr::lng_rights_chat_send_reactions(tr::now) },
 		{ Flag::SendPolls, tr::lng_rights_chat_send_polls(tr::now) },
 	};
 	auto second = std::vector<RestrictionLabel>{
@@ -305,6 +306,7 @@ ChatRestrictions NegateRestrictions(ChatRestrictions value) {
 		//| Flag::ViewMessages
 		| Flag::ChangeInfo
 		| Flag::EmbedLinks
+		| Flag::SendReactions
 		| Flag::AddParticipants
 		| Flag::CreateTopics
 		| Flag::PinMessages
