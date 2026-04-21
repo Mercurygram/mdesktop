@@ -113,6 +113,13 @@ settingsPremiumIconAiCompose: icon{
 	{ "chat/ai_star2-20x20", settingsIconFg, point(2px, 2px) },
 };
 
+settingsIconChatAutomation: icon {
+	{ size(24px, 24px), transparent },
+	{ "chat/ai_letters-20x20", menuIconColor, point(2px, 2px) },
+	{ "chat/ai_star1-20x20", menuIconColor, point(2px, 2px) },
+	{ "chat/ai_star2-20x20", menuIconColor, point(2px, 2px) },
+};
+
 settingsStoriesIconOrder: icon {{ "settings/premium/stories_order", premiumButtonBg1 }};
 settingsStoriesIconStealth: icon {{ "menu/stealth", premiumButtonBg1 }};
 settingsStoriesIconViews: icon {{ "menu/show_in_chat", premiumButtonBg1 }};
@@ -697,6 +704,12 @@ settingsChatbotsNotFound: FlatLabel(defaultFlatLabel) {
 }
 settingsChatbotsDeleteIcon: icon {{ "dialogs/dialogs_cancel_search", dialogsMenuIconFg }};
 settingsChatbotsDeleteIconOver: icon {{ "dialogs/dialogs_cancel_search", dialogsMenuIconFgOver }};
+settingsChatbotsAddButton: RoundButton(defaultActiveButton) {
+	width: -16px;
+	height: 26px;
+	textTop: 4px;
+}
+settingsChatbotsAddMargin: 14px;
 
 settingsChatIntroField: InputField(defaultMultiSelectSearchField) {
 	textMargins: margins(2px, 0px, 32px, 0px);
