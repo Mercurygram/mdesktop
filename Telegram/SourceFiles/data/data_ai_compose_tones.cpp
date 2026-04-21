@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_ai_compose_tones.h"
 
 #include "apiwrap.h"
+#include "api/api_text_entities.h"
 #include "data/data_session.h"
 #include "main/main_session.h"
 
@@ -72,8 +73,8 @@ AiComposeTone AiComposeTones::parseTone(
 		if (const auto example = data.vexample_english()) {
 			example->match([&](const MTPDaiComposeToneExample &d) {
 				result.firstExample = AiComposeToneExample{
-					.from = qs(d.vfrom()),
-					.to = qs(d.vto()),
+					.from = Api::ParseTextWithEntities(_session, d.vfrom()),
+					.to = Api::ParseTextWithEntities(_session, d.vto()),
 				};
 			});
 		}
@@ -176,7 +177,8 @@ void AiComposeTones::update(
 void AiComposeTones::save(
 		const AiComposeTone &tone,
 		bool unsave,
-		Fn<void()> done) {
+		Fn<void()> done,
+		Fn<void(const MTP::Error &)> fail) {
 	_session->api().request(MTPaicompose_SaveTone(
 		toneToMTP(tone),
 		unsave ? MTP_boolTrue() : MTP_boolFalse()
@@ -185,7 +187,10 @@ void AiComposeTones::save(
 			done();
 		}
 		refresh();
-	}).fail([=] {
+	}).fail([=](const MTP::Error &error) {
+		if (fail) {
+			fail(error);
+		}
 	}).send();
 }
 
@@ -260,8 +265,8 @@ void AiComposeTones::getToneExample(
 		result.match([&](const MTPDaiComposeToneExample &data) {
 			if (done) {
 				done(AiComposeToneExample{
-					.from = qs(data.vfrom()),
-					.to = qs(data.vto()),
+					.from = Api::ParseTextWithEntities(_session, data.vfrom()),
+					.to = Api::ParseTextWithEntities(_session, data.vto()),
 				});
 			}
 		});

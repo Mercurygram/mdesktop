@@ -14,11 +14,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_document.h"
 #include "data/data_document_media.h"
 #include "data/data_forum_icons.h"
+#include "data/data_premium_limits.h"
 #include "data/data_session.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "history/view/media/history_view_sticker_player.h"
 #include "lang/lang_keys.h"
+#include "main/session/session_show.h"
+#include "main/main_app_config.h"
 #include "main/main_session.h"
+#include "settings/sections/settings_premium.h"
 #include "ui/abstract_button.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/controls/custom_emoji_toast_icon.h"
@@ -345,6 +349,9 @@ void SetupToneBox(
 			rpl::producer<QString>(),
 			initialName),
 		st::aiToneFieldsMargin);
+	name->setMaxLength(session->appConfig().get<int>(
+		u"aicompose_tone_title_length_max"_q,
+		12));
 
 	Ui::AddSkip(container, st::aiToneFieldsSkip);
 
@@ -380,6 +387,9 @@ void SetupToneBox(
 			initialPrompt),
 		st::aiToneFieldsMargin);
 	prompt->setSubmitSettings(Ui::InputField::SubmitSettings::None);
+	prompt->setMaxLength(session->appConfig().get<int>(
+		u"aicompose_tone_prompt_length_max"_q,
+		1024));
 
 	struct FieldDecor {
 		not_null<Ui::RpWidget*> bg;
@@ -587,6 +597,13 @@ void CreateAiToneBox(
 					if (saved) {
 						saved(tone);
 					}
+				}),
+				crl::guard(box, [=](const MTP::Error &error) {
+					if (error.type() == u"TONES_SAVED_TOO_MANY"_q) {
+						ShowAiComposeToneLimitError(box->uiShow(), session);
+					} else {
+						box->showToast(tr::lng_ai_compose_error(tr::now));
+					}
 				}));
 		},
 		nullptr);
@@ -660,4 +677,53 @@ void ConfirmDeleteAiTone(
 		.confirmStyle = &st::attentionBoxButton,
 		.title = tr::lng_ai_compose_tone_delete(),
 	}));
+}
+
+void ShowAiComposeToneLimitError(
+		std::shared_ptr<Ui::Show> show,
+		not_null<Main::Session*> session) {
+	const auto limits = Data::PremiumLimits(session);
+	const auto premium = session->premium();
+	const auto premiumPossible = session->premiumPossible();
+	const auto defaultLimit = limits.aiComposeSavedTonesDefault();
+	const auto premiumLimit = limits.aiComposeSavedTonesPremium();
+	const auto current = premium ? premiumLimit : defaultLimit;
+	if (premium || !premiumPossible) {
+		using WeakToast = base::weak_ptr<Ui::Toast::Instance>;
+		const auto toast = std::make_shared<WeakToast>();
+		(*toast) = show->showToast({
+			.text = tr::lng_ai_compose_tone_saved_limit_final(
+				tr::now,
+				lt_count,
+				current,
+				tr::rich),
+			.filter = crl::guard(session, [=](
+					const ClickHandlerPtr &,
+					Qt::MouseButton button) {
+				if (button == Qt::LeftButton) {
+					if (const auto strong = toast->get()) {
+						strong->hideAnimated();
+						(*toast) = nullptr;
+					}
+				}
+				return true;
+			}),
+		});
+	} else {
+		Settings::ShowPremiumPromoToast(
+			Main::MakeSessionShow(show, session),
+			ChatHelpers::ResolveWindowDefault(),
+			tr::lng_ai_compose_tone_saved_limit(
+				tr::now,
+				lt_count,
+				defaultLimit,
+				lt_link,
+				tr::bold(tr::lng_ai_compose_tone_saved_limit_link(
+					tr::now,
+					tr::link)),
+				lt_premium_count,
+				tr::bold(QString::number(premiumLimit)),
+				tr::rich),
+			u"ai_compose_tones"_q);
+	}
 }

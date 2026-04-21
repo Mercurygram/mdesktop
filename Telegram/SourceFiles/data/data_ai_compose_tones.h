@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "base/timer.h"
+#include "ui/text/text_entity.h"
 
 namespace Main {
 class Session;
@@ -20,8 +21,8 @@ class Error;
 namespace Data {
 
 struct AiComposeToneExample {
-	QString from;
-	QString to;
+	TextWithEntities from;
+	TextWithEntities to;
 };
 
 struct AiComposeTone {
@@ -65,7 +66,8 @@ public:
 	void save(
 		const AiComposeTone &tone,
 		bool unsave,
-		Fn<void()> done = nullptr);
+		Fn<void()> done = nullptr,
+		Fn<void(const MTP::Error &)> fail = nullptr);
 	void remove(
 		const AiComposeTone &tone,
 		Fn<void()> done = nullptr);

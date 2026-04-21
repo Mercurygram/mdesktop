@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "data/data_user.h"
 #include "lang/lang_keys.h"
+#include "main/main_app_config.h"
 #include "main/main_session.h"
 #include "ui/controls/custom_emoji_toast_icon.h"
 #include "ui/effects/animation_value.h"
@@ -181,10 +182,12 @@ class PreviewAiToneExampleCard final : public Ui::RpWidget {
 public:
 	PreviewAiToneExampleCard(
 		QWidget *parent,
+		not_null<Main::Session*> session,
 		std::shared_ptr<rpl::variable<bool>> loading);
 
 	void showExample(Data::AiComposeToneExample example);
 	void showSkeleton(bool shown);
+	void setAnotherVisible(bool visible);
 	[[nodiscard]] rpl::producer<> anotherExampleRequested() const;
 
 protected:
@@ -192,6 +195,7 @@ protected:
 	void paintEvent(QPaintEvent *e) override;
 
 private:
+	const not_null<Main::Session*> _session;
 	const not_null<Ui::VerticalLayout*> _layout;
 	const not_null<Ui::FlatLabel*> _beforeTitle;
 	const not_null<Ui::FlatLabel*> _beforeBody;
@@ -208,8 +212,10 @@ private:
 
 PreviewAiToneExampleCard::PreviewAiToneExampleCard(
 	QWidget *parent,
+	not_null<Main::Session*> session,
 	std::shared_ptr<rpl::variable<bool>> loading)
 : RpWidget(parent)
+, _session(session)
 , _layout(Ui::CreateChild<Ui::VerticalLayout>(this))
 , _beforeTitle(_layout->add(
 	object_ptr<Ui::FlatLabel>(
@@ -305,8 +311,9 @@ PreviewAiToneExampleCard::PreviewAiToneExampleCard(
 
 void PreviewAiToneExampleCard::showExample(
 		Data::AiComposeToneExample example) {
-	_beforeBody->setText(example.from);
-	_afterBody->setText(example.to);
+	const auto context = Core::TextContext({ .session = _session });
+	_beforeBody->setMarkedText(example.from, context);
+	_afterBody->setMarkedText(example.to, context);
 	_beforeSkeleton.stop();
 	_afterSkeleton.stop();
 	if (width() > 0) {
@@ -322,6 +329,10 @@ void PreviewAiToneExampleCard::showSkeleton(bool shown) {
 		_beforeSkeleton.stop();
 		_afterSkeleton.stop();
 	}
+}
+
+void PreviewAiToneExampleCard::setAnotherVisible(bool visible) {
+	_another->setVisible(visible);
 }
 
 rpl::producer<> PreviewAiToneExampleCard::anotherExampleRequested() const {
@@ -410,8 +421,18 @@ void PreviewAiToneBox(
 	state->examplesCount = tone.firstExample ? 1 : 0;
 
 	const auto card = body->add(
-		object_ptr<PreviewAiToneExampleCard>(body, state->requesting),
+		object_ptr<PreviewAiToneExampleCard>(
+			body,
+			session,
+			state->requesting),
 		st::aiTonePreviewExampleCardMargin);
+	const auto maxExamples = session->appConfig().get<int>(
+		u"aicompose_tone_examples_num"_q,
+		3);
+	const auto updateAnother = [=] {
+		card->setAnotherVisible(state->examplesCount < maxExamples);
+	};
+	updateAnother();
 	const auto loadAnother = [=] {
 		if (state->requesting->current()) {
 			return;
@@ -426,6 +447,7 @@ void PreviewAiToneBox(
 				*state->requesting = false;
 				++state->examplesCount;
 				card->showExample(std::move(example));
+				updateAnother();
 			}),
 			crl::guard(box, [=](const MTP::Error &) {
 				*state->requesting = false;
@@ -489,10 +511,21 @@ void PreviewAiToneBox(
 	const auto add = box->addButton(
 		tr::lng_ai_compose_tone_preview_add(),
 		[=] {
-			session->data().aiComposeTones().save(tone, false);
 			const auto show = box->uiShow();
-			box->closeBox();
-			ShowToneAddedToast(show, session, tone);
+			session->data().aiComposeTones().save(
+				tone,
+				false,
+				crl::guard(box, [=] {
+					box->closeBox();
+					ShowToneAddedToast(show, session, tone);
+				}),
+				crl::guard(box, [=](const MTP::Error &error) {
+					if (error.type() == u"TONES_SAVED_TOO_MANY"_q) {
+						ShowAiComposeToneLimitError(show, session);
+					} else {
+						box->showToast(tr::lng_ai_compose_error(tr::now));
+					}
+				}));
 		});
 	add->setFullRadius(true);
 }

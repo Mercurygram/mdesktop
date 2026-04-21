@@ -2162,7 +2162,7 @@ aiComposeToneDefault#9bad6414 tone:string emoji_id:long title:string = AiCompose
 aicompose.tonesNotModified#c1f46103 = aicompose.Tones;
 aicompose.tones#6c9d0efe hash:long tones:Vector<AiComposeTone> users:Vector<User> = aicompose.Tones;
 
-aiComposeToneExample#a8dc3b99 from:string to:string = AiComposeToneExample;
+aiComposeToneExample#f1d628ec from:TextWithEntities to:TextWithEntities = AiComposeToneExample;
 
 bots.accessSettings#dd1fbf93 flags:# restricted:flags.0?true add_users:flags.1?Vector<User> = bots.AccessSettings;
 

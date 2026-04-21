@@ -44,3 +44,7 @@ void ConfirmDeleteAiTone(
 	not_null<Main::Session*> session,
 	const Data::AiComposeTone &tone,
 	Fn<void()> done = nullptr);
+
+void ShowAiComposeToneLimitError(
+	std::shared_ptr<Ui::Show> show,
+	not_null<Main::Session*> session);

@@ -7964,6 +7964,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_ai_compose_tone_preview_created_by" = "Created by {user}";
 "lng_ai_compose_tone_added" = "Style Added";
 "lng_ai_compose_tone_added_description" = "Tap \"AI\" → \"{name}\" when typing your next long message.";
+"lng_ai_compose_tone_saved_limit#one" = "Subscribe to {link} to save up to {premium_count} styles, or delete one of your **{count}** style to add another.";
+"lng_ai_compose_tone_saved_limit#other" = "Subscribe to {link} to save up to {premium_count} styles, or delete one of your **{count}** styles to add another.";
+"lng_ai_compose_tone_saved_limit_link" = "Premium";
+"lng_ai_compose_tone_saved_limit_final#one" = "You can save up to **{count}** style. Delete one to add another.";
+"lng_ai_compose_tone_saved_limit_final#other" = "You can save up to **{count}** styles. Delete one to add another.";
 
 "lng_send_as_file_tooltip" = "Send text as a file.";
 
