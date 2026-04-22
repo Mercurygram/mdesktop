@@ -4799,9 +4799,7 @@ void HistoryWidget::saveEditMessage(Api::SendOptions options) {
 			|| !webPageDraft.manual)
 		&& !hasMediaWithCaption) {
 		if (item->computeSuggestionActions() == SuggestionActions::None) {
-			const auto suggestModerateActions = false;
-			controller()->show(
-				Box<DeleteMessagesBox>(item, suggestModerateActions));
+			controller()->show(Box<DeleteMessagesBox>(item));
 		}
 		return;
 	} else {
@@ -9590,7 +9588,7 @@ void HistoryWidget::confirmDeleteSelected() {
 		const auto opt = DefaultModerateMessagesBoxOptions();
 		controller()->show(Box(
 			CreateModerateMessagesBox,
-			items,
+			ModerateMessagesBoxEntry{ .items = items },
 			crl::guard(this, [=] { clearSelected(); }),
 			opt));
 	} else {

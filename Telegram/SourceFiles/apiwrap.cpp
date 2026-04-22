@@ -1422,6 +1422,28 @@ void ApiWrap::deleteAllFromParticipantSend(
 	}).send();
 }
 
+void ApiWrap::deleteAllReactionsFromParticipant(
+		not_null<PeerData*> peer,
+		not_null<PeerData*> participant) {
+	request(MTPmessages_DeleteParticipantReactions(
+		peer->input(),
+		participant->input()
+	)).send();
+}
+
+void ApiWrap::deleteParticipantReaction(
+		not_null<PeerData*> peer,
+		MsgId msgId,
+		not_null<PeerData*> participant) {
+	request(MTPmessages_DeleteParticipantReaction(
+		peer->input(),
+		MTP_int(msgId.bare),
+		participant->input()
+	)).done([=](const MTPUpdates &result) {
+		applyUpdates(result);
+	}).send();
+}
+
 void ApiWrap::deleteSublistHistory(
 		not_null<ChannelData*> channel,
 		not_null<PeerData*> sublistPeer) {

@@ -4658,8 +4658,11 @@ void ConfirmDeleteSelectedItems(not_null<ListWidget*> widget) {
 	});
 	if (CanCreateModerateMessagesBox(historyItems)) {
 		const auto opt = DefaultModerateMessagesBoxOptions();
-		controller->show(
-			Box(CreateModerateMessagesBox, historyItems, confirmed, opt));
+		controller->show(Box(
+			CreateModerateMessagesBox,
+			ModerateMessagesBoxEntry{ .items = historyItems },
+			confirmed,
+			opt));
 	} else {
 		auto box = Box<DeleteMessagesBox>(
 			&widget->session(),

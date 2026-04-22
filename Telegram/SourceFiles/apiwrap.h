@@ -237,6 +237,13 @@ public:
 	void deleteAllFromParticipant(
 		not_null<ChannelData*> channel,
 		not_null<PeerData*> from);
+	void deleteAllReactionsFromParticipant(
+		not_null<PeerData*> peer,
+		not_null<PeerData*> participant);
+	void deleteParticipantReaction(
+		not_null<PeerData*> peer,
+		MsgId msgId,
+		not_null<PeerData*> participant);
 	void deleteSublistHistory(
 		not_null<ChannelData*> parentChat,
 		not_null<PeerData*> sublistPeer);
