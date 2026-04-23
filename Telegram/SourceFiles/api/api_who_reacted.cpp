@@ -512,11 +512,13 @@ void RegenerateParticipants(not_null<State*> state, int small, int large) {
 		const auto peer = userpic.peer;
 		const auto date = userpic.date;
 		const auto id = peer->id.value;
+		const auto self = peer->isSelf();
 		const auto was = ranges::find(old, id, &Ui::WhoReadParticipant::id);
 		if (was != end(old)) {
 			was->name = peer->name();
 			was->date = FormatReadDate(date, currentDate);
 			was->dateReacted = userpic.dateReacted;
+			was->self = self;
 			now.push_back(std::move(*was));
 			continue;
 		}
@@ -524,6 +526,7 @@ void RegenerateParticipants(not_null<State*> state, int small, int large) {
 			.name = peer->name(),
 			.date = FormatReadDate(date, currentDate),
 			.dateReacted = userpic.dateReacted,
+			.self = self,
 			.customEntityData = userpic.customEntityData,
 			.userpicLarge = GenerateUserpic(userpic, large),
 			.userpicKey = userpic.uniqueKey,

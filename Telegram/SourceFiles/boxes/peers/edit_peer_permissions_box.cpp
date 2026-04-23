@@ -90,7 +90,6 @@ constexpr auto kDefaultChargeStars = 10;
 			| Flag::SendGames
 			| Flag::SendInline, tr::lng_rights_chat_stickers(tr::now) },
 		{ Flag::EmbedLinks, tr::lng_rights_chat_send_links(tr::now) },
-		{ Flag::SendReactions, tr::lng_rights_chat_send_reactions(tr::now) },
 		{ Flag::SendPolls, tr::lng_rights_chat_send_polls(tr::now) },
 	};
 	auto second = std::vector<RestrictionLabel>{
@@ -101,6 +100,7 @@ constexpr auto kDefaultChargeStars = 10;
 			? tr::lng_rights_group_edit_rank_single
 			: tr::lng_rights_group_edit_rank)(tr::now) },
 		{ Flag::ChangeInfo, tr::lng_rights_group_info(tr::now) },
+		{ Flag::SendReactions, tr::lng_rights_chat_send_reactions(tr::now) },
 	};
 	if (!options.isForum) {
 		second.erase(

@@ -8,21 +8,32 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/reactions/history_view_reactions_list.h"
 
 #include "history/view/reactions/history_view_reactions_tabs.h"
+#include "boxes/moderate_messages_box.h"
 #include "boxes/peer_list_box.h"
 #include "boxes/peers/prepare_short_info_box.h"
+#include "info/info_memento.h"
+#include "info/profile/info_profile_widget.h"
 #include "window/window_session_controller.h"
 #include "history/history_item.h"
 #include "history/history.h"
 #include "api/api_who_reacted.h"
 #include "ui/controls/who_reacted_context_action.h"
+#include "ui/layers/generic_box.h"
 #include "ui/text/text_custom_emoji.h"
+#include "ui/widgets/menu/menu_add_action_callback.h"
+#include "ui/widgets/menu/menu_add_action_callback_factory.h"
+#include "ui/widgets/popup_menu.h"
 #include "ui/painter.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "data/data_message_reaction_id.h"
 #include "main/main_session.h"
 #include "data/data_session.h"
 #include "data/data_peer.h"
+#include "data/data_chat.h"
+#include "data/data_channel.h"
 #include "lang/lang_keys.h"
+#include "styles/style_boxes.h"
+#include "styles/style_menu_icons.h"
 
 namespace HistoryView::Reactions {
 namespace {
@@ -38,9 +49,13 @@ public:
 		uint64 id,
 		not_null<PeerData*> peer,
 		const Ui::Text::CustomEmojiFactory &factory,
+		ReactionId reaction,
 		QStringView reactionEntityData,
 		Fn<void(Row*)> repaint,
 		Fn<bool()> paused);
+
+	[[nodiscard]] const ReactionId &reaction() const;
+	[[nodiscard]] bool isReactionRow() const;
 
 	QSize rightActionSize() const override;
 	QMargins rightActionMargins() const override;
@@ -54,6 +69,7 @@ public:
 		bool actionSelected) override;
 
 private:
+	ReactionId _reaction;
 	std::unique_ptr<Ui::Text::CustomEmoji> _custom;
 	Fn<bool()> _paused;
 
@@ -71,6 +87,9 @@ public:
 	Main::Session &session() const override;
 	void prepare() override;
 	void rowClicked(not_null<PeerListRow*> row) override;
+	base::unique_qptr<Ui::PopupMenu> rowContextMenu(
+		QWidget *parent,
+		not_null<PeerListRow*> row) override;
 	void loadMoreRows() override;
 
 	std::unique_ptr<PeerListRow> createRestoredRow(
@@ -148,14 +167,24 @@ Row::Row(
 	uint64 id,
 	not_null<PeerData*> peer,
 	const Ui::Text::CustomEmojiFactory &factory,
+	ReactionId reaction,
 	QStringView reactionEntityData,
 	Fn<void(Row*)> repaint,
 	Fn<bool()> paused)
 : PeerListRow(peer, id)
+, _reaction(std::move(reaction))
 , _custom(reactionEntityData.isEmpty()
 	? nullptr
 	: factory(reactionEntityData, { .repaint = [=] { repaint(this); } }))
 , _paused(std::move(paused)) {
+}
+
+const ReactionId &Row::reaction() const {
+	return _reaction;
+}
+
+bool Row::isReactionRow() const {
+	return !_reaction.empty();
 }
 
 QSize Row::rightActionSize() const {
@@ -413,9 +442,46 @@ void Controller::loadMore(const ReactionId &reaction) {
 void Controller::rowClicked(not_null<PeerListRow*> row) {
 	const auto window = _window;
 	const auto peer = row->peer();
+	const auto originPeer = _peer;
+	const auto originMsgId = _itemId.msg;
+	const auto reactionRow = static_cast<Row*>(row.get())->isReactionRow();
 	crl::on_main(window, [=] {
-		window->showPeerInfo(peer);
+		ShowReactionParticipantInfo(
+			window,
+			peer,
+			originPeer,
+			originMsgId,
+			reactionRow);
 	});
+}
+
+base::unique_qptr<Ui::PopupMenu> Controller::rowContextMenu(
+		QWidget *parent,
+		not_null<PeerListRow*> row) {
+	const auto reactionRow = static_cast<Row*>(row.get());
+	const auto participant = row->peer();
+	if (!reactionRow->isReactionRow()
+		|| participant->isSelf()
+		|| !CanModerateReactionByDeleteMessages(_peer)) {
+		return nullptr;
+	}
+
+	auto result = base::make_unique_q<Ui::PopupMenu>(
+		parent,
+		st::popupMenuWithIcons);
+	Ui::Menu::CreateAddActionCallback(result.get())({
+		.text = tr::lng_context_delete_this_reaction(tr::now),
+		.handler = [=] {
+			ShowModerateReactionBox(
+				_window->parentController(),
+				_peer,
+				_itemId.msg,
+				participant);
+		},
+		.icon = &st::menuIconDeleteAttention,
+		.isAttention = true,
+	});
+	return result;
 }
 
 bool Controller::appendRow(not_null<PeerData*> peer, ReactionId reaction) {
@@ -433,6 +499,7 @@ std::unique_ptr<PeerListRow> Controller::createRow(
 		id(peer, reaction),
 		peer,
 		_factory,
+		reaction,
 		Data::ReactionEntityData(reaction),
 		[=](Row *row) { delegate()->peerListUpdateRow(row); },
 		[=] { return _window->parentController()->isGifPausedAtLeastFor(
@@ -440,6 +507,56 @@ std::unique_ptr<PeerListRow> Controller::createRow(
 }
 
 } // namespace
+
+bool CanModerateReactionByDeleteMessages(not_null<PeerData*> originPeer) {
+	if (const auto chat = originPeer->asChat()) {
+		return chat->canDeleteMessages();
+	} else if (const auto channel = originPeer->asChannel()) {
+		return channel->canDeleteMessages();
+	}
+	return false;
+}
+
+void ShowModerateReactionBox(
+		not_null<Window::SessionController*> controller,
+		not_null<PeerData*> originPeer,
+		MsgId originMsgId,
+		not_null<PeerData*> participant) {
+	controller->show(Box(
+		CreateModerateMessagesBox,
+		ModerateMessagesBoxEntry{
+			.reaction = ModerateReactionEntry{
+				.peer = originPeer,
+				.msgId = originMsgId,
+				.participant = participant,
+			},
+		},
+		nullptr,
+		DefaultModerateMessagesBoxOptions()));
+}
+
+void ShowReactionParticipantInfo(
+		not_null<Window::SessionNavigation*> window,
+		not_null<PeerData*> participant,
+		not_null<PeerData*> originPeer,
+		MsgId originMsgId,
+		bool reactionRow) {
+	if (!reactionRow) {
+		window->showPeerInfo(participant);
+		return;
+	}
+	const auto migrated = participant->migrateFrom();
+	auto memento = std::make_shared<Info::Memento>(
+		std::vector<std::shared_ptr<Info::ContentMemento>>{
+		std::make_shared<Info::Profile::Memento>(
+			participant,
+			migrated ? migrated->id : PeerId(),
+			Info::Profile::Origin{
+				Info::Profile::GroupReactionOrigin{ originPeer, originMsgId },
+			}),
+	});
+	window->showSection(std::move(memento));
+}
 
 Data::ReactionId DefaultSelectedTab(
 		not_null<HistoryItem*> item,

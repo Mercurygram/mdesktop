@@ -19,6 +19,7 @@ struct WhoReadParticipant {
 	QString name;
 	QString date;
 	bool dateReacted = false;
+	bool self = false;
 	QString customEntityData;
 	QImage userpicSmall;
 	QImage userpicLarge;
@@ -62,7 +63,8 @@ struct WhoReadContent {
 	rpl::producer<WhoReadContent> content,
 	Text::CustomEmojiFactory factory,
 	Fn<void(WhoReadParticipant)> participantChosen,
-	Fn<void()> showAllChosen);
+	Fn<void()> showAllChosen,
+	Fn<void(WhoReadParticipant)> moderateReactionChosen = nullptr);
 
 [[nodiscard]] base::unique_qptr<Menu::ItemBase> WhenReadContextAction(
 	not_null<PopupMenu*> menu,
@@ -86,6 +88,7 @@ struct WhoReactedEntryData {
 	QString customEntityData;
 	QImage userpic;
 	Fn<void()> callback;
+	Fn<void()> closeCallback;
 };
 
 class WhoReactedEntryAction final : public Menu::ItemBase {
@@ -105,8 +108,20 @@ public:
 
 private:
 	int contentHeight() const override;
+	void mousePressEvent(QMouseEvent *e) override;
+	void mouseMoveEvent(QMouseEvent *e) override;
+	void mouseReleaseEvent(QMouseEvent *e) override;
+	void resizeEvent(QResizeEvent *e) override;
+	QPoint prepareRippleStartPosition() const override;
+	QImage prepareRippleMask() const override;
 
 	void paint(Painter &&p);
+	[[nodiscard]] bool closeAffordanceActive() const;
+	void refreshCloseMouseTracking();
+	void refreshCloseGeometry();
+	void updateCloseHovered(QPoint globalPosition);
+	void clearCloseState();
+	void invalidateCloseCache();
 
 	const not_null<QAction*> _dummyAction;
 	const Text::CustomEmojiFactory _customEmojiFactory;
@@ -120,6 +135,13 @@ private:
 	int _textWidth = 0;
 	int _customSize = 0;
 	WhoReactedType _type = WhoReactedType::Viewed;
+	Fn<void()> _closeCallback;
+	QRect _closeRect;
+	bool _closeHovered = false;
+	bool _closePressed = false;
+	bool _closeRippleActive = false;
+	mutable QImage _closeBadge;
+	mutable QImage _closeBadgeMask;
 
 };
 
@@ -128,7 +150,8 @@ public:
 	WhoReactedListMenu(
 		Text::CustomEmojiFactory factory,
 		Fn<void(WhoReadParticipant)> participantChosen,
-		Fn<void()> showAllChosen);
+		Fn<void()> showAllChosen,
+		Fn<void(WhoReadParticipant)> moderateReactionChosen = nullptr);
 
 	void clear();
 	void populate(
@@ -142,6 +165,7 @@ private:
 	const Text::CustomEmojiFactory _customEmojiFactory;
 	const Fn<void(WhoReadParticipant)> _participantChosen;
 	const Fn<void()> _showAllChosen;
+	const Fn<void(WhoReadParticipant)> _moderateReactionChosen;
 
 	std::vector<not_null<WhoReactedEntryAction*>> _actions;
 

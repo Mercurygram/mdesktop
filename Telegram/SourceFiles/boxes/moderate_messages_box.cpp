@@ -82,22 +82,43 @@ const char kModerateCommonGroups[] = "moderate-common-groups";
 namespace {
 
 struct ModerateOptions final {
-	bool allCanBan = false;
-	bool allCanDelete = false;
+	bool reportSpam = false;
+	bool deleteAllMessages = false;
+	bool deleteAllReactions = false;
+	bool banOrRestrict = false;
 	Participants participants;
 };
+
+[[nodiscard]] bool PeerCanDeleteMessages(not_null<PeerData*> peer) {
+	if (const auto chat = peer->asChat()) {
+		return chat->canDeleteMessages();
+	}
+	const auto channel = peer->asChannel();
+	return channel && channel->canDeleteMessages();
+}
+
+[[nodiscard]] bool IsExcludedModerateParticipant(
+		not_null<PeerData*> peer,
+		not_null<PeerData*> participant) {
+	if ((participant == peer) || participant->isSelf()) {
+		return true;
+	} else if (const auto channel = participant->asChannel()) {
+		return (channel->discussionLink() == peer);
+	}
+	return false;
+}
 
 ModerateOptions CalculateModerateOptions(const HistoryItemsList &items) {
 	Expects(!items.empty());
 
 	auto result = ModerateOptions{
-		.allCanBan = true,
-		.allCanDelete = true,
+		.deleteAllMessages = true,
+		.banOrRestrict = true,
 	};
 
 	const auto peer = items.front()->history()->peer;
 	for (const auto &item : items) {
-		if (!result.allCanBan && !result.allCanDelete) {
+		if (!result.deleteAllMessages && !result.banOrRestrict) {
 			return {};
 		}
 		if (peer != item->history()->peer) {
@@ -114,10 +135,10 @@ ModerateOptions CalculateModerateOptions(const HistoryItemsList &items) {
 			}
 		}
 		if (!item->suggestBanReport()) {
-			result.allCanBan = false;
+			result.banOrRestrict = false;
 		}
 		if (!item->suggestDeleteAllReport()) {
-			result.allCanDelete = false;
+			result.deleteAllMessages = false;
 		}
 		if (const auto p = item->from()) {
 			if (!ranges::contains(result.participants, not_null{ p })) {
@@ -125,7 +146,36 @@ ModerateOptions CalculateModerateOptions(const HistoryItemsList &items) {
 			}
 		}
 	}
+	result.deleteAllReactions = result.deleteAllMessages;
+	result.reportSpam = result.deleteAllMessages || result.banOrRestrict;
 	return result;
+}
+
+ModerateOptions CalculateModerateOptions(const ModerateReactionEntry &reaction) {
+	auto result = ModerateOptions{
+		.participants = { reaction.participant },
+	};
+	if (IsExcludedModerateParticipant(reaction.peer, reaction.participant)) {
+		return result;
+	}
+	result.reportSpam = Api::GetReactionReportCapabilities(
+		reaction.peer,
+		reaction.participant
+	).canReport || (reaction.peer->asChannel() != nullptr);
+	result.deleteAllReactions = PeerCanDeleteMessages(reaction.peer);
+	if (const auto channel = reaction.peer->asChannel()) {
+		result.deleteAllMessages = channel->canDeleteMessages();
+		result.banOrRestrict = channel->canRestrictParticipant(
+			reaction.participant);
+	}
+	return result;
+}
+
+[[nodiscard]] bool HasModerateActions(const ModerateOptions &options) {
+	return options.reportSpam
+		|| options.deleteAllMessages
+		|| options.deleteAllReactions
+		|| options.banOrRestrict;
 }
 
 [[nodiscard]] rpl::producer<base::flat_map<PeerId, int>> MessagesCountValue(
@@ -310,7 +360,7 @@ void ProccessCommonGroups(
 		Fn<void(CommonGroups, not_null<UserData*>)> processHas) {
 	const auto moderateOptions = CalculateModerateOptions(items);
 	if (moderateOptions.participants.size() != 1
-		|| !moderateOptions.allCanBan) {
+		|| !moderateOptions.banOrRestrict) {
 		return;
 	}
 	const auto participant = moderateOptions.participants.front();
@@ -364,13 +414,11 @@ void CreateModerateMessagesBox(
 
 	const auto moderateOptions = hasItems
 		? CalculateModerateOptions(items)
-		: ModerateOptions{
-			.allCanBan = false,
-			.allCanDelete = false,
-			.participants = { reaction->participant },
-		};
-	const auto allCanBan = moderateOptions.allCanBan;
-	const auto allCanDelete = moderateOptions.allCanDelete;
+		: CalculateModerateOptions(*reaction);
+	const auto reportSpam = moderateOptions.reportSpam;
+	const auto deleteAllMessages = moderateOptions.deleteAllMessages;
+	const auto deleteAllReactions = moderateOptions.deleteAllReactions;
+	const auto banOrRestrict = moderateOptions.banOrRestrict;
 	const auto &participants = moderateOptions.participants;
 	const auto inner = box->verticalLayout();
 
@@ -393,31 +441,36 @@ void CreateModerateMessagesBox(
 	const auto session = hasItems
 		? &firstItem->history()->session()
 		: &reaction->peer->session();
+	const auto peer = hasItems
+		? firstItem->history()->peer
+		: reaction->peer;
 	const auto history = hasItems
 		? firstItem->history().get()
-		: session->data().historyLoaded(reaction->peer);
-	const auto historyPeerId = hasItems
-		? history->peer->id
-		: reaction->peer->id;
+		: session->data().historyLoaded(peer);
+	const auto historyPeerId = peer->id;
 	const auto ids = hasItems
 		? session->data().itemsToIds(items)
-		: MessageIdsList();
+		: MessageIdsList{ FullMsgId(reaction->peer->id, reaction->msgId) };
 	const auto selectedMessagesByParticipant = [&] {
 		auto result = base::flat_map<PeerId, int>();
-		if (!hasItems) {
+		if (!hasItems && !hasReaction) {
 			return result;
 		}
-		for (const auto &item : items) {
-			const auto from = item->from();
-			if (!from) {
-				continue;
+		if (hasItems) {
+			for (const auto &item : items) {
+				const auto from = item->from();
+				if (!from) {
+					continue;
+				}
+				const auto i = result.find(from->id);
+				if (i == result.end()) {
+					result.emplace(from->id, 1);
+				} else {
+					++i->second;
+				}
 			}
-			const auto i = result.find(from->id);
-			if (i == result.end()) {
-				result.emplace(from->id, 1);
-			} else {
-				++i->second;
-			}
+		} else {
+			result.emplace(reaction->participant->id, 1);
 		}
 		return result;
 	}();
@@ -654,7 +707,7 @@ void CreateModerateMessagesBox(
 	subtitle->entity()->setTextColorOverride(st::windowSubTextFg->c);
 	subtitle->hide(anim::type::instant);
 	Ui::AddSkip(inner);
-	if (hasItems) {
+	if (reportSpam) {
 		const auto report = box->addRow(
 			object_ptr<Ui::Checkbox>(
 				box,
@@ -670,13 +723,24 @@ void CreateModerateMessagesBox(
 		handleConfirmation(report, controller, [=](
 				not_null<PeerData*> p,
 				not_null<ChannelData*> c) {
-			Api::ReportSpam(p, ids);
+			if (reaction.has_value()
+				&& Api::GetReactionReportCapabilities(
+					reaction->peer,
+					p
+				).canReport) {
+				Api::ReportReaction(
+					box->uiShow(),
+					reaction->peer,
+					reaction->msgId,
+					p);
+			} else {
+				Api::ReportSpam(p, ids);
+			}
 		});
 	}
 
-	const auto showMessagesCheckbox = allCanDelete && hasItems;
-	const auto showReactionsCheckbox = (allCanDelete && hasItems)
-		|| (hasReaction && !hasItems);
+	const auto showMessagesCheckbox = deleteAllMessages;
+	const auto showReactionsCheckbox = deleteAllReactions;
 	if (showMessagesCheckbox || showReactionsCheckbox) {
 		Ui::AddSkip(inner);
 		Ui::AddSkip(inner);
@@ -685,6 +749,7 @@ void CreateModerateMessagesBox(
 			: std::vector<PeerId>();
 
 		if (showMessagesCheckbox) {
+			Assert(history != nullptr);
 			deleteMessagesCounts = box->lifetime().make_state<
 				rpl::variable<base::flat_map<PeerId, int>>>(
 					base::flat_map<PeerId, int>());
@@ -751,9 +816,6 @@ void CreateModerateMessagesBox(
 					&& !effectiveCheckedParticipants(
 						deleteReactions,
 						deleteReactionsController).empty()) {
-					const auto peer = hasItems
-						? history->peer.get()
-						: reaction->peer.get();
 					for (const auto &participant
 							: deleteReactionsController->collectRequests()) {
 						peer->session().api()
@@ -779,6 +841,7 @@ void CreateModerateMessagesBox(
 		int count = 0;
 		bool resolved = false;
 	};
+	const auto baseMessagesCount = int(ids.size());
 	const auto langUpdated = rpl::single(
 		0
 	) | rpl::then(Lang::Updated() | rpl::map([] {
@@ -788,7 +851,7 @@ void CreateModerateMessagesBox(
 			const base::flat_map<PeerId, int> &messagesCounts,
 			const Participants &checked) {
 		auto result = MessageTitleData{
-			.count = itemsCount,
+			.count = baseMessagesCount,
 			.resolved = true,
 		};
 		for (const auto &peer : checked) {
@@ -806,7 +869,7 @@ void CreateModerateMessagesBox(
 		return result;
 	};
 	auto title = [&]() -> rpl::producer<TextWithEntities> {
-		if (hasItems && showMessagesCheckbox) {
+		if (showMessagesCheckbox && !(hasReaction && !hasItems)) {
 			auto messageTitleData = rpl::combine(
 				deleteMessagesCounts->value(),
 				checkedParticipantsValue(
@@ -817,6 +880,51 @@ void CreateModerateMessagesBox(
 				std::move(messageTitleData),
 				rpl::duplicate(langUpdated)
 			) | rpl::map([=](const MessageTitleData &data, int) {
+				const auto count = data.count;
+				const auto resolved = data.resolved;
+				const auto text = (count == 1)
+					? tr::lng_delete_title_message_one(tr::now)
+					: tr::lng_delete_title_message_many(
+						tr::now,
+						lt_count,
+						count);
+				if (resolved || count != 0) {
+					return TextWithEntities{ text };
+				}
+				const auto zeroIndex = text.indexOf('0');
+				return (zeroIndex == -1)
+					? TextWithEntities{ text }
+					: TextWithEntities()
+						.append(text.mid(0, zeroIndex))
+						.append(Ui::Text::LottieEmoji(
+							makeTitleLoadingDescriptor()))
+						.append(text.mid(zeroIndex + 1));
+			});
+		} else if (hasReaction && showMessagesCheckbox) {
+			auto messageTitleData = rpl::combine(
+				deleteMessagesCounts->value(),
+				checkedParticipantsValue(
+					not_null{ deleteMessages },
+					not_null{ deleteMessagesController })
+			) | rpl::map(makeMessageTitleData);
+			auto deleteReactionsChecked = deleteReactions
+				? deleteReactions->checkedValue()
+				: rpl::single(false);
+			return rpl::combine(
+				deleteMessages->checkedValue(),
+				std::move(messageTitleData),
+				std::move(deleteReactionsChecked),
+				rpl::duplicate(langUpdated)
+			) | rpl::map([=](
+					bool deleteMessagesChecked,
+					const MessageTitleData &data,
+					bool deleteReactionsChecked,
+					int) {
+				if (!deleteMessagesChecked) {
+					return TextWithEntities{ deleteReactionsChecked
+						? tr::lng_delete_title_reaction_all(tr::now)
+						: tr::lng_delete_title_reaction_this(tr::now) };
+				}
 				const auto count = data.count;
 				const auto resolved = data.resolved;
 				const auto text = (count == 1)
@@ -888,7 +996,7 @@ void CreateModerateMessagesBox(
 		SomeReactions,
 		AllReactions,
 	};
-	if (hasItems) {
+	if (hasItems || (hasReaction && showMessagesCheckbox)) {
 		const auto subtitleKind = box->lifetime().make_state<
 			rpl::variable<SubtitleKind>>(SubtitleKind::None);
 		auto reactionsCheckedValue = showReactionsCheckbox
@@ -896,6 +1004,13 @@ void CreateModerateMessagesBox(
 				not_null{ deleteReactions },
 				not_null{ deleteReactionsController })
 			: rpl::single(Participants());
+		auto messageTitleShownValue = [&] {
+			return hasItems
+				? rpl::single(true)
+				: (hasReaction && showMessagesCheckbox)
+				? deleteMessages->checkedValue()
+				: rpl::single(false);
+		}();
 		rpl::combine(
 			subtitleKind->value(),
 			rpl::duplicate(langUpdated)
@@ -916,22 +1031,25 @@ void CreateModerateMessagesBox(
 		}, subtitle->lifetime());
 		rpl::combine(
 			std::move(reactionsCheckedValue),
-			rpl::single(hasReaction)
-		) | rpl::on_next([=](const Participants &checked, bool hasReaction) {
+			std::move(messageTitleShownValue)
+		) | rpl::on_next([=](
+				const Participants &checked,
+				bool messageTitleShown) {
 			auto kind = SubtitleKind::None;
-			if (!checked.empty()) {
-				kind = (checked.size() == participants.size())
-					? SubtitleKind::AllReactions
-					: SubtitleKind::SomeReactions;
-			} else if (hasReaction) {
-				kind = SubtitleKind::ThisReaction;
+			if (messageTitleShown) {
+				if (!checked.empty()) {
+					kind = (checked.size() == participants.size())
+						? SubtitleKind::AllReactions
+						: SubtitleKind::SomeReactions;
+				} else if (hasReaction) {
+					kind = SubtitleKind::ThisReaction;
+				}
 			}
 			subtitleKind->force_assign(kind);
 			subtitle->toggle(kind != SubtitleKind::None, anim::type::normal);
 		}, subtitle->lifetime());
 	}
-	if (hasItems && allCanBan) {
-		const auto peer = items.front()->history()->peer;
+	if (banOrRestrict) {
 		auto ownedWrap = peer->isMonoforum()
 			? nullptr
 			: object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
@@ -1137,7 +1255,13 @@ void CreateModerateMessagesBox(
 			session->data().histories().deleteMessages(ids, true);
 			session->data().sendHistoryChangeNotifications();
 		}
-		if (reaction) {
+		const auto deleteThisReaction = reaction
+			&& !ranges::contains(
+				effectiveCheckedParticipants(
+					deleteReactions,
+					deleteReactionsController),
+				reaction->participant);
+		if (deleteThisReaction) {
 			session->api().deleteParticipantReaction(
 				reaction->peer,
 				reaction->msgId,
@@ -1150,7 +1274,7 @@ void CreateModerateMessagesBox(
 
 bool CanCreateModerateMessagesBox(const HistoryItemsList &items) {
 	const auto options = CalculateModerateOptions(items);
-	return (options.allCanBan || options.allCanDelete)
+	return HasModerateActions(options)
 		&& !options.participants.empty();
 }
 

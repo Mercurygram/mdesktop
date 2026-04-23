@@ -32,7 +32,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/media/history_view_web_page.h"
 #include "history/view/reactions/history_view_reactions_list.h"
 #include "info/info_memento.h"
-#include "info/profile/info_profile_widget.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/widgets/menu/menu_action.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
@@ -1172,26 +1171,36 @@ void EditTagBox(
 	});
 }
 
-void ShowWhoReadInfo(
+[[nodiscard]] Fn<void(Ui::WhoReadParticipant)> MakeModerateReactionChosen(
 		not_null<Window::SessionController*> controller,
 		FullMsgId itemId,
-		Ui::WhoReadParticipant who) {
-	const auto peer = controller->session().data().peer(itemId.peer);
-	const auto participant = peer->owner().peer(PeerId(who.id));
-	const auto migrated = participant->migrateFrom();
-	const auto origin = who.dateReacted
-		? Info::Profile::Origin{
-			Info::Profile::GroupReactionOrigin{ peer, itemId.msg },
+		not_null<PeerData*> peer,
+		Fn<void()> hideMenu) {
+	if (!Reactions::CanModerateReactionByDeleteMessages(peer)) {
+		return {};
+	}
+	return [=, hideMenu = std::move(hideMenu)](Ui::WhoReadParticipant who) {
+		if (who.id == 0 || who.customEntityData.isEmpty()) {
+			return;
 		}
-		: Info::Profile::Origin();
-	auto memento = std::make_shared<Info::Memento>(
-		std::vector<std::shared_ptr<Info::ContentMemento>>{
-		std::make_shared<Info::Profile::Memento>(
-			participant,
-			migrated ? migrated->id : PeerId(),
-			origin),
-	});
-	controller->showSection(std::move(memento));
+		const auto item = controller->session().data().message(itemId);
+		if (!item) {
+			return;
+		}
+		const auto participant = item->history()->peer->owner().peer(
+			PeerId(who.id));
+		if (participant->isSelf()) {
+			return;
+		}
+		if (hideMenu) {
+			hideMenu();
+		}
+		Reactions::ShowModerateReactionBox(
+			controller,
+			item->history()->peer,
+			itemId.msg,
+			participant);
+	};
 }
 
 [[nodiscard]] rpl::producer<not_null<UserData*>> LookupMessageAuthor(
@@ -2078,8 +2087,23 @@ void AddWhoReactedAction(
 		if (const auto strong = weak.get()) {
 			strong->hideMenu();
 		}
-		ShowWhoReadInfo(controller, itemId, who);
+		const auto participant = user->owner().peer(PeerId(who.id));
+		Reactions::ShowReactionParticipantInfo(
+			controller,
+			participant,
+			user,
+			itemId.msg,
+			who.dateReacted);
 	};
+	const auto moderateReactionChosen = MakeModerateReactionChosen(
+		controller,
+		itemId,
+		user,
+		[=] {
+			if (const auto strong = weak.get()) {
+				strong->hideMenu();
+			}
+		});
 	const auto showAllChosen = [=, itemId = item->fullId()]{
 		// Pressing on an item that has a submenu doesn't hide it :(
 		if (const auto strong = weak.get()) {
@@ -2114,7 +2138,8 @@ void AddWhoReactedAction(
 			Api::WhoReacted(item, context, st::defaultWhoRead, whoReadIds),
 			Data::ReactedMenuFactory(&controller->session()),
 			participantChosen,
-			showAllChosen));
+			showAllChosen,
+			moderateReactionChosen));
 		AddWhenEditedForwardedAuthorActionHelper(
 			menu,
 			item,
@@ -2269,8 +2294,24 @@ void ShowWhoReactedMenu(
 	};
 	const auto itemId = item->fullId();
 	const auto participantChosen = [=](Ui::WhoReadParticipant who) {
-		ShowWhoReadInfo(controller, itemId, who);
+		const auto originPeer = item->history()->peer;
+		const auto participant = originPeer->owner().peer(PeerId(who.id));
+		Reactions::ShowReactionParticipantInfo(
+			controller,
+			participant,
+			originPeer,
+			itemId.msg,
+			who.dateReacted);
 	};
+	const auto moderateReactionChosen = MakeModerateReactionChosen(
+		controller,
+		itemId,
+		item->history()->peer,
+		[=] {
+			if (*menu) {
+				(*menu)->hideMenu();
+			}
+		});
 	const auto showAllChosen = [=, itemId = item->fullId()]{
 		if (const auto item = controller->session().data().message(itemId)) {
 			controller->showSection(std::make_shared<Info::Memento>(
@@ -2290,7 +2331,8 @@ void ShowWhoReactedMenu(
 	const auto filler = lifetime.make_state<Ui::WhoReactedListMenu>(
 		Data::ReactedMenuFactory(&controller->session()),
 		participantChosen,
-		showAllChosen);
+		showAllChosen,
+		moderateReactionChosen);
 	const auto state = lifetime.make_state<State>();
 	Api::WhoReacted(
 		item,

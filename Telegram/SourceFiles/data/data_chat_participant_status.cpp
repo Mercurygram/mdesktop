@@ -249,12 +249,9 @@ bool CanSendAnyOf(
 		if (!chat->amIn()) {
 			return false;
 		}
-		for (const auto right : AllSendRestrictionsList()) {
-			if ((rights & right) && !chat->amRestricted(right)) {
-				return true;
-			}
-		}
-		return false;
+		return chat->amCreator()
+			|| chat->hasAdminRights()
+			|| (rights & ~chat->defaultRestrictions());
 	} else if (const auto channel = peer->asChannel()) {
 		if (channel->monoforumDisabled()) {
 			return false;
@@ -266,17 +263,15 @@ bool CanSendAnyOf(
 			|| channel->isMonoforum();
 		if (!allowed || (forbidInForums && channel->isForum())) {
 			return false;
-		} else if (channel->canPostMessages()) {
-			return true;
-		} else if (channel->isBroadcast()) {
-			return false;
 		}
-		for (const auto right : AllSendRestrictionsList()) {
-			if ((rights & right) && !channel->amRestricted(right)) {
-				return true;
-			}
-		}
-		return false;
+		const auto restricted = channel->restrictions()
+			| (channel->unrestrictedByBoosts()
+				? ChatRestrictions()
+				: channel->defaultRestrictions());
+		return channel->canPostMessages()
+			|| (!channel->isBroadcast()
+				&& (channel->hasAdminRights()
+					|| (rights & ~restricted)));
 	}
 	Unexpected("Peer type in CanSendAnyOf.");
 }
