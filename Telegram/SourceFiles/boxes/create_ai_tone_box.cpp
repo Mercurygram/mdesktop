@@ -601,7 +601,7 @@ void CreateAiToneBox(
 				crl::guard(box, [=](const MTP::Error &error) {
 					if (error.type() == u"TONES_SAVED_TOO_MANY"_q) {
 						ShowAiComposeToneLimitError(box->uiShow(), session);
-					} else {
+					} else if (!MTP::IgnoreError(error)) {
 						box->showToast(tr::lng_ai_compose_error(tr::now));
 					}
 				}));
@@ -689,26 +689,11 @@ void ShowAiComposeToneLimitError(
 	const auto premiumLimit = limits.aiComposeSavedTonesPremium();
 	const auto current = premium ? premiumLimit : defaultLimit;
 	if (premium || !premiumPossible) {
-		using WeakToast = base::weak_ptr<Ui::Toast::Instance>;
-		const auto toast = std::make_shared<WeakToast>();
-		(*toast) = show->showToast({
-			.text = tr::lng_ai_compose_tone_saved_limit_final(
-				tr::now,
-				lt_count,
-				current,
-				tr::rich),
-			.filter = crl::guard(session, [=](
-					const ClickHandlerPtr &,
-					Qt::MouseButton button) {
-				if (button == Qt::LeftButton) {
-					if (const auto strong = toast->get()) {
-						strong->hideAnimated();
-						(*toast) = nullptr;
-					}
-				}
-				return true;
-			}),
-		});
+		show->showToast(tr::lng_ai_compose_tone_saved_limit_final(
+			tr::now,
+			lt_count,
+			current,
+			tr::rich));
 	} else {
 		Settings::ShowPremiumPromoToast(
 			Main::MakeSessionShow(show, session),

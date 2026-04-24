@@ -522,7 +522,7 @@ void PreviewAiToneBox(
 				crl::guard(box, [=](const MTP::Error &error) {
 					if (error.type() == u"TONES_SAVED_TOO_MANY"_q) {
 						ShowAiComposeToneLimitError(show, session);
-					} else {
+					} else if (!MTP::IgnoreError(error)) {
 						box->showToast(tr::lng_ai_compose_error(tr::now));
 					}
 				}));
