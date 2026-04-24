@@ -46,6 +46,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_folder.h"
 #include "data/data_forum_topic.h"
 #include "data/data_forum.h"
+#include "data/data_message_reaction_id.h"
 #include "data/data_saved_messages.h"
 #include "data/data_saved_music.h"
 #include "data/data_saved_sublist.h"
@@ -1424,7 +1425,15 @@ void ApiWrap::deleteAllFromParticipantSend(
 
 void ApiWrap::deleteAllReactionsFromParticipant(
 		not_null<PeerData*> peer,
-		not_null<PeerData*> participant) {
+		not_null<PeerData*> participant,
+		MsgId originMsgId,
+		const Data::ReactionId &originReaction) {
+	_session->data().removeReactionsFromParticipant(
+		peer,
+		0,
+		participant,
+		originReaction,
+		originMsgId);
 	request(MTPmessages_DeleteParticipantReactions(
 		peer->input(),
 		participant->input()
@@ -1434,7 +1443,14 @@ void ApiWrap::deleteAllReactionsFromParticipant(
 void ApiWrap::deleteParticipantReaction(
 		not_null<PeerData*> peer,
 		MsgId msgId,
-		not_null<PeerData*> participant) {
+		not_null<PeerData*> participant,
+		const Data::ReactionId &reaction) {
+	_session->data().removeReactionsFromParticipant(
+		peer,
+		msgId,
+		participant,
+		reaction,
+		0);
 	request(MTPmessages_DeleteParticipantReaction(
 		peer->input(),
 		MTP_int(msgId.bare),

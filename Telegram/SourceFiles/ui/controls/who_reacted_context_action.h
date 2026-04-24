@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unique_qptr.h"
 #include "ui/widgets/menu/menu_item_base.h"
 #include "ui/text/text_custom_emoji.h"
+#include "data/data_message_reaction_id.h"
 
 namespace Ui {
 
@@ -21,6 +22,7 @@ struct WhoReadParticipant {
 	bool dateReacted = false;
 	bool self = false;
 	QString customEntityData;
+	Data::ReactionId reaction;
 	QImage userpicSmall;
 	QImage userpicLarge;
 	std::pair<uint64, uint64> userpicKey = {};

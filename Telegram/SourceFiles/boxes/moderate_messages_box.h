@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "data/data_message_reaction_id.h"
+
 class PeerData;
 
 namespace Data {
@@ -29,6 +31,7 @@ struct ModerateReactionEntry {
 	not_null<PeerData*> peer;
 	MsgId msgId;
 	not_null<PeerData*> participant;
+	Data::ReactionId reaction;
 };
 
 struct ModerateMessagesBoxEntry {

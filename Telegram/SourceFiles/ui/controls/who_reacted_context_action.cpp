@@ -1064,8 +1064,8 @@ void WhoReactedEntryAction::setData(Data &&data) {
 		_text.maxWidth(),
 		st::whoReadDateSkip + _date.maxWidth());
 	const auto &padding = _st.itemPadding;
-	const auto customRight = _custom ? (size + padding.right()) : 0;
-	const auto rightSkip = customRight;
+	const auto rightSkip = padding.right()
+		+ (_custom ? (size + padding.right()) : 0);
 	const auto goodWidth = st::defaultWhoRead.nameLeft
 		+ textWidth
 		+ rightSkip;
@@ -1242,6 +1242,8 @@ bool operator==(const WhoReadParticipant &a, const WhoReadParticipant &b) {
 		&& (a.name == b.name)
 		&& (a.date == b.date)
 		&& (a.self == b.self)
+		&& (a.customEntityData == b.customEntityData)
+		&& (a.reaction == b.reaction)
 		&& (a.userpicKey == b.userpicKey);
 }
 

@@ -63,6 +63,13 @@ void ShowModerateReactionBox(
 	MsgId originMsgId,
 	not_null<PeerData*> participant);
 
+void ShowModerateReactionBox(
+	not_null<Window::SessionController*> controller,
+	not_null<PeerData*> originPeer,
+	MsgId originMsgId,
+	not_null<PeerData*> participant,
+	Data::ReactionId reaction);
+
 void ShowReactionParticipantInfo(
 	not_null<Window::SessionNavigation*> window,
 	not_null<PeerData*> participant,

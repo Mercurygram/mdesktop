@@ -119,6 +119,7 @@ private:
 		not_null<PeerData*> peer,
 		ReactionId reaction) const;
 	void showReaction(const ReactionId &reaction);
+	void applyReactionsRemoved(const Data::ReactionsRemoved &update);
 
 	[[nodiscard]] uint64 id(
 		not_null<PeerData*> peer,
@@ -249,6 +250,13 @@ Controller::Controller(
 	}) | rpl::on_next([=](const ReactionId &reaction) {
 		showReaction(reaction);
 	}, lifetime());
+	session().data().reactionsRemoved(
+	) | rpl::filter([=](const Data::ReactionsRemoved &update) {
+		return ((update.peer == _peer) || (update.peer->id == _peer->id))
+			&& (!update.msgId || update.msgId == _itemId.msg);
+	}) | rpl::on_next([=](const Data::ReactionsRemoved &update) {
+		applyReactionsRemoved(update);
+	}, lifetime());
 }
 
 Main::Session &Controller::session() const {
@@ -300,6 +308,40 @@ void Controller::showReaction(const ReactionId &reaction) {
 		? QString()
 		: tr::lng_contacts_loading(tr::now));
 	delegate()->peerListRefreshRows();
+}
+
+void Controller::applyReactionsRemoved(
+		const Data::ReactionsRemoved &update) {
+	const auto participantId = update.participant->id;
+
+	const auto allWas = _all.size();
+	_all.erase(
+		ranges::remove_if(_all, [&](const AllEntry &entry) {
+			return entry.first->id == participantId;
+		}),
+		end(_all));
+
+	const auto filteredWas = _filtered.size();
+	_filtered.erase(
+		ranges::remove_if(_filtered, [&](not_null<PeerData*> peer) {
+			return peer->id == participantId;
+		}),
+		end(_filtered));
+
+	auto removed = (allWas != _all.size())
+		|| (filteredWas != _filtered.size());
+	for (auto i = delegate()->peerListFullRowsCount(); i != 0;) {
+		const auto row = delegate()->peerListRowAt(--i);
+		if (row->peer()->id == participantId
+			&& static_cast<Row*>(row.get())->isReactionRow()) {
+			delegate()->peerListRemoveRow(row);
+			removed = true;
+		}
+	}
+	if (removed) {
+		setDescriptionText(QString());
+		delegate()->peerListRefreshRows();
+	}
 }
 
 uint64 Controller::id(
@@ -420,9 +462,12 @@ void Controller::loadMore(const ReactionId &reaction) {
 				reaction.match([&](const MTPDmessagePeerReaction &data) {
 					const auto peer = sessionData->peerLoaded(
 						peerFromMTP(data.vpeer_id()));
+					if (!peer) {
+						return;
+					}
 					const auto reaction = Data::ReactionFromMTP(
 						data.vreaction());
-					if (peer && (!shown || appendRow(peer, reaction))) {
+					if (!shown || appendRow(peer, reaction)) {
 						if (filtered) {
 							_filtered.emplace_back(peer);
 						} else {
@@ -465,6 +510,7 @@ base::unique_qptr<Ui::PopupMenu> Controller::rowContextMenu(
 		|| !CanModerateReactionByDeleteMessages(_peer)) {
 		return nullptr;
 	}
+	const auto reaction = reactionRow->reaction();
 
 	auto result = base::make_unique_q<Ui::PopupMenu>(
 		parent,
@@ -476,7 +522,8 @@ base::unique_qptr<Ui::PopupMenu> Controller::rowContextMenu(
 				_window->parentController(),
 				_peer,
 				_itemId.msg,
-				participant);
+				participant,
+				reaction);
 		},
 		.icon = &st::menuIconDeleteAttention,
 		.isAttention = true,
@@ -522,6 +569,20 @@ void ShowModerateReactionBox(
 		not_null<PeerData*> originPeer,
 		MsgId originMsgId,
 		not_null<PeerData*> participant) {
+	ShowModerateReactionBox(
+		controller,
+		originPeer,
+		originMsgId,
+		participant,
+		Data::ReactionId());
+}
+
+void ShowModerateReactionBox(
+		not_null<Window::SessionController*> controller,
+		not_null<PeerData*> originPeer,
+		MsgId originMsgId,
+		not_null<PeerData*> participant,
+		Data::ReactionId reaction) {
 	controller->show(Box(
 		CreateModerateMessagesBox,
 		ModerateMessagesBoxEntry{
@@ -529,6 +590,7 @@ void ShowModerateReactionBox(
 				.peer = originPeer,
 				.msgId = originMsgId,
 				.participant = participant,
+				.reaction = std::move(reaction),
 			},
 		},
 		nullptr,

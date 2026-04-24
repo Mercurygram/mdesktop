@@ -818,10 +818,16 @@ void CreateModerateMessagesBox(
 						deleteReactionsController).empty()) {
 					for (const auto &participant
 							: deleteReactionsController->collectRequests()) {
+						const auto useOriginReaction = reaction
+							&& (participant == reaction->participant);
 						peer->session().api()
 							.deleteAllReactionsFromParticipant(
 								peer,
-								participant);
+								participant,
+								useOriginReaction ? reaction->msgId : MsgId(),
+								useOriginReaction
+									? reaction->reaction
+									: Data::ReactionId());
 					}
 				}
 			}, deleteReactions->lifetime());
@@ -1265,7 +1271,8 @@ void CreateModerateMessagesBox(
 			session->api().deleteParticipantReaction(
 				reaction->peer,
 				reaction->msgId,
-				reaction->participant);
+				reaction->participant,
+				reaction->reaction);
 		}
 		close();
 	});
