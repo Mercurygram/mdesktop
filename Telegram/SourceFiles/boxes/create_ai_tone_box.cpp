@@ -614,8 +614,7 @@ void EditAiToneBox(
 		not_null<Main::Session*> session,
 		const Data::AiComposeTone &tone,
 		Fn<void(Data::AiComposeTone)> saved) {
-	const auto toneId = tone.id;
-	const auto toneAccessHash = tone.accessHash;
+	const auto toneCopy = tone;
 	SetupToneBox(
 		box,
 		session,
@@ -629,9 +628,6 @@ void EditAiToneBox(
 				const QString &name,
 				const QString &prompt,
 				bool displayAuthor) {
-			auto toneCopy = Data::AiComposeTone();
-			toneCopy.id = toneId;
-			toneCopy.accessHash = toneAccessHash;
 			session->data().aiComposeTones().update(
 				toneCopy,
 				name,
@@ -648,9 +644,6 @@ void EditAiToneBox(
 				}));
 		},
 		[=] {
-			auto toneCopy = Data::AiComposeTone();
-			toneCopy.id = toneId;
-			toneCopy.accessHash = toneAccessHash;
 			ConfirmDeleteAiTone(
 				box->uiShow(),
 				session,
@@ -664,6 +657,20 @@ void ConfirmDeleteAiTone(
 		not_null<Main::Session*> session,
 		const Data::AiComposeTone &tone,
 		Fn<void()> done) {
+	if (!tone.creator) {
+		show->show(Ui::MakeConfirmBox({
+			.text = tr::lng_ai_compose_tone_remove_sure(),
+			.confirmed = [=](Fn<void()> &&close) {
+				close();
+				session->data().aiComposeTones().save(
+					tone,
+					true,
+					done);
+			},
+			.confirmText = tr::lng_box_remove(),
+		}));
+		return;
+	}
 	show->show(Ui::MakeConfirmBox({
 		.text = tr::lng_ai_compose_tone_delete_sure(),
 		.confirmed = [=](Fn<void()> &&close) {

@@ -27,11 +27,20 @@ AiComposeTones::AiComposeTones(not_null<Main::Session*> session)
 }
 
 void AiComposeTones::refresh() {
+	refreshWithHash(_hash);
+}
+
+void AiComposeTones::refreshWithHash(uint64 hash) {
 	if (_refreshRequestId) {
+		if (hash == 0) {
+			_pendingRefresh = PendingRefresh::Full;
+		} else if (_pendingRefresh == PendingRefresh::None) {
+			_pendingRefresh = PendingRefresh::Incremental;
+		}
 		return;
 	}
 	_refreshRequestId = _session->api().request(MTPaicompose_GetTones(
-		MTP_long(_hash)
+		MTP_long(hash)
 	)).done([=](const MTPaicompose_Tones &result) {
 		_refreshRequestId = 0;
 		result.match([&](const MTPDaicompose_tones &data) {
@@ -41,8 +50,10 @@ void AiComposeTones::refresh() {
 			_updates.fire({});
 		}, [](const MTPDaicompose_tonesNotModified &) {
 		});
+		finishRefresh();
 	}).fail([=] {
 		_refreshRequestId = 0;
+		finishRefresh();
 	}).send();
 }
 
@@ -52,6 +63,7 @@ void AiComposeTones::parseTones(const QVector<MTPAiComposeTone> &list) {
 	for (const auto &tone : list) {
 		_list.push_back(parseTone(tone));
 	}
+	reapplyRecentCustomToneOrder();
 }
 
 AiComposeTone AiComposeTones::parseTone(
@@ -108,7 +120,7 @@ void AiComposeTones::create(
 		MTP_string(prompt)
 	)).done([=](const MTPAiComposeTone &result) {
 		auto parsed = parseTone(result);
-		_list.push_back(parsed);
+		promoteCustomTone(parsed);
 		_hash = 0;
 		_updates.fire({});
 		if (done) {
@@ -155,12 +167,7 @@ void AiComposeTones::update(
 		MTP_string(prompt.value_or(QString()))
 	)).done([=](const MTPAiComposeTone &result) {
 		auto parsed = parseTone(result);
-		const auto i = ranges::find(_list, parsed.id, &AiComposeTone::id);
-		if (i != end(_list)) {
-			*i = parsed;
-		} else {
-			_list.push_back(parsed);
-		}
+		promoteCustomTone(parsed);
 		_hash = 0;
 		_updates.fire({});
 		if (done) {
@@ -183,6 +190,14 @@ void AiComposeTones::save(
 		toneToMTP(tone),
 		unsave ? MTP_boolTrue() : MTP_boolFalse()
 	)).done([=] {
+		if (unsave) {
+			removeCustomTone(tone.id);
+			forgetRecentCustomTone(tone.id);
+		} else {
+			promoteCustomTone(tone);
+		}
+		_hash = 0;
+		_updates.fire({});
 		if (done) {
 			done();
 		}
@@ -202,13 +217,8 @@ void AiComposeTones::remove(
 		toneToMTP(tone)
 	)).done([=] {
 		if (!toneCopy.isDefault) {
-			const auto i = ranges::find(
-				_list,
-				toneCopy.id,
-				&AiComposeTone::id);
-			if (i != end(_list)) {
-				_list.erase(i);
-			}
+			removeCustomTone(toneCopy.id);
+			forgetRecentCustomTone(toneCopy.id);
 		}
 		_hash = 0;
 		_updates.fire({});
@@ -279,6 +289,70 @@ void AiComposeTones::getToneExample(
 
 void AiComposeTones::applyUpdate() {
 	refresh();
+}
+
+void AiComposeTones::finishRefresh() {
+	const auto pending = _pendingRefresh;
+	_pendingRefresh = PendingRefresh::None;
+	if (pending == PendingRefresh::None) {
+		return;
+	}
+	refreshWithHash((pending == PendingRefresh::Full) ? 0 : _hash);
+}
+
+void AiComposeTones::promoteCustomTone(AiComposeTone tone) {
+	if (tone.isDefault) {
+		return;
+	}
+	removeCustomTone(tone.id);
+	rememberRecentCustomTone(tone.id);
+	_list.insert(begin(_list), std::move(tone));
+}
+
+void AiComposeTones::removeCustomTone(uint64 id) {
+	const auto i = ranges::find(_list, id, &AiComposeTone::id);
+	if (i != end(_list)) {
+		_list.erase(i);
+	}
+}
+
+void AiComposeTones::rememberRecentCustomTone(uint64 id) {
+	const auto i = ranges::find(_recentCustomToneIds, id);
+	if (i != end(_recentCustomToneIds)) {
+		_recentCustomToneIds.erase(i);
+	}
+	_recentCustomToneIds.insert(begin(_recentCustomToneIds), id);
+}
+
+void AiComposeTones::forgetRecentCustomTone(uint64 id) {
+	const auto i = ranges::find(_recentCustomToneIds, id);
+	if (i != end(_recentCustomToneIds)) {
+		_recentCustomToneIds.erase(i);
+	}
+}
+
+void AiComposeTones::reapplyRecentCustomToneOrder() {
+	auto reordered = std::vector<AiComposeTone>();
+	reordered.reserve(_list.size());
+
+	auto recent = std::vector<uint64>();
+	recent.reserve(_recentCustomToneIds.size());
+	for (const auto id : _recentCustomToneIds) {
+		const auto i = ranges::find(_list, id, &AiComposeTone::id);
+		if (i != end(_list) && !i->isDefault) {
+			reordered.push_back(*i);
+			recent.push_back(id);
+		}
+	}
+	for (const auto &tone : _list) {
+		const auto promoted = !tone.isDefault
+			&& (ranges::find(recent, tone.id) != end(recent));
+		if (!promoted) {
+			reordered.push_back(tone);
+		}
+	}
+	_recentCustomToneIds = std::move(recent);
+	_list = std::move(reordered);
 }
 
 MTPInputAiComposeTone AiComposeTones::toneToMTP(

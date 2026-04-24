@@ -1099,6 +1099,9 @@ void ComposeAiContent::refreshTones() {
 		}
 	}
 	_styleIndex = remapped;
+	if (_mode == ComposeAiMode::Style && hadSelection && _styleIndex < 0) {
+		request();
+	}
 }
 
 void ComposeAiContent::selectToneById(uint64 id) {
@@ -1649,25 +1652,27 @@ void ComposeAiBox(not_null<Ui::GenericBox*> box, ComposeAiBoxArgs &&args) {
 				return;
 			}
 			const auto &tone = tones[index];
-			if (!tone.creator) {
+			if (tone.isDefault) {
 				return;
 			}
 			*contextMenu = base::make_unique_q<Ui::PopupMenu>(
 				ptr->entity(),
 				st::popupMenuWithIcons);
 			const auto toneCopy = tone;
-			(*contextMenu)->addAction(
-				tr::lng_ai_compose_tone_edit(tr::now),
-				[=] {
-					box->uiShow()->show(Box(
-						EditAiToneBox,
-						session,
-						toneCopy,
-						crl::guard(content, [=](Data::AiComposeTone tone) {
-							content->selectToneById(tone.id);
-						})));
-				},
-				&st::menuIconEdit);
+			if (toneCopy.creator) {
+				(*contextMenu)->addAction(
+					tr::lng_ai_compose_tone_edit(tr::now),
+					[=] {
+						box->uiShow()->show(Box(
+							EditAiToneBox,
+							session,
+							toneCopy,
+							crl::guard(content, [=](Data::AiComposeTone tone) {
+								content->selectToneById(tone.id);
+							})));
+					},
+					&st::menuIconEdit);
+			}
 			(*contextMenu)->addAction(
 				tr::lng_ai_compose_tone_share(tr::now),
 				[=] {
@@ -1683,7 +1688,9 @@ void ComposeAiBox(not_null<Ui::GenericBox*> box, ComposeAiBoxArgs &&args) {
 				st::menuWithIconsAttention,
 				Ui::Menu::CreateAction(
 					(*contextMenu)->menu().get(),
-					tr::lng_ai_compose_tone_delete(tr::now),
+					toneCopy.creator
+						? tr::lng_ai_compose_tone_delete(tr::now)
+						: tr::lng_ai_compose_tone_remove(tr::now),
 					[=] {
 						ConfirmDeleteAiTone(
 							box->uiShow(),

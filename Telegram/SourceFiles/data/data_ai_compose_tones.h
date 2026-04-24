@@ -90,13 +90,28 @@ private:
 	void parseTones(const QVector<MTPAiComposeTone> &list);
 	[[nodiscard]] AiComposeTone parseTone(
 		const MTPAiComposeTone &tone) const;
+	void finishRefresh();
+	void promoteCustomTone(AiComposeTone tone);
+	void removeCustomTone(uint64 id);
+	void rememberRecentCustomTone(uint64 id);
+	void forgetRecentCustomTone(uint64 id);
+	void reapplyRecentCustomToneOrder();
+	void refreshWithHash(uint64 hash);
+
+	enum class PendingRefresh {
+		None,
+		Incremental,
+		Full,
+	};
 
 	const not_null<Main::Session*> _session;
 	uint64 _hash = 0;
 	mtpRequestId _refreshRequestId = 0;
 	std::vector<AiComposeTone> _list;
+	std::vector<uint64> _recentCustomToneIds;
 	rpl::event_stream<> _updates;
 	base::Timer _refreshTimer;
+	PendingRefresh _pendingRefresh = PendingRefresh::None;
 
 };
 
