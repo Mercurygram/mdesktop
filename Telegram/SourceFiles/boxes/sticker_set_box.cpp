@@ -943,10 +943,12 @@ void StickerSetBox::updateButtons() {
 					raw->setForcedOrigin(
 						Ui::PanelAnimation::Origin::TopRight);
 					top->setForceRippled(true);
-					raw->setDestroyedCallback([=] {
-						if (const auto strong = top.data()) {
-							strong->setForceRippled(false);
-						}
+					raw->setDestroyedCallback([top] {
+						crl::on_main(top, [top] {
+							if (const auto strong = top.data()) {
+								strong->setForceRippled(false);
+							}
+						});
 					});
 					raw->popup(top->mapToGlobal(QPoint(
 						top->width(),
@@ -1016,10 +1018,12 @@ void StickerSetBox::updateButtons() {
 					raw->setForcedOrigin(
 						Ui::PanelAnimation::Origin::TopRight);
 					top->setForceRippled(true);
-					raw->setDestroyedCallback([=] {
-						if (const auto strong = top.data()) {
-							strong->setForceRippled(false);
-						}
+					raw->setDestroyedCallback([top] {
+						crl::on_main(top, [top] {
+							if (const auto strong = top.data()) {
+								strong->setForceRippled(false);
+							}
+						});
 					});
 					raw->popup(top->mapToGlobal(QPoint(
 						top->width(),
