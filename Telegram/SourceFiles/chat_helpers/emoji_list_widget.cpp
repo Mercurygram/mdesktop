@@ -2108,10 +2108,13 @@ void EmojiListWidget::paintSearchShortcuts(Painter &p, QRect clip) {
 			title = st::normalFont->elided(title, available);
 			titleWidth = st::normalFont->width(title);
 		}
+		const auto titleLeft = (titleWidth < available)
+			? (rect.x() + (rect.width() - titleWidth) / 2)
+			: (rect.x() + st().searchPackTextPadding);
 		p.setFont(st::normalFont);
 		p.setPen(st().textFg);
 		p.drawTextLeft(
-			rect.x() + st().searchPackTextPadding,
+			titleLeft,
 			rect.y() + st().searchPackTextTop,
 			width(),
 			title,
