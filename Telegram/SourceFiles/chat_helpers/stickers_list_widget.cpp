@@ -932,9 +932,11 @@ void StickersListWidget::startSearchSwapAnimation(Fn<void()> change) {
 		return QRect(0, top, width(), bottom - top);
 	};
 	_searchSwapAnimation.stop();
+	const auto wasSelected = searchShortcutSelected();
 	_searchSwapBefore = Ui::GrabWidget(this, computeRect());
 	_searchSwapTop = searchShortcutsTop();
 	change();
+	_searchSwapReverse = wasSelected && !searchShortcutSelected();
 	_searchSwapAfter = Ui::GrabWidget(this, computeRect());
 	_searchSwapAnimation.start(
 		[=, this] {
@@ -1346,16 +1348,17 @@ void StickersListWidget::paintEvent(QPaintEvent *e) {
 
 	if (_searchSwapAnimation.animating()) {
 		const auto progress = _searchSwapAnimation.value(1.);
+		const auto direction = _searchSwapReverse ? -1 : 1;
 		const auto slide = st().searchBackHeight;
 		p.setOpacity(1. - progress);
 		p.drawPixmap(
 			0,
-			_searchSwapTop + int(base::SafeRound(slide * progress)),
+			_searchSwapTop + direction * int(base::SafeRound(slide * progress)),
 			_searchSwapBefore);
 		p.setOpacity(progress);
 		p.drawPixmap(
 			0,
-			_searchSwapTop - int(base::SafeRound(slide * (1. - progress))),
+			_searchSwapTop - direction * int(base::SafeRound(slide * (1. - progress))),
 			_searchSwapAfter);
 		p.setOpacity(1.);
 		return;
