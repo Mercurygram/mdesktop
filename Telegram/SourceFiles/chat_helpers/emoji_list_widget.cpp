@@ -1080,7 +1080,8 @@ void EmojiListWidget::showSearchResults() {
 	refreshSearchShortcuts();
 	if (searchShortcutSelected()) {
 		fillSelectedSearchShortcut();
-	} else {
+	}
+	if (!searchShortcutSelected()) {
 		auto plain = collectPlainSearchResults();
 		if (_mode == Mode::Full) {
 			for (const auto emoji : plain) {

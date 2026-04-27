@@ -781,7 +781,8 @@ void StickersListWidget::refreshSearchRows(
 	}
 	if (searchShortcutSelected()) {
 		fillSelectedSearchShortcut();
-	} else {
+	}
+	if (!searchShortcutSelected()) {
 		fillFilteredStickersRow();
 		if (hasCloudFoundStickers) {
 			fillFoundStickersRow(foundStickersIt->second);
