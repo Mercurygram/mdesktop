@@ -2857,34 +2857,45 @@ void StickersListWidget::refreshSearchSets() {
 
 	const auto &sets = session().data().stickers().sets();
 	const auto skipPremium = !session().premiumPossible();
-	const auto refresh = [&](Set &entry) {
-		if (const auto it = sets.find(entry.id); it != sets.end()) {
-			const auto set = it->second.get();
-			const auto selected = (_searchSelectedSetId == entry.id);
-			entry.flags = selected
-				? (set->flags | SetFlag::Special)
-				: set->flags;
-			auto elements = PrepareStickers(
-				set->stickers.empty() ? set->covers : set->stickers,
-				skipPremium);
-			if (!elements.empty()) {
-				entry.lottiePlayer = nullptr;
-				entry.stickers = std::move(elements);
-			}
-			entry.thumbnailDocument = set->lookupThumbnailDocument();
-			if (selected) {
-				entry.externalLayout = false;
-			} else if (!SetInMyList(entry.flags)) {
-				_localSetsManager->removeInstalledLocally(entry.id);
-				entry.externalLayout = true;
-			}
+	const auto refreshElements = [&](Set &entry, not_null<StickersSet*> set) {
+		auto elements = PrepareStickers(
+			set->stickers.empty() ? set->covers : set->stickers,
+			skipPremium);
+		if (!elements.empty()) {
+			entry.lottiePlayer = nullptr;
+			entry.stickers = std::move(elements);
 		}
+		entry.thumbnailDocument = set->lookupThumbnailDocument();
 	};
 	for (auto &entry : _searchSets) {
-		refresh(entry);
+		const auto it = sets.find(entry.id);
+		if (it == sets.end()) {
+			continue;
+		}
+		const auto set = it->second.get();
+		const auto selected = (_searchSelectedSetId == entry.id);
+		entry.flags = selected
+			? (set->flags | SetFlag::Special)
+			: set->flags;
+		refreshElements(entry, set);
+		entry.title = selected
+			? tr::lng_stickers_count(tr::now, lt_count, set->count)
+			: set->title;
+		if (selected) {
+			entry.externalLayout = false;
+		} else if (!SetInMyList(entry.flags)) {
+			_localSetsManager->removeInstalledLocally(entry.id);
+			entry.externalLayout = true;
+		}
 	}
 	for (auto &entry : _searchShortcutSets) {
-		refresh(entry);
+		const auto it = sets.find(entry.id);
+		if (it == sets.end()) {
+			continue;
+		}
+		const auto set = it->second.get();
+		entry.title = set->title;
+		refreshElements(entry, set);
 	}
 }
 
