@@ -921,20 +921,23 @@ bool StickersListWidget::searchShortcutSelected() const {
 	return _searchSelectedSetId != 0;
 }
 
-void StickersListWidget::startSearchSwapAnimation(Fn<void()> change) {
+void StickersListWidget::startSearchSwapAnimation(
+		Fn<void()> change,
+		bool packToPack) {
 	if (!isVisible() || size().isEmpty()) {
 		change();
 		return;
 	}
+	const auto top = searchShortcutsTop()
+		+ (packToPack ? searchShortcutsHeight() : 0);
 	const auto computeRect = [&] {
-		const auto top = searchShortcutsTop();
 		const auto bottom = std::max(top + 1, getVisibleBottom());
 		return QRect(0, top, width(), bottom - top);
 	};
 	_searchSwapAnimation.stop();
 	const auto wasSelected = searchShortcutSelected();
 	_searchSwapBefore = Ui::GrabWidget(this, computeRect());
-	_searchSwapTop = searchShortcutsTop();
+	_searchSwapTop = top;
 	change();
 	_searchSwapReverse = wasSelected && !searchShortcutSelected();
 	_searchSwapAfter = Ui::GrabWidget(this, computeRect());
@@ -1028,10 +1031,13 @@ void StickersListWidget::toggleSearchShortcut(int index) {
 	}
 	const auto setId = _searchShortcutSets[index].id;
 	const auto target = (_searchSelectedSetId == setId) ? 0 : setId;
+	const auto packToPack = _searchSelectedSetId
+		&& target
+		&& _searchSelectedSetId != target;
 	startSearchSwapAnimation([=, this] {
 		_searchSelectedSetId = target;
 		showSearchResults();
-	});
+	}, packToPack);
 }
 
 void StickersListWidget::backToSearchResults() {

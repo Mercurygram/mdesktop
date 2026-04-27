@@ -348,7 +348,7 @@ private:
 	void fillSelectedSearchShortcut();
 	[[nodiscard]] bool searchShortcutsShown() const;
 	[[nodiscard]] bool searchShortcutSelected() const;
-	void startSearchSwapAnimation(Fn<void()> change);
+	void startSearchSwapAnimation(Fn<void()> change, bool packToPack = false);
 	[[nodiscard]] int searchShortcutsHeight() const;
 	[[nodiscard]] int searchShortcutsTop() const;
 	[[nodiscard]] QRect searchBackRect() const;
