@@ -352,8 +352,8 @@ private:
 	[[nodiscard]] QRect searchShortcutRect(int index) const;
 	void refreshSearchShortcutsScroll(int newWidth);
 	void scrollSearchShortcutsTo(int value);
-	void paintSearchShortcuts(QPainter &p, QRect clip);
-	void paintSearchShortcutIcon(QPainter &p, const CustomSet &set, QRect rect);
+	void paintSearchShortcuts(Painter &p, QRect clip);
+	void paintSearchShortcutIcon(Painter &p, const CustomSet &set, QRect rect);
 	void toggleSearchShortcut(int index);
 	void backToSearchResults();
 	[[nodiscard]] CustomSet &searchSetBySection(int section);

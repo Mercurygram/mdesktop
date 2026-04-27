@@ -2011,7 +2011,7 @@ void EmojiListWidget::validateEmojiPaintContext(
 	}
 }
 
-void EmojiListWidget::paintSearchShortcuts(QPainter &p, QRect clip) {
+void EmojiListWidget::paintSearchShortcuts(Painter &p, QRect clip) {
 	if (!searchShortcutsShown()
 		|| clip.bottom() < searchShortcutsTop()
 		|| clip.top() >= searchShortcutsTop() + searchShortcutsHeight()) {
@@ -2042,10 +2042,12 @@ void EmojiListWidget::paintSearchShortcuts(QPainter &p, QRect clip) {
 		}
 		p.setFont(font);
 		p.setPen(st().headerFg);
-		p.drawText(
+		p.drawTextLeft(
 			st().searchBackTextLeft,
-			back.y() + st().searchBackTextTop + font->ascent,
-			shown);
+			back.y() + st().searchBackTextTop,
+			width(),
+			shown,
+			textWidth);
 	}
 
 	const auto selectedShortcut = std::get_if<OverSearchShortcut>(
@@ -2099,16 +2101,18 @@ void EmojiListWidget::paintSearchShortcuts(QPainter &p, QRect clip) {
 		}
 		p.setFont(st::normalFont);
 		p.setPen(st().textFg);
-		p.drawText(
+		p.drawTextLeft(
 			rect.x() + st().searchPackTextPadding,
-			rect.y() + st().searchPackTextTop + st::normalFont->ascent,
-			title);
+			rect.y() + st().searchPackTextTop,
+			width(),
+			title,
+			titleWidth);
 	}
 	p.restore();
 }
 
 void EmojiListWidget::paintSearchShortcutIcon(
-		QPainter &p,
+		Painter &p,
 		const CustomSet &set,
 		QRect rect) {
 	if (set.list.empty()) {
