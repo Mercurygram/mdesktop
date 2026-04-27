@@ -155,7 +155,9 @@ void OpenPhotoEditorForSticker(
 
 	auto applyModifications = [=, done = std::move(onDone)](
 			const Editor::PhotoModifications &mods) mutable {
-		auto result = Editor::ImageModified(baseImage->original(), mods);
+		auto unmasked = mods;
+		unmasked.cropType = Editor::EditorData::CropType::Rect;
+		auto result = Editor::ImageModified(baseImage->original(), unmasked);
 		if (result.size() != QSize(kStickerSide, kStickerSide)) {
 			result = result.scaled(
 				kStickerSide,
@@ -163,6 +165,7 @@ void OpenPhotoEditorForSticker(
 				Qt::IgnoreAspectRatio,
 				Qt::SmoothTransformation);
 		}
+		Editor::ApplyShapeMask(result, mods.cropType, mods.cornersLevel);
 		done(std::move(result));
 	};
 

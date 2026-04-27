@@ -12,7 +12,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/userpic_view.h"
 
 namespace Editor {
-namespace {
 
 void ApplyShapeMask(
 		QImage &image,
@@ -50,8 +49,6 @@ void ApplyShapeMask(
 	p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
 	p.drawImage(0, 0, mask);
 }
-
-} // namespace
 
 float64 RoundedCornersMultiplier(RoundedCornersLevel level) {
 	switch (level) {

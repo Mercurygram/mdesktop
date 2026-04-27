@@ -53,4 +53,9 @@ struct PhotoModifications {
 	QImage image,
 	const PhotoModifications &mods);
 
+void ApplyShapeMask(
+	QImage &image,
+	EditorData::CropType type,
+	RoundedCornersLevel cornersLevel);
+
 } // namespace Editor
