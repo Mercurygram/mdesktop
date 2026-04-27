@@ -3111,6 +3111,29 @@ void EmojiListWidget::colorChosen(EmojiChosen data) {
 	_picker->hideAnimated();
 }
 
+void EmojiListWidget::wheelEvent(QWheelEvent *e) {
+	if (searchShortcutsShown() && _searchShortcutsScrollMax > 0) {
+		const auto pos = mapFromGlobal(e->globalPosition().toPoint());
+		if (pos.y() >= searchShortcutsTop()
+			&& pos.y() < searchShortcutsTop() + searchShortcutsHeight()) {
+			const auto angle = e->angleDelta();
+			const auto pixel = e->pixelDelta();
+			const auto horizontal = (angle.x() != 0);
+			const auto vertical = (angle.y() != 0);
+			if (horizontal || vertical) {
+				const auto delta = horizontal
+					? ((rtl() ? -1 : 1)
+						* (pixel.x() ? pixel.x() : angle.x()))
+					: (pixel.y() ? pixel.y() : angle.y());
+				scrollSearchShortcutsTo(_searchShortcutsScroll - delta);
+				e->accept();
+				return;
+			}
+		}
+	}
+	Inner::wheelEvent(e);
+}
+
 void EmojiListWidget::mouseMoveEvent(QMouseEvent *e) {
 	_lastMousePos = e->globalPos();
 	if (std::get_if<OverSearchShortcut>(&_pressed)
