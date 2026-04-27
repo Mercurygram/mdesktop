@@ -2124,7 +2124,7 @@ void EmojiListWidget::paintSearchShortcutIcon(
 		.position = rect.topLeft(),
 		.paused = On(powerSavingFlag()) || paused(),
 		.scaled = false,
-		.internal = { .forceFirstFrame = (_mode == Mode::BackgroundEmoji) },
+		.internal = { .forceFirstFrame = true },
 	};
 	set.list.front().custom->paint(p, context);
 }
