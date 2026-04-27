@@ -946,7 +946,7 @@ QRect StickersListWidget::searchBackRect() const {
 }
 
 QRect StickersListWidget::searchShortcutRect(int index) const {
-	Expects(index >= 0 && index < _searchShortcutSets.size());
+	Expects(index >= 0 && index < int(_searchShortcutSets.size()));
 
 	const auto left = st().headerLeft
 		- st().margin.left()
@@ -972,7 +972,7 @@ void StickersListWidget::refreshSearchShortcutsScroll(int newWidth) {
 	const auto full = st().headerLeft
 		- st().margin.left()
 		+ count * st().searchPackWidth
-		+ (count - 1) * st().searchPackSkip
+		+ std::max(count - 1, 0) * st().searchPackSkip
 		+ st().margin.right();
 	_searchShortcutsScrollMax = std::max(full - newWidth, 0);
 	scrollSearchShortcutsTo(_searchShortcutsScroll);
@@ -991,7 +991,7 @@ void StickersListWidget::scrollSearchShortcutsTo(int value) {
 }
 
 void StickersListWidget::toggleSearchShortcut(int index) {
-	if (index < 0 || index >= _searchShortcutSets.size()) {
+	if (index < 0 || index >= int(_searchShortcutSets.size())) {
 		return;
 	}
 	const auto setId = _searchShortcutSets[index].id;
