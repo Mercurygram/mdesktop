@@ -1593,8 +1593,14 @@ bool EmojiListWidget::enumerateSections(Callback callback) const {
 		info.rowsCount = info.collapsed
 			? kCollapsedRows
 			: (info.count + _columnCount - 1) / _columnCount;
+		const auto firstAfterShortcuts = !i
+			&& searchShortcutsShown()
+			&& !searchShortcutSelected();
 		info.rowsTop = info.top
-			+ (i == 0 ? _rowsTop : st().header);
+			+ (i == 0 ? _rowsTop : st().header)
+			+ (firstAfterShortcuts
+				? st::stickerPanFirstAfterShortcutsSkip
+				: 0);
 		info.rowsBottom = info.rowsTop
 			+ (info.rowsCount * _singleSize.height());
 		if (!callback(info)) {

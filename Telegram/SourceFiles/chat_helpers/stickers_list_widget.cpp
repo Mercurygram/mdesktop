@@ -504,10 +504,15 @@ bool StickersListWidget::enumerateSections(Callback callback) const {
 		auto &set = sets[i];
 		info.section = i;
 		info.count = set.stickers.size();
+		const auto firstAfterShortcuts = !i
+			&& searchShortcutsShown()
+			&& !searchShortcutSelected();
 		const auto titleSkip = set.externalLayout
 			? st::stickersTrendingHeader
 			: setHasTitle(set)
 			? st().header
+			: firstAfterShortcuts
+			? st::stickerPanFirstAfterShortcutsSkip
 			: st::stickerPanPadding;
 		info.rowsTop = info.top + titleSkip;
 		if (set.externalLayout) {
