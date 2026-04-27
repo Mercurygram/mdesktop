@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "chat_helpers/compose/compose_features.h"
 #include "chat_helpers/tabbed_selector.h"
+#include "ui/effects/animations.h"
 #include "ui/widgets/tooltip.h"
 #include "ui/round_rect.h"
 #include "base/timer.h"
@@ -347,6 +348,7 @@ private:
 	void fillSelectedSearchShortcut();
 	[[nodiscard]] bool searchShortcutsShown() const;
 	[[nodiscard]] bool searchShortcutSelected() const;
+	void startSearchSwapAnimation(Fn<void()> change);
 	[[nodiscard]] int searchShortcutsHeight() const;
 	[[nodiscard]] int searchShortcutsTop() const;
 	[[nodiscard]] QRect searchBackRect() const;
@@ -547,6 +549,10 @@ private:
 	int _searchShortcutsDragStart = 0;
 	QPoint _searchShortcutsMouseDown;
 	bool _searchShortcutsDragging = false;
+	Ui::Animations::Simple _searchSwapAnimation;
+	QPixmap _searchSwapBefore;
+	QPixmap _searchSwapAfter;
+	int _searchSwapTop = 0;
 	mtpRequestId _searchCloudRequestId = 0;
 	mtpRequestId _searchSetsRequestId = 0;
 	bool _searchLoading = false;

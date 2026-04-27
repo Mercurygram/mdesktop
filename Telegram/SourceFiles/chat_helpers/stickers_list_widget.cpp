@@ -31,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/image/image.h"
 #include "ui/cached_round_corners.h"
 #include "ui/power_saving.h"
+#include "ui/ui_utility.h"
 #include "lottie/lottie_multi_player.h"
 #include "lottie/lottie_single_player.h"
 #include "lottie/lottie_animation.h"
@@ -920,6 +921,35 @@ bool StickersListWidget::searchShortcutSelected() const {
 	return _searchSelectedSetId != 0;
 }
 
+void StickersListWidget::startSearchSwapAnimation(Fn<void()> change) {
+	if (!isVisible() || size().isEmpty()) {
+		change();
+		return;
+	}
+	const auto computeRect = [&] {
+		const auto top = searchShortcutsTop();
+		const auto bottom = std::max(top + 1, getVisibleBottom());
+		return QRect(0, top, width(), bottom - top);
+	};
+	_searchSwapAnimation.stop();
+	_searchSwapBefore = Ui::GrabWidget(this, computeRect());
+	_searchSwapTop = searchShortcutsTop();
+	change();
+	_searchSwapAfter = Ui::GrabWidget(this, computeRect());
+	_searchSwapAnimation.start(
+		[=, this] {
+			update();
+			if (!_searchSwapAnimation.animating()) {
+				_searchSwapBefore = QPixmap();
+				_searchSwapAfter = QPixmap();
+			}
+		},
+		0.,
+		1.,
+		st().searchSwapDuration,
+		anim::sineInOut);
+}
+
 int StickersListWidget::searchShortcutsTop() const {
 	return _search ? _search->height() : 0;
 }
@@ -931,11 +961,9 @@ int StickersListWidget::searchShortcutsHeight() const {
 	auto result = st().searchPacksTop
 		+ st().searchPackHeight
 		+ st().searchPacksBottom;
-	if (searchShortcutSelected()) {
-		result += st().searchBackHeight;
-	} else {
-		result += st().searchResultsHeight;
-	}
+	result += searchShortcutSelected()
+		? st().searchBackHeight
+		: st().searchResultsHeight;
 	return result;
 }
 
@@ -997,16 +1025,21 @@ void StickersListWidget::toggleSearchShortcut(int index) {
 		return;
 	}
 	const auto setId = _searchShortcutSets[index].id;
-	_searchSelectedSetId = (_searchSelectedSetId == setId) ? 0 : setId;
-	showSearchResults();
+	const auto target = (_searchSelectedSetId == setId) ? 0 : setId;
+	startSearchSwapAnimation([=, this] {
+		_searchSelectedSetId = target;
+		showSearchResults();
+	});
 }
 
 void StickersListWidget::backToSearchResults() {
 	if (!_searchSelectedSetId) {
 		return;
 	}
-	_searchSelectedSetId = 0;
-	showSearchResults();
+	startSearchSwapAnimation([=, this] {
+		_searchSelectedSetId = 0;
+		showSearchResults();
+	});
 }
 
 void StickersListWidget::fillFoundStickersRow(
@@ -1311,6 +1344,22 @@ void StickersListWidget::paintEvent(QPaintEvent *e) {
 		p.fillRect(clip, st().bg);
 	}
 
+	if (_searchSwapAnimation.animating()) {
+		const auto progress = _searchSwapAnimation.value(1.);
+		const auto slide = st().searchBackHeight;
+		p.setOpacity(1. - progress);
+		p.drawPixmap(
+			0,
+			_searchSwapTop + int(base::SafeRound(slide * progress)),
+			_searchSwapBefore);
+		p.setOpacity(progress);
+		p.drawPixmap(
+			0,
+			_searchSwapTop - int(base::SafeRound(slide * (1. - progress))),
+			_searchSwapAfter);
+		p.setOpacity(1.);
+		return;
+	}
 	paintStickers(p, clip);
 }
 
@@ -1320,8 +1369,8 @@ void StickersListWidget::paintSearchShortcuts(Painter &p, QRect clip) {
 		|| clip.top() >= searchShortcutsTop() + searchShortcutsHeight()) {
 		return;
 	}
-	if (searchShortcutSelected()) {
-		const auto back = searchBackRect();
+	const auto back = searchBackRect();
+	if (back.height() > 0) {
 		const auto selected = std::get_if<OverSearchBack>(
 			!v::is_null(_pressed) ? &_pressed : &_selected);
 		const auto &icon = selected
@@ -1359,8 +1408,7 @@ void StickersListWidget::paintSearchShortcuts(Painter &p, QRect clip) {
 	p.setClipRect(
 		QRect(
 			0,
-			searchShortcutsTop()
-				+ (searchShortcutSelected() ? st().searchBackHeight : 0),
+			searchShortcutsTop() + back.height(),
 			width(),
 			st().searchPacksTop
 				+ st().searchPackHeight
