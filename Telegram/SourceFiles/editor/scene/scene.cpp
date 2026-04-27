@@ -318,6 +318,12 @@ void Scene::cancelDrawing() {
 	_canvas->cancelDrawing();
 }
 
+void Scene::cancelTextEditing() {
+	if (_textEdit.proxy) {
+		finishTextEditing(false, false);
+	}
+}
+
 void Scene::addItem(ItemPtr item) {
 	if (!item) {
 		return;
@@ -553,12 +559,14 @@ void Scene::restore(SaveState state) {
 	cancelDrawing();
 }
 
-void Scene::setTextEditing(bool editing) {
+void Scene::setTextEditing(bool editing, bool notify) {
 	if (_textEditing == editing) {
 		return;
 	}
 	_textEditing = editing;
-	_textEditStates.fire_copy(editing);
+	if (notify) {
+		_textEditStates.fire_copy(editing);
+	}
 }
 
 void Scene::setupTextProxy(
@@ -752,7 +760,7 @@ void Scene::startTextEditing(ItemText *item) {
 	_textColorRequests.fire_copy(item->color());
 }
 
-void Scene::finishTextEditing(bool save) {
+void Scene::finishTextEditing(bool save, bool notify) {
 	if (!_textEdit.proxy) {
 		return;
 	}
@@ -774,7 +782,7 @@ void Scene::finishTextEditing(bool save) {
 	QGraphicsScene::removeItem(_textEdit.proxy.get());
 	_textEdit.proxy = nullptr;
 	_textEdit.item.reset();
-	setTextEditing(false);
+	setTextEditing(false, notify);
 
 	const auto defaultStyle = static_cast<TextStyle>(_textStyle);
 
@@ -824,15 +832,7 @@ void Scene::finishTextEditing(bool save) {
 
 Scene::~Scene() {
 	disconnect(this, &QGraphicsScene::selectionChanged, nullptr, nullptr);
-	if (_textEdit.proxy) {
-		setTextEditing(false);
-		const auto raw = static_cast<TextEditProxy*>(
-			_textEdit.proxy.get());
-		raw->onFinish = nullptr;
-		raw->onCancel = nullptr;
-		QGraphicsScene::removeItem(_textEdit.proxy.get());
-		_textEdit.proxy = nullptr;
-	}
+	cancelTextEditing();
 	QGraphicsScene::removeItem(_canvas.get());
 	for (const auto &item : items()) {
 		QGraphicsScene::removeItem(item.get());

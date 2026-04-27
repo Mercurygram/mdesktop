@@ -216,6 +216,7 @@ QPointF Paint::mapWidgetDeltaToScene(QPoint delta) const {
 }
 
 Paint::~Paint() {
+	_scene->cancelTextEditing();
 	if (_viewport) {
 		_viewport->removeEventFilter(this);
 	}
