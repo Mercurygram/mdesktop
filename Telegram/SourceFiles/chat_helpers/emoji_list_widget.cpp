@@ -1189,7 +1189,23 @@ bool EmojiListWidget::addSearchShortcut(not_null<Data::StickersSet*> set) {
 	if (ranges::contains(_searchShortcutSets, set->id, &CustomSet::id)) {
 		return false;
 	}
-	auto list = collectSearchSet(set);
+	const auto &documents = set->stickers.empty()
+		? set->covers
+		: set->stickers;
+	auto list = std::vector<CustomOne>();
+	for (const auto document : documents) {
+		if (const auto sticker = document->sticker()) {
+			list.push_back({
+				.custom = resolveCustomEmoji(
+					EmojiStatusId{ document->id },
+					document,
+					set->id),
+				.document = document,
+				.emoji = Ui::Emoji::Find(sticker->alt),
+			});
+			break;
+		}
+	}
 	if (list.empty()) {
 		return false;
 	}
