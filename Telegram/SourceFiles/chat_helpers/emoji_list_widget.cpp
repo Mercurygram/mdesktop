@@ -2201,22 +2201,29 @@ void EmojiListWidget::paintSearchShortcutIcon(
 		Painter &p,
 		const CustomSet &set,
 		QRect rect) {
-	if (set.list.empty()) {
+	if (set.list.empty() || _customSingleSize <= 0) {
 		return;
 	}
+	const auto native = _customSingleSize;
+	const auto scale = double(rect.width()) / double(native);
 	auto context = Ui::Text::CustomEmojiPaintContext{
 		.textColor = (_customTextColor
 			? _customTextColor()
 			: st().textFg->c),
-		.size = rect.size(),
+		.size = QSize(native, native),
 		.now = crl::now(),
 		.scale = 1.,
-		.position = rect.topLeft(),
+		.position = QPoint(),
 		.paused = On(powerSavingFlag()) || paused(),
 		.scaled = false,
 		.internal = { .forceFirstFrame = true },
 	};
+	p.save();
+	p.translate(rect.center());
+	p.scale(scale, scale);
+	p.translate(-native / 2, -native / 2);
 	set.list.front().custom->paint(p, context);
+	p.restore();
 }
 
 void EmojiListWidget::paint(
