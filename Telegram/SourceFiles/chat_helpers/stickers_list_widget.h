@@ -388,11 +388,11 @@ private:
 	void requestSearchStickers(
 		const QString &query,
 		int offset,
-		bool requestSetsOnEmpty);
+		bool isInitial);
 	void searchStickersResultsDone(
 		const QString &query,
 		int requestedOffset,
-		bool requestSetsOnEmpty,
+		bool isInitial,
 		const MTPmessages_FoundStickers &result);
 	void loadMoreSearchStickers();
 	void checkPaginateSearchStickers(int visibleTop, int visibleBottom);

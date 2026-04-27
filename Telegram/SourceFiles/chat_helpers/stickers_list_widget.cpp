@@ -609,32 +609,35 @@ int StickersListWidget::countDesiredHeight(int newWidth) {
 }
 
 void StickersListWidget::sendSearchRequest() {
-	if (_searchSetsRequestId
-		|| _searchStickersRequestId
-		|| _searchNextQuery.isEmpty()
-		|| _isEffects) {
+	if (_searchNextQuery.isEmpty() || _isEffects) {
 		return;
 	}
-
 	_searchRequestTimer.cancel();
 	_searchQuery = _searchNextQuery;
 
-	auto it = _searchStickersCache.find(_searchQuery);
-	if (it != _searchStickersCache.cend()) {
-		toggleSearchLoading(false);
-		return;
-	}
-	toggleSearchLoading(true);
 	if (_searchQuery == Ui::PremiumGroupFakeEmoticon()) {
 		toggleSearchLoading(false);
-		_searchSetsRequestId = 0;
 		_searchSetsCache.emplace(_searchQuery, std::vector<uint64>());
 		_searchStickersCache.emplace(_searchQuery, std::vector<DocumentId>());
 		showSearchResults();
 		return;
 	}
 
-	requestSearchStickers(_searchQuery, 0, true);
+	const auto stickersCached = (_searchStickersCache.find(_searchQuery)
+		!= _searchStickersCache.cend());
+	const auto setsCached = (_searchSetsCache.find(_searchQuery)
+		!= _searchSetsCache.cend());
+	if (stickersCached && setsCached) {
+		toggleSearchLoading(false);
+		return;
+	}
+	toggleSearchLoading(true);
+	if (!stickersCached && !_searchStickersRequestId) {
+		requestSearchStickers(_searchQuery, 0, true);
+	}
+	if (!setsCached && !_searchSetsRequestId) {
+		sendSearchSetsRequest(_searchQuery);
+	}
 }
 
 void StickersListWidget::sendSearchSetsRequest(const QString &query) {
@@ -647,7 +650,8 @@ void StickersListWidget::sendSearchSetsRequest(const QString &query) {
 		searchResultsDone(query, result);
 	}).fail([=] {
 		_searchSetsRequestId = 0;
-		if (_searchNextQuery == query) {
+		_searchSetsCache.emplace(query, std::vector<uint64>());
+		if (_searchNextQuery == query && !_searchStickersRequestId) {
 			toggleSearchLoading(false);
 		}
 	}).handleAllErrors().send();
@@ -656,7 +660,7 @@ void StickersListWidget::sendSearchSetsRequest(const QString &query) {
 void StickersListWidget::requestSearchStickers(
 		const QString &query,
 		int offset,
-		bool requestSetsOnEmpty) {
+		bool isInitial) {
 	const auto hash = uint64(0);
 	_searchStickersRequestId = _api.request(MTPmessages_SearchStickers(
 		MTP_flags(0),
@@ -667,18 +671,12 @@ void StickersListWidget::requestSearchStickers(
 		MTP_int(50),
 		MTP_long(hash)
 	)).done([=](const MTPmessages_FoundStickers &result) {
-		searchStickersResultsDone(
-			query,
-			offset,
-			requestSetsOnEmpty,
-			result);
+		searchStickersResultsDone(query, offset, isInitial, result);
 	}).fail([=] {
 		_searchStickersRequestId = 0;
-		if (requestSetsOnEmpty) {
-			_searchStickersCache.emplace(query, std::vector<DocumentId>());
-			if (_searchNextQuery == query) {
-				sendSearchSetsRequest(query);
-			}
+		_searchStickersCache.emplace(query, std::vector<DocumentId>());
+		if (_searchNextQuery == query && !_searchSetsRequestId) {
+			toggleSearchLoading(false);
 		}
 	}).handleAllErrors().send();
 }
@@ -712,7 +710,7 @@ void StickersListWidget::searchForSets(
 			_api.request(requestId).cancel();
 		}
 		if (_searchStickersCache.find(cleaned) != _searchStickersCache.cend()
-			|| _searchSetsCache.find(cleaned) != _searchSetsCache.cend()) {
+			&& _searchSetsCache.find(cleaned) != _searchSetsCache.cend()) {
 			_searchRequestTimer.cancel();
 			_searchQuery = _searchNextQuery = cleaned;
 		} else {
@@ -1139,10 +1137,15 @@ auto StickersListWidget::shownSets() -> std::vector<Set> & {
 void StickersListWidget::searchStickersResultsDone(
 		const QString &query,
 		int requestedOffset,
-		bool requestSetsOnEmpty,
+		bool isInitial,
 		const MTPmessages_FoundStickers &result) {
 	_searchStickersRequestId = 0;
 	const auto active = (_searchNextQuery == query);
+	const auto finishLoading = [&] {
+		if (active && !_searchSetsRequestId) {
+			toggleSearchLoading(false);
+		}
+	};
 
 	result.match([&](const MTPDmessages_foundStickersNotModified &data) {
 		LOG(("API: messages.foundStickersNotModified."));
@@ -1159,11 +1162,12 @@ void StickersListWidget::searchStickersResultsDone(
 		if (!active) {
 			return;
 		}
-		if (requestSetsOnEmpty) {
-			sendSearchSetsRequest(query);
-			return;
+		finishLoading();
+		if (isInitial) {
+			showSearchResults();
+		} else {
+			refreshSearchRows();
 		}
-		refreshSearchRows();
 		checkPaginateSearchStickers(
 			getVisibleTop(),
 			getVisibleBottom());
@@ -1194,12 +1198,8 @@ void StickersListWidget::searchStickersResultsDone(
 		if (!active) {
 			return;
 		}
-		if (requestSetsOnEmpty && it->second.empty()) {
-			sendSearchSetsRequest(query);
-			return;
-		}
-		toggleSearchLoading(false);
-		if (requestSetsOnEmpty) {
+		finishLoading();
+		if (isInitial) {
 			showSearchResults();
 		} else {
 			refreshSearchRows();
@@ -1246,10 +1246,10 @@ void StickersListWidget::checkPaginateSearchStickers(
 void StickersListWidget::searchResultsDone(
 		const QString &query,
 		const MTPmessages_FoundStickerSets &result) {
-	if (_searchNextQuery == query) {
+	_searchSetsRequestId = 0;
+	if (_searchNextQuery == query && !_searchStickersRequestId) {
 		toggleSearchLoading(false);
 	}
-	_searchSetsRequestId = 0;
 
 	result.match([&](const MTPDmessages_foundStickerSetsNotModified &data) {
 		LOG(("API Error: "
