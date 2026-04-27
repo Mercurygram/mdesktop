@@ -311,7 +311,7 @@ void Paint::applyBrush(const Brush &brush) {
 }
 
 void Paint::createTextItem() {
-	_scene->createTextAtCenter();
+	_scene->createTextAtCenter(-_transform.angle);
 }
 
 void Paint::clearSelection() {

@@ -50,7 +50,7 @@ public:
 	void cancelDrawing();
 
 	void startTextEditing(ItemText *item);
-	void createTextAtCenter();
+	void createTextAtCenter(int rotation);
 	void setTextColor(const QColor &color);
 	void setSelectedTextColor(const QColor &color);
 
