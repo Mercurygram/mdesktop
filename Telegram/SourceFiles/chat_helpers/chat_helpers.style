@@ -783,7 +783,7 @@ defaultEmojiPan: EmojiPan {
 	tabs: emojiTabs;
 	search: defaultTabbedSearch;
 	searchMargin: margins(1px, 11px, 2px, 5px);
-	searchPacksTop: 8px;
+	searchPacksTop: 4px;
 	searchPackWidth: 70px;
 	searchPackHeight: 78px;
 	searchPackSkip: 6px;
@@ -791,10 +791,10 @@ defaultEmojiPan: EmojiPan {
 	searchPackIconTop: 8px;
 	searchPackTextTop: 55px;
 	searchPackTextPadding: 5px;
-	searchPacksBottom: 8px;
+	searchPacksBottom: 4px;
 	searchBackHeight: 40px;
 	searchBackIconLeft: 5px;
-	searchBackIconTop: 3px;
+	searchBackIconTop: 6px;
 	searchBackTextLeft: 40px;
 	searchBackTextTop: 10px;
 	colorAll: emojiPanColorAll;
