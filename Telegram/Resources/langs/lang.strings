@@ -4483,6 +4483,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_custom_emoji_count#one" = "{count} emoji";
 "lng_custom_emoji_count#other" = "{count} emoji";
 "lng_search_back_to_results" = "Back to search";
+"lng_search_results_header" = "Search Result";
 "lng_stickers_attached_sets" = "Sets of attached stickers";
 "lng_custom_emoji_used_sets" = "Sets of used emoji";
 "lng_custom_emoji_remove_pack_button" = "Remove Emoji";

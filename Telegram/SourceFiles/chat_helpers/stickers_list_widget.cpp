@@ -910,12 +910,18 @@ int StickersListWidget::searchShortcutsTop() const {
 }
 
 int StickersListWidget::searchShortcutsHeight() const {
-	return searchShortcutsShown()
-		? ((searchShortcutSelected() ? st().searchBackHeight : 0)
-			+ st().searchPacksTop
-			+ st().searchPackHeight
-			+ st().searchPacksBottom)
-		: 0;
+	if (!searchShortcutsShown()) {
+		return 0;
+	}
+	auto result = st().searchPacksTop
+		+ st().searchPackHeight
+		+ st().searchPacksBottom;
+	if (searchShortcutSelected()) {
+		result += st().searchBackHeight;
+	} else {
+		result += st().header;
+	}
+	return result;
 }
 
 QRect StickersListWidget::searchBackRect() const {
@@ -1389,6 +1395,20 @@ void StickersListWidget::paintSearchShortcuts(Painter &p, QRect clip) {
 			titleWidth);
 	}
 	p.restore();
+
+	if (!searchShortcutSelected()) {
+		const auto top = searchShortcutsTop()
+			+ st().searchPacksTop
+			+ st().searchPackHeight
+			+ st().searchPacksBottom;
+		p.setFont(st::emojiPanHeaderFont);
+		p.setPen(st().headerFg);
+		p.drawTextLeft(
+			st().headerLeft - st().margin.left(),
+			top + st().headerTop,
+			width(),
+			tr::lng_search_results_header(tr::now));
+	}
 }
 
 void StickersListWidget::paintSearchShortcutIcon(
