@@ -835,29 +835,9 @@ void StickersListWidget::fillLocalSearchShortcuts(const QString &query) {
 	if (searchWordsList.isEmpty()) {
 		return;
 	}
-	const auto searchWordInTitle = [](
-			const QStringList &titleWords,
-			const QString &searchWord) {
-		for (const auto &titleWord : titleWords) {
-			if (titleWord.startsWith(searchWord)) {
-				return true;
-			}
-		}
-		return false;
-	};
-	const auto allSearchWordsInTitle = [&](
-			const QStringList &titleWords) {
-		for (const auto &searchWord : searchWordsList) {
-			if (!searchWordInTitle(titleWords, searchWord)) {
-				return false;
-			}
-		}
-		return true;
-	};
-
 	const auto &sets = session().data().stickers().sets();
 	for (const auto &[setId, titleWords] : _searchIndex) {
-		if (!allSearchWordsInTitle(titleWords)) {
+		if (!MatchAllPreparedSearchWords(titleWords, searchWordsList)) {
 			continue;
 		} else if (const auto it = sets.find(setId); it != sets.end()) {
 			addSearchShortcut(it->second.get());

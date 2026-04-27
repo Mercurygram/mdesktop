@@ -1154,32 +1154,13 @@ void EmojiListWidget::fillLocalSearchShortcuts(const QString &query) {
 	if (searchWordsList.isEmpty()) {
 		return;
 	}
-	const auto searchWordInTitle = [](
-			const QStringList &titleWords,
-			const QString &searchWord) {
-		for (const auto &titleWord : titleWords) {
-			if (titleWord.startsWith(searchWord)) {
-				return true;
-			}
-		}
-		return false;
-	};
-	const auto allSearchWordsInTitle = [&](
-			const QStringList &titleWords) {
-		for (const auto &searchWord : searchWordsList) {
-			if (!searchWordInTitle(titleWords, searchWord)) {
-				return false;
-			}
-		}
-		return true;
-	};
 	for (const auto &set : _custom) {
 		if (!set.canRemove) {
 			continue;
 		}
 		const auto words = TextUtilities::PrepareSearchWords(
 			set.title + ' ' + set.set->shortName);
-		if (allSearchWordsInTitle(words)) {
+		if (MatchAllPreparedSearchWords(words, searchWordsList)) {
 			addSearchShortcut(set.set);
 		}
 	}
