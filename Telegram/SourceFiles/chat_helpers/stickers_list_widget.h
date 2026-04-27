@@ -199,6 +199,24 @@ private:
 			return !(*this == other);
 		}
 	};
+	struct OverSearchShortcut {
+		int index = 0;
+
+		inline bool operator==(OverSearchShortcut other) const {
+			return (index == other.index);
+		}
+		inline bool operator!=(OverSearchShortcut other) const {
+			return !(*this == other);
+		}
+	};
+	struct OverSearchBack {
+		inline bool operator==(OverSearchBack other) const {
+			return true;
+		}
+		inline bool operator!=(OverSearchBack other) const {
+			return !(*this == other);
+		}
+	};
 	struct OverGroupAdd {
 		inline bool operator==(OverGroupAdd other) const {
 			return true;
@@ -212,6 +230,8 @@ private:
 		OverSticker,
 		OverSet,
 		OverButton,
+		OverSearchShortcut,
+		OverSearchBack,
 		OverGroupAdd>;
 
 	struct SectionInfo {
@@ -271,6 +291,8 @@ private:
 	[[nodiscard]] std::unique_ptr<Ui::RippleAnimation> createButtonRipple(
 		int section);
 	[[nodiscard]] QPoint buttonRippleTopLeft(int section) const;
+	[[nodiscard]] std::unique_ptr<Ui::RippleAnimation>
+	createSearchShortcutRipple(int index);
 
 	[[nodiscard]] std::vector<Set> &shownSets();
 	[[nodiscard]] const std::vector<Set> &shownSets() const;
@@ -376,11 +398,26 @@ private:
 	void checkPaginateSearchStickers(int visibleTop, int visibleBottom);
 	void refreshSearchRows();
 	void refreshSearchRows(const std::vector<uint64> *cloudSets);
+	void refreshSearchShortcuts(
+		const QString &query,
+		const std::vector<uint64> *cloudSets);
+	void fillLocalSearchShortcuts(const QString &query);
+	bool addSearchShortcut(not_null<Data::StickersSet*> set);
+	void fillSelectedSearchShortcut();
+	[[nodiscard]] bool searchShortcutsShown() const;
+	[[nodiscard]] bool searchShortcutSelected() const;
+	[[nodiscard]] int searchShortcutsHeight() const;
+	[[nodiscard]] int searchShortcutsTop() const;
+	[[nodiscard]] QRect searchBackRect() const;
+	[[nodiscard]] QRect searchShortcutRect(int index) const;
+	void refreshSearchShortcutsScroll(int newWidth);
+	void scrollSearchShortcutsTo(int value);
+	void paintSearchShortcuts(Painter &p, QRect clip);
+	void paintSearchShortcutIcon(Painter &p, Set &set, QRect rect);
+	void toggleSearchShortcut(int index);
+	void backToSearchResults();
 	void fillFilteredStickersRow();
-	void fillLocalSearchRows(const QString &query);
-	void fillCloudSearchRows(const std::vector<uint64> &cloudSets);
 	void fillFoundStickersRow(const std::vector<DocumentId> &stickerIds);
-	void addSearchRow(not_null<Data::StickersSet*> set);
 	void toggleSearchLoading(bool loading);
 
 	void showPreview();
@@ -403,6 +440,7 @@ private:
 	std::vector<Set> _mySets;
 	std::vector<Set> _officialSets;
 	std::vector<Set> _searchSets;
+	std::vector<Set> _searchShortcutSets;
 	int _featuredSetsCount = 0;
 	std::vector<bool> _custom;
 	std::vector<EmojiPtr> _cornerEmoji;
@@ -467,6 +505,12 @@ private:
 	std::vector<std::pair<uint64, QStringList>> _searchIndex;
 	base::Timer _searchRequestTimer;
 	QString _searchQuery, _searchNextQuery;
+	uint64 _searchSelectedSetId = 0;
+	int _searchShortcutsScroll = 0;
+	int _searchShortcutsScrollMax = 0;
+	int _searchShortcutsDragStart = 0;
+	QPoint _searchShortcutsMouseDown;
+	bool _searchShortcutsDragging = false;
 	mtpRequestId _searchSetsRequestId = 0;
 	mtpRequestId _searchStickersRequestId = 0;
 	bool _searchLoading = false;
