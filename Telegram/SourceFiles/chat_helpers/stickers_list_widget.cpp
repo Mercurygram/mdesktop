@@ -771,6 +771,18 @@ void StickersListWidget::refreshSearchRows(
 		if (_section == wasSection && _section == Section::Search) {
 			takeHeavyData(_searchSets, wasSets);
 			takeHeavyData(_searchShortcutSets, wasShortcuts);
+			auto indices = base::flat_map<uint64, int>();
+			indices.reserve(wasShortcuts.size());
+			auto index = 0;
+			for (const auto &set : wasShortcuts) {
+				indices.emplace(set.id, index++);
+			}
+			for (auto &set : _searchShortcutSets) {
+				const auto i = indices.find(set.id);
+				if (i != end(indices)) {
+					set.ripple = std::move(wasShortcuts[i->second].ripple);
+				}
+			}
 		}
 	});
 

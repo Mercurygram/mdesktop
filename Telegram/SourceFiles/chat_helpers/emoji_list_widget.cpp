@@ -1074,10 +1074,19 @@ void EmojiListWidget::showSearchResults() {
 	_searchResults.clear();
 	_searchCustomIds.clear();
 	_searchSets.clear();
-	_searchShortcutSets.clear();
+	auto wasShortcuts = base::take(_searchShortcutSets);
 	_searchEmoji.clear();
 
 	refreshSearchShortcuts();
+	for (auto &set : _searchShortcutSets) {
+		const auto i = ranges::find(
+			wasShortcuts,
+			set.id,
+			&CustomSet::id);
+		if (i != wasShortcuts.end() && i->ripple) {
+			set.ripple = std::move(i->ripple);
+		}
+	}
 	if (searchShortcutSelected()) {
 		fillSelectedSearchShortcut();
 	}
