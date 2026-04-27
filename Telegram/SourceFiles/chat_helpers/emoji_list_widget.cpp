@@ -3305,12 +3305,17 @@ void EmojiListWidget::processHideFinished() {
 		_picker->hideFast();
 		_pickerSelected = v::null;
 	}
-	cancelSearchRequest();
 	unloadAllCustom();
 	clearSelection();
 }
 
 void EmojiListWidget::processPanelHideFinished() {
+	if (_search) {
+		_search->cancel();
+	}
+	_nextSearchQuery.clear();
+	applyNextSearchQuery();
+	cancelSearchRequest();
 	unloadAllCustom();
 	if (_localSetsManager->clearInstalledLocally()) {
 		refreshCustom();
