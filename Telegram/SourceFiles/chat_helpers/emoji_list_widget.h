@@ -554,6 +554,7 @@ private:
 	QPixmap _searchSwapAfter;
 	int _searchSwapTop = 0;
 	bool _searchSwapReverse = false;
+	bool _searchSwapPartial = false;
 	mtpRequestId _searchCloudRequestId = 0;
 	mtpRequestId _searchSetsRequestId = 0;
 	bool _searchLoading = false;

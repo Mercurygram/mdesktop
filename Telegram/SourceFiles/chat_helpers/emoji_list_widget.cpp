@@ -1286,6 +1286,7 @@ void EmojiListWidget::startSearchSwapAnimation(
 	const auto wasSelected = searchShortcutSelected();
 	_searchSwapBefore = Ui::GrabWidget(this, computeRect());
 	_searchSwapTop = top;
+	_searchSwapPartial = packToPack;
 	change();
 	_searchSwapReverse = wasSelected && !searchShortcutSelected();
 	_searchSwapAfter = Ui::GrabWidget(this, computeRect());
@@ -2040,6 +2041,9 @@ void EmojiListWidget::paintEvent(QPaintEvent *e) {
 	}
 
 	if (_searchSwapAnimation.animating()) {
+		if (_searchSwapPartial) {
+			paint(p, {}, clip);
+		}
 		const auto progress = _searchSwapAnimation.value(1.);
 		const auto direction = _searchSwapReverse ? -1 : 1;
 		const auto slide = st().searchBackHeight;
