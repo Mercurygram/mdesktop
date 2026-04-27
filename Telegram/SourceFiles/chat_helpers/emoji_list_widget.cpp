@@ -1274,7 +1274,7 @@ int EmojiListWidget::searchShortcutsHeight() const {
 	if (searchShortcutSelected()) {
 		result += st().searchBackHeight;
 	} else {
-		result += st().header;
+		result += st().searchResultsHeight;
 	}
 	return result;
 }
@@ -2122,7 +2122,7 @@ void EmojiListWidget::paintSearchShortcuts(Painter &p, QRect clip) {
 		p.setPen(st().headerFg);
 		p.drawTextLeft(
 			st().headerLeft - st().margin.left(),
-			top + st().headerTop,
+			top + st().searchResultsTextTop,
 			width(),
 			tr::lng_search_results_header(tr::now));
 	}
