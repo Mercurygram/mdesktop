@@ -1088,11 +1088,18 @@ moderateBoxUserpic: UserpicButton(defaultUserpicButton) {
 	photoSize: 34px;
 	photoPosition: point(0px, 4px);
 }
-moderateBoxExpand: icon {{ "chat/reply_type_group", boxTextFg }};
+moderateBoxExpand: IconEmoji {
+	icon: icon {{ "chat/reply_type_group", boxTextFg }};
+	padding: margins(1px, 3px, 1px, 0px);
+	useIconColor: true;
+}
 moderateBoxExpandHeight: 20px;
 moderateBoxExpandRight: 10px;
 moderateBoxExpandInnerSkip: 2px;
 moderateBoxExpandFont: font(11px);
+moderateBoxExpandTextStyle: TextStyle(boxTextStyle) {
+	font: moderateBoxExpandFont;
+}
 moderateBoxExpandToggleSize: 4px;
 moderateBoxExpandToggleFourStrokes: 3px;
 moderateBoxExpandIcon: IconEmoji{

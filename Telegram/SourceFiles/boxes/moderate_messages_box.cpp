@@ -180,164 +180,16 @@ ModerateOptions CalculateModerateOptions(const ModerateReactionEntry &reaction) 
 		|| options.banOrRestrict;
 }
 
-class DeleteOptionsCheckView final : public Ui::AbstractCheckView {
-public:
-	DeleteOptionsCheckView(
+[[nodiscard]] TextWithEntities ParticipantsExpanderText(int count) {
+	return tr::marked()
+		.append(st::moderateBoxExpand)
+		.append(QString::number(count));
+}
+
+[[nodiscard]] TextWithEntities DeleteOptionsExpanderText(
 		int checkedCount,
-		int totalCount,
-		int duration,
-		bool expanded,
-		Fn<void()> updateCallback);
-
-	[[nodiscard]] static QString Text(int checkedCount, int totalCount);
-	[[nodiscard]] static QSize ComputeSize(int totalCount);
-
-	void setCheckedCount(int count);
-
-	QSize getSize() const override;
-	QImage prepareRippleMask() const override;
-	bool checkRippleStartPosition(QPoint position) const override;
-	void paint(QPainter &p, int left, int top, int outerWidth) override;
-
-private:
-	void checkedChangedHook(anim::type animated) override;
-
-	int _checkedCount = 0;
-	int _totalCount = 0;
-	QString _text;
-
-};
-
-DeleteOptionsCheckView::DeleteOptionsCheckView(
-	int checkedCount,
-	int totalCount,
-	int duration,
-	bool expanded,
-	Fn<void()> updateCallback)
-: Ui::AbstractCheckView(duration, expanded, std::move(updateCallback))
-, _checkedCount(checkedCount)
-, _totalCount(totalCount)
-, _text(Text(checkedCount, totalCount)) {
-}
-
-QString DeleteOptionsCheckView::Text(int checkedCount, int totalCount) {
-	return u"%1 / %2"_q.arg(checkedCount).arg(totalCount);
-}
-
-QSize DeleteOptionsCheckView::ComputeSize(int totalCount) {
-	return QSize(
-		st::moderateBoxExpandHeight
-			+ st::moderateBoxExpandInnerSkip * 4
-			+ st::moderateBoxExpandFont->width(Text(totalCount, totalCount))
-			+ st::moderateBoxExpandToggleSize,
-		st::moderateBoxExpandHeight);
-}
-
-void DeleteOptionsCheckView::setCheckedCount(int count) {
-	_checkedCount = count;
-	_text = Text(_checkedCount, _totalCount);
-	update();
-}
-
-QSize DeleteOptionsCheckView::getSize() const {
-	return ComputeSize(_totalCount);
-}
-
-QImage DeleteOptionsCheckView::prepareRippleMask() const {
-	const auto size = getSize();
-	return Ui::RippleAnimation::RoundRectMask(size, size.height() / 2);
-}
-
-bool DeleteOptionsCheckView::checkRippleStartPosition(QPoint position) const {
-	return Rect(getSize()).contains(position);
-}
-
-void DeleteOptionsCheckView::paint(
-		QPainter &p,
-		int left,
-		int top,
-		int outerWidth) {
-	auto hq = PainterHighQualityEnabler(p);
-	const auto size = getSize();
-	const auto radius = size.height() / 2;
-	const auto innerSkip = st::moderateBoxExpandInnerSkip;
-
-	p.setBrush(Qt::NoBrush);
-	p.setPen(st::boxTextFg);
-	p.setFont(st::moderateBoxExpandFont);
-	p.drawText(
-		QRect(
-			left + innerSkip + radius,
-			top,
-			size.width(),
-			size.height()),
-		_text,
-		style::al_left);
-
-	const auto path = Ui::ToggleUpDownArrowPath(
-		left + size.width() - st::moderateBoxExpandToggleSize - radius,
-		top + size.height() / 2,
-		st::moderateBoxExpandToggleSize,
-		st::moderateBoxExpandToggleFourStrokes,
-		currentAnimationValue());
-	p.fillPath(path, st::boxTextFg);
-}
-
-void DeleteOptionsCheckView::checkedChangedHook(anim::type animated) {
-}
-
-class DeleteOptionsButton final : public Ui::RippleButton {
-public:
-	DeleteOptionsButton(
-		not_null<QWidget*> parent,
-		int checkedCount,
-		int totalCount);
-
-	void setCheckedCount(int count);
-	[[nodiscard]] not_null<Ui::AbstractCheckView*> checkView() const;
-
-private:
-	void paintEvent(QPaintEvent *event) override;
-	QImage prepareRippleMask() const override;
-	QPoint prepareRippleStartPosition() const override;
-
-	std::unique_ptr<DeleteOptionsCheckView> _view;
-
-};
-
-DeleteOptionsButton::DeleteOptionsButton(
-	not_null<QWidget*> parent,
-	int checkedCount,
-	int totalCount)
-: Ui::RippleButton(parent, st::defaultRippleAnimation)
-, _view(std::make_unique<DeleteOptionsCheckView>(
-	checkedCount,
-	totalCount,
-	st::slideWrapDuration,
-	false,
-	[=] { update(); })) {
-}
-
-void DeleteOptionsButton::setCheckedCount(int count) {
-	_view->setCheckedCount(count);
-}
-
-not_null<Ui::AbstractCheckView*> DeleteOptionsButton::checkView() const {
-	return _view.get();
-}
-
-QImage DeleteOptionsButton::prepareRippleMask() const {
-	return _view->prepareRippleMask();
-}
-
-QPoint DeleteOptionsButton::prepareRippleStartPosition() const {
-	return mapFromGlobal(QCursor::pos());
-}
-
-void DeleteOptionsButton::paintEvent(QPaintEvent *event) {
-	auto p = QPainter(this);
-	Ui::RippleButton::paintRipple(p, QPoint());
-	_view->paint(p, 0, 0, width());
+		int totalCount) {
+	return tr::marked(u"%1 / %2"_q.arg(checkedCount).arg(totalCount));
 }
 
 [[nodiscard]] rpl::producer<base::flat_map<PeerId, int>> MessagesCountValue(
@@ -595,8 +447,8 @@ void CreateModerateMessagesBox(
 		: QMargins(
 			0,
 			0,
-			Ui::ParticipantsCheckView::ComputeSize(
-				participants.size()).width(),
+			Ui::ExpanderButton::ComputeSize(
+				ParticipantsExpanderText(int(participants.size()))).width(),
 			0);
 
 	const auto firstItem = hasItems ? items.front().get() : nullptr;
@@ -944,7 +796,8 @@ void CreateModerateMessagesBox(
 					.checked = checkedParticipants,
 				});
 
-			const auto deleteOptionsSize = DeleteOptionsCheckView::ComputeSize(2);
+			const auto deleteOptionsSize = Ui::ExpanderButton::ComputeSize(
+				DeleteOptionsExpanderText(2, 2));
 			const auto deleteOptionsPadding = QMargins(
 				0,
 				0,
@@ -959,10 +812,9 @@ void CreateModerateMessagesBox(
 					options.deleteAll,
 					st::defaultBoxCheckbox),
 				st::boxRowPadding + deleteOptionsPadding);
-			const auto button = Ui::CreateChild<DeleteOptionsButton>(
+			const auto button = Ui::CreateChild<Ui::ExpanderButton>(
 				inner,
-				options.deleteAll ? 2 : 0,
-				2);
+				DeleteOptionsExpanderText(2, 2));
 			button->resize(deleteOptionsSize);
 			deleteOptions->geometryValue(
 			) | rpl::on_next([=](const QRect &rect) {
@@ -1031,7 +883,7 @@ void CreateModerateMessagesBox(
 				deleteOptions->setChecked(
 					count == 2,
 					Ui::Checkbox::NotifyAboutChange::DontNotify);
-				button->setCheckedCount(count);
+				button->setText(DeleteOptionsExpanderText(count, 2));
 			};
 			deleteOptions->checkedChanges(
 			) | rpl::on_next([=](bool checked) {
@@ -1043,6 +895,7 @@ void CreateModerateMessagesBox(
 			) | rpl::on_next(updateDeleteOptions, deleteMessages->lifetime());
 			deleteReactions->checkedChanges(
 			) | rpl::on_next(updateDeleteOptions, deleteReactions->lifetime());
+			updateDeleteOptions();
 			handleSubmitionIf([=] {
 				return deleteMessages->checked()
 					|| deleteReactions->checked();
