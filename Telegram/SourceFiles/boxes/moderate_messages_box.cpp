@@ -37,6 +37,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/boxes/confirm_box.h"
 #include "ui/controls/userpic_button.h"
 #include "ui/effects/ripple_animation.h"
+#include "ui/effects/toggle_arrow.h"
 #include "ui/layers/generic_box.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
@@ -44,6 +45,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_lottie_custom_emoji.h"
 #include "ui/text/text_utilities.h"
 #include "ui/vertical_list.h"
+#include "ui/widgets/buttons.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/expandable_peer_list.h"
 #include "ui/widgets/participants_check_view.h"
@@ -176,6 +178,166 @@ ModerateOptions CalculateModerateOptions(const ModerateReactionEntry &reaction) 
 		|| options.deleteAllMessages
 		|| options.deleteAllReactions
 		|| options.banOrRestrict;
+}
+
+class DeleteOptionsCheckView final : public Ui::AbstractCheckView {
+public:
+	DeleteOptionsCheckView(
+		int checkedCount,
+		int totalCount,
+		int duration,
+		bool expanded,
+		Fn<void()> updateCallback);
+
+	[[nodiscard]] static QString Text(int checkedCount, int totalCount);
+	[[nodiscard]] static QSize ComputeSize(int totalCount);
+
+	void setCheckedCount(int count);
+
+	QSize getSize() const override;
+	QImage prepareRippleMask() const override;
+	bool checkRippleStartPosition(QPoint position) const override;
+	void paint(QPainter &p, int left, int top, int outerWidth) override;
+
+private:
+	void checkedChangedHook(anim::type animated) override;
+
+	int _checkedCount = 0;
+	int _totalCount = 0;
+	QString _text;
+
+};
+
+DeleteOptionsCheckView::DeleteOptionsCheckView(
+	int checkedCount,
+	int totalCount,
+	int duration,
+	bool expanded,
+	Fn<void()> updateCallback)
+: Ui::AbstractCheckView(duration, expanded, std::move(updateCallback))
+, _checkedCount(checkedCount)
+, _totalCount(totalCount)
+, _text(Text(checkedCount, totalCount)) {
+}
+
+QString DeleteOptionsCheckView::Text(int checkedCount, int totalCount) {
+	return u"%1 / %2"_q.arg(checkedCount).arg(totalCount);
+}
+
+QSize DeleteOptionsCheckView::ComputeSize(int totalCount) {
+	return QSize(
+		st::moderateBoxExpandHeight
+			+ st::moderateBoxExpandInnerSkip * 4
+			+ st::moderateBoxExpandFont->width(Text(totalCount, totalCount))
+			+ st::moderateBoxExpandToggleSize,
+		st::moderateBoxExpandHeight);
+}
+
+void DeleteOptionsCheckView::setCheckedCount(int count) {
+	_checkedCount = count;
+	_text = Text(_checkedCount, _totalCount);
+	update();
+}
+
+QSize DeleteOptionsCheckView::getSize() const {
+	return ComputeSize(_totalCount);
+}
+
+QImage DeleteOptionsCheckView::prepareRippleMask() const {
+	const auto size = getSize();
+	return Ui::RippleAnimation::RoundRectMask(size, size.height() / 2);
+}
+
+bool DeleteOptionsCheckView::checkRippleStartPosition(QPoint position) const {
+	return Rect(getSize()).contains(position);
+}
+
+void DeleteOptionsCheckView::paint(
+		QPainter &p,
+		int left,
+		int top,
+		int outerWidth) {
+	auto hq = PainterHighQualityEnabler(p);
+	const auto size = getSize();
+	const auto radius = size.height() / 2;
+	const auto innerSkip = st::moderateBoxExpandInnerSkip;
+
+	p.setBrush(Qt::NoBrush);
+	p.setPen(st::boxTextFg);
+	p.setFont(st::moderateBoxExpandFont);
+	p.drawText(
+		QRect(
+			left + innerSkip + radius,
+			top,
+			size.width(),
+			size.height()),
+		_text,
+		style::al_left);
+
+	const auto path = Ui::ToggleUpDownArrowPath(
+		left + size.width() - st::moderateBoxExpandToggleSize - radius,
+		top + size.height() / 2,
+		st::moderateBoxExpandToggleSize,
+		st::moderateBoxExpandToggleFourStrokes,
+		currentAnimationValue());
+	p.fillPath(path, st::boxTextFg);
+}
+
+void DeleteOptionsCheckView::checkedChangedHook(anim::type animated) {
+}
+
+class DeleteOptionsButton final : public Ui::RippleButton {
+public:
+	DeleteOptionsButton(
+		not_null<QWidget*> parent,
+		int checkedCount,
+		int totalCount);
+
+	void setCheckedCount(int count);
+	[[nodiscard]] not_null<Ui::AbstractCheckView*> checkView() const;
+
+private:
+	void paintEvent(QPaintEvent *event) override;
+	QImage prepareRippleMask() const override;
+	QPoint prepareRippleStartPosition() const override;
+
+	std::unique_ptr<DeleteOptionsCheckView> _view;
+
+};
+
+DeleteOptionsButton::DeleteOptionsButton(
+	not_null<QWidget*> parent,
+	int checkedCount,
+	int totalCount)
+: Ui::RippleButton(parent, st::defaultRippleAnimation)
+, _view(std::make_unique<DeleteOptionsCheckView>(
+	checkedCount,
+	totalCount,
+	st::slideWrapDuration,
+	false,
+	[=] { update(); })) {
+}
+
+void DeleteOptionsButton::setCheckedCount(int count) {
+	_view->setCheckedCount(count);
+}
+
+not_null<Ui::AbstractCheckView*> DeleteOptionsButton::checkView() const {
+	return _view.get();
+}
+
+QImage DeleteOptionsButton::prepareRippleMask() const {
+	return _view->prepareRippleMask();
+}
+
+QPoint DeleteOptionsButton::prepareRippleStartPosition() const {
+	return mapFromGlobal(QCursor::pos());
+}
+
+void DeleteOptionsButton::paintEvent(QPaintEvent *event) {
+	auto p = QPainter(this);
+	Ui::RippleButton::paintRipple(p, QPoint());
+	_view->paint(p, 0, 0, width());
 }
 
 [[nodiscard]] rpl::producer<base::flat_map<PeerId, int>> MessagesCountValue(
@@ -646,9 +808,10 @@ void CreateModerateMessagesBox(
 		return base::EventFilterResult::Continue;
 	});
 
-	const auto handleSubmition = [=](not_null<Ui::Checkbox*> checkbox) {
-		base::install_event_filter(box, [=](not_null<QEvent*> event) {
-			if (!isEnter(event) || !checkbox->checked()) {
+	const auto handleSubmitionIf = [=](Fn<bool()> enabled) {
+		base::install_event_filter(box, [=, enabled = std::move(enabled)](
+				not_null<QEvent*> event) {
+			if (!isEnter(event) || !enabled()) {
 				return base::EventFilterResult::Continue;
 			}
 			box->uiShow()->show(Ui::MakeConfirmBox({
@@ -663,6 +826,12 @@ void CreateModerateMessagesBox(
 			return base::EventFilterResult::Cancel;
 		});
 	};
+	const auto handleSubmition = [=](not_null<Ui::Checkbox*> checkbox) {
+		handleSubmitionIf([=] {
+			return checkbox->checked();
+		});
+	};
+	Ui::Checkbox *deleteOptions = nullptr;
 	Ui::Checkbox *deleteMessages = nullptr;
 	Controller *deleteMessagesController = nullptr;
 	rpl::variable<base::flat_map<PeerId, int>> *deleteMessagesCounts = nullptr;
@@ -741,6 +910,9 @@ void CreateModerateMessagesBox(
 
 	const auto showMessagesCheckbox = deleteAllMessages;
 	const auto showReactionsCheckbox = deleteAllReactions;
+	const auto useSingleDeleteOptions = isSingle
+		&& showMessagesCheckbox
+		&& showReactionsCheckbox;
 	if (showMessagesCheckbox || showReactionsCheckbox) {
 		Ui::AddSkip(inner);
 		Ui::AddSkip(inner);
@@ -748,7 +920,8 @@ void CreateModerateMessagesBox(
 			? participantIds
 			: std::vector<PeerId>();
 
-		if (showMessagesCheckbox) {
+		if (useSingleDeleteOptions) {
+			const auto participant = participants.front();
 			Assert(history != nullptr);
 			deleteMessagesCounts = box->lifetime().make_state<
 				rpl::variable<base::flat_map<PeerId, int>>>(
@@ -762,21 +935,118 @@ void CreateModerateMessagesBox(
 			deleteMessagesController = box->lifetime().make_state<Controller>(
 				Controller::Data{
 					.messagesCounts = deleteMessagesCounts->value(),
-					.participants = participants,
+					.participants = Participants{ participant },
 					.checked = checkedParticipants,
 				});
-			deleteMessages = inner->add(
+			deleteReactionsController = box->lifetime().make_state<Controller>(
+				Controller::Data{
+					.participants = Participants{ participant },
+					.checked = checkedParticipants,
+				});
+
+			const auto deleteOptionsSize = DeleteOptionsCheckView::ComputeSize(2);
+			const auto deleteOptionsPadding = QMargins(
+				0,
+				0,
+				deleteOptionsSize.width(),
+				0);
+			deleteOptions = inner->add(
 				object_ptr<Ui::Checkbox>(
 					inner,
+					tr::lng_delete_all_from_user(
+						lt_user,
+						rpl::single(participant->shortName())),
+					options.deleteAll,
+					st::defaultBoxCheckbox),
+				st::boxRowPadding + deleteOptionsPadding);
+			const auto button = Ui::CreateChild<DeleteOptionsButton>(
+				inner,
+				options.deleteAll ? 2 : 0,
+				2);
+			button->resize(deleteOptionsSize);
+			deleteOptions->geometryValue(
+			) | rpl::on_next([=](const QRect &rect) {
+				button->moveToRight(
+					st::moderateBoxExpandRight,
+					rect.top() + (rect.height() - button->height()) / 2,
+					inner->width());
+				button->raise();
+			}, button->lifetime());
+
+			const auto wrap = inner->add(
+				object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+					inner,
+					object_ptr<Ui::VerticalLayout>(inner)));
+			wrap->toggle(false, anim::type::instant);
+			button->setClickedCallback([=] {
+				button->checkView()->setChecked(
+					!button->checkView()->checked(),
+					anim::type::normal);
+				wrap->toggle(
+					button->checkView()->checked(),
+					anim::type::normal);
+			});
+
+			const auto container = wrap->entity();
+			const auto optionCheckRect = deleteOptions->checkRect();
+			const auto childOptionPadding = st::boxRowPadding
+				+ QMargins(
+					optionCheckRect.width()
+						+ st::defaultBoxCheckbox.textPosition.x()
+						- optionCheckRect.x(),
+					0,
+					0,
+					0);
+			Ui::AddSkip(container);
+			Ui::AddSkip(container);
+			deleteMessages = container->add(
+				object_ptr<Ui::Checkbox>(
+					container,
 					tr::lng_delete_sub_messages(tr::now),
 					options.deleteAll,
 					st::defaultBoxCheckbox),
-				st::boxRowPadding + buttonPadding);
-			Ui::AddExpandablePeerList(
-				not_null{ deleteMessages },
-				not_null{ deleteMessagesController },
-				inner);
-			handleSubmition(not_null{ deleteMessages });
+				childOptionPadding);
+			Ui::AddSkip(container);
+			Ui::AddSkip(container);
+			deleteReactions = container->add(
+				object_ptr<Ui::Checkbox>(
+					container,
+					tr::lng_delete_sub_reactions(tr::now),
+					options.deleteAll,
+					st::defaultBoxCheckbox),
+				childOptionPadding);
+			deleteMessagesController->collectRequests = [=] {
+				return deleteMessages->checked()
+					? Participants{ participant }
+					: Participants();
+			};
+			deleteReactionsController->collectRequests = [=] {
+				return deleteReactions->checked()
+					? Participants{ participant }
+					: Participants();
+			};
+			const auto updateDeleteOptions = [=] {
+				const auto count = (deleteMessages->checked() ? 1 : 0)
+					+ (deleteReactions->checked() ? 1 : 0);
+				deleteOptions->setChecked(
+					count == 2,
+					Ui::Checkbox::NotifyAboutChange::DontNotify);
+				button->setCheckedCount(count);
+			};
+			deleteOptions->checkedChanges(
+			) | rpl::on_next([=](bool checked) {
+				deleteMessages->setChecked(checked);
+				deleteReactions->setChecked(checked);
+				updateDeleteOptions();
+			}, deleteOptions->lifetime());
+			deleteMessages->checkedChanges(
+			) | rpl::on_next(updateDeleteOptions, deleteMessages->lifetime());
+			deleteReactions->checkedChanges(
+			) | rpl::on_next(updateDeleteOptions, deleteReactions->lifetime());
+			handleSubmitionIf([=] {
+				return deleteMessages->checked()
+					|| deleteReactions->checked();
+			});
 			handleConfirmation(
 				not_null{ deleteMessages },
 				not_null{ deleteMessagesController },
@@ -785,31 +1055,6 @@ void CreateModerateMessagesBox(
 					not_null<ChannelData*> c) {
 					p->session().api().deleteAllFromParticipant(c, p);
 			});
-		}
-
-		if (deleteMessages && showReactionsCheckbox) {
-			Ui::AddSkip(inner);
-			Ui::AddSkip(inner);
-		}
-
-		if (showReactionsCheckbox) {
-			deleteReactionsController = box->lifetime().make_state<Controller>(
-				Controller::Data{
-					.participants = participants,
-					.checked = checkedParticipants,
-				});
-			deleteReactions = inner->add(
-				object_ptr<Ui::Checkbox>(
-					inner,
-					tr::lng_delete_sub_reactions(tr::now),
-					options.deleteAll,
-					st::defaultBoxCheckbox),
-				st::boxRowPadding + buttonPadding);
-			Ui::AddExpandablePeerList(
-				not_null{ deleteReactions },
-				not_null{ deleteReactionsController },
-				inner);
-			handleSubmition(not_null{ deleteReactions });
 			confirms->events() | rpl::on_next([=] {
 				if (deleteReactions->checked()
 					&& deleteReactionsController->collectRequests
@@ -820,17 +1065,105 @@ void CreateModerateMessagesBox(
 							: deleteReactionsController->collectRequests()) {
 						const auto useOriginReaction = reaction
 							&& (participant == reaction->participant);
-						peer->session().api()
-							.deleteAllReactionsFromParticipant(
-								peer,
-								participant,
-								useOriginReaction ? reaction->msgId : MsgId(),
-								useOriginReaction
-									? reaction->reaction
-									: Data::ReactionId());
+						const auto originMsgId = useOriginReaction
+							? reaction->msgId
+							: MsgId();
+						const auto originReaction = useOriginReaction
+							? reaction->reaction
+							: Data::ReactionId();
+						peer->session().api().deleteAllReactionsFromParticipant(
+							peer,
+							participant,
+							originMsgId,
+							originReaction);
 					}
 				}
 			}, deleteReactions->lifetime());
+		} else {
+			if (showMessagesCheckbox) {
+				Assert(history != nullptr);
+				deleteMessagesCounts = box->lifetime().make_state<
+					rpl::variable<base::flat_map<PeerId, int>>>(
+						base::flat_map<PeerId, int>());
+				MessagesCountValue(
+					history,
+					participants
+				) | rpl::on_next([=](base::flat_map<PeerId, int> counts) {
+					deleteMessagesCounts->force_assign(std::move(counts));
+				}, box->lifetime());
+				deleteMessagesController = box->lifetime().make_state<Controller>(
+					Controller::Data{
+						.messagesCounts = deleteMessagesCounts->value(),
+						.participants = participants,
+						.checked = checkedParticipants,
+					});
+				deleteMessages = inner->add(
+					object_ptr<Ui::Checkbox>(
+						inner,
+						tr::lng_delete_sub_messages(tr::now),
+						options.deleteAll,
+						st::defaultBoxCheckbox),
+					st::boxRowPadding + buttonPadding);
+				Ui::AddExpandablePeerList(
+					not_null{ deleteMessages },
+					not_null{ deleteMessagesController },
+					inner);
+				handleSubmition(not_null{ deleteMessages });
+				handleConfirmation(
+					not_null{ deleteMessages },
+					not_null{ deleteMessagesController },
+					[=](
+						not_null<PeerData*> p,
+						not_null<ChannelData*> c) {
+						p->session().api().deleteAllFromParticipant(c, p);
+				});
+			}
+
+			if (deleteMessages && showReactionsCheckbox) {
+				Ui::AddSkip(inner);
+				Ui::AddSkip(inner);
+			}
+
+			if (showReactionsCheckbox) {
+				deleteReactionsController = box->lifetime().make_state<Controller>(
+					Controller::Data{
+						.participants = participants,
+						.checked = checkedParticipants,
+					});
+				deleteReactions = inner->add(
+					object_ptr<Ui::Checkbox>(
+						inner,
+						tr::lng_delete_sub_reactions(tr::now),
+						options.deleteAll,
+						st::defaultBoxCheckbox),
+					st::boxRowPadding + buttonPadding);
+				Ui::AddExpandablePeerList(
+					not_null{ deleteReactions },
+					not_null{ deleteReactionsController },
+					inner);
+				handleSubmition(not_null{ deleteReactions });
+				confirms->events() | rpl::on_next([=] {
+					if (deleteReactions->checked()
+						&& deleteReactionsController->collectRequests
+						&& !effectiveCheckedParticipants(
+							deleteReactions,
+							deleteReactionsController).empty()) {
+						for (const auto &participant
+								: deleteReactionsController->collectRequests()) {
+							const auto useOriginReaction = reaction
+								&& (participant == reaction->participant);
+							peer->session().api()
+								.deleteAllReactionsFromParticipant(
+									peer,
+									participant,
+									useOriginReaction ? reaction->msgId : MsgId(),
+									useOriginReaction
+										? reaction->reaction
+										: Data::ReactionId());
+						}
+					}
+				}, deleteReactions->lifetime());
+			}
 		}
 	}
 	const auto makeTitleLoadingDescriptor = [] {
@@ -1078,7 +1411,9 @@ void CreateModerateMessagesBox(
 						rpl::single(participants.size()) | tr::to_count()),
 					rpl::conditional(
 						rpl::single(isSingle),
-						tr::lng_ban_user(),
+						tr::lng_ban_specific_user(
+							lt_user,
+							rpl::single(participants.front()->shortName())),
 						tr::lng_ban_users())),
 				options.banUser,
 				st::defaultBoxCheckbox),
@@ -1134,12 +1469,12 @@ void CreateModerateMessagesBox(
 			wrap->toggledValue(
 			) | rpl::map([isSingle, emojiUp, emojiDown](bool toggled) {
 				return ((toggled && isSingle)
-					? tr::lng_restrict_user_part
-					: (toggled && !isSingle)
-					? tr::lng_restrict_users_part
-					: isSingle
 					? tr::lng_restrict_user_full
-					: tr::lng_restrict_users_full)(
+					: (toggled && !isSingle)
+					? tr::lng_restrict_users_full
+					: isSingle
+					? tr::lng_restrict_user_part
+					: tr::lng_restrict_users_part)(
 						lt_emoji,
 						rpl::single(toggled ? emojiUp : emojiDown),
 						tr::marked);
