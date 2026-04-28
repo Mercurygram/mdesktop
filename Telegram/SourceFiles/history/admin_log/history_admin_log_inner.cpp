@@ -802,9 +802,7 @@ void InnerWidget::saveState(not_null<SectionMemento*> memento) {
 	memento->setSearchQuery(std::move(_searchQuery));
 	memento->setExpandedGroups(std::move(_expandedGroups));
 	if (!_filterChanged) {
-		clearExpandButtons();
-		_displayItems.clear();
-		_summaryItems.clear();
+		clearDisplayItems(DisplayPointerScope::All);
 		for (auto &item : _items) {
 			item.clearView();
 		}
@@ -1187,6 +1185,40 @@ void InnerWidget::setupExpandButton(
 }
 
 void InnerWidget::clearExpandButtons() {
+	const auto hasExpandButton = [&](const Element *view) {
+		if (!view) {
+			return false;
+		}
+		for (const auto &item : _items) {
+			if (item.get() == view) {
+				return _expandMarkupItems.contains(item->data());
+			}
+		}
+		return false;
+	};
+	if (hasExpandButton(_mouseActionItem)) {
+		_mouseActionItem = nullptr;
+		_mouseAction = MouseAction::None;
+	}
+	if (hasExpandButton(Element::Hovered())) {
+		Element::Hovered(nullptr);
+		ClickHandler::clearActive();
+	}
+	if (hasExpandButton(Element::Pressed())) {
+		Element::Pressed(nullptr);
+		ClickHandler::unpressed();
+	}
+	if (hasExpandButton(Element::HoveredLink())) {
+		Element::HoveredLink(nullptr);
+		ClickHandler::clearActive();
+	}
+	if (hasExpandButton(Element::PressedLink())) {
+		Element::PressedLink(nullptr);
+		ClickHandler::unpressed();
+	}
+	if (hasExpandButton(Element::Moused())) {
+		Element::Moused(nullptr);
+	}
 	for (const auto &item : _expandMarkupItems) {
 		item->updateReplyMarkup({});
 	}
@@ -1235,17 +1267,7 @@ void InnerWidget::toggleDeleteGroup(uint64 groupEventId) {
 		_expandedGroups.insert(groupEventId);
 	}
 
-	// Clear pointers that may reference summary items
-	// which will be destroyed by rebuildDisplayItems().
-	_visibleTopItem = nullptr;
-	_scrollDateLastItem = nullptr;
-	_mouseActionItem = nullptr;
-	_selectedItem = nullptr;
-	Element::Hovered(nullptr);
-	Element::Pressed(nullptr);
-	Element::HoveredLink(nullptr);
-	Element::PressedLink(nullptr);
-	Element::Moused(nullptr);
+	clearDisplayPointers(DisplayPointerScope::All);
 
 	// Rebuild without triggering scroll restore inside updateSize().
 	_skipScrollRestore = true;
@@ -1275,55 +1297,79 @@ void InnerWidget::toggleDeleteGroup(uint64 groupEventId) {
 	}
 }
 
-void InnerWidget::clearTransientDisplayPointers() {
-	const auto transient = [this](const Element *view) {
-		return view
-			&& view->delegate().get() == this
-			&& !_itemEventIds.contains(view->data());
+bool InnerWidget::displayPointerMatches(
+		const Element *view,
+		DisplayPointerScope pointerScope) const {
+	if (!view) {
+		return false;
+	}
+	for (const auto &item : _summaryItems) {
+		if (item.get() == view) {
+			return true;
+		}
+	}
+	if (pointerScope == DisplayPointerScope::All) {
+		for (const auto &item : _items) {
+			if (item.get() == view) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+void InnerWidget::clearDisplayPointers(DisplayPointerScope pointerScope) {
+	const auto clearAll = (pointerScope == DisplayPointerScope::All);
+	const auto clearMember = [&](const Element *view) {
+		return clearAll || displayPointerMatches(view, pointerScope);
 	};
-	if (transient(_visibleTopItem)) {
+	if (clearMember(_visibleTopItem)) {
 		_visibleTopItem = nullptr;
 		_visibleTopFromItem = 0;
 	}
-	if (transient(_scrollDateLastItem)) {
+	if (clearMember(_scrollDateLastItem)) {
 		_scrollDateLastItem = nullptr;
 		_scrollDateLastItemTop = 0;
 	}
-	if (transient(_mouseActionItem)) {
+	if (clearMember(_mouseActionItem)) {
 		_mouseActionItem = nullptr;
 		_mouseAction = MouseAction::None;
 	}
-	if (transient(_selectedItem)) {
+	if (clearMember(_selectedItem)) {
 		_selectedItem = nullptr;
 		_selectedText = TextSelection();
 	}
-	if (transient(Element::Hovered())) {
+	if (displayPointerMatches(Element::Hovered(), pointerScope)) {
 		Element::Hovered(nullptr);
 		ClickHandler::clearActive();
 	}
-	if (transient(Element::Pressed())) {
+	if (displayPointerMatches(Element::Pressed(), pointerScope)) {
 		Element::Pressed(nullptr);
 		ClickHandler::unpressed();
 	}
-	if (transient(Element::HoveredLink())) {
+	if (displayPointerMatches(Element::HoveredLink(), pointerScope)) {
 		Element::HoveredLink(nullptr);
 		ClickHandler::clearActive();
 	}
-	if (transient(Element::PressedLink())) {
+	if (displayPointerMatches(Element::PressedLink(), pointerScope)) {
 		Element::PressedLink(nullptr);
 		ClickHandler::unpressed();
 	}
-	if (transient(Element::Moused())) {
+	if (displayPointerMatches(Element::Moused(), pointerScope)) {
 		Element::Moused(nullptr);
 	}
 }
 
-void InnerWidget::rebuildDisplayItems() {
-	clearTransientDisplayPointers();
+void InnerWidget::clearDisplayItems(DisplayPointerScope pointerScope) {
 	clearExpandButtons();
+	clearDisplayPointers(pointerScope);
 	_summaryItems.clear();
 	_displayItems.clear();
 	_itemsByData.clear();
+}
+
+void InnerWidget::rebuildDisplayItems() {
+	clearDisplayItems(DisplayPointerScope::Transient);
 
 	const auto groupDisplayEnabled = _searchQuery.isEmpty();
 
@@ -1561,17 +1607,8 @@ void InnerWidget::paintEvent(QPaintEvent *e) {
 }
 
 void InnerWidget::clearAfterFilterChange() {
-	_visibleTopItem = nullptr;
-	_visibleTopFromItem = 0;
-	_scrollDateLastItem = nullptr;
-	_scrollDateLastItemTop = 0;
-	_mouseActionItem = nullptr;
-	_selectedItem = nullptr;
-	_selectedText = TextSelection();
 	_filterChanged = false;
-	clearExpandButtons();
-	_displayItems.clear();
-	_summaryItems.clear();
+	clearDisplayItems(DisplayPointerScope::All);
 	_deleteGroups.clear();
 	_expandedGroups.clear();
 	_itemEventIds.clear();

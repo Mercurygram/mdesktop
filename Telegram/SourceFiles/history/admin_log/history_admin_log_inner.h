@@ -255,9 +255,17 @@ private:
 	void addEvents(
 		Direction direction,
 		const QVector<MTPChannelAdminLogEvent> &events);
+	enum class DisplayPointerScope {
+		Transient,
+		All,
+	};
 	void computeDeleteGroups();
 	void rebuildDisplayItems();
-	void clearTransientDisplayPointers();
+	void clearDisplayItems(DisplayPointerScope pointerScope);
+	void clearDisplayPointers(DisplayPointerScope pointerScope);
+	[[nodiscard]] bool displayPointerMatches(
+		const Element *view,
+		DisplayPointerScope pointerScope) const;
 	void toggleDeleteGroup(uint64 groupEventId);
 	OwnedItem createGroupSummaryItem(
 		const DeleteGroup &group,
