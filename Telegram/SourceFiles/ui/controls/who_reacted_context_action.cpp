@@ -932,8 +932,11 @@ void WhoReactedEntryAction::mouseReleaseEvent(QMouseEvent *e) {
 		return;
 	}
 	if (!base::take(_closePressed)) {
+		const auto weak = base::make_weak(this);
 		ItemBase::mouseReleaseEvent(e);
-		updateCloseHovered(e->globalPos());
+		if (weak) {
+			updateCloseHovered(e->globalPos());
+		}
 		return;
 	}
 	const auto overRow = rect().contains(e->pos());
