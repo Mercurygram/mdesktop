@@ -99,6 +99,25 @@ using UpdateFlag = Data::HistoryUpdate::Flag;
 	return state;
 }
 
+[[nodiscard]] UserData *GuestChatBotForCurrentUser(
+		not_null<HistoryItem*> item) {
+	if (!item->isGuestChatBotMessage()) {
+		return nullptr;
+	}
+	const auto guestChat = item->Get<HistoryMessageGuestChat>();
+	const auto self = item->history()->session().user();
+	if (!guestChat
+		|| !guestChat->visitor
+		|| (guestChat->visitor->id != self->id)) {
+		return nullptr;
+	}
+	const auto bot = item->from()->asUser();
+	return (bot
+		&& bot->isBot()
+		&& bot->botInfo
+		&& bot->botInfo->supportsGuestChat) ? bot : nullptr;
+}
+
 } // namespace
 
 History::History(not_null<Data::Session*> owner, PeerId peerId)
@@ -523,6 +542,11 @@ not_null<HistoryItem*> History::createItem(
 		session().topPeers().increment(peer, result->date());
 		if (result->starsPaid()) {
 			session().credits().load(true);
+		}
+	}
+	if (newMessage && !result->out() && result->isRegular()) {
+		if (const auto bot = GuestChatBotForCurrentUser(result)) {
+			session().topGuestChatBots().increment(bot, result->date());
 		}
 	}
 	return result;

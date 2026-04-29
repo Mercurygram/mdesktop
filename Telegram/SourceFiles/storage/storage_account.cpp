@@ -3203,7 +3203,12 @@ void Account::writeSearchSuggestions() {
 	const auto recent = _owner->session().recentPeers().serialize();
 	const auto settingsSearches
 		= _owner->session().recentSettingsSearches().serialize();
-	if (top.isEmpty() && recent.isEmpty() && settingsSearches.isEmpty()) {
+	const auto guestChatBots
+		= _owner->session().topGuestChatBots().serialize();
+	if (top.isEmpty()
+		&& recent.isEmpty()
+		&& settingsSearches.isEmpty()
+		&& guestChatBots.isEmpty()) {
 		if (_searchSuggestionsKey) {
 			ClearKey(_searchSuggestionsKey, _basePath);
 			_searchSuggestionsKey = 0;
@@ -3217,9 +3222,10 @@ void Account::writeSearchSuggestions() {
 	}
 	quint32 size = Serialize::bytearraySize(top)
 		+ Serialize::bytearraySize(recent)
-		+ Serialize::bytearraySize(settingsSearches);
+		+ Serialize::bytearraySize(settingsSearches)
+		+ Serialize::bytearraySize(guestChatBots);
 	EncryptedDescriptor data(size);
-	data.stream << top << recent << settingsSearches;
+	data.stream << top << recent << settingsSearches << guestChatBots;
 
 	FileWriteDescriptor file(_searchSuggestionsKey, _basePath);
 	file.writeEncrypted(data, _localKey);
@@ -3247,15 +3253,20 @@ void Account::readSearchSuggestions() {
 	auto top = QByteArray();
 	auto recent = QByteArray();
 	auto settingsSearches = QByteArray();
+	auto guestChatBots = QByteArray();
 	suggestions.stream >> top >> recent;
 	if (!suggestions.stream.atEnd()) {
 		suggestions.stream >> settingsSearches;
+	}
+	if (!suggestions.stream.atEnd()) {
+		suggestions.stream >> guestChatBots;
 	}
 	if (CheckStreamStatus(suggestions.stream)) {
 		_owner->session().topPeers().applyLocal(top);
 		_owner->session().recentPeers().applyLocal(recent);
 		_owner->session().recentSettingsSearches().applyLocal(
 			settingsSearches);
+		_owner->session().topGuestChatBots().applyLocal(guestChatBots);
 	} else {
 		DEBUG_LOG(("Suggestions: Could not read content."));
 	}

@@ -122,6 +122,9 @@ Session::Session(
 , _topPeers(std::make_unique<Data::TopPeers>(this, Data::TopPeerType::Chat))
 , _topBotApps(
 	std::make_unique<Data::TopPeers>(this, Data::TopPeerType::BotApp))
+, _topGuestChatBots(std::make_unique<Data::TopPeers>(
+	this,
+	Data::TopPeerType::BotGuestChat))
 , _factchecks(std::make_unique<Data::Factchecks>(this))
 , _locationPickers(std::make_unique<Data::LocationPickers>())
 , _credits(std::make_unique<Data::Credits>(this))
