@@ -498,13 +498,25 @@ void FieldAutocomplete::updateFiltered(bool resetScroll) {
 			}
 			return filterNotPassedByUsername(user);
 		};
+		const auto mentionUserIndex = [&](not_null<UserData*> user) {
+			return indexOfInFirstN(mrows, user, int(mrows.size()));
+		};
 		const auto containsMentionUser = [&](not_null<UserData*> user) {
-			return indexOfInFirstN(mrows, user, int(mrows.size())) >= 0;
+			return mentionUserIndex(user) >= 0;
 		};
 		const auto pushMentionRow = [&](
 				not_null<UserData*> user,
 				MentionRow::Source source) {
 			mrows.push_back({ user, source });
+		};
+		const auto markMentionCandidateIfExists = [&](
+				not_null<UserData*> user) {
+			const auto index = mentionUserIndex(user);
+			if (index < 0) {
+				return false;
+			}
+			mrows[index].source = MentionRow::Source::MentionCandidate;
+			return true;
 		};
 
 		bool listAllSuggestions = _filter.isEmpty();
@@ -542,14 +554,17 @@ void FieldAutocomplete::updateFiltered(bool resetScroll) {
 				for (const auto &user : _chat->participants) {
 					if (user->isInaccessible()) continue;
 					if (!listAllSuggestions && filterNotPassedByName(user)) continue;
-					if (containsMentionUser(user)) continue;
+					if (markMentionCandidateIfExists(user)) continue;
 					sorted.emplace(byOnline(user), user);
 				}
 			}
 			for (const auto &user : _chat->lastAuthors) {
 				if (user->isInaccessible()) continue;
 				if (!listAllSuggestions && filterNotPassedByName(user)) continue;
-				if (containsMentionUser(user)) continue;
+				if (markMentionCandidateIfExists(user)) {
+					sorted.remove(byOnline(user), user);
+					continue;
+				}
 				pushMentionRow(user, MentionRow::Source::MentionCandidate);
 				sorted.remove(byOnline(user), user);
 			}
@@ -567,7 +582,7 @@ void FieldAutocomplete::updateFiltered(bool resetScroll) {
 						if (const auto user = _channel->owner().userLoaded(userId)) {
 							if (user->isInaccessible()) continue;
 							if (!listAllSuggestions && filterNotPassedByName(user)) continue;
-							if (containsMentionUser(user)) continue;
+							if (markMentionCandidateIfExists(user)) continue;
 							pushMentionRow(user, MentionRow::Source::MentionCandidate);
 						}
 					}
@@ -580,7 +595,7 @@ void FieldAutocomplete::updateFiltered(bool resetScroll) {
 				for (const auto &user : _channel->mgInfo->lastParticipants) {
 					if (user->isInaccessible()) continue;
 					if (!listAllSuggestions && filterNotPassedByName(user)) continue;
-					if (containsMentionUser(user)) continue;
+					if (markMentionCandidateIfExists(user)) continue;
 					pushMentionRow(user, MentionRow::Source::MentionCandidate);
 				}
 			}
