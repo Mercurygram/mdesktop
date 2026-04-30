@@ -6383,6 +6383,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_restricted_send_gifs" = "The admins of this group have restricted your ability to send GIFs.";
 "lng_restricted_send_inline" = "The admins of this group have restricted your ability to send inline content.";
 "lng_restricted_send_polls" = "The admins of this group have restricted your ability to send polls.";
+"lng_restricted_send_reactions_click" = "You cannot send reactions in this chat.";
 "lng_restricted_boost_group" = "Boost this group to send messages";
 
 "lng_restricted_send_message_until" = "The admins of this group have restricted you from sending messages until {date}, {time}.";
