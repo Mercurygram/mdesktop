@@ -202,6 +202,10 @@ int AppConfig::pollCountriesMax() const {
 	return get<int>(u"poll_countries_max"_q, 12);
 }
 
+QString AppConfig::phoneCountryIso2() const {
+	return get<QString>(u"phone_country_iso2"_q, QString());
+}
+
 int AppConfig::todoListItemsLimit() const {
 	return get<int>(
 		u"todo_items_max"_q,

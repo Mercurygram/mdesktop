@@ -672,7 +672,9 @@ QString JoinPollCountries(const std::vector<QString> &countriesIso2) {
 	countries.reserve(int(countriesIso2.size()));
 	const auto &instance = Countries::Instance();
 	for (const auto &iso2 : countriesIso2) {
-		const auto name = instance.countryNameByISO2(iso2);
+		const auto name = instance.countryNameByISO2(
+			iso2,
+			Countries::Naming::Polls);
 		countries.push_back(name.isEmpty() ? iso2 : name);
 	}
 	if (countries.empty()) {

@@ -1927,6 +1927,19 @@ PollData::VoteRestriction Poll::knownVoteRestriction() const {
 			return PollData::VoteRestriction::SubscribersOnly;
 		}
 	}
+	if (!_poll->countries.empty()) {
+		const auto userIso2 = _poll->session().appConfig().phoneCountryIso2();
+		if (!userIso2.isEmpty()) {
+			const auto inList = ranges::any_of(
+				_poll->countries,
+				[&](const QString &iso2) {
+					return !iso2.compare(userIso2, Qt::CaseInsensitive);
+				});
+			if (!inList) {
+				return PollData::VoteRestriction::Countries;
+			}
+		}
+	}
 	return PollData::VoteRestriction::None;
 }
 

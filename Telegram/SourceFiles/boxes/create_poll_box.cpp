@@ -2540,7 +2540,8 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 
 	Ui::AddSkip(container);
 	Ui::AddSubsectionTitle(container, tr::lng_polls_create_settings());
-	const auto isBroadcastChannel = _peer->isChannel();
+	const auto isBroadcastChannel = _peer->isChannel()
+		&& !_peer->isMegagroup();
 
 	const auto showWhoVoted = (!(_disabled & PollData::Flag::PublicVotes))
 		? AddPollToggleButton(
@@ -2781,7 +2782,8 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 				}
 				if (countries.size() == 1) {
 					return Countries::Instance().countryNameByISO2(
-						countries.front());
+						countries.front(),
+						Countries::Naming::Polls);
 				}
 				return tr::lng_polls_create_countries_count(
 					tr::now,
@@ -2816,7 +2818,8 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 				Ui::SelectCountriesBox,
 				state->countriesValue.current(),
 				done,
-				checkError));
+				checkError,
+				Countries::Naming::Polls));
 		});
 	}
 
