@@ -198,6 +198,10 @@ int AppConfig::pollAnswerDeletePeriod() const {
 	return get<int>(u"poll_answer_delete_period"_q, 300);
 }
 
+int AppConfig::pollCountriesMax() const {
+	return get<int>(u"poll_countries_max"_q, 12);
+}
+
 int AppConfig::todoListItemsLimit() const {
 	return get<int>(
 		u"todo_items_max"_q,

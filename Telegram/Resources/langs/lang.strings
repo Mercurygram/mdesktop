@@ -7020,6 +7020,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_polls_create_countries_count#one" = "{count} country";
 "lng_polls_create_countries_count#other" = "{count} countries";
 "lng_polls_create_choose_country" = "Please choose at least one country.";
+"lng_polls_create_countries_limit#one" = "You can choose up to {count} country.";
+"lng_polls_create_countries_limit#other" = "You can choose up to {count} countries.";
 "lng_polls_create_duration_custom" = "Custom";
 "lng_polls_create_deadline_title" = "Deadline";
 "lng_polls_create_deadline_button" = "Set Deadline";

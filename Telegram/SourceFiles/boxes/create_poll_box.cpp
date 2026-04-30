@@ -2800,7 +2800,16 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 			const auto done = [=](std::vector<QString> countries) {
 				state->countriesValue = std::move(countries);
 			};
-			const auto checkError = [](int) {
+			const auto limit
+				= _controller->session().appConfig().pollCountriesMax();
+			const auto checkError = [=](int count) {
+				if (count >= limit) {
+					show->showToast(tr::lng_polls_create_countries_limit(
+						tr::now,
+						lt_count,
+						limit));
+					return true;
+				}
 				return false;
 			};
 			show->show(Box(
