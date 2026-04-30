@@ -2620,6 +2620,94 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 			| rpl::then(state->quizForceOff.events()),
 		st::detailedSettingsButtonStyle);
 
+	const auto show = uiShow();
+
+	const auto restrictToSubscribers = isBroadcastChannel
+		? AddPollToggleButton(
+			container,
+			tr::lng_polls_create_restrict_to_subscribers(),
+			tr::lng_polls_create_restrict_to_subscribers_about(),
+			{
+				.icon = &st::pollBoxFilledPollSubscribersIcon,
+				.background = &st::settingsIconBg5,
+			},
+			rpl::single(!!(_chosen & PollData::Flag::SubscribersOnly)),
+			st::detailedSettingsButtonStyle).get()
+		: nullptr;
+	const auto limitByCountry = isBroadcastChannel
+		? AddPollToggleButton(
+			container,
+			tr::lng_polls_create_limit_by_country(),
+			tr::lng_polls_create_limit_by_country_about(),
+			{
+				.icon = &st::pollBoxFilledPollCountryIcon,
+				.background = &st::settingsIconBg4,
+			},
+			rpl::single(false),
+			st::detailedSettingsButtonStyle).get()
+		: nullptr;
+	const auto countriesWrap = limitByCountry
+		? container->add(
+			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+				container,
+				object_ptr<Ui::VerticalLayout>(container)))
+		: nullptr;
+	const auto countriesButton = [=] {
+		if (!countriesWrap) {
+			return (Ui::SettingsButton*)(nullptr);
+		}
+		const auto inner = countriesWrap->entity();
+		return AddButtonWithLabel(
+			inner,
+			tr::lng_polls_create_allowed_countries(),
+			state->countriesValue.value(
+			) | rpl::map([=](const std::vector<QString> &countries) {
+				if (countries.empty()) {
+					return QString();
+				}
+				if (countries.size() == 1) {
+					return Countries::Instance().countryNameByISO2(
+						countries.front(),
+						Countries::Naming::Polls);
+				}
+				return tr::lng_polls_create_countries_count(
+					tr::now,
+					lt_count,
+					countries.size());
+			}),
+			st::settingsButtonNoIcon).get();
+	}();
+	if (countriesWrap) {
+		countriesWrap->toggleOn(
+			rpl::single(limitByCountry->toggled())
+				| rpl::then(limitByCountry->toggledChanges()));
+	}
+	if (countriesButton) {
+		countriesButton->setClickedCallback([=] {
+			const auto done = [=](std::vector<QString> countries) {
+				state->countriesValue = std::move(countries);
+			};
+			const auto limit
+				= _controller->session().appConfig().pollCountriesMax();
+			const auto checkError = [=](int count) {
+				if (count >= limit) {
+					show->showToast(tr::lng_polls_create_countries_limit(
+						tr::now,
+						lt_count,
+						limit));
+					return true;
+				}
+				return false;
+			};
+			show->show(Box(
+				Ui::SelectCountriesBox,
+				state->countriesValue.current(),
+				done,
+				checkError,
+				Countries::Naming::Polls));
+		});
+	}
+
 	const auto duration = AddPollToggleButton(
 		container,
 		tr::lng_polls_create_limit_duration(),
@@ -2664,7 +2752,6 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 		std::move(pollEndsLabelText),
 		st::settingsButtonNoIcon);
 
-	const auto show = uiShow();
 	pollEndsLabel->setClickedCallback([=] {
 		state->durationMenu = base::make_unique_q<Ui::PopupMenu>(
 			pollEndsLabel,
@@ -2736,92 +2823,6 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 			tr::lng_polls_create_hide_results(),
 			st::settingsButtonNoIcon)
 	)->toggleOn(rpl::single(false));
-
-	const auto restrictToSubscribers = isBroadcastChannel
-		? AddPollToggleButton(
-			container,
-			tr::lng_polls_create_restrict_to_subscribers(),
-			tr::lng_polls_create_restrict_to_subscribers_about(),
-			{
-				.icon = &st::pollBoxFilledPollSubscribersIcon,
-				.background = &st::settingsIconBg4,
-			},
-			rpl::single(!!(_chosen & PollData::Flag::SubscribersOnly)),
-			st::detailedSettingsButtonStyle).get()
-		: nullptr;
-	const auto limitByCountry = isBroadcastChannel
-		? AddPollToggleButton(
-			container,
-			tr::lng_polls_create_limit_by_country(),
-			tr::lng_polls_create_limit_by_country_about(),
-			{
-				.icon = &st::pollBoxFilledPollCountryIcon,
-				.background = &st::settingsIconBg6,
-			},
-			rpl::single(false),
-			st::detailedSettingsButtonStyle).get()
-		: nullptr;
-	const auto countriesWrap = limitByCountry
-		? container->add(
-			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-				container,
-				object_ptr<Ui::VerticalLayout>(container)))
-		: nullptr;
-	const auto countriesButton = [=] {
-		if (!countriesWrap) {
-			return (Ui::SettingsButton*)(nullptr);
-		}
-		const auto inner = countriesWrap->entity();
-		return AddButtonWithLabel(
-			inner,
-			tr::lng_polls_create_allowed_countries(),
-			state->countriesValue.value(
-			) | rpl::map([=](const std::vector<QString> &countries) {
-				if (countries.empty()) {
-					return QString();
-				}
-				if (countries.size() == 1) {
-					return Countries::Instance().countryNameByISO2(
-						countries.front(),
-						Countries::Naming::Polls);
-				}
-				return tr::lng_polls_create_countries_count(
-					tr::now,
-					lt_count,
-					countries.size());
-			}),
-			st::settingsButtonNoIcon).get();
-	}();
-	if (countriesWrap) {
-		countriesWrap->toggleOn(
-			rpl::single(limitByCountry->toggled())
-				| rpl::then(limitByCountry->toggledChanges()));
-	}
-	if (countriesButton) {
-		countriesButton->setClickedCallback([=] {
-			const auto done = [=](std::vector<QString> countries) {
-				state->countriesValue = std::move(countries);
-			};
-			const auto limit
-				= _controller->session().appConfig().pollCountriesMax();
-			const auto checkError = [=](int count) {
-				if (count >= limit) {
-					show->showToast(tr::lng_polls_create_countries_limit(
-						tr::now,
-						lt_count,
-						limit));
-					return true;
-				}
-				return false;
-			};
-			show->show(Box(
-				Ui::SelectCountriesBox,
-				state->countriesValue.current(),
-				done,
-				checkError,
-				Countries::Naming::Polls));
-		});
-	}
 
 	const auto solution = setupSolution(
 		container,
