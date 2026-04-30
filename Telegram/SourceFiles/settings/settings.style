@@ -666,7 +666,7 @@ settingsChatbotsAccess: Checkbox(defaultCheckbox) {
 }
 settingsLocationAddress: InputField(defaultMultiSelectSearchField) {
 }
-settingsChatbotsUsernameMargins: margins(20px, 8px, 20px, 8px);
+settingsChatbotsUsernameMargins: margins(20px, 0px, 20px, 8px);
 settingsChatbotsAccessMargins: margins(22px, 5px, 22px, 9px);
 settingsChatbotsAccessSkip: 4px;
 settingsChatbotsBottomTextMargin: margins(22px, 8px, 22px, 3px);

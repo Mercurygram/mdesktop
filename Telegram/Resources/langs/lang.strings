@@ -3444,6 +3444,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_chatbots_not_found" = "Chatbot not found.";
 "lng_chatbots_not_supported" = "This bot doesn't support Telegram Business yet.";
 "lng_chatbots_add" = "Add";
+"lng_chatbots_leave_without_added_title" = "No Bot Added";
+"lng_chatbots_leave_without_added_text" = "You haven't added a bot to manage your account. Leave anyway?";
+"lng_chatbots_added_success" = "{bot} now manages your account.";
 
 "lng_chat_automation_title" = "Chat Automation";
 "lng_chat_automation_about" = "Add a bot to answer messages on your behalf.";
