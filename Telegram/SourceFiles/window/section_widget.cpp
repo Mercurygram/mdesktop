@@ -606,7 +606,7 @@ bool ShowSendPremiumError(
 
 void ShowReactRestrictionToast(not_null<SessionController*> controller) {
 	controller->showToast({
-		.text = tr::lng_restricted_send_reactions_click(tr::now),
+		.text = { tr::lng_restricted_send_reactions_click(tr::now) },
 		.iconLottie = u"ban"_q,
 		.iconLottieSize = st::pollToastIconSize,
 		.duration = kReactionRestrictionToastDuration,
