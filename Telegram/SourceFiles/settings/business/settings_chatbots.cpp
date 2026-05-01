@@ -55,7 +55,7 @@ struct BotSearchState {
 };
 
 enum class PreviewActionKind {
-	Remove,
+	None,
 	Add,
 };
 
@@ -106,7 +106,6 @@ public:
 	PreviewController(
 		std::vector<UserData*> bots,
 		UserData *committedBot,
-		Fn<void()> resetBot,
 		Fn<void(UserData*)> addBot);
 
 	void prepare() override;
@@ -118,7 +117,6 @@ public:
 private:
 	const std::vector<UserData*> _bots;
 	UserData *const _committedBot = nullptr;
-	const Fn<void()> _resetBot;
 	const Fn<void(UserData*)> _addBot;
 	rpl::lifetime _lifetime;
 
@@ -145,7 +143,7 @@ public:
 private:
 	[[nodiscard]] QSize addPillSize() const;
 
-	PreviewActionKind _kind = PreviewActionKind::Remove;
+	PreviewActionKind _kind = PreviewActionKind::None;
 	QString _addText;
 	int _addTextWidth = 0;
 	std::unique_ptr<Ui::RippleAnimation> _actionRipple;
@@ -176,22 +174,17 @@ QSize PreviewRow::addPillSize() const {
 }
 
 QSize PreviewRow::rightActionSize() const {
-	if (_kind == PreviewActionKind::Add) {
-		return addPillSize();
-	}
-	return QSize(
-		st::settingsChatbotsDeleteIcon.width(),
-		st::settingsChatbotsDeleteIcon.height()) * 2;
+	return (_kind == PreviewActionKind::Add) ? addPillSize() : QSize();
 }
 
 QMargins PreviewRow::rightActionMargins() const {
+	if (_kind == PreviewActionKind::None) {
+		return QMargins();
+	}
 	const auto itemHeight = st::peerListSingleRow.item.height;
 	const auto size = rightActionSize();
 	const auto skipV = (itemHeight - size.height()) / 2;
-	const auto skipRight = (_kind == PreviewActionKind::Add)
-		? st::settingsChatbotsAddMargin
-		: skipV;
-	return QMargins(0, skipV, skipRight, 0);
+	return QMargins(0, skipV, st::settingsChatbotsAddMargin, 0);
 }
 
 void PreviewRow::rightActionPaint(
@@ -201,6 +194,9 @@ void PreviewRow::rightActionPaint(
 		int outerWidth,
 		bool selected,
 		bool actionSelected) {
+	if (_kind == PreviewActionKind::None) {
+		return;
+	}
 	const auto size = rightActionSize();
 	if (_kind == PreviewActionKind::Add) {
 		const auto &st = st::settingsChatbotsAddButton;
@@ -219,34 +215,22 @@ void PreviewRow::rightActionPaint(
 		p.setPen(actionSelected ? st.textFgOver : st.textFg);
 		p.setFont(st.style.font);
 		p.drawText(rect, Qt::AlignCenter, _addText);
-		return;
 	}
-	if (_actionRipple) {
-		_actionRipple->paint(p, x, y, outerWidth);
-		if (_actionRipple->empty()) {
-			_actionRipple.reset();
-		}
-	}
-	const auto rect = QRect(QPoint(x, y), size);
-	(actionSelected
-		? st::settingsChatbotsDeleteIconOver
-		: st::settingsChatbotsDeleteIcon).paintInCenter(p, rect);
 }
 
 void PreviewRow::rightActionAddRipple(
 		QPoint point,
 		Fn<void()> updateCallback) {
+	if (_kind == PreviewActionKind::None) {
+		return;
+	}
 	if (!_actionRipple) {
 		const auto size = rightActionSize();
-		const auto add = (_kind == PreviewActionKind::Add);
-		auto mask = add
-			? Ui::RippleAnimation::RoundRectMask(size, size.height() / 2)
-			: Ui::RippleAnimation::EllipseMask(size);
-		const auto &ripple = add
-			? st::settingsChatbotsAddButton.ripple
-			: st::defaultRippleAnimation;
+		auto mask = Ui::RippleAnimation::RoundRectMask(
+			size,
+			size.height() / 2);
 		_actionRipple = std::make_unique<Ui::RippleAnimation>(
-			ripple,
+			st::settingsChatbotsAddButton.ripple,
 			std::move(mask),
 			std::move(updateCallback));
 	}
@@ -262,18 +246,16 @@ void PreviewRow::rightActionStopLastRipple() {
 PreviewController::PreviewController(
 	std::vector<UserData*> bots,
 	UserData *committedBot,
-	Fn<void()> resetBot,
 	Fn<void(UserData*)> addBot)
 : _bots(std::move(bots))
 , _committedBot(committedBot)
-, _resetBot(std::move(resetBot))
 , _addBot(std::move(addBot)) {
 }
 
 void PreviewController::prepare() {
 	for (const auto bot : _bots) {
 		const auto kind = (bot == _committedBot)
-			? PreviewActionKind::Remove
+			? PreviewActionKind::None
 			: PreviewActionKind::Add;
 		delegate()->peerListAppendRow(
 			std::make_unique<PreviewRow>(bot, kind));
@@ -290,12 +272,7 @@ void PreviewController::rowClicked(not_null<PeerListRow*> row) {
 void PreviewController::rowRightActionClicked(
 		not_null<PeerListRow*> row) {
 	const auto user = row->peer()->asUser();
-	if (!user) {
-		return;
-	}
-	if (user == _committedBot) {
-		_resetBot();
-	} else {
+	if (user && (user != _committedBot)) {
 		_addBot(user);
 	}
 }
@@ -528,7 +505,6 @@ void AppendUsersFromPeerList(
 [[nodiscard]] object_ptr<Ui::RpWidget> MakeBotPreview(
 		not_null<Ui::RpWidget*> parent,
 		rpl::producer<std::pair<BotSearchState, UserData*>> stateAndBot,
-		Fn<void()> resetBot,
 		Fn<void(UserData*)> addBot) {
 	auto result = object_ptr<Ui::SlideWrap<>>(
 		parent.get(),
@@ -553,7 +529,7 @@ void AppendUsersFromPeerList(
 			>();
 			const auto controller = parent->lifetime().make_state<
 				PreviewController
-			>(state.bots, committed, resetBot, addBot);
+			>(state.bots, committed, addBot);
 			controller->setStyleOverrides(&st::peerListSingleRow);
 			const auto content = Ui::CreateChild<PeerListContent>(
 				inner,
@@ -759,7 +735,6 @@ void Chatbots::setupContent() {
 		MakeBotPreview(
 			content,
 			std::move(stateAndBot),
-			resetBot,
 			addBot)));
 
 	Ui::AddDividerText(
@@ -786,6 +761,25 @@ void Chatbots::setupContent() {
 
 	_permissionsWrap = _detailsWrap->add(
 		object_ptr<Ui::VerticalLayout>(_detailsWrap));
+
+	const auto removeWrap = _detailsWrap->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			_detailsWrap,
+			object_ptr<Ui::VerticalLayout>(_detailsWrap)));
+	const auto removeInner = removeWrap->entity();
+	Ui::AddDivider(removeInner);
+	Ui::AddSkip(removeInner);
+	const auto remove = removeInner->add(
+		CreateButtonWithIcon(
+			removeInner,
+			tr::lng_chatbots_remove_bot(),
+			st::settingsChatbotsRemove,
+			{ &st::settingsChatbotsRemoveIcon }));
+	remove->setClickedCallback(resetBot);
+	removeWrap->toggleOn(
+		_committedBot.value() | rpl::map(_1 != nullptr),
+		anim::type::instant);
+	removeWrap->setDuration(0);
 
 	refreshDetails();
 	rpl::merge(
