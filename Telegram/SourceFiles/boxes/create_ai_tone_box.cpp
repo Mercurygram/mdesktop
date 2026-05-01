@@ -675,10 +675,7 @@ void ConfirmDeleteAiTone(
 		.text = tr::lng_ai_compose_tone_delete_sure(),
 		.confirmed = [=](Fn<void()> &&close) {
 			close();
-			session->data().aiComposeTones().remove(tone);
-			if (done) {
-				done();
-			}
+			session->data().aiComposeTones().remove(tone, done);
 		},
 		.confirmText = tr::lng_box_delete(),
 		.confirmStyle = &st::attentionBoxButton,

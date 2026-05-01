@@ -31,6 +31,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/shadow.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/vertical_list.h"
+
+#include <optional>
+
 #include "styles/style_boxes.h"
 #include "styles/style_chat_helpers.h"
 #include "styles/style_layers.h"
@@ -379,6 +382,31 @@ void ShowToneAddedToast(
 	});
 }
 
+void ShowToneRemovedToast(std::shared_ptr<Ui::Show> show, bool deleted) {
+	show->showToast(Ui::Toast::Config{
+		.text = { (deleted
+			? tr::lng_ai_compose_tone_deleted
+			: tr::lng_ai_compose_tone_removed)(tr::now) },
+		.icon = &st::aiComposeToneRemovedToastIcon,
+		.duration = kToastDuration,
+	});
+}
+
+[[nodiscard]] auto FindInstalledCustomTone(
+		not_null<Main::Session*> session,
+		const Data::AiComposeTone &tone)
+-> std::optional<Data::AiComposeTone> {
+	if (tone.isDefault) {
+		return std::nullopt;
+	}
+	for (const auto &installedTone : session->data().aiComposeTones().list()) {
+		if (!installedTone.isDefault && (installedTone.id == tone.id)) {
+			return installedTone;
+		}
+	}
+	return std::nullopt;
+}
+
 } // namespace
 
 void PreviewAiToneBox(
@@ -464,11 +492,6 @@ void PreviewAiToneBox(
 		loadAnother();
 	}
 
-	const auto attribution = body->add(
-		object_ptr<Ui::FlatLabel>(body, st::aiTonePreviewAttributionLabel),
-		st::aiTonePreviewAttributionMargin,
-		style::al_top);
-
 	auto text = tr::marked();
 	if (tone.installsCount > 0) {
 		text = tr::lng_ai_compose_tone_preview_used_by(
@@ -500,32 +523,57 @@ void PreviewAiToneBox(
 			text = std::move(createdBy);
 		}
 	}
-	if (text.empty()) {
-		attribution->setVisible(false);
-	} else {
+	if (!text.empty()) {
+		const auto attribution = body->add(
+			object_ptr<Ui::FlatLabel>(body, st::aiTonePreviewAttributionLabel),
+			st::aiTonePreviewAttributionMargin,
+			style::al_top);
 		attribution->setMarkedText(
 			std::move(text),
 			Core::TextContext({ .session = session }));
 	}
+	Ui::AddSkip(body, st::aiTonePreviewBottomSkip);
 
-	const auto add = box->addButton(
-		tr::lng_ai_compose_tone_preview_add(),
-		[=] {
-			const auto show = box->uiShow();
-			session->data().aiComposeTones().save(
-				tone,
-				false,
-				crl::guard(box, [=] {
-					box->closeBox();
-					ShowToneAddedToast(show, session, tone);
-				}),
-				crl::guard(box, [=](const MTP::Error &error) {
-					if (error.type() == u"TONES_SAVED_TOO_MANY"_q) {
-						ShowAiComposeToneLimitError(show, session);
-					} else if (!MTP::IgnoreError(error)) {
-						box->showToast(tr::lng_ai_compose_error(tr::now));
-					}
-				}));
-		});
-	add->setFullRadius(true);
+	const auto installedTone = FindInstalledCustomTone(session, tone);
+
+	if (installedTone) {
+		const auto remove = box->addButton(
+			installedTone->creator
+				? tr::lng_ai_compose_tone_delete()
+				: tr::lng_ai_compose_tone_remove(),
+			[=] {
+				const auto show = box->uiShow();
+				ConfirmDeleteAiTone(
+					show,
+					session,
+					*installedTone,
+					crl::guard(box, [=] {
+						box->closeBox();
+						ShowToneRemovedToast(show, installedTone->creator);
+					}));
+			},
+			st::aiToneDeleteButton);
+		remove->setFullRadius(true);
+	} else {
+		const auto add = box->addButton(
+			tr::lng_ai_compose_tone_preview_add(),
+			[=] {
+				const auto show = box->uiShow();
+				session->data().aiComposeTones().save(
+					tone,
+					false,
+					crl::guard(box, [=] {
+						box->closeBox();
+						ShowToneAddedToast(show, session, tone);
+					}),
+					crl::guard(box, [=](const MTP::Error &error) {
+						if (error.type() == u"TONES_SAVED_TOO_MANY"_q) {
+							ShowAiComposeToneLimitError(show, session);
+						} else if (!MTP::IgnoreError(error)) {
+							box->showToast(tr::lng_ai_compose_error(tr::now));
+						}
+					}));
+			});
+		add->setFullRadius(true);
+	}
 }
