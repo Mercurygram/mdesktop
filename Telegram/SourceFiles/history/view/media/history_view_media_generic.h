@@ -92,6 +92,14 @@ public:
 	void draw(Painter &p, const PaintContext &context) const override;
 	TextState textState(QPoint point, StateRequest request) const override;
 
+	[[nodiscard]] bool hasTextForCopy() const override;
+	[[nodiscard]] TextForMimeData selectedText(
+		TextSelection selection) const override;
+	[[nodiscard]] TextSelection adjustSelection(
+		TextSelection selection,
+		TextSelectType type) const override;
+	[[nodiscard]] uint16 fullSelectionLength() const override;
+
 	void clickHandlerActiveChanged(
 		const ClickHandlerPtr &p,
 		bool active) override;
