@@ -1893,7 +1893,7 @@ bool Poll::showVotes() const {
 		return true;
 	}
 	if (_flags & PollData::Flag::HideResultsUntilClose) {
-		return (_flags & PollData::Flag::Closed) || _parent->data()->out();
+		return (_flags & PollData::Flag::Closed) || _poll->creator();
 	}
 	return _voted || (_flags & PollData::Flag::Closed);
 }
