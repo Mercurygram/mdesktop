@@ -1814,6 +1814,7 @@ Poll::Footer::Footer(not_null<Poll*> owner)
 				owner->_adminShowResults = true;
 				owner->_optionsPart->updateAnswerVotes();
 				owner->_optionsPart->startAnswersAnimation();
+				owner->history()->owner().requestViewResize(owner->_parent);
 			}
 		})))
 , _adminBackVoteLink(
@@ -1824,6 +1825,7 @@ Poll::Footer::Footer(not_null<Poll*> owner)
 			owner->_adminShowResults = false;
 			owner->_optionsPart->updateAnswerVotes();
 			owner->_optionsPart->startAnswersAnimation();
+			owner->history()->owner().requestViewResize(owner->_parent);
 		})))
 , _saveOptionLink(
 	std::make_shared<LambdaClickHandler>(crl::guard(
