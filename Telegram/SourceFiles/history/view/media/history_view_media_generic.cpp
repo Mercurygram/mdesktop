@@ -55,6 +55,21 @@ auto MediaGenericPart::stickerTakePlayer(
 	return nullptr;
 }
 
+uint16 MediaGenericPart::fullSelectionLength() const {
+	return 0;
+}
+
+TextSelection MediaGenericPart::adjustSelection(
+		TextSelection selection,
+		TextSelectType type) const {
+	return selection;
+}
+
+TextForMimeData MediaGenericPart::selectedText(
+		TextSelection selection) const {
+	return {};
+}
+
 MediaGeneric::MediaGeneric(
 	not_null<Element*> parent,
 	Fn<void(
@@ -282,6 +297,7 @@ void MediaGenericTextPart::draw(
 		.now = context.now,
 		.pausedEmoji = context.paused || On(PowerSaving::kEmojiChat),
 		.pausedSpoiler = context.paused || On(PowerSaving::kChatSpoiler),
+		.selection = context.selection,
 		.elisionLines = elisionLines(),
 	});
 }
@@ -311,11 +327,24 @@ TextState MediaGenericTextPart::textState(
 			: _margins.left()),
 		_margins.top(),
 	};
-	auto result = TextState();
 	auto forText = request.forText();
 	forText.align = _align;
-	result.link = _text.getState(point, use, forText).link;
-	return result;
+	return TextState(nullptr, _text.getState(point, use, forText));
+}
+
+uint16 MediaGenericTextPart::fullSelectionLength() const {
+	return _text.length();
+}
+
+TextSelection MediaGenericTextPart::adjustSelection(
+		TextSelection selection,
+		TextSelectType type) const {
+	return _text.adjustSelection(selection, type);
+}
+
+TextForMimeData MediaGenericTextPart::selectedText(
+		TextSelection selection) const {
+	return _text.toTextForMimeData(selection);
 }
 
 QSize MediaGenericTextPart::countOptimalSize() {
