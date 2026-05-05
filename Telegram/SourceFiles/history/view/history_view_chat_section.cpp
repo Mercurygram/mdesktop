@@ -88,6 +88,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h"
+#include "styles/style_info.h"
 #include "styles/style_window.h"
 #include "styles/style_boxes.h"
 #include "styles/style_layers.h"
@@ -2674,6 +2675,26 @@ void ChatWidget::restoreState(not_null<ChatMemento*> memento) {
 		refreshReplies();
 	}
 	_cornerButtons.setReplyReturns(memento->replyReturns());
+
+	// Custom initial scroll for post comments, from "Discussion started".
+	if (!memento->highlightId()
+		&& _repliesRoot
+		&& _repliesRoot->isDiscussionPost()
+		&& _replies->computeInboxReadTillFull() == MsgId(1)) {
+		_inner->overrideInitialScroll([=] {
+			const auto divider = _replies ? _replies->divider() : nullptr;
+			if (!divider) {
+				return false;
+			}
+			const auto view = _inner->viewByPosition(divider->position());
+			if (!view) {
+				return false;
+			}
+			const auto top = std::max(view->y() - st::topBarHeight, 0);
+			listScrollTo(top);
+			return true;
+		});
+	}
 	_inner->restoreState(memento->list());
 	if (const auto highlight = memento->highlightId()) {
 		auto params = Window::SectionShow(

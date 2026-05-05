@@ -891,6 +891,10 @@ void ListWidget::showAroundPosition(
 	refreshViewer();
 }
 
+void ListWidget::overrideInitialScroll(Fn<bool()> callback) {
+	_overrideInitialScroll = std::move(callback);
+}
+
 bool ListWidget::jumpToBottomInsteadOfUnread() const {
 	// If we want to jump to unread, but we're at the unread already,
 	// then jump to the end of the list.
