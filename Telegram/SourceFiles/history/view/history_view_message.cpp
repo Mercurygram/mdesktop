@@ -4222,8 +4222,14 @@ void Message::refreshDataIdHook() {
 }
 
 int Message::monospaceMaxWidth() const {
+	const auto fromText = hasVisibleText()
+		? text().countMaxMonospaceWidth()
+		: 0;
+	const auto fromMedia = this->media()
+		? this->media()->contributedMaxMonospaceWidth()
+		: 0;
 	return st::msgPadding.left()
-		+ (hasVisibleText() ? text().countMaxMonospaceWidth() : 0)
+		+ std::max(fromText, fromMedia)
 		+ st::msgPadding.right();
 }
 
