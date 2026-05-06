@@ -282,20 +282,21 @@ void PeerListBox::setInnerFocus() {
 void PeerListBox::peerListSetRowChecked(
 		not_null<PeerListRow*> row,
 		bool checked) {
+	const auto trackSelected = _controller->trackSelectedList();
 	if (checked) {
-		if (_controller->trackSelectedList()) {
+		if (trackSelected) {
 			addSelectItem(row, anim::type::normal);
 		}
 		PeerListContentDelegate::peerListSetRowChecked(row, checked);
 		peerListUpdateRow(row);
 
 		// This call deletes row from _searchRows.
-		if (_select) {
+		if (_select && trackSelected) {
 			_select->entity()->clearQuery();
 		}
 	} else {
 		// The itemRemovedCallback will call changeCheckState() here.
-		if (_select) {
+		if (_select && trackSelected) {
 			_select->entity()->removeItem(row->id());
 		} else {
 			PeerListContentDelegate::peerListSetRowChecked(row, checked);
