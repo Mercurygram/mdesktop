@@ -549,7 +549,8 @@ void PaintRow(
 		if (!rowBadge.ready(verifyInfo)) {
 			rowBadge.set(
 				verifyInfo,
-				from->owner().customEmojiManager().factory(),
+				from->owner().customEmojiManager().factory(
+					Data::CustomEmojiSizeTag::Isolated),
 				customEmojiRepaint);
 		}
 		const auto &st = Ui::VerifiedStyle(context);

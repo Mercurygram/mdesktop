@@ -865,7 +865,8 @@ int PeerListRow::paintNameIconGetLeadingWidth(
 	if (!_badge.ready(info)) {
 		_badge.set(
 			info,
-			peer()->owner().customEmojiManager().factory(),
+			peer()->owner().customEmojiManager().factory(
+				Data::CustomEmojiSizeTag::Isolated),
 			std::move(repaint));
 	}
 	const auto &st = selected
@@ -875,7 +876,7 @@ int PeerListRow::paintNameIconGetLeadingWidth(
 		p,
 		QPoint(nameLeft, nameTop),
 		st);
-	return skip ? (skip + st::dialogsChatTypeSkip) : 0;
+	return skip;// ? skip + st::dialogsChatTypeSkip) : 0;
 }
 
 void PeerListRow::paintStatusText(

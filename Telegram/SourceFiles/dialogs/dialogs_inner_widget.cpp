@@ -53,6 +53,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_saved_messages.h"
 #include "data/data_saved_sublist.h"
 #include "data/data_stories.h"
+#include "data/stickers/data_custom_emoji.h"
 #include "data/stickers/data_stickers.h"
 #include "data/data_send_action.h"
 #include "base/unixtime.h"
@@ -1559,7 +1560,8 @@ void InnerWidget::paintPeerSearchResult(
 		if (!result->badge.ready(info)) {
 			result->badge.set(
 				info,
-				peer->owner().customEmojiManager().factory(),
+				peer->owner().customEmojiManager().factory(
+					Data::CustomEmojiSizeTag::Isolated),
 				[=] { updateSearchResult(peer); });
 		}
 		const auto &st = Ui::VerifiedStyle(context);
