@@ -30,6 +30,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_chat.h"
 #include "data/data_session.h"
 #include "data/data_changes.h"
+#include "data/stickers/data_custom_emoji.h"
 #include "base/unixtime.h"
 #include "styles/style_layers.h"
 #include "styles/style_boxes.h"
@@ -840,6 +841,41 @@ int PeerListRow::paintNameIconGetWidth(
 		.now = now,
 		.paused = false,
 	});
+}
+
+int PeerListRow::paintNameIconGetLeadingWidth(
+		Painter &p,
+		Fn<void()> repaint,
+		crl::time now,
+		int nameLeft,
+		int nameTop,
+		int outerWidth,
+		bool selected) {
+	if (_skipPeerBadge
+		|| special()
+		|| !_savedMessagesStatus.isEmpty()
+		|| _isRepliesMessagesChat
+		|| _isVerifyCodesChat) {
+		return 0;
+	}
+	const auto info = peer()->botVerifyDetails();
+	if (!info) {
+		return 0;
+	}
+	if (!_badge.ready(info)) {
+		_badge.set(
+			info,
+			peer()->owner().customEmojiManager().factory(),
+			std::move(repaint));
+	}
+	const auto &st = selected
+		? st::dialogsVerifiedColorsOver
+		: st::dialogsVerifiedColors;
+	const auto skip = _badge.drawVerified(
+		p,
+		QPoint(nameLeft, nameTop),
+		st);
+	return skip ? (skip + st::dialogsChatTypeSkip) : 0;
 }
 
 void PeerListRow::paintStatusText(
@@ -1893,11 +1929,20 @@ crl::time PeerListContent::paintRow(
 			+ rightActionMargins.right()
 			- skipRight;
 	}
-	namew -= row->paintNameIconGetWidth(
+	const auto leading = row->paintNameIconGetLeadingWidth(
 		p,
 		[=] { updateRow(row); },
 		now,
 		namex,
+		namey,
+		width(),
+		selected);
+	namew -= leading;
+	namew -= row->paintNameIconGetWidth(
+		p,
+		[=] { updateRow(row); },
+		now,
+		namex + leading,
 		namey,
 		name.maxWidth(),
 		namew,
@@ -1905,7 +1950,7 @@ crl::time PeerListContent::paintRow(
 		selected);
 	auto nameCheckedRatio = row->disabled() ? 0. : row->checkedRatio();
 	p.setPen(anim::pen(st.nameFg, st.nameFgChecked, nameCheckedRatio));
-	name.drawLeftElided(p, namex, namey, namew, width());
+	name.drawLeftElided(p, namex + leading, namey, namew, width());
 
 	p.setFont(st::contactsStatusFont);
 	if (row->isSearchResult()

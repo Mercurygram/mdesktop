@@ -459,6 +459,17 @@ public:
 		int outerWidth,
 		bool selected) override;
 
+	int paintNameIconGetLeadingWidth(
+		Painter &p,
+		Fn<void()> repaint,
+		crl::time now,
+		int nameLeft,
+		int nameTop,
+		int outerWidth,
+		bool selected) override {
+		return 0;
+	}
+
 	QSize rightActionSize() const override;
 	QMargins rightActionMargins() const override;
 	bool rightActionDisabled() const override;
