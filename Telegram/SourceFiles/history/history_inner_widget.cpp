@@ -129,6 +129,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace {
 
 constexpr auto kScrollDateHideTimeout = 1000;
+constexpr auto kScrollDateHideOnDayCrossingTimeout = crl::time(3000);
 constexpr auto kUnloadHeavyPartsPages = 2;
 constexpr auto kClearUserpicsAfter = 50;
 
@@ -3942,9 +3943,10 @@ void HistoryInner::visibleAreaUpdated(int top, int bottom) {
 		}
 	}
 	if (scrolledUp) {
+		_scrollDateAfterDayCrossing = false;
 		_scrollDateCheck.call();
 	} else {
-		scrollDateHideByTimer();
+		scrollDateCheckDownward();
 	}
 
 	// Unload userpics.
@@ -4001,8 +4003,42 @@ void HistoryInner::scrollDateCheck() {
 	}
 }
 
+void HistoryInner::scrollDateCheckDownward() {
+	const auto current = _history->scrollTopItem
+		? _history->scrollTopItem
+		: (_migrated ? _migrated->scrollTopItem : nullptr);
+	const auto currentTop = _history->scrollTopItem
+		? _history->scrollTopOffset
+		: (_migrated ? _migrated->scrollTopOffset : 0);
+	const auto previous = _scrollDateLastItem;
+	const auto previousDay = previous
+		? previous->dateTime().date()
+		: QDate();
+	const auto currentDay = current
+		? current->dateTime().date()
+		: QDate();
+	const auto crossedDay = previous
+		&& current
+		&& previousDay.isValid()
+		&& currentDay.isValid()
+		&& (previousDay != currentDay);
+	_scrollDateLastItem = current;
+	_scrollDateLastItemTop = currentTop;
+	if (crossedDay) {
+		if (!_scrollDateShown) {
+			toggleScrollDateShown();
+		}
+		_scrollDateAfterDayCrossing = true;
+		_scrollDateHideTimer.callOnce(
+			kScrollDateHideOnDayCrossingTimeout);
+	} else if (!_scrollDateAfterDayCrossing) {
+		scrollDateHideByTimer();
+	}
+}
+
 void HistoryInner::scrollDateHideByTimer() {
 	_scrollDateHideTimer.cancel();
+	_scrollDateAfterDayCrossing = false;
 	if (!_scrollDateLink || ClickHandler::getPressed() != _scrollDateLink) {
 		scrollDateHide();
 	}

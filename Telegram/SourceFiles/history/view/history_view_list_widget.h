@@ -630,6 +630,7 @@ private:
 	void scrollDateCheck();
 	void scrollDateHideByTimer();
 	void keepScrollDateForNow();
+	void scrollDateCheckDownward();
 
 	void computeScrollTo(
 		int to,
@@ -828,6 +829,7 @@ private:
 	base::Timer _scrollDateHideTimer;
 	Element *_scrollDateLastItem = nullptr;
 	int _scrollDateLastItemTop = 0;
+	bool _scrollDateAfterDayCrossing = false;
 	ClickHandlerPtr _scrollDateLink;
 	SingleQueuedInvokation _applyUpdatedScrollState;
 
