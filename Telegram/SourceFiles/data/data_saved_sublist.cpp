@@ -360,7 +360,6 @@ bool SavedSublist::applyUpdate(const MessageUpdate &update) {
 
 	if (update.item->history() != owningHistory()
 		|| !update.item->isRegular()
-		|| update.item->isService()
 		|| update.item->sublistPeerId() != sublistPeer()->id) {
 		return false;
 	} else if (update.flags & Flag::Destroyed) {
@@ -438,8 +437,7 @@ bool SavedSublist::processMessagesIsEmpty(
 	for (const auto &message : list) {
 		if (const auto item = owner().addNewMessage(message, localFlags, type)) {
 			if (item->sublistPeerId() == sublistPeer()->id
-				&& item->isRegular()
-				&& !item->isService()) {
+				&& item->isRegular()) {
 				if (toFront && item->id > _list.front()) {
 					refreshed.push_back(item->id);
 				} else if (_list.empty() || item->id < _list.back()) {
