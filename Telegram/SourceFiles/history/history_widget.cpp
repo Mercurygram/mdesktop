@@ -2734,6 +2734,7 @@ void HistoryWidget::showHistory(
 		updateBotKeyboard();
 
 		_subsectionCheckLifetime.destroy();
+		_subsectionTopicsLifetime.destroy();
 		if (_subsectionTabs) {
 			_subsectionTabsLifetime.destroy();
 			controller()->saveSubsectionTabs(base::take(_subsectionTabs));
@@ -8917,27 +8918,54 @@ void HistoryWidget::showPremiumToast(not_null<DocumentData*> document) {
 }
 
 void HistoryWidget::validateSubsectionTabs() {
-	if (!_subsectionCheckLifetime
-		&& _history
-		&& _history->peer->isMegagroup()) {
-		_subsectionCheckLifetime = _history->peer->asChannel()->flagsValue(
-		) | rpl::skip(
-			1
-		) | rpl::filter([=](Data::Flags<ChannelDataFlags>::Change change) {
-			const auto mask = ChannelDataFlag::Forum
-				| ChannelDataFlag::ForumTabs
-				| ChannelDataFlag::MonoforumAdmin;
-			return change.diff & mask;
-		}) | rpl::on_next([=] {
-			validateSubsectionTabs();
-		});
+	if (!_subsectionCheckLifetime && _history) {
+		if (const auto group = _history->peer->asMegagroup()) {
+			_subsectionCheckLifetime = group->flagsValue(
+			) | rpl::skip(
+				1
+			) | rpl::filter([=](Data::Flags<ChannelDataFlags>::Change change) {
+				const auto mask = ChannelDataFlag::Forum
+					| ChannelDataFlag::ForumTabs
+					| ChannelDataFlag::MonoforumAdmin;
+				return change.diff & mask;
+			}) | rpl::on_next([=] {
+				validateSubsectionTabs();
+			});
+		} else if (const auto user = _history->peer->asBot()) {
+			_subsectionCheckLifetime = user->flagsValue(
+			) | rpl::skip(
+				1
+			) | rpl::filter([=](Data::Flags<UserDataFlags>::Change change) {
+				return change.diff & UserDataFlag::Forum;
+			}) | rpl::on_next([=] {
+				_subsectionTopicsLifetime.destroy();
+				validateSubsectionTabs();
+			});
+		}
+	}
+	if (_history && !_subsectionTopicsLifetime) {
+		if (const auto user = _history->peer->asBot()) {
+			if (const auto forum = user->forum()) {
+				_subsectionTopicsLifetime = forum->topicsList()->fullSize().value(
+				) | rpl::map([](int size) {
+					return size > 0;
+				}) | rpl::distinct_until_changed(
+				) | rpl::skip(
+					1
+				) | rpl::on_next([=] {
+					validateSubsectionTabs();
+				});
+			}
+		}
 	}
 	if (!_history || !HistoryView::SubsectionTabs::UsedFor(_history)) {
 		if (_subsectionTabs) {
 			_subsectionTabsLifetime.destroy();
 			_subsectionTabs = nullptr;
 			updateControlsGeometry();
-			if (const auto forum = _history->asForum()) {
+
+			const auto forum = _history ? _history->asForum() : nullptr;
+			if (forum && !_history->peer->isUser()) {
 				controller()->showForum(forum, {
 					Window::SectionShow::Way::Backward,
 					anim::type::normal,
@@ -10263,6 +10291,7 @@ HistoryWidget::~HistoryWidget() {
 		session().data().itemVisibilitiesUpdated();
 	}
 	_subsectionTabsLifetime.destroy();
+	_subsectionTopicsLifetime.destroy();
 	_subsectionTabs = nullptr;
 	setTabbedPanel(nullptr);
 }

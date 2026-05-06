@@ -1572,18 +1572,47 @@ void ChatWidget::edit(
 }
 
 void ChatWidget::validateSubsectionTabs() {
-	if (!_subsectionCheckLifetime && _history->peer->isMegagroup()) {
-		_subsectionCheckLifetime = _history->peer->asChannel()->flagsValue(
-		) | rpl::skip(
-			1
-		) | rpl::filter([=](Data::Flags<ChannelDataFlags>::Change change) {
-			const auto mask = ChannelDataFlag::Forum
-				| ChannelDataFlag::ForumTabs
-				| ChannelDataFlag::MonoforumAdmin;
-			return change.diff & mask;
-		}) | rpl::on_next([=] {
-			validateSubsectionTabs();
-		});
+	if (!_subsectionCheckLifetime) {
+		if (const auto group = _history->peer->asMegagroup()) {
+			_subsectionCheckLifetime = group->flagsValue(
+			) | rpl::skip(
+				1
+			) | rpl::filter([=](Data::Flags<ChannelDataFlags>::Change change) {
+				const auto mask = ChannelDataFlag::Forum
+					| ChannelDataFlag::ForumTabs
+					| ChannelDataFlag::MonoforumAdmin;
+				return change.diff & mask;
+			}) | rpl::on_next([=] {
+				validateSubsectionTabs();
+			});
+		} else if (!_topic) {
+			if (const auto user = _history->peer->asBot()) {
+				_subsectionCheckLifetime = user->flagsValue(
+				) | rpl::skip(
+					1
+				) | rpl::filter([=](Data::Flags<UserDataFlags>::Change change) {
+					return change.diff & UserDataFlag::Forum;
+				}) | rpl::on_next([=] {
+					_subsectionTopicsLifetime.destroy();
+					validateSubsectionTabs();
+				});
+			}
+		}
+	}
+	if (!_subsectionTopicsLifetime && !_topic) {
+		if (const auto user = _history->peer->asBot()) {
+			if (const auto forum = user->forum()) {
+				_subsectionTopicsLifetime = forum->topicsList()->fullSize().value(
+				) | rpl::map([](int size) {
+					return size > 0;
+				}) | rpl::distinct_until_changed(
+				) | rpl::skip(
+					1
+				) | rpl::on_next([=] {
+					validateSubsectionTabs();
+				});
+			}
+		}
 	}
 	const auto thread = _topic ? (Data::Thread*)_topic : _sublist;
 	if (!thread || !HistoryView::SubsectionTabs::UsedFor(_history)) {
@@ -1591,7 +1620,9 @@ void ChatWidget::validateSubsectionTabs() {
 			_subsectionTabsLifetime.destroy();
 			_subsectionTabs = nullptr;
 			updateControlsGeometry();
-			if (const auto forum = _history->asForum()) {
+
+			if (const auto forum = _history->asForum()
+				; forum && !_history->peer->isUser()) {
 				controller()->showForum(forum, {
 					Window::SectionShow::Way::Backward,
 					anim::type::normal,

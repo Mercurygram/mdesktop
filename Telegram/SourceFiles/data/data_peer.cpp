@@ -1700,6 +1700,17 @@ bool PeerData::useSubsectionTabs() const {
 	return false;
 }
 
+bool PeerData::displaySubsectionTabs() const {
+	if (!useSubsectionTabs()) {
+		return false;
+	} else if (const auto bot = asBot()
+		; bot && !bot->botInfo->userCreatesTopics) {
+		const auto forum = bot->botInfo->forum();
+		return forum && !forum->topicsList()->empty();
+	}
+	return true;
+}
+
 bool PeerData::viewForumAsMessages() const {
 	if (const auto channel = asChannel()) {
 		return channel->viewForumAsMessages();

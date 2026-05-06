@@ -298,6 +298,7 @@ public:
 		PeerId sublistPeerId) const;
 
 	[[nodiscard]] bool useSubsectionTabs() const;
+	[[nodiscard]] bool displaySubsectionTabs() const;
 	[[nodiscard]] bool viewForumAsMessages() const;
 	void processTopics(const MTPVector<MTPForumTopic> &topics);
 
