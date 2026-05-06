@@ -309,7 +309,7 @@ bool SavedSublist::buildFromData(not_null<Viewer*> viewer) {
 	}
 	const auto i = around
 		? ranges::lower_bound(_list, around, std::greater<>())
-		: end(_list);
+		: (inMonoforum() ? end(_list) : begin(_list));
 	const auto availableBefore = int(end(_list) - i);
 	const auto availableAfter = int(i - begin(_list));
 	const auto useBefore = std::min(availableBefore, viewer->limitBefore + 1);

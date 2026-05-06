@@ -3156,6 +3156,8 @@ MessagesBarData ChatWidget::listMessagesBar(
 		bool markLastAsRead) {
 	if ((!_sublist && !_replies) || elements.empty()) {
 		return {};
+	} else if (_sublist && !_sublist->parentChat()) {
+		return {};
 	}
 	const auto till = _replies
 		? _replies->computeInboxReadTillFull()
