@@ -1309,11 +1309,20 @@ QRect RowPainter::SendActionAnimationRect(
 	const auto nameleft = st.nameLeft;
 	const auto namewidth = fullWidth - nameleft - st.padding.right();
 	const auto texttop = st.textTop;
+
+	const auto add = st::lineWidth - Ui::Emoji::GetCustomSkipNormal();
+	const auto height = std::max({
+		add + rect.height() + add,
+		add + st::normalFont->height + add,
+		add + st::dialogsMiniPreviewTop + st::dialogsMiniPreview + add,
+		st::lineWidth + Ui::Emoji::GetCustomSizeNormal() + st::lineWidth,
+	});
+
 	return QRect(
-		nameleft + (textUpdated ? 0 : rect.x()),
-		texttop + rect.y(),
-		textUpdated ? namewidth : rect.width(),
-		rect.height());
+		nameleft + (textUpdated ? (-add) : rect.x()),
+		texttop + rect.y() - add,
+		textUpdated ? (add + namewidth + add) : rect.width(),
+		height);
 }
 
 void PaintCollapsedRow(
