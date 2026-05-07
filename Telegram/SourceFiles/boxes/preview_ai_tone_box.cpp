@@ -477,10 +477,12 @@ void PreviewAiToneBox(
 				card->showExample(std::move(example));
 				updateAnother();
 			}),
-			crl::guard(box, [=](const MTP::Error &) {
+			crl::guard(box, [=](const MTP::Error &error) {
 				*state->requesting = false;
 				card->showSkeleton(false);
-				box->showToast(tr::lng_ai_compose_error(tr::now));
+				if (!MTP::IgnoreError(error)) {
+					box->showToast(error.type());
+				}
 			}));
 	};
 	card->anotherExampleRequested(
@@ -570,7 +572,7 @@ void PreviewAiToneBox(
 						if (error.type() == u"TONES_SAVED_TOO_MANY"_q) {
 							ShowAiComposeToneLimitError(show, session);
 						} else if (!MTP::IgnoreError(error)) {
-							box->showToast(tr::lng_ai_compose_error(tr::now));
+							box->showToast(error.type());
 						}
 					}));
 			});

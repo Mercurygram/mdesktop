@@ -1445,6 +1445,9 @@ void ComposeAiContent::showError(const QString &error) {
 			_premiumFlood();
 		}
 		return;
+	} else if (error == u"INPUT_TEXT_TOO_LONG"_q) {
+		_box->showToast(tr::lng_ai_compose_error_too_long(tr::now));
+		return;
 	}
 	_box->showToast(error.isEmpty()
 		? tr::lng_ai_compose_error(tr::now)

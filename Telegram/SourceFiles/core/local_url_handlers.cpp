@@ -320,8 +320,12 @@ bool ShowAiStyle(
 		const auto strong = weak.get();
 		if (!strong) {
 			return;
+		} else if (error.type() == u"AICOMPOSE_TONE_SLUG_INVALID"_q) {
+			strong->window().showToast(
+				tr::lng_ai_compose_tone_invalid(tr::now));
+		} else if (!MTP::IgnoreError(error)) {
+			strong->window().showToast(error.type());
 		}
-		strong->window().showToast(tr::lng_ai_compose_error(tr::now));
 	});
 	controller->window().activate();
 	return true;

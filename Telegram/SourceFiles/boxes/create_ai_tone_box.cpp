@@ -602,7 +602,7 @@ void CreateAiToneBox(
 					if (error.type() == u"TONES_SAVED_TOO_MANY"_q) {
 						ShowAiComposeToneLimitError(box->uiShow(), session);
 					} else if (!MTP::IgnoreError(error)) {
-						box->showToast(tr::lng_ai_compose_error(tr::now));
+						box->showToast(error.type());
 					}
 				}));
 		},
