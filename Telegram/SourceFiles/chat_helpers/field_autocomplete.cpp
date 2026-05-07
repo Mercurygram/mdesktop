@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/field_autocomplete.h"
 
 #include "data/business/data_shortcut_messages.h"
+#include "data/components/recent_inline_bots.h"
 #include "data/components/top_peers.h"
 #include "data/data_document.h"
 #include "data/data_document_media.h"
@@ -65,7 +66,7 @@ namespace {
 
 template <typename T, typename U>
 inline int indexOfInFirstN(const T &v, const U &elem, int last) {
-	for (auto b = v.cbegin(), i = b, e = b + std::max(int(v.size()), last)
+	for (auto b = v.cbegin(), i = b, e = b + std::min(int(v.size()), last)
 		; i != e
 		; ++i) {
 		if (i->user == elem) {
@@ -464,7 +465,7 @@ void FieldAutocomplete::updateFiltered(bool resetScroll) {
 			? _session->topGuestChatBots().list()
 			: std::vector<not_null<PeerData*>>();
 		int maxListSize = _addInlineBots
-			? (cRecentInlineBots().size() + int(guestChatBots.size()))
+			? (_session->recentInlineBots().list().size() + int(guestChatBots.size()))
 			: 0;
 		if (_chat) {
 			maxListSize += (_chat->participants.empty() ? _chat->lastAuthors.size() : _chat->participants.size());
@@ -507,6 +508,9 @@ void FieldAutocomplete::updateFiltered(bool resetScroll) {
 		const auto pushMentionRow = [&](
 				not_null<UserData*> user,
 				MentionRow::Source source) {
+			if (containsMentionUser(user)) {
+				return;
+			}
 			mrows.push_back({ user, source });
 		};
 		const auto markMentionCandidateIfExists = [&](
@@ -521,7 +525,7 @@ void FieldAutocomplete::updateFiltered(bool resetScroll) {
 
 		bool listAllSuggestions = _filter.isEmpty();
 		if (_addInlineBots) {
-			for (const auto user : cRecentInlineBots()) {
+			for (const auto user : _session->recentInlineBots().list()) {
 				if (user->isInaccessible()
 					|| (!listAllSuggestions
 						&& filterNotPassedByUsername(user))) {
@@ -1401,14 +1405,9 @@ void FieldAutocomplete::Inner::mousePressEvent(QMouseEvent *e) {
 			} else {
 				const auto &row = _mrows->at(_sel);
 				switch (row.source) {
-				case MentionRow::Source::InlineRecent: {
-					RecentInlineBots &recent(cRefRecentInlineBots());
-					int32 index = recent.indexOf(row.user);
-					if (index >= 0) {
-						recent.remove(index);
-						writeRecent = true;
-					}
-				} break;
+				case MentionRow::Source::InlineRecent:
+					_session->recentInlineBots().remove(row.user);
+					break;
 				case MentionRow::Source::GuestChatTopPeer:
 					_session->topGuestChatBots().remove(row.user);
 					break;
@@ -1818,7 +1817,7 @@ void InitFieldAutocomplete(
 			&& cRecentSearchHashtags().isEmpty()) {
 			peer->session().local().readRecentHashtagsAndBots();
 		} else if (parsed.query[0] == '@'
-			&& cRecentInlineBots().isEmpty()) {
+			&& peer->session().recentInlineBots().list().empty()) {
 			peer->session().local().readRecentHashtagsAndBots();
 		} else if (parsed.query[0] == '/'
 			&& peer->isUser()

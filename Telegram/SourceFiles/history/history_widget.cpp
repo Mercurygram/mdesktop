@@ -68,6 +68,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/call_delayed.h"
 #include "data/business/data_shortcut_messages.h"
 #include "data/components/credits.h"
+#include "data/components/recent_inline_bots.h"
 #include "data/components/scheduled_messages.h"
 #include "data/components/sponsored_messages.h"
 #include "data/notify/data_notify_settings.h"
@@ -8224,17 +8225,7 @@ void HistoryWidget::sendInlineResult(InlineBots::ResultSelected result) {
 	clearFieldText();
 	saveDraftWithTextNow();
 
-	auto &bots = cRefRecentInlineBots();
-	const auto index = bots.indexOf(result.bot);
-	if (index) {
-		if (index > 0) {
-			bots.removeAt(index);
-		} else if (bots.size() >= RecentInlineBotsLimit) {
-			bots.resize(RecentInlineBotsLimit - 1);
-		}
-		bots.push_front(result.bot);
-		session().local().writeRecentHashtagsAndBots();
-	}
+	session().recentInlineBots().bump(result.bot);
 
 	hideSelectorControlsAnimated();
 

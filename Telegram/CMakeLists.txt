@@ -590,6 +590,8 @@ PRIVATE
     data/components/passkeys.h
     data/components/promo_suggestions.cpp
     data/components/promo_suggestions.h
+    data/components/recent_inline_bots.cpp
+    data/components/recent_inline_bots.h
     data/components/recent_peers.cpp
     data/components/recent_peers.h
     data/components/recent_shared_media_gifts.cpp

@@ -28,6 +28,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/application.h"
 #include "core/core_settings.h"
 #include "core/file_location.h"
+#include "data/components/recent_inline_bots.h"
 #include "data/components/recent_peers.h"
 #include "settings/settings_recent_searches.h"
 #include "data/components/top_peers.h"
@@ -2767,12 +2768,12 @@ void Account::readSavedGifs() {
 void Account::writeRecentHashtagsAndBots() {
 	const auto &write = cRecentWriteHashtags();
 	const auto &search = cRecentSearchHashtags();
-	const auto &bots = cRecentInlineBots();
+	const auto &bots = _owner->session().recentInlineBots().list();
 
-	if (write.isEmpty() && search.isEmpty() && bots.isEmpty()) {
+	if (write.isEmpty() && search.isEmpty() && bots.empty()) {
 		readRecentHashtagsAndBots();
 	}
-	if (write.isEmpty() && search.isEmpty() && bots.isEmpty()) {
+	if (write.isEmpty() && search.isEmpty() && bots.empty()) {
 		if (_recentHashtagsAndBotsKey) {
 			ClearKey(_recentHashtagsAndBotsKey, _basePath);
 			_recentHashtagsAndBotsKey = 0;
@@ -2784,7 +2785,7 @@ void Account::writeRecentHashtagsAndBots() {
 		_recentHashtagsAndBotsKey = GenerateKey(_basePath);
 		writeMapQueued();
 	}
-	quint32 size = sizeof(quint32) * 3, writeCnt = 0, searchCnt = 0, botsCnt = cRecentInlineBots().size();
+	quint32 size = sizeof(quint32) * 3, writeCnt = 0, searchCnt = 0, botsCnt = bots.size();
 	for (auto i = write.cbegin(), e = write.cend(); i != e; ++i) {
 		if (!i->first.isEmpty()) {
 			size += Serialize::stringSize(i->first) + sizeof(quint16);
@@ -2838,7 +2839,7 @@ void Account::readRecentHashtagsAndBots() {
 	quint16 count;
 
 	RecentHashtagPack write, search;
-	RecentInlineBots bots;
+	std::vector<not_null<UserData*>> bots;
 	if (writeCount) {
 		write.reserve(writeCount);
 		for (uint32 i = 0; i < writeCount; ++i) {
@@ -2871,11 +2872,14 @@ void Account::readRecentHashtagsAndBots() {
 					&& peer->asUser()->isBot()
 					&& !peer->asUser()->botInfo->inlinePlaceholder.isEmpty()
 					&& !peer->asUser()->username().isEmpty()) {
-					bots.push_back(peer->asUser());
+					const auto user = peer->asUser();
+					if (ranges::find(bots, not_null{ user }) == end(bots)) {
+						bots.push_back(user);
+					}
 				}
 			}
 		}
-		cSetRecentInlineBots(bots);
+		_owner->session().recentInlineBots().applyLocal(std::move(bots));
 	}
 }
 
