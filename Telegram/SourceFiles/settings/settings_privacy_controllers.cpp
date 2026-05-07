@@ -744,6 +744,7 @@ void LastSeenPrivacyController::confirmSave(
 		bool someAreDisallowed,
 		Fn<void()> saveCallback) {
 	if (someAreDisallowed
+		&& !_session->premium()
 		&& !Core::App().settings().lastSeenWarningSeen()) {
 		auto callback = [
 			=,
