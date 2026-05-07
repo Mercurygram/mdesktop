@@ -203,6 +203,7 @@ private:
 		void showAddIcon(bool show);
 
 		[[nodiscard]] not_null<Ui::InputField*> field() const;
+		[[nodiscard]] not_null<Ui::RpWidget*> wrapWidget() const;
 
 		[[nodiscard]] PollAnswer toPollAnswer(int index) const;
 
@@ -235,12 +236,15 @@ private:
 	void fixShadows();
 	void removeEmptyTail();
 	void addEmptyOption();
+	void insertOption(int beforeIndex, anim::type animated);
+	void initOptionField(not_null<Ui::InputField*> field);
 	void checkLastOption();
 	void validateState();
 	void fixAfterErase();
 	void destroy(std::unique_ptr<Option> option);
 	void removeDestroyed(not_null<Option*> field);
 	int findField(not_null<Ui::InputField*> field) const;
+	int findLayoutPosition(not_null<Option*> option) const;
 	[[nodiscard]] auto createChooseCorrectGroup()
 		-> std::shared_ptr<Ui::RadiobuttonGroup>;
 	void setupReorder();
@@ -647,6 +651,10 @@ not_null<Ui::InputField*> Options::Option::field() const {
 	return _field;
 }
 
+not_null<Ui::RpWidget*> Options::Option::wrapWidget() const {
+	return _wrap.get();
+}
+
 void Options::Option::removePlaceholder() const {
 	field()->setPlaceholder(rpl::single(QString()));
 }
@@ -932,28 +940,61 @@ void Options::addEmptyOption() {
 	} else if (!_list.empty() && _list.back()->isEmpty()) {
 		return;
 	}
-	if (!_list.empty()) {
-		_list.back()->showAddIcon(false);
+	const auto animated = _list.empty()
+		? anim::type::instant
+		: anim::type::normal;
+	insertOption(int(_list.size()), animated);
+}
+
+void Options::insertOption(int beforeIndex, anim::type animated) {
+	if (full()) {
+		return;
 	}
-	if (_list.size() > 1) {
-		(*(_list.end() - 2))->removePlaceholder();
+	Assert(beforeIndex >= 0 && beforeIndex <= int(_list.size()));
+
+	const auto isAppend = (beforeIndex == int(_list.size()));
+	if (isAppend) {
+		if (!_list.empty()) {
+			_list.back()->showAddIcon(false);
+		}
+		if (_list.size() > 1) {
+			(*(_list.end() - 2))->removePlaceholder();
+		}
 	}
-	_list.push_back(std::make_unique<Option>(
+
+	const auto layoutPosition = isAppend
+		? _optionsLayout->count()
+		: findLayoutPosition(_list[beforeIndex].get());
+
+	auto option = std::make_unique<Option>(
 		_box,
 		_optionsLayout,
 		&_controller->session(),
-		_optionsLayout->count(),
+		layoutPosition,
 		_chooseCorrectGroup,
 		_attachCallback,
 		_fieldDropCallback,
-		_widgetDropCallback));
+		_widgetDropCallback);
+	const auto raw = option.get();
+	_list.insert(begin(_list) + beforeIndex, std::move(option));
+
 	if (_multiCorrect) {
-		_list.back()->enableChooseCorrect(
+		raw->enableChooseCorrect(
 			nullptr,
 			true,
 			_multiCorrectChanged);
 	}
-	const auto field = _list.back()->field();
+	initOptionField(raw->field());
+
+	if (isAppend) {
+		raw->showAddIcon(true);
+	}
+	raw->show(animated);
+	fixShadows();
+	restartReorder();
+}
+
+void Options::initOptionField(not_null<Ui::InputField*> field) {
 	if (const auto emojiPanel = _emojiPanel) {
 		const auto isPremium = _controller->session().user()->isPremium();
 		const auto emojiToggle = Ui::AddEmojiToggleToField(
@@ -1030,13 +1071,6 @@ void Options::addEmptyOption() {
 		}
 		return base::EventFilterResult::Cancel;
 	});
-
-	_list.back()->showAddIcon(true);
-	_list.back()->show((_list.size() == 1)
-		? anim::type::instant
-		: anim::type::normal);
-	fixShadows();
-	restartReorder();
 }
 
 void Options::removeDestroyed(not_null<Option*> option) {
@@ -1067,6 +1101,16 @@ int Options::findField(not_null<Ui::InputField*> field) const {
 
 	Ensures(result >= 0 && result < _list.size());
 	return result;
+}
+
+int Options::findLayoutPosition(not_null<Option*> option) const {
+	const auto widget = option->wrapWidget();
+	for (auto i = 0, count = _optionsLayout->count(); i != count; ++i) {
+		if (_optionsLayout->widgetAt(i).get() == widget.get()) {
+			return i;
+		}
+	}
+	Unexpected("Poll option widget missing in layout.");
 }
 
 void Options::checkLastOption() {
