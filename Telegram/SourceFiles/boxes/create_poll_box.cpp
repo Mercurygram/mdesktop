@@ -161,6 +161,10 @@ public:
 	[[nodiscard]] rpl::producer<> backspaceInFront() const;
 	[[nodiscard]] rpl::producer<> tabbed() const;
 
+	void handlePaste(
+		not_null<Ui::InputField*> field,
+		const QStringList &list);
+
 private:
 	class Option {
 	public:
@@ -236,7 +240,10 @@ private:
 	void fixShadows();
 	void removeEmptyTail();
 	void addEmptyOption();
-	void insertOption(int beforeIndex, anim::type animated);
+	void insertOption(
+		int beforeIndex,
+		const QString &text,
+		anim::type animated);
 	void initOptionField(not_null<Ui::InputField*> field);
 	void checkLastOption();
 	void validateState();
@@ -333,6 +340,27 @@ void FocusAtEnd(not_null<Ui::InputField*> field) {
 	field->ensureCursorVisible();
 }
 
+[[nodiscard]] QStringList ParsePastedList(const QString &text) {
+	auto list = QStringView(text).split('\n');
+	for (auto i = list.begin(); i != list.end();) {
+		auto trimmed = i->trimmed();
+		if (trimmed.isEmpty() && (i + 1 != list.end())) {
+			i = list.erase(i);
+		} else {
+			*i++ = trimmed;
+		}
+	}
+	if (list.size() < 2) {
+		return {};
+	}
+	auto result = QStringList();
+	result.reserve(list.size());
+	for (const auto &view : list) {
+		result.push_back(view.toString());
+	}
+	return result;
+}
+
 not_null<DetailedSettingsButton*> AddPollToggleButton(
 		not_null<Ui::VerticalLayout*> container,
 		rpl::producer<QString> title,
@@ -368,7 +396,7 @@ Options::Option::Option(
 	Ui::CreateChild<Ui::InputField>(
 		_content.get(),
 		st::createPollOptionFieldPremium,
-		Ui::InputField::Mode::NoNewlines,
+		Ui::InputField::Mode::MultiLine,
 		tr::lng_polls_create_option_add()))
 , _attachCallback(std::move(attachCallback))
 , _fieldDropCallback(std::move(fieldDropCallback))
@@ -943,10 +971,13 @@ void Options::addEmptyOption() {
 	const auto animated = _list.empty()
 		? anim::type::instant
 		: anim::type::normal;
-	insertOption(int(_list.size()), animated);
+	insertOption(int(_list.size()), QString(), animated);
 }
 
-void Options::insertOption(int beforeIndex, anim::type animated) {
+void Options::insertOption(
+		int beforeIndex,
+		const QString &text,
+		anim::type animated) {
 	if (full()) {
 		return;
 	}
@@ -983,6 +1014,9 @@ void Options::insertOption(int beforeIndex, anim::type animated) {
 			nullptr,
 			true,
 			_multiCorrectChanged);
+	}
+	if (!text.isEmpty()) {
+		raw->field()->setText(text);
 	}
 	initOptionField(raw->field());
 
@@ -1035,6 +1069,13 @@ void Options::initOptionField(not_null<Ui::InputField*> field) {
 	}, field->lifetime());
 	field->changes(
 	) | rpl::on_next([=] {
+		auto list = ParsePastedList(field->getLastText());
+		if (!list.empty()) {
+			field->setText(list.front());
+			field->forceProcessContentsChanges();
+			list.pop_front();
+			handlePaste(field, list);
+		}
 		Ui::PostponeCall(crl::guard(field, [=] {
 			validateState();
 		}));
@@ -1070,6 +1111,26 @@ void Options::initOptionField(not_null<Ui::InputField*> field) {
 			_backspaceInFront.fire({});
 		}
 		return base::EventFilterResult::Cancel;
+	});
+}
+
+void Options::handlePaste(
+		not_null<Ui::InputField*> field,
+		const QStringList &list) {
+	const auto index = findField(field);
+	for (auto i = 0, count = int(list.size()); i != count; ++i) {
+		insertOption(
+			index + 1 + i,
+			list[i],
+			anim::type::instant);
+	}
+	const auto last = std::min(
+		int(index + list.size()),
+		int(_list.size()) - 1);
+	const auto focus = _list[last]->field();
+	crl::on_main(focus, [=] {
+		focus->setCursorPosition(focus->getLastText().size());
+		focus->setFocus();
 	});
 }
 
@@ -2265,11 +2326,36 @@ object_ptr<Ui::RpWidget> CreatePollBox::setupContent() {
 	const auto installPhotoDropToField = [=](
 			not_null<Ui::InputField*> field,
 			std::shared_ptr<PollMediaState> media) {
-		installDropToField(
-			field,
-			media,
-			validatePhotoOrVideo,
-			applyPhotoOrVideoDrop);
+		field->setMimeDataHook([=](
+				not_null<const QMimeData*> data,
+				Ui::InputField::MimeAction action) {
+			using MimeAction = Ui::InputField::MimeAction;
+			const auto text = data->hasText()
+				? data->text()
+				: QString();
+			if (text.contains('\n')) {
+				if (action == MimeAction::Check) {
+					return true;
+				}
+				auto list = ParsePastedList(text);
+				if (list.empty()) {
+					return false;
+				}
+				field->setText(list.front());
+				field->forceProcessContentsChanges();
+				list.pop_front();
+				if (state->options) {
+					state->options->handlePaste(field, list);
+				}
+				return true;
+			}
+			if (action == MimeAction::Check) {
+				return validatePhotoOrVideo(data);
+			} else if (action == MimeAction::Insert) {
+				return applyPhotoOrVideoDrop(media, data);
+			}
+			Unexpected("Polls: action in MimeData hook.");
+		});
 	};
 	const auto applyFileDrop = ApplyDropFn([=](
 			std::shared_ptr<PollMediaState> media,
