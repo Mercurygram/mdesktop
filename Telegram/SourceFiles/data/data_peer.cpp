@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "api/api_sensitive_content.h"
 #include "data/data_user.h"
+#include "data/data_secret_chat.h"
 #include "data/data_chat.h"
 #include "data/data_chat_participant_status.h"
 #include "data/data_channel.h"
@@ -677,12 +678,16 @@ bool PeerData::canPinMessages() const {
 			? !channel->amRestricted(ChatRestriction::PinMessages)
 			: ((channel->amCreator()
 				|| channel->adminRights() & ChatAdminRight::EditMessages));
+	} else if (isSecretChat()) {
+		return false;
 	}
 	Unexpected("Peer type in PeerData::canPinMessages.");
 }
 
 bool PeerData::canCreatePolls(bool forbidInForums) const {
-	if (const auto user = asUser()) {
+	if (isSecretChat()) {
+		return false; // No poll media in the end-to-end layer.
+	} else if (const auto user = asUser()) {
 		return user->isSelf()
 			|| (user->isBot()
 				&& !user->isSupport()
@@ -695,7 +700,7 @@ bool PeerData::canCreatePolls(bool forbidInForums) const {
 }
 
 bool PeerData::canCreateTodoLists(bool forbidInForums) const {
-	if (isMonoforum() || isBroadcast()) {
+	if (isMonoforum() || isBroadcast() || isSecretChat()) {
 		return false;
 	}
 	return session().premium()
@@ -768,6 +773,8 @@ bool PeerData::canEditMessagesIndefinitely() const {
 		return channel->isMegagroup()
 			? channel->canPinMessages()
 			: channel->canEditMessages();
+	} else if (isSecretChat()) {
+		return false;
 	}
 	Unexpected("Peer type in PeerData::canEditMessagesIndefinitely.");
 }
@@ -1176,6 +1183,16 @@ ChannelData *PeerData::asChannel() {
 const ChannelData *PeerData::asChannel() const {
 	return isChannel()
 		? static_cast<const ChannelData*>(this)
+		: nullptr;
+}
+
+SecretChatData *PeerData::asSecretChat() {
+	return isSecretChat() ? static_cast<SecretChatData*>(this) : nullptr;
+}
+
+const SecretChatData *PeerData::asSecretChat() const {
+	return isSecretChat()
+		? static_cast<const SecretChatData*>(this)
 		: nullptr;
 }
 
@@ -1875,6 +1892,8 @@ bool PeerData::canManageGroupCall() const {
 		}
 		return group->amCreator()
 			|| (group->adminRights() & ChatAdminRight::ManageCall);
+	} else if (isSecretChat()) {
+		return false;
 	}
 	Unexpected("Peer type in PeerData::canManageGroupCall.");
 }
