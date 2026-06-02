@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/window_peer_menu.h"
+#include "window/window_peer_menu_secret.h"
 
 #include "base/call_delayed.h"
 #include "menu/menu_check_item.h"
@@ -878,6 +879,11 @@ void Filler::addClearHistory() {
 
 void Filler::addDeleteChat() {
 	if (_topic || (!_sublist && _peer->isChannel())) {
+		return;
+	} else if (_peer->isSecretChat()) {
+		// Secret chats have no server peer/InputPeer; the generic delete path
+		// (deleteConversation/DeleteChatBox) does not apply -- a dedicated
+		// discardEncryption entry handles it (AddSecretChatActions).
 		return;
 	}
 	_addAction({
@@ -1939,6 +1945,7 @@ void Filler::fillHistoryActions() {
 	addReport();
 	addClearHistory();
 	addDeleteChat();
+	AddSecretChatActions(_controller, _peer, _addAction);
 	addLeaveChat();
 }
 
@@ -1966,6 +1973,8 @@ void Filler::fillProfileActions() {
 	addBlockUser();
 	addBanFromChannel();
 	addReport();
+	AddStartSecretChatAction(_controller, _peer, _addAction);
+	AddSecretChatActions(_controller, _peer, _addAction);
 	addLeaveChat();
 	addDeleteContact();
 	addDeleteTopic();
