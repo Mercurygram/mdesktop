@@ -7,7 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_histories.h"
 
+#include "api/api_encrypted_chats.h"
 #include "api/api_text_entities.h"
+#include "apiwrap.h"
 #include "data/business/data_shortcut_messages.h"
 #include "data/components/scheduled_messages.h"
 #include "data/data_channel.h"
@@ -18,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_forum_topic.h"
 #include "data/data_saved_music.h"
 #include "data/data_saved_sublist.h"
+#include "data/data_secret_chat.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
 #include "base/unixtime.h"
@@ -202,6 +205,34 @@ void Histories::readInbox(not_null<History*> history) {
 
 void Histories::readInboxTill(not_null<HistoryItem*> item) {
 	const auto history = item->history();
+	if (const auto chat = history->peer->asSecretChat()) {
+		// Secret-chat history is fully local. Clear the local unread flag on
+		// the incoming messages up to this one (so the read path doesn't keep
+		// re-firing) and tell the partner via messages.readEncryptedHistory so
+		// the ✓✓ updates on their device.
+		const auto tillId = item->id;
+		auto stillUnread = 0;
+		for (const auto &block : history->blocks) {
+			for (const auto &message : block->messages) {
+				const auto other = message->data();
+				if (other->out()) {
+					continue;
+				}
+				if (other->id <= tillId) {
+					other->markClientSideAsRead();
+				} else if (other->unread(history)) {
+					++stillUnread;
+				}
+			}
+		}
+		// Drive the dialog-list unread badge: everything up to the viewed item is
+		// now read, so only later incoming messages remain unread.
+		if (history->unreadCountKnown()) {
+			history->setUnreadCount(stillUnread);
+		}
+		session().api().encryptedChats().readHistory(chat, item->date());
+		return;
+	}
 	if (!item->isRegular()) {
 		readClientSideMessage(item);
 		auto view = item->mainView();
@@ -928,11 +959,19 @@ void Histories::deleteMessages(const MessageIdsList &ids, bool revoke) {
 	base::flat_map<not_null<History*>, QVector<MTPint>> idsByPeer;
 	base::flat_map<not_null<PeerData*>, QVector<MTPint>> scheduledIdsByPeer;
 	base::flat_map<BusinessShortcutId, QVector<MTPint>> quickIdsByShortcut;
+	base::flat_map<not_null<SecretChatData*>, std::vector<MsgId>> secretIdsByChat;
 	base::flat_set<not_null<DocumentData*>> savedMusic;
 	for (const auto &itemId : ids) {
 		if (const auto item = _owner->message(itemId)) {
 			const auto history = item->history();
-			if (item->isSavedMusicItem()) {
+			if (const auto secret = history->peer->asSecretChat()) {
+				// Secret-chat messages are local (not "regular"), so they would
+				// otherwise be destroyed only locally. Route them through the
+				// E2E delete action, which also destroys the local item. Use the
+				// full 64-bit MsgId -- client-side ids exceed int32.
+				secretIdsByChat[secret].push_back(itemId.msg);
+				continue;
+			} else if (item->isSavedMusicItem()) {
 				savedMusic.emplace(item->media()->document());
 				continue;
 			} else if (item->isScheduled()) {
@@ -964,6 +1003,9 @@ void Histories::deleteMessages(const MessageIdsList &ids, bool revoke) {
 		}
 	}
 
+	for (const auto &[chat, ids] : secretIdsByChat) {
+		session().api().encryptedChats().deleteMessages(chat, ids);
+	}
 	for (const auto &[history, ids] : idsByPeer) {
 		history->owner().histories().deleteMessages(history, ids, revoke);
 	}

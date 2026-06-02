@@ -203,6 +203,11 @@ void DeleteMessagesBox::prepare() {
 					setDimensions(st::boxWidth, _fullHeight + h);
 				}, lifetime());
 				appendDetails(std::move(revoke->description));
+			} else if (peer->isSecretChat()) {
+				// Secret chats always delete on both sides.
+				appendDetails({
+					tr::lng_delete_for_everyone_hint(tr::now, lt_count, count)
+				});
 			} else if (peer->isChannel()) {
 				if (peer->isMegagroup()) {
 					appendDetails({

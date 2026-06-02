@@ -99,6 +99,11 @@ rpl::producer<bool> Provider::hasSelectRestrictionChanges() {
 			return hasSelectRestriction();
 		}) | rpl::distinct_until_changed() | rpl::skip(1);
 	}
+	if (_peer->isSecretChat()) {
+		// Secret chats are not a user/chat/channel - avoid dereferencing a
+		// null ChannelData below; they have no forward/admin restrictions UI.
+		return rpl::single(false);
+	}
 	const auto chat = _peer->asChat();
 	const auto channel = _peer->asChannel();
 	auto noForwards = chat
