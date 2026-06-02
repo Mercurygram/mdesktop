@@ -578,6 +578,9 @@ void HistoryInner::setupSharingDisallowed() {
 		) | rpl::map([](bool my, bool peer) {
 			return my || peer;
 		});
+	} else if (_peer->isSecretChat()) {
+		// Secret chat messages can never be forwarded out of the chat.
+		_sharingDisallowed = rpl::single(true);
 	} else {
 		const auto chat = _peer->asChat();
 		const auto channel = _peer->asChannel();

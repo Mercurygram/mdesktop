@@ -88,6 +88,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_forum.h"
 #include "data/data_forum_topic.h"
 #include "data/data_user.h"
+#include "data/data_secret_chat.h"
 #include "data/data_chat_filters.h"
 #include "data/data_file_origin.h"
 #include "data/data_histories.h"
@@ -7331,6 +7332,19 @@ int HistoryWidget::countAutomaticScrollTop() {
 }
 
 Data::SendError HistoryWidget::computeSendRestriction() const {
+	// A not-yet-established secret chat shows a "waiting for the peer" notice in
+	// place of the composer until it becomes Ready, mirroring the mobile clients.
+	if (const auto secret = _peer ? _peer->asSecretChat() : nullptr) {
+		if (secret->state() != SecretChatState::Ready) {
+			const auto user = secret->user();
+			return Data::SendError({
+				.text = tr::lng_secret_chat_waiting(
+					tr::now,
+					lt_user,
+					user ? user->shortName() : QString()),
+			});
+		}
+	}
 	if (!_canSendMessages
 		&& _peer->amMonoforumAdmin()
 		&& !_peer->asChannel()->monoforumDisabled()) {
@@ -9619,12 +9633,22 @@ bool HistoryWidget::updateCanSendMessage() {
 	const auto onlyReplies = _peer->amMonoforumAdmin();
 	const auto restrictedOnlyReplies = onlyReplies
 		&& (!_replyTo.messageId || _replyTo.messageId.peer != _peer->id);
-	const auto newCanSendMessages = restrictedOnlyReplies
+	// A secret chat that is still being established (Requested/Waiting for the
+	// peer to accept) has no key yet, so sending is disabled until it is Ready,
+	// matching the mobile clients (the composer shows a "waiting" restriction).
+	const auto secret = _peer->asSecretChat();
+	const auto secretNotReady = secret
+		&& (secret->state() != SecretChatState::Ready);
+	const auto newCanSendMessages = secretNotReady
+		? false
+		: restrictedOnlyReplies
 		? false
 		: topic
 		? Data::CanSendAnyOf(topic, allWithoutPolls)
 		: Data::CanSendAnyOf(_peer, allWithoutPolls);
-	const auto newCanSendTexts = restrictedOnlyReplies
+	const auto newCanSendTexts = secretNotReady
+		? false
+		: restrictedOnlyReplies
 		? false
 		: topic
 		? Data::CanSend(topic, ChatRestriction::SendOther)
