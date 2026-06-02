@@ -64,6 +64,21 @@ public:
 	virtual std::optional<Data::LocationPoint> getLocationPoint() const {
 		return std::nullopt;
 	}
+
+	// What a secret chat can send for this result: a photo or document
+	// (re-uploaded encrypted), or a text with a self-carried media (geo,
+	// venue, contact, or none). nullopt = not sendable there (game, invoice,
+	// rich message), like the Android client.
+	struct SecretChatPayload {
+		TextWithEntities text;
+		PhotoData *photo = nullptr;
+		DocumentData *document = nullptr;
+		MTPMessageMedia media = MTP_messageMediaEmpty();
+	};
+	virtual std::optional<SecretChatPayload> secretChatPayload() const {
+		return std::nullopt;
+	}
+
 	virtual QString getLayoutTitle(const Result *owner) const;
 	virtual QString getLayoutDescription(const Result *owner) const;
 
@@ -93,6 +108,14 @@ public:
 	Data::SendError getErrorOnSend(
 		const Result *owner,
 		not_null<History*> history) const override;
+
+	std::optional<SecretChatPayload> secretChatPayload() const override {
+		auto fields = getSentMessageFields();
+		return SecretChatPayload{
+			.text = std::move(fields.text),
+			.media = std::move(fields.media),
+		};
+	}
 
 };
 
@@ -280,6 +303,13 @@ public:
 		const Result *owner,
 		not_null<History*> history) const override;
 
+	std::optional<SecretChatPayload> secretChatPayload() const override {
+		return SecretChatPayload{
+			.text = { _message, _entities },
+			.photo = _photo,
+		};
+	}
+
 private:
 	PhotoData *_photo;
 	QString _message;
@@ -313,6 +343,13 @@ public:
 	Data::SendError getErrorOnSend(
 		const Result *owner,
 		not_null<History*> history) const override;
+
+	std::optional<SecretChatPayload> secretChatPayload() const override {
+		return SecretChatPayload{
+			.text = { _message, _entities },
+			.document = _document,
+		};
+	}
 
 private:
 	DocumentData *_document;
@@ -363,6 +400,10 @@ public:
 	SentMessageFields getSentMessageFields() const override;
 
 	QString getLayoutDescription(const Result *owner) const override;
+
+	std::optional<SecretChatPayload> secretChatPayload() const override {
+		return std::nullopt; // no invoice media in the secret layer
+	}
 
 private:
 	MTPMessageMedia _media;

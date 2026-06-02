@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/history_view_element.h"
 
 class HistoryItem;
+class SecretChatData;
 
 namespace Ui {
 class ChatStyle;
@@ -151,6 +152,7 @@ public:
 
 private:
 	void fillAboutGroup();
+	void fillAboutSecretChat(not_null<SecretChatData*> secret);
 	void fillAboutTopic();
 
 	not_null<History*> _history;
