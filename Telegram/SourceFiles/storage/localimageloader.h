@@ -33,6 +33,11 @@ constexpr auto kFileSizeLimit = 2'000 * int64(1024 * 1024);
 // Load files up to 4'000 MB.
 constexpr auto kFileSizePremiumLimit = 4'000 * int64(1024 * 1024);
 
+// Secret chats encrypt the whole file in RAM (plaintext + ciphertext + the
+// upload copy), so cap them well below the regular limit until the
+// encryption streams from disk.
+constexpr auto kSecretChatFileSizeLimit = 500 * int64(1024 * 1024);
+
 [[nodiscard]] int PhotoSideLimit(bool large);
 [[nodiscard]] int PhotoSideLimit();
 

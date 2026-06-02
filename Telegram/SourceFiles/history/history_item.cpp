@@ -44,6 +44,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unixtime.h"
 #include "base/timer_rpl.h"
 #include "boxes/send_credits_box.h"
+#include "api/api_sending.h"
 #include "api/api_text_entities.h"
 #include "api/api_updates.h"
 #include "data/business/data_shortcut_messages.h"
@@ -817,6 +818,7 @@ HistoryItem::HistoryItem(
 	const TextWithEntities &caption)
 : HistoryItem(history, fields) {
 	const auto mediaSpoiler = fields.mediaSpoiler;
+	const auto mediaTtlSeconds = fields.mediaTtlSeconds;
 	const auto groupedId = fields.groupedId;
 	const auto scheduled = (fields.flags & MessageFlag::IsOrWasScheduled);
 	createComponentsHelper(std::move(fields));
@@ -824,6 +826,7 @@ HistoryItem::HistoryItem(
 	const auto video = document->video();
 	using Args = Data::MediaFile::Args;
 	_media = std::make_unique<Data::MediaFile>(this, document, Args{
+		.ttlSeconds = mediaTtlSeconds,
 		.hasQualitiesList = video && !video->qualities.empty(),
 		.skipPremiumEffect = !history->session().premium(),
 		.spoiler = mediaSpoiler,
@@ -844,6 +847,7 @@ HistoryItem::HistoryItem(
 	const TextWithEntities &caption)
 : HistoryItem(history, fields) {
 	const auto mediaSpoiler = fields.mediaSpoiler;
+	const auto mediaTtlSeconds = fields.mediaTtlSeconds;
 	const auto groupedId = fields.groupedId;
 	const auto scheduled = (fields.flags & MessageFlag::IsOrWasScheduled);
 	createComponentsHelper(std::move(fields));
@@ -851,7 +855,10 @@ HistoryItem::HistoryItem(
 	_media = std::make_unique<Data::MediaPhoto>(
 		this,
 		photo,
-		Data::MediaPhoto::Args{ .spoiler = mediaSpoiler });
+		Data::MediaPhoto::Args{
+			.ttlSeconds = mediaTtlSeconds,
+			.spoiler = mediaSpoiler,
+		});
 	setText(caption);
 	if (groupedId) {
 		setGroupId(MessageGroupId::FromRaw(
@@ -1830,7 +1837,9 @@ bool HistoryItem::isTtlCoveredMedia() const {
 	} else if (media->photo()) {
 		return true;
 	} else if (const auto document = media->document()) {
-		return document->isVideoFile();
+		// A secret chat covers a short-ttl GIF like a video (the mobile
+		// clients blur it and start its timer on open, not on autoplay).
+		return document->isVideoFile() || document->isGifv();
 	}
 	return false;
 }
@@ -3273,8 +3282,11 @@ bool HistoryItem::forbidsSaving() const {
 }
 
 bool HistoryItem::allowsMediaDownloadControls() const {
+	// A secret chat forbids forwarding but not saving its non-self-destruct
+	// media (matches the bubble menu and the mobile clients).
 	return !forbidsSaving()
-		&& _history->peer->allowsForwarding()
+		&& (_history->peer->allowsForwarding()
+			|| _history->peer->isSecretChat())
 		&& (!_media || _media->allowsForward());
 }
 
@@ -3356,7 +3368,8 @@ bool HistoryItem::canDeleteForEveryone(TimeId now) const {
 }
 
 bool HistoryItem::canBeSelected() const {
-	return (isRegular() || isEphemeral())
+	return (isRegular() || isEphemeral()
+			|| _history->peer->isSecretChat())
 		&& !isService()
 		&& !IsAnchoredEphemeral(this);
 }
@@ -3435,7 +3448,12 @@ Data::SendError HistoryItem::errorTextForForward(
 Data::SendError HistoryItem::errorTextForForwardIgnoreRights(
 		not_null<Data::Thread*> to) const {
 	const auto peer = to->peer();
-	if (_media
+	if (peer->isSecretChat() && !Api::CanForwardToSecretChat(this)) {
+		// Forwarding into a secret chat re-sends the content as a new
+		// encrypted message, so refuse anything the encrypted send path
+		// cannot build -- otherwise the copy-send drops it without feedback.
+		return tr::lng_secret_chat_forward_cant(tr::now);
+	} else if (_media
 		&& _media->poll()
 		&& _media->poll()->publicVotes()
 		&& peer->isBroadcast()) {
@@ -4351,6 +4369,22 @@ void HistoryItem::sendFailed() {
 		Data::HistoryUpdate::Flag::ClientSideMessages);
 }
 
+void HistoryItem::markSecretSent(TimeId date) {
+	Expects(_flags & MessageFlag::BeingSent);
+
+	_flags &= ~MessageFlag::BeingSent;
+	// Take the server's timestamp so the bubble matches the peer's copy even
+	// with a skewed local clock.
+	if (date > 0 && date != _date) {
+		_date = date;
+		_history->owner().requestItemViewRefresh(this);
+	}
+	_history->owner().notifyItemDataChange(this);
+	_history->session().changes().historyUpdated(
+		_history,
+		Data::HistoryUpdate::Flag::ClientSideMessages);
+}
+
 bool HistoryItem::needCheck() const {
 	return (out() && !isEmpty())
 		|| (!isRegular() && _history->peer->isSelf());
@@ -4387,6 +4421,16 @@ bool HistoryItem::unread(not_null<Data::Thread*> thread) const {
 			}
 		}
 		return true;
+	}
+
+	// Secret-chat messages are local (not "regular"), so the ✓/✓✓ state can't
+	// ride the server-side outbox-read-till. We still advance the History's
+	// outbox-read-till from updateEncryptedMessagesRead, so consult it here.
+	// NB local MsgIds are negative; an unset outbox-read-till reads back as 0
+	// (higher than every local id), so treat 0 as "nothing read yet".
+	if (out() && _history->peer->isSecretChat()) {
+		const auto till = _history->outboxReadTillId();
+		return !till || (id > till);
 	}
 
 	return out() || (_flags & MessageFlag::ClientSideUnread);
@@ -4631,6 +4675,10 @@ void HistoryItem::markClientSideAsRead() {
 	_flags &= ~MessageFlag::ClientSideUnread;
 }
 
+void HistoryItem::markClientSideAsUnread() {
+	_flags |= MessageFlag::ClientSideUnread;
+}
+
 MessageGroupId HistoryItem::groupId() const {
 	return _groupId;
 }
@@ -4824,7 +4872,11 @@ ItemPreview HistoryItem::toPreview(ToPreviewOptions options) const {
 	const auto sender = [&]() -> std::optional<QString> {
 		if (options.hideSender || isPostHidingAuthor() || isEmpty()) {
 			return {};
-		} else if (!_history->peer->isUser() || isGuestChatBotMessage()) {
+		} else if ((!_history->peer->isUser()
+				&& !_history->peer->isSecretChat())
+			|| isGuestChatBotMessage()) {
+			// Secret chats are 1:1, so the dialog preview shouldn't carry a
+			// "name: " sender prefix the way a group does.
 			if (const auto from = displayFrom()) {
 				return fromSender(from);
 			}

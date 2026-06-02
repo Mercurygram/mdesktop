@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/send_files_box.h"
 #include "boxes/premium_limits_box.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/text/format_values.h"
 #include "ui/chat/attach/attach_prepare.h"
 #include "ui/image/image_prepare.h"
 #include "lang/lang_keys.h"
@@ -1232,6 +1233,15 @@ void FileLoadTask::finish() {
 		Ui::show(
 			Ui::MakeInformBox(
 				tr::lng_send_image_empty(tr::now, lt_name, _filepath)),
+			Ui::LayerOption::KeepOther);
+		removeFromAlbum();
+	} else if (peerIsSecretChat(_result->to.peer)
+		&& _result->filesize > kSecretChatFileSizeLimit) {
+		Ui::show(
+			Ui::MakeInformBox(tr::lng_secret_chat_file_too_big(
+				tr::now,
+				lt_size,
+				Ui::FormatSizeText(kSecretChatFileSizeLimit))),
 			Ui::LayerOption::KeepOther);
 		removeFromAlbum();
 	} else if (_result->filesize > kFileSizePremiumLimit

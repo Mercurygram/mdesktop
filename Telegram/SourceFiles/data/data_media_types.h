@@ -481,6 +481,16 @@ public:
 		not_null<HistoryItem*> realParent,
 		HistoryView::Element *replacing = nullptr) override;
 
+	[[nodiscard]] const LocationPoint &point() const {
+		return _point;
+	}
+	[[nodiscard]] const QString &title() const {
+		return _title;
+	}
+	[[nodiscard]] const QString &description() const {
+		return _description;
+	}
+
 	MediaLocation(
 		PrivateTag,
 		not_null<HistoryItem*> parent,

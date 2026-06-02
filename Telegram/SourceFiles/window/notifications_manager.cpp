@@ -1089,10 +1089,16 @@ Manager::DisplayOptions Manager::getNotificationOptions(
 	const auto peer = item ? item->history()->peer.get() : nullptr;
 	const auto topic = item ? item->topic() : nullptr;
 
+	// A secret chat never shows who wrote or what: app name + generic text,
+	// like the mobile clients (the text would otherwise reach the desktop
+	// notification service in plaintext).
+	const auto secret = peer && peer->isSecretChat();
 	auto result = DisplayOptions();
 	result.hideNameAndPhoto = hideEverything
+		|| secret
 		|| (view > Core::Settings::NotifyView::ShowName);
 	result.hideMessageText = hideEverything
+		|| secret
 		|| (view > Core::Settings::NotifyView::ShowPreview);
 	result.hideMarkAsRead = result.hideMessageText
 		|| (type != Data::ItemNotificationType::Message)

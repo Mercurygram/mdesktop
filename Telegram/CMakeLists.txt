@@ -43,6 +43,7 @@ include(cmake/generate_appstream_changelog.cmake)
 
 if (DESKTOP_APP_TEST_APPS)
     include(cmake/tests.cmake)
+    include(cmake/tests_mg.cmake)
 endif()
 
 if (WIN32)
@@ -128,6 +129,8 @@ PRIVATE
     api/api_chat_links.h
     api/api_chat_participants.cpp
     api/api_chat_participants.h
+    api/api_encrypted_chats.cpp
+    api/api_encrypted_chats.h
     api/api_cloud_password.cpp
     api/api_cloud_password.h
     api/api_communities.cpp
@@ -370,6 +373,8 @@ PRIVATE
     boxes/ringtones_box.h
     boxes/select_future_owner_box.cpp
     boxes/select_future_owner_box.h
+    boxes/secret_chat_key_box.cpp
+    boxes/secret_chat_key_box.h
     boxes/self_destruction_box.cpp
     boxes/self_destruction_box.h
     boxes/send_credits_box.cpp
@@ -677,6 +682,8 @@ PRIVATE
     data/data_changes.h
     data/data_channel.cpp
     data/data_channel.h
+    data/data_secret_chat.cpp
+    data/data_secret_chat.h
     data/data_channel_admins.cpp
     data/data_channel_admins.h
     data/data_cloud_file.cpp
@@ -1909,6 +1916,8 @@ PRIVATE
     storage/download_manager_mtproto.h
     storage/file_download.cpp
     storage/file_download.h
+    storage/file_download_secret.cpp
+    storage/file_download_secret.h
     storage/file_download_mtproto.cpp
     storage/file_download_mtproto.h
     storage/file_download_web.cpp
@@ -2123,6 +2132,8 @@ PRIVATE
     window/window_media_preview.h
     window/window_peer_menu.cpp
     window/window_peer_menu.h
+    window/window_peer_menu_secret.cpp
+    window/window_peer_menu_secret.h
     window/window_restore_shell.cpp
     window/window_restore_shell.h
     window/window_saved_windows.cpp

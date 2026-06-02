@@ -92,6 +92,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_forum.h"
 #include "data/data_forum_topic.h"
 #include "data/data_user.h"
+#include "data/data_secret_chat.h"
 #include "data/data_chat_filters.h"
 #include "data/data_file_origin.h"
 #include "data/data_histories.h"
@@ -223,6 +224,7 @@ constexpr auto kMessagesPerPage = 50;
 constexpr auto kPreloadHeightsCount = 3; // when 3 screens to scroll left make a preload request
 constexpr auto kScrollToVoiceAfterScrolledMs = 1000;
 constexpr auto kSkipRepaintWhileScrollMs = 100;
+constexpr auto kSecretInlineBotWarnedPref = "secret_chat_inline_bot_warned"_cs;
 constexpr auto kShowMembersDropdownTimeoutMs = 300;
 constexpr auto kDisplayEditTimeWarningMs = 300 * 1000;
 constexpr auto kFullDayInMs = 86400 * 1000;
@@ -2115,6 +2117,17 @@ void HistoryWidget::applyInlineBotQuery(UserData *bot, const QString &query) {
 		_inlineResults->queryInlineBot(_inlineBot, _peer, query);
 		if (_autocomplete) {
 			_autocomplete->hideAnimated();
+		}
+		// The query leaves the end-to-end channel: it goes to the bot's
+		// developer through the server. Say so once, as Android does.
+		if (_peer->isSecretChat()
+			&& !Core::App().settings().readPref<bool>(
+				kSecretInlineBotWarnedPref)) {
+			Core::App().settings().writePref<bool>(
+				kSecretInlineBotWarnedPref,
+				true);
+			controller()->show(Ui::MakeInformBox(
+				tr::lng_secret_chat_inline_bot_alert()));
 		}
 	} else {
 		clearInlineBot();
@@ -4796,6 +4809,17 @@ void HistoryWidget::firstLoadMessages() {
 	if (!_history || _firstLoadRequest) {
 		return;
 	}
+	if (_history->peer->isSecretChat()) {
+		// A secret chat has no server history: peer->input() is inputPeerEmpty,
+		// so messages.getHistory always fails, and a failed first load closes
+		// the chat in messagesFailed(). Every message is already local, so mark
+		// both ends loaded instead of asking the server. Not getReadyFor() --
+		// that unloads the blocks those local messages live in.
+		_history->addNewerSlice(QVector<MTPMessage>());
+		_history->addOlderSlice(QVector<MTPMessage>());
+		historyLoaded();
+		return;
+	}
 
 	auto from = _history;
 	auto offsetId = MsgId();
@@ -5034,6 +5058,17 @@ void HistoryWidget::delayedShowAt(
 
 	clearAllLoadRequests();
 	_delayedShowAtMsgId = showAtMsgId;
+
+	if (_history->peer->isSecretChat()) {
+		// Same as in firstLoadMessages(): nothing to load from the server, the
+		// whole history is local. Finish the jump right here.
+		_history->addNewerSlice(QVector<MTPMessage>());
+		_history->addOlderSlice(QVector<MTPMessage>());
+		_delayedShowAtRequest = 0;
+		setMsgId(_delayedShowAtMsgId, _delayedShowAtMsgParams);
+		historyLoaded();
+		return;
+	}
 
 	DEBUG_LOG(("JumpToEnd(%1, %2, %3): Loading delayed around %4."
 		).arg(_history->peer->name()
@@ -5893,9 +5928,10 @@ void HistoryWidget::sendScheduled(Api::SendOptions initialOptions) {
 SendMenu::Details HistoryWidget::sendMenuDetails() const {
 	const auto ephemeralReply = session().ephemeralMessages()
 		.isEphemeralBotReply(replyTo().messageId);
+	// A secret chat can send without sound, but scheduling needs the server.
 	const auto type = (!_peer || ephemeralReply)
 		? SendMenu::Type::Disabled
-		: _peer->starsPerMessageChecked()
+		: (_peer->starsPerMessageChecked() || _peer->isSecretChat())
 		? SendMenu::Type::SilentOnly
 		: _peer->isSelf()
 		? SendMenu::Type::Reminder
@@ -7233,9 +7269,11 @@ bool HistoryWidget::textExceedsMaxSize() const {
 }
 
 void HistoryWidget::updateAiButtonVisibility() {
+	// The composer text of a secret chat must never reach the AI service.
 	const auto hidden = !hasEnoughLinesForAi()
 		|| !_send->isVisible()
-		|| !_field->isVisible();
+		|| !_field->isVisible()
+		|| (_peer && _peer->isSecretChat());
 	if (_aiButton->isHidden() == hidden) {
 		return;
 	}
@@ -7568,6 +7606,11 @@ void HistoryWidget::fieldFocused() {
 void HistoryWidget::updateFieldPlaceholder() {
 	_voiceRecordBar->setPauseInsteadSend(_history
 		&& _history->peer->starsPerMessageChecked() > 0);
+	// Ask the input method not to learn from secret chat text (the mobile
+	// clients open the keyboard in incognito mode there).
+	_field->setInputMethodHints((_history && _history->peer->isSecretChat())
+		? Qt::ImhSensitiveData
+		: Qt::InputMethodHints());
 
 	if (!_editMsgId && _inlineBot && !_inlineLookingUpBot) {
 		_field->setPlaceholder(
@@ -8304,6 +8347,13 @@ int HistoryWidget::countAutomaticScrollTop() {
 }
 
 Data::SendError HistoryWidget::computeSendRestriction() const {
+	// A not-yet-established secret chat shows a "waiting for the peer" notice in
+	// place of the composer until it becomes Ready, mirroring the mobile clients.
+	if (const auto secret = _peer ? _peer->asSecretChat() : nullptr) {
+		if (auto text = secret->stateText(); !text.isEmpty()) {
+			return Data::SendError({ .text = std::move(text) });
+		}
+	}
 	if (!_canSendMessages
 		&& _peer->amMonoforumAdmin()
 		&& !_peer->asChannel()->monoforumDisabled()) {
@@ -9589,7 +9639,9 @@ void HistoryWidget::clearHidingPinnedBar() {
 }
 
 void HistoryWidget::checkMessagesTTL() {
-	if (!_peer || !_peer->messagesTTL()) {
+	// A secret chat keeps its timer button even when the timer is off, so the
+	// setting stays one click away (the mobile clients keep the header clock).
+	if (!_peer || (!_peer->messagesTTL() && !_peer->isSecretChat())) {
 		if (_ttlInfo) {
 			_ttlInfo = nullptr;
 			updateControlsGeometry();
@@ -10257,7 +10309,11 @@ void HistoryWidget::processReply() {
 		return processCancel();
 #endif
 	} else if (!_processingReplyItem->isRegular()
-		&& !CanReplyToEphemeral(_processingReplyItem)) {
+		&& !CanReplyToEphemeral(_processingReplyItem)
+		&& !_processingReplyItem->history()->peer->isSecretChat()) {
+		// Secret-chat messages are local items (isRegular() is false), but the
+		// compose bar must still accept them so the context-menu Reply can show
+		// the reply bar and the outgoing reply carries reply_to_random_id.
 		return processCancel();
 	} else if (const auto forum = _peer->forum()
 		; forum && _processingReplyItem->history() == _history) {
@@ -10706,12 +10762,22 @@ bool HistoryWidget::updateCanSendMessage() {
 	const auto onlyReplies = _peer->amMonoforumAdmin();
 	const auto restrictedOnlyReplies = onlyReplies
 		&& (!_replyTo.messageId || _replyTo.messageId.peer != _peer->id);
-	const auto newCanSendMessages = restrictedOnlyReplies
+	// A secret chat that is still being established (Requested/Waiting for the
+	// peer to accept) has no key yet, so sending is disabled until it is Ready,
+	// matching the mobile clients (the composer shows a "waiting" restriction).
+	const auto secret = _peer->asSecretChat();
+	const auto secretNotReady = secret
+		&& (secret->state() != SecretChatState::Ready);
+	const auto newCanSendMessages = secretNotReady
+		? false
+		: restrictedOnlyReplies
 		? false
 		: topic
 		? Data::CanSendAnyOf(topic, allWithoutPolls)
 		: Data::CanSendAnyOf(_peer, allWithoutPolls);
-	const auto newCanSendTexts = restrictedOnlyReplies
+	const auto newCanSendTexts = secretNotReady
+		? false
+		: restrictedOnlyReplies
 		? false
 		: topic
 		? Data::CanSend(topic, ChatRestriction::SendOther)
