@@ -42,6 +42,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "data/data_star_gift.h"
 #include "data/data_stories.h"
+#include "data/data_secret_chat.h"
 #include "data/data_user.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "editor/photo_editor_common.h"
@@ -483,6 +484,21 @@ TopBar::TopBar(
 	}
 
 	bindStatus();
+
+	// A secret chat displays its partner's status, which lives on the partner
+	// user - so the secret-chat peer's own updates never carry it. Watch the
+	// partner too (the existing subscription above still drives the initial
+	// refresh, and a freshly restored partner resolves its status later).
+	if (const auto secret = _peer->asSecretChat()) {
+		if (const auto user = secret->user()) {
+			user->session().changes().peerFlagsValue(
+				user,
+				Data::PeerUpdate::Flag::OnlineStatus
+			) | rpl::on_next([=] {
+				_statusLabel->refresh();
+			}, lifetime());
+		}
+	}
 
 	_title->setContextCopyText(tr::lng_profile_copy_fullname(tr::now));
 
