@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "api/api_sending.h"
 
+#include "api/api_encrypted_chats.h"
 #include "api/api_text_entities.h"
 #include "base/random.h"
 #include "base/unixtime.h"
@@ -16,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_channel.h" // ChannelData::addsSignature.
 #include "data/data_user.h" // UserData::name
 #include "data/data_session.h"
+#include "data/data_secret_chat.h"
 #include "data/data_file_origin.h"
 #include "data/data_histories.h"
 #include "data/data_changes.h"
@@ -336,6 +338,24 @@ void SendExistingDocument(
 		MessageToSend &&message,
 		not_null<DocumentData*> document,
 		std::optional<MsgId> localMessageId) {
+	// Secret chats reference the document on the server (no InputPeer send path);
+	// route stickers/GIFs through the encrypted external-document send instead.
+	if (const auto secret = message.action.history->peer->asSecretChat()) {
+		auto &session = message.action.history->session();
+		const auto replyToMsgId = LocalReplyToMsgId(
+			message.action.replyTo.messageId,
+			secret->id);
+		session.api().encryptedChats().sendExistingDocument(
+			secret,
+			document,
+			message.textWithTags.text,
+			/*afterSetRefetch=*/false,
+			replyToMsgId);
+		if (document->sticker()) {
+			document->owner().stickers().incrementSticker(document);
+		}
+		return;
+	}
 	const auto inputMedia = [=] {
 		return MTP_inputMediaDocument(
 			MTP_flags(message.action.options.mediaSpoiler
@@ -598,7 +618,13 @@ void SendConfirmedFile(
 			file->to.replyTo.topicRootId);
 	}
 
-	session->uploader().upload(newId, file);
+	if (const auto secret = peer->asSecretChat()) {
+		// Secret chats encrypt the file themselves and send it via
+		// messages.sendEncryptedFile, not the normal InputPeer upload path.
+		session->api().encryptedChats().sendFile(secret, newId, file);
+	} else {
+		session->uploader().upload(newId, file);
+	}
 
 	auto action = SendAction(history, file->to.options);
 	action.clearDraft = false;
@@ -718,7 +744,26 @@ void SendConfirmedFile(
 		edition.useSameSuggest = true;
 		edition.savePreviousMedia = true;
 		itemToEdit->applyEdition(std::move(edition));
+	} else if (peer->asSecretChat() && file->type == SendMediaType::Photo) {
+		// EncryptedChats::sendFile already created an inline PhotoData bubble
+		// for this id (the normal photo media here renders black + a spinner
+		// because the secret upload bypasses the regular uploader/cache).
 	} else {
+		if (const auto secret = peer->asSecretChat()) {
+			// Secret-chat messages are local-only (no server confirmation ever
+			// arrives), so mark the file bubble Local like the text/photo bubbles.
+			// Otherwise the BeingSent flag leaves a "sending" clock forever.
+			flags &= ~MessageFlag::BeingSent;
+			flags |= MessageFlag::Local;
+			// Self-destruct media must not be savable/shareable on the sender
+			// either (matches the receive path + Android client). The timer is
+			// chat-wide (chat->ttl()); options.ttlSeconds is never populated on
+			// the secret-chat file path, so reading it left non-photo media
+			// (documents/videos/voice) unprotected.
+			if (secret->ttl() > 0) {
+				flags |= MessageFlag::NoForwards;
+			}
+		}
 		history->addNewLocalMessage({
 			.id = newId.msg,
 			.flags = flags,

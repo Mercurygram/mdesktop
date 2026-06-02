@@ -19,12 +19,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/serialize_document.h"
 #include "main/main_account.h"
 #include "main/main_domain.h"
+#include "apiwrap.h"
+#include "api/api_encrypted_chats.h"
 #include "main/main_session.h"
 #include "mtproto/mtproto_config.h"
 #include "mtproto/mtproto_dc_options.h"
 #include "mtproto/mtp_instance.h"
 #include "lang/lang_keys.h"
 #include "history/history.h"
+#include "base/unixtime.h"
 #include "core/application.h"
 #include "core/core_settings.h"
 #include "core/file_location.h"
@@ -37,6 +40,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "data/data_document.h"
 #include "data/data_user.h"
+#include "data/data_secret_chat.h"
 #include "data/data_drafts.h"
 #include "export/export_settings.h"
 #include "webview/webview_interface.h"
@@ -104,6 +108,8 @@ enum { // Local Storage Keys
 	lskMediaLastPlaybackPositions = 0x1c, // no data
 	lskBotStorages = 0x1d, // data: PeerId botId
 	lskPrefs = 0x1e, // no data
+	lskSecretChats = 0x1f, // no data
+	lskSecretMessages = 0x20, // no data
 };
 
 auto EmptyMessageDraftSources()
@@ -271,6 +277,8 @@ base::flat_set<QString> Account::collectGoodNames() const {
 		_roundPlaceholderKey,
 		_inlineBotsDownloadsKey,
 		_mediaLastPlaybackPositionsKey,
+		_secretChatsKey,
+		_secretMessagesKey,
 	};
 	auto result = base::flat_set<QString>{
 		"map0",
@@ -362,6 +370,8 @@ Account::ReadMapResult Account::readMapWith(
 	quint64 legacyBackgroundKeyDay = 0, legacyBackgroundKeyNight = 0;
 	quint64 userSettingsKey = 0, recentHashtagsAndBotsKey = 0, exportSettingsKey = 0;
 	quint64 searchSuggestionsKey = 0;
+	quint64 secretChatsKey = 0;
+	quint64 secretMessagesKey = 0;
 	quint64 roundPlaceholderKey = 0;
 	quint64 inlineBotsDownloadsKey = 0;
 	quint64 mediaLastPlaybackPositionsKey = 0;
@@ -477,6 +487,12 @@ Account::ReadMapResult Account::readMapWith(
 		case lskSearchSuggestions: {
 			map.stream >> searchSuggestionsKey;
 		} break;
+		case lskSecretChats: {
+			map.stream >> secretChatsKey;
+		} break;
+		case lskSecretMessages: {
+			map.stream >> secretMessagesKey;
+		} break;
 		case lskRoundPlaceholder: {
 			map.stream >> roundPlaceholderKey;
 		} break;
@@ -542,6 +558,8 @@ Account::ReadMapResult Account::readMapWith(
 	_recentHashtagsAndBotsKey = recentHashtagsAndBotsKey;
 	_exportSettingsKey = exportSettingsKey;
 	_searchSuggestionsKey = searchSuggestionsKey;
+	_secretChatsKey = secretChatsKey;
+	_secretMessagesKey = secretMessagesKey;
 	_roundPlaceholderKey = roundPlaceholderKey;
 	_inlineBotsDownloadsKey = inlineBotsDownloadsKey;
 	_mediaLastPlaybackPositionsKey = mediaLastPlaybackPositionsKey;
@@ -657,6 +675,8 @@ void Account::writeMap() {
 		mapSize += sizeof(quint32) + 3 * sizeof(quint64);
 	}
 	if (_searchSuggestionsKey) mapSize += sizeof(quint32) + sizeof(quint64);
+	if (_secretChatsKey) mapSize += sizeof(quint32) + sizeof(quint64);
+	if (_secretMessagesKey) mapSize += sizeof(quint32) + sizeof(quint64);
 	if (!_webviewStorageIdBots.token.isEmpty()
 		|| !_webviewStorageIdOther.token.isEmpty()) {
 		mapSize += sizeof(quint32)
@@ -733,6 +753,14 @@ void Account::writeMap() {
 		mapData.stream << quint32(lskSearchSuggestions);
 		mapData.stream << quint64(_searchSuggestionsKey);
 	}
+	if (_secretChatsKey) {
+		mapData.stream << quint32(lskSecretChats);
+		mapData.stream << quint64(_secretChatsKey);
+	}
+	if (_secretMessagesKey) {
+		mapData.stream << quint32(lskSecretMessages);
+		mapData.stream << quint64(_secretMessagesKey);
+	}
 	if (!_webviewStorageIdBots.token.isEmpty()
 		|| !_webviewStorageIdOther.token.isEmpty()) {
 		mapData.stream << quint32(lskWebviewTokens);
@@ -789,6 +817,8 @@ void Account::reset() {
 	_legacyBackgroundKeyDay = _legacyBackgroundKeyNight = 0;
 	_settingsKey = _recentHashtagsAndBotsKey = _exportSettingsKey = 0;
 	_searchSuggestionsKey = 0;
+	_secretChatsKey = 0;
+	_secretMessagesKey = 0;
 	_roundPlaceholderKey = 0;
 	_inlineBotsDownloadsKey = 0;
 	_mediaLastPlaybackPositionsKey = 0;
@@ -3277,6 +3307,289 @@ void Account::readSearchSuggestions() {
 	} else {
 		DEBUG_LOG(("Suggestions: Could not read content."));
 	}
+}
+
+void Account::writeSecretChats() {
+	if (!_owner->sessionExists()) {
+		LOG(("Secret chats: write skipped, no session."));
+		return;
+	}
+
+	struct Entry {
+		qint32 secretChatId = 0;
+		quint64 accessHash = 0;
+		quint64 userId = 0;
+		qint32 state = 0;
+		qint32 amCreator = 0;
+		quint64 keyFingerprint = 0;
+		QByteArray key;
+		qint32 layer = 0;
+		qint32 ttl = 0;
+		qint32 sentCount = 0;
+		qint32 inSeqNo = 0;
+		qint32 seqStarted = 0;
+		qint32 keyCreationDate = 0;
+		qint32 keyUseCountOut = 0;
+		qint32 keyUseCountIn = 0;
+	};
+	auto list = std::vector<Entry>();
+	_owner->session().data().enumerateSecretChats([&](
+			not_null<SecretChatData*> chat) {
+		// Only chats that reached a usable key are worth persisting; without
+		// the key a restored entry could neither decrypt nor encrypt. We also
+		// persist discarded chats so they aren't incorrectly revived from
+		// getDialogs as active chats.
+		if ((!chat->hasKey() && chat->state() != SecretChatState::Discarded) || !chat->user()) {
+			return;
+		}
+		const auto k = chat->key();
+		list.push_back({
+			.secretChatId = chat->secretChatId(),
+			.accessHash = chat->accessHash(),
+			.userId = peerToUser(chat->user()->id).bare,
+			.state = qint32(chat->state()),
+			.amCreator = chat->amCreator() ? 1 : 0,
+			.keyFingerprint = chat->keyFingerprint(),
+			.key = QByteArray(
+				reinterpret_cast<const char*>(k.data()),
+				int(k.size())),
+			.layer = chat->layer(),
+			.ttl = chat->ttl(),
+			.sentCount = chat->rawOutSeqNo(),
+			.inSeqNo = chat->inSeqNo(),
+			.seqStarted = chat->seqStarted() ? 1 : 0,
+			.keyCreationDate = chat->keyCreationDate(),
+			.keyUseCountOut = chat->keyUseCountOut(),
+			.keyUseCountIn = chat->keyUseCountIn(),
+		});
+	});
+
+	if (list.empty()) {
+		// An empty enumerate is ambiguous: it can mean "no secret chats" but
+		// also "peers not loaded yet" (early startup) or "session tearing
+		// down" (shutdown). Deleting the data file on that signal would throw
+		// away unrecoverable E2E keys, so never clear here -- a stale,
+		// encrypted file is harmless and gets filtered on read. Real removal
+		// happens when a discarded chat is persisted with its Discarded state.
+		return;
+	}
+	if (!_secretChatsKey) {
+		_secretChatsKey = GenerateKey(_basePath);
+		// Persist the map synchronously: a secret-chat key is unrecoverable, so
+		// it must not be lost if the app is killed before a queued write runs.
+		// writeMap() is a no-op unless _mapChanged, so flag it first.
+		_mapChanged = true;
+		writeMap();
+	}
+
+	// The global secret-chat qts checkpoint is stored after the count, so the
+	// offline encrypted-update gap can be pulled via getDifference on launch.
+	const auto qts = _owner->session().api().encryptedChats().qts();
+	quint32 size = sizeof(qint32) * 3; // version + count + qts.
+	for (const auto &entry : list) {
+		size += sizeof(qint32) // secretChatId
+			+ sizeof(quint64) // accessHash
+			+ sizeof(quint64) // userId
+			+ sizeof(qint32) // state
+			+ sizeof(qint32) // amCreator
+			+ sizeof(quint64) // keyFingerprint
+			+ Serialize::bytearraySize(entry.key)
+			+ sizeof(qint32) // layer
+			+ sizeof(qint32) // ttl
+			+ sizeof(qint32) // sentCount
+			+ sizeof(qint32) // inSeqNo
+			+ sizeof(qint32) // seqStarted
+			+ sizeof(qint32) // keyCreationDate
+			+ sizeof(qint32) // keyUseCountOut
+			+ sizeof(qint32); // keyUseCountIn
+	}
+
+	// Persist the last accepted peer out_seq_no (+ a "started" flag) so the
+	// seq-no gap/duplicate checks survive a restart.
+	EncryptedDescriptor data(size);
+	data.stream << qint32(1) << qint32(list.size()) << qint32(qts);
+	for (const auto &entry : list) {
+		data.stream
+			<< entry.secretChatId
+			<< entry.accessHash
+			<< entry.userId
+			<< entry.state
+			<< entry.amCreator
+			<< entry.keyFingerprint
+			<< entry.key
+			<< entry.layer
+			<< entry.ttl
+			<< entry.sentCount
+			<< entry.inSeqNo
+			<< entry.seqStarted
+			<< entry.keyCreationDate
+			<< entry.keyUseCountOut
+			<< entry.keyUseCountIn;
+	}
+
+	// Write synchronously: a secret-chat key is unrecoverable, so the data
+	// file must hit disk before we return rather than risk being dropped from
+	// the async writer queue if the session ends.
+	FileWriteDescriptor file(_secretChatsKey, _basePath, /*sync=*/true);
+	file.writeEncrypted(data, _localKey);
+}
+
+void Account::readSecretChats() {
+	if (!_secretChatsKey) {
+		return;
+	} else if (!_owner->sessionExists()) {
+		return;
+	}
+
+	FileReadDescriptor chats;
+	if (!ReadEncryptedFile(chats, _secretChatsKey, _basePath, _localKey)) {
+		ClearKey(_secretChatsKey, _basePath);
+		_secretChatsKey = 0;
+		writeMapDelayed();
+		return;
+	}
+
+	qint32 version = 0, count = 0;
+	chats.stream >> version >> count;
+	if (!CheckStreamStatus(chats.stream)
+		|| version != 1
+		|| count < 0) {
+		DEBUG_LOG(("Secret chats: Could not read header."));
+		return;
+	}
+	{
+		auto qts = qint32(0);
+		chats.stream >> qts;
+		if (!CheckStreamStatus(chats.stream)) {
+			DEBUG_LOG(("Secret chats: Could not read qts."));
+			return;
+		}
+		_owner->session().api().encryptedChats().restoreQts(qts);
+	}
+
+	auto &owner = _owner->session().data();
+	for (auto i = 0; i != count; ++i) {
+		qint32 secretChatId = 0, state = 0, amCreator = 0;
+		qint32 layer = 0, ttl = 0, sentCount = 0;
+		qint32 inSeqNo = 0, seqStarted = 0;
+		qint32 keyCreationDate = 0, keyUseCountOut = 0, keyUseCountIn = 0;
+		quint64 accessHash = 0, userId = 0, keyFingerprint = 0;
+		QByteArray key;
+		chats.stream
+			>> secretChatId
+			>> accessHash
+			>> userId
+			>> state
+			>> amCreator
+			>> keyFingerprint
+			>> key
+			>> layer
+			>> ttl
+			>> sentCount
+			>> inSeqNo
+			>> seqStarted
+			>> keyCreationDate
+			>> keyUseCountOut
+			>> keyUseCountIn;
+		if (!CheckStreamStatus(chats.stream)) {
+			DEBUG_LOG(("Secret chats: Could not read entry."));
+			return;
+		} else if (key.size() != int(SecretChatData::kKeySize)
+			&& SecretChatState(state) != SecretChatState::Discarded) {
+			continue;
+		}
+
+		const auto chat = owner.secretChat(secretChatIdFromWire(secretChatId));
+		const auto user = owner.user(UserId(BareId(userId)));
+		chat->setUser(user);
+		chat->setAccessHash(accessHash);
+		chat->setIsCreator(amCreator != 0);
+		if (key.size() == int(SecretChatData::kKeySize)) {
+			chat->setKey(
+				bytes::make_span(key.constData(), key.size()),
+				keyFingerprint);
+			chat->setLayer(layer);
+			chat->setTtl(ttl);
+			chat->setRawSeqNo(sentCount, inSeqNo, seqStarted != 0);
+			// setKey() above reset the PFS clock to "now"; restore the persisted key
+			// age and use count so the weekly/100-message rekey trigger survives a
+			// restart.
+			chat->setKeyUsage(keyCreationDate, keyUseCountOut, keyUseCountIn);
+		}
+		chat->setState(SecretChatState(state));
+		// Mark loaded so Session::secretChatLoaded() (used by the incoming
+		// message path) and the UI stop treating it as an inaccessible peer.
+		chat->setLoadedStatus(PeerData::LoadedStatus::Full);
+		// The partner user is restored minimal (no name yet); setUser now
+		// re-mirrors its name/photo reactively once the user data loads via
+		// normal startup peer loading.
+
+		// Make the restored chat visible in the dialog list: secret chats get
+		// no server dialog, so their History is otherwise never folder-known.
+		if (SecretChatState(state) != SecretChatState::Discarded) {
+			const auto history = owner.history(chat->id);
+			if (!history->folderKnown()) {
+				history->clearFolder();
+			}
+			// Empty histories sort to key 0 and are dropped from the chat list;
+			// give a date so a restored, message-less chat still shows.
+			// TODO persist a real last-activity date instead of now().
+			if (!history->chatListTimeId()) {
+				history->setChatListTimeId(base::unixtime::now());
+			}
+		}
+	}
+}
+
+void Account::writeSecretChatMessages(const QByteArray &serialized) {
+	if (!_owner->sessionExists()) {
+		return;
+	}
+	if (serialized.isEmpty()) {
+		// Nothing to store. Drop the file/key if one existed (e.g. the last
+		// secret chat was discarded / its history cleared).
+		if (_secretMessagesKey) {
+			ClearKey(_secretMessagesKey, _basePath);
+			_secretMessagesKey = 0;
+			writeMapDelayed();
+		}
+		return;
+	}
+	if (!_secretMessagesKey) {
+		_secretMessagesKey = GenerateKey(_basePath);
+		_mapChanged = true;
+		writeMap();
+	}
+
+	EncryptedDescriptor data(Serialize::bytearraySize(serialized));
+	data.stream << serialized;
+
+	FileWriteDescriptor file(_secretMessagesKey, _basePath);
+	file.writeEncrypted(data, _localKey);
+}
+
+void Account::readSecretChatMessages() {
+	if (!_secretMessagesKey) {
+		return;
+	} else if (!_owner->sessionExists()) {
+		return;
+	}
+
+	FileReadDescriptor messages;
+	if (!ReadEncryptedFile(messages, _secretMessagesKey, _basePath, _localKey)) {
+		ClearKey(_secretMessagesKey, _basePath);
+		_secretMessagesKey = 0;
+		writeMapDelayed();
+		return;
+	}
+
+	QByteArray serialized;
+	messages.stream >> serialized;
+	if (!CheckStreamStatus(messages.stream)) {
+		DEBUG_LOG(("Secret chats: Could not read messages blob."));
+		return;
+	}
+	_owner->session().api().encryptedChats().restoreMessages(serialized);
 }
 
 void Account::writeSelf() {

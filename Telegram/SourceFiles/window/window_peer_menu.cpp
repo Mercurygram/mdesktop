@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/call_delayed.h"
 #include "menu/menu_check_item.h"
+#include "menu/menu_checked_action.h"
 #include "boxes/about_box.h"
 #include "boxes/share_box.h"
 #include "boxes/star_gift_box.h"
@@ -21,6 +22,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/fields/input_field.h"
 #include "api/api_chat_participants.h"
 #include "api/api_communities.h"
+#include "api/api_encrypted_chats.h"
 #include "api/api_global_privacy.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
@@ -31,6 +33,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unique_qptr.h"
 #include "base/qt/qt_key_modifiers.h"
 #include "boxes/delete_messages_box.h"
+#include "boxes/secret_chat_key_box.h"
 #include "boxes/max_invite_box.h"
 #include "boxes/moderate_messages_box.h"
 #include "boxes/select_future_owner_box.h"
@@ -109,6 +112,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_forum.h"
 #include "data/data_forum_topic.h"
 #include "data/data_user.h"
+#include "data/data_secret_chat.h"
 #include "data/data_saved_messages.h"
 #include "data/data_saved_sublist.h"
 #include "data/data_histories.h"
@@ -329,6 +333,11 @@ private:
 	void addThemeEdit();
 	void addToggleNoForwards();
 	void addBlockUser();
+	void addStartSecretChat();
+	void addSecretChatKey();
+	void addSecretChatTtl();
+	void addReportSecretChatSpam();
+	void addDeleteSecretChat();
 	void addViewDiscussion();
 	void addDirectMessages();
 	void addToggleTopicClosed();
@@ -891,6 +900,11 @@ void Filler::addClearHistory() {
 void Filler::addDeleteChat() {
 	if (_topic || (!_sublist && _peer->isChannel())) {
 		return;
+	} else if (_peer->isSecretChat()) {
+		// Secret chats have no server peer/InputPeer; the generic delete path
+		// (deleteConversation/DeleteChatBox) does not apply -- a dedicated
+		// discardEncryption entry handles it (addDeleteSecretChat).
+		return;
 	}
 	_addAction({
 		.text = ((_peer->isUser() || _sublist)
@@ -982,6 +996,150 @@ void Filler::addBlockUser() {
 	if (user->blockStatus() == UserData::BlockStatus::Unknown) {
 		user->session().api().requestFullPeer(user);
 	}
+}
+
+void Filler::addStartSecretChat() {
+	const auto user = _peer ? _peer->asUser() : nullptr;
+	if (!user
+		|| user->isSelf()
+		|| user->isBot()
+		|| user->isInaccessible()
+		|| user->isRepliesChat()
+		|| user->isVerifyCodes()) {
+		return;
+	}
+	_addAction(tr::lng_profile_start_secret_chat(tr::now), [=] {
+		user->session().api().encryptedChats().create(user);
+	}, &st::menuIconLock);
+}
+
+void Filler::addSecretChatKey() {
+	const auto chat = _peer ? _peer->asSecretChat() : nullptr;
+	if (!chat || !chat->hasKey()) {
+		return;
+	}
+	const auto controller = _controller;
+	_addAction(tr::lng_secret_chat_key_menu(tr::now), [=] {
+		controller->show(Box(SecretChatKeyBox, chat));
+	}, &st::menuIconLock);
+}
+
+void Filler::addSecretChatTtl() {
+	const auto chat = _peer ? _peer->asSecretChat() : nullptr;
+	if (!chat || !chat->hasKey()) {
+		return;
+	}
+	const auto seconds = chat->ttl();
+	const auto label = [](int seconds) {
+		return seconds
+			? Api::SecretChatTtlDuration(seconds)
+			: tr::lng_secret_chat_ttl_off(tr::now);
+	};
+	// Secret-chat self-destruct presets (mobile-compatible short durations).
+	const auto presets = std::vector<int>{
+		0, 5, 30, 60, 60 * 60, 86400, 7 * 86400 };
+	_addAction(PeerMenuCallback::Args{
+		.text = tr::lng_secret_chat_ttl_menu(tr::now),
+		.handler = nullptr,
+		.icon = &st::menuIconTTL,
+		.fillSubmenu = [=](not_null<Ui::PopupMenu*> menu) {
+			for (const auto value : presets) {
+				Menu::AddCheckedAction(menu, label(value), [=] {
+					chat->session().api().encryptedChats()
+						.setSelfDestructTimer(chat, value);
+				}, nullptr, (value == seconds));
+			}
+		},
+	});
+}
+
+void Filler::addReportSecretChatSpam() {
+	const auto chat = _peer ? _peer->asSecretChat() : nullptr;
+	if (!chat) {
+		return;
+	}
+	const auto controller = _controller;
+	_addAction(tr::lng_report_spam(tr::now), [=] {
+		controller->show(Ui::MakeConfirmBox({
+			.text = tr::lng_secret_chat_report_sure(),
+			.confirmed = [=](Fn<void()> &&close) {
+				close();
+				controller->showToast(tr::lng_report_spam_done(tr::now));
+				// Defer: reportSpam() discards (clears history) and
+				// showBackFromStack() tears down the open section -- must not
+				// run inside the box callback (destroys widgets mid-dispatch
+				// -> use-after-free).
+				crl::on_main(&chat->session(), [=] {
+					chat->session().api().encryptedChats().reportSpam(chat);
+					const auto active
+						= controller->activeChatCurrent().history();
+					if (active && active->peer == chat) {
+						controller->showBackFromStack();
+					}
+				});
+			},
+			.confirmText = tr::lng_report_spam_ok(),
+			.confirmStyle = &st::attentionBoxButton,
+		}));
+	}, &st::menuIconReport);
+}
+
+void Filler::addDeleteSecretChat() {
+	const auto chat = _peer ? _peer->asSecretChat() : nullptr;
+	if (!chat) {
+		return;
+	}
+	const auto controller = _controller;
+	_addAction({
+		.text = tr::lng_secret_chat_delete(tr::now),
+		.handler = [=] {
+			controller->show(Box([=](not_null<Ui::GenericBox*> box) {
+				box->setTitle(tr::lng_secret_chat_delete());
+				box->addRow(object_ptr<Ui::FlatLabel>(
+					box,
+					tr::lng_secret_chat_delete_sure(),
+					st::boxLabel));
+				box->addSkip(st::boxMediumSkip);
+				// Android parity: a checkbox lets the user also wipe the
+				// partner's copy. Checked -> discardEncryption(delete_history)
+				// -> the server relays encryptedChatDiscarded(history_deleted)
+				// and the partner deletes its local history too.
+				const auto both = box->addRow(object_ptr<Ui::Checkbox>(
+					box,
+					tr::lng_secret_chat_delete_for_both(
+						tr::now,
+						lt_user,
+						chat->name()),
+					true,
+					st::defaultBoxCheckbox));
+				box->addButton(tr::lng_box_delete(), [=] {
+					const auto deleteForBoth = both->checked();
+					box->closeBox();
+					// Defer: discard() clears the history and
+					// showBackFromStack() tears down the open section, which
+					// must not run inside this button's click event (it would
+					// destroy widgets mid-dispatch -> use-after-free).
+					crl::on_main(&chat->session(), [=] {
+						chat->session().api().encryptedChats().discard(
+							chat,
+							deleteForBoth);
+						// Discarding drops the chat from the list; if we are
+						// viewing it, leave the now-dead conversation.
+						const auto active
+							= controller->activeChatCurrent().history();
+						if (active && active->peer == chat) {
+							controller->showBackFromStack();
+						}
+					});
+				}, st::attentionBoxButton);
+				box->addButton(tr::lng_cancel(), [=] {
+					box->closeBox();
+				});
+			}));
+		},
+		.icon = &st::menuIconDeleteAttention,
+		.isAttention = true,
+	});
 }
 
 void Filler::addViewDiscussion() {
@@ -1903,6 +2061,10 @@ void Filler::fillHistoryActions() {
 	addClearHistory();
 	addDeleteChat();
 	addLeaveChat();
+	addSecretChatKey();
+	addSecretChatTtl();
+	addReportSecretChatSpam();
+	addDeleteSecretChat();
 }
 
 void Filler::fillProfileActions() {
@@ -1927,6 +2089,11 @@ void Filler::fillProfileActions() {
 	addToggleNoForwards();
 	addToggleFolder();
 	addBlockUser();
+	addStartSecretChat();
+	addSecretChatKey();
+	addSecretChatTtl();
+	addReportSecretChatSpam();
+	addDeleteSecretChat();
 	addReport();
 	addLeaveChat();
 	addDeleteContact();

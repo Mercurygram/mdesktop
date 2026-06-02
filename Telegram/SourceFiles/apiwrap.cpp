@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_chat_invite.h"
 #include "api/api_chat_links.h"
 #include "api/api_chat_participants.h"
+#include "api/api_encrypted_chats.h"
 #include "api/api_cloud_password.h"
 #include "api/api_communities.h"
 #include "api/api_hash.h"
@@ -221,6 +222,7 @@ ApiWrap::ApiWrap(not_null<Main::Session*> session)
 , _todoLists(std::make_unique<Api::TodoLists>(this))
 , _chatParticipants(std::make_unique<Api::ChatParticipants>(this))
 , _communities(std::make_unique<Api::Communities>(this))
+, _encryptedChats(std::make_unique<Api::EncryptedChats>(this))
 , _unreadThings(std::make_unique<Api::UnreadThings>(this))
 , _ringtones(std::make_unique<Api::Ringtones>(this))
 , _composeWithAi(std::make_unique<Api::ComposeWithAi>(this))
@@ -1185,7 +1187,11 @@ void ApiWrap::requestWallPaper(
 }
 
 void ApiWrap::requestFullPeer(not_null<PeerData*> peer) {
-	if (_fullPeerRequests.contains(peer)) {
+	if (peer->isSecretChat()) {
+		// Secret chats are not real MTProto peers -- there is no full-peer
+		// info to fetch from the server.
+		return;
+	} else if (_fullPeerRequests.contains(peer)) {
 		return;
 	} else if (!peer->isUser() && !peer->barSettings().has_value()) {
 		requestPeerSettings(peer);
@@ -2158,6 +2164,11 @@ void ApiWrap::updatePrivacyLastSeens() {
 }
 
 void ApiWrap::clearHistory(not_null<PeerData*> peer, bool revoke) {
+	if (const auto secret = peer->asSecretChat()) {
+		// Propagate the clear to the partner's device too; the local history is
+		// wiped by deleteHistory() below as for any other peer.
+		encryptedChats().flushHistory(secret);
+	}
 	deleteHistory(peer, true, revoke);
 }
 
@@ -3603,6 +3614,12 @@ void ApiWrap::requestSharedMedia(
 		SharedMediaType type,
 		MsgId messageId,
 		SliceType slice) {
+	if (peer->isSecretChat()) {
+		// Secret chats have no server-side history; peer->input() is
+		// inputPeerEmpty, so a messages.Search would run globally and return
+		// account-wide counts. Skip it - no shared-media index for them.
+		return;
+	}
 	const auto key = SharedMediaRequest{
 		peer,
 		topicRootId,
@@ -4565,6 +4582,19 @@ void ApiWrap::sendMessage(
 	const auto history = message.action.history;
 	const auto peer = history->peer;
 	auto &textWithTags = message.textWithTags;
+
+	if (const auto secret = peer->asSecretChat()) {
+		// Secret chats are sent end-to-end encrypted via messages.sendEncrypted,
+		// not through the normal InputPeer-based send path.
+		const auto text = textWithTags.text;
+		if (!text.isEmpty()) {
+			const auto replyMsgId = Api::LocalReplyToMsgId(
+				message.action.replyTo.messageId,
+				peer->id);
+			encryptedChats().sendText(secret, text, replyMsgId);
+		}
+		return;
+	}
 
 	auto action = message.action;
 	action.generateLocal = true;
@@ -5673,6 +5703,11 @@ Api::ChatParticipants &ApiWrap::chatParticipants() {
 Api::Communities &ApiWrap::communities() {
 	return *_communities;
 }
+
+Api::EncryptedChats &ApiWrap::encryptedChats() {
+	return *_encryptedChats;
+}
+
 
 Api::UnreadThings &ApiWrap::unreadThings() {
 	return *_unreadThings;

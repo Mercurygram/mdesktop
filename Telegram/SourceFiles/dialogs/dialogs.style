@@ -437,6 +437,14 @@ dialogsChatIcon: ThreeStateIcon {
 	over: icon {{ "dialogs/dialogs_chat", dialogsChatIconFgOver, point(1px, 4px) }};
 	active: icon {{ "dialogs/dialogs_chat", dialogsChatIconFgActive, point(1px, 4px) }};
 }
+// The base color here is a placeholder: secret-chat callers paint this icon
+// with a fixed green QColor override (theme-independent, to match mobile), so
+// the palette color it is built with is never actually shown.
+dialogsSecretChatIcon: ThreeStateIcon {
+	icon: icon {{ "chat/mini_lock", dialogsNameFg, point(1px, 4px) }};
+	over: icon {{ "chat/mini_lock", dialogsNameFgOver, point(1px, 4px) }};
+	active: icon {{ "chat/mini_lock", dialogsNameFgActive, point(1px, 4px) }};
+}
 dialogsChannelIcon: ThreeStateIcon {
 	icon: icon {{ "dialogs/dialogs_channel", dialogsChatIconFg, point(3px, 4px) }};
 	over: icon {{ "dialogs/dialogs_channel", dialogsChatIconFgOver, point(3px, 4px) }};
