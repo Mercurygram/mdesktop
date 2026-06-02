@@ -58,6 +58,16 @@ rpl::producer<SparseIdsMergedSlice> SavedMusicMediaViewer(
 	int limitBefore,
 	int limitAfter);
 
+// Local, server-less shared-media viewer for secret (E2E) chats. Their
+// messages are local-only with negative client ids, so they never enter the
+// storage shared-media index; this enumerates them directly (like the
+// scheduled / saved-music viewers) and yields an unsorted slice.
+rpl::producer<SparseIdsMergedSlice> SharedSecretMediaViewer(
+	not_null<Main::Session*> session,
+	SharedMediaMergedKey key,
+	int limitBefore,
+	int limitAfter);
+
 rpl::producer<SparseIdsMergedSlice> SharedMediaMergedViewer(
 	not_null<Main::Session*> session,
 	SharedMediaMergedKey key,

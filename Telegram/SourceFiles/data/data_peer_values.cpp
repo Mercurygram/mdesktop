@@ -309,6 +309,9 @@ inline auto DefaultRestrictionValue(
 						|| (!(flags & Flag::Broadcast)
 							&& (rights & ~restricted)));
 			});
+	} else if (peer->isSecretChat()) {
+		// Secret chats are a plain 1:1 conversation: always writable.
+		return rpl::single(true);
 	}
 	Unexpected("Peer type in Data::CanSendAnyOfValue.");
 }
@@ -370,6 +373,8 @@ rpl::producer<bool> CanPinMessagesValue(not_null<PeerData*> peer) {
 			return rpl::single(true);
 		}
 		return AdminRightValue(channel, ChatAdminRight::EditMessages);
+	} else if (peer->isSecretChat()) {
+		return rpl::single(false);
 	}
 	Unexpected("Peer type in CanPinMessagesValue.");
 }
