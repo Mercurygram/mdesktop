@@ -4150,6 +4150,16 @@ bool HistoryItem::unread(not_null<Data::Thread*> thread) const {
 		return true;
 	}
 
+	// Secret-chat messages are local (not "regular"), so the ✓/✓✓ state can't
+	// ride the server-side outbox-read-till. We still advance the History's
+	// outbox-read-till from updateEncryptedMessagesRead, so consult it here.
+	// NB local MsgIds are negative; an unset outbox-read-till reads back as 0
+	// (higher than every local id), so treat 0 as "nothing read yet".
+	if (out() && _history->peer->isSecretChat()) {
+		const auto till = _history->outboxReadTillId();
+		return !till || (id > till);
+	}
+
 	return out() || (_flags & MessageFlag::ClientSideUnread);
 }
 
@@ -4585,7 +4595,11 @@ ItemPreview HistoryItem::toPreview(ToPreviewOptions options) const {
 	const auto sender = [&]() -> std::optional<QString> {
 		if (options.hideSender || isPostHidingAuthor() || isEmpty()) {
 			return {};
-		} else if (!_history->peer->isUser() || isGuestChatBotMessage()) {
+		} else if ((!_history->peer->isUser()
+				&& !_history->peer->isSecretChat())
+			|| isGuestChatBotMessage()) {
+			// Secret chats are 1:1, so the dialog preview shouldn't carry a
+			// "name: " sender prefix the way a group does.
 			if (const auto from = displayFrom()) {
 				return fromSender(from);
 			}
