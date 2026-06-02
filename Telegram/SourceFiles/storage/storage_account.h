@@ -159,6 +159,15 @@ public:
 	void writeSearchSuggestions();
 	void readSearchSuggestions();
 
+	void writeSecretChats();
+	void readSecretChats();
+
+	// Local secret-chat message history (the server keeps none). The blob is
+	// produced/consumed by Api::EncryptedChats, which owns the message model;
+	// here we only encrypt+store / read it back.
+	void writeSecretChatMessages(const QByteArray &serialized);
+	void readSecretChatMessages();
+
 	void writeSelf();
 
 	// Read self is special, it can't get session from account, because
@@ -356,6 +365,8 @@ private:
 	FileKey _featuredCustomEmojiKey = 0;
 	FileKey _archivedCustomEmojiKey = 0;
 	FileKey _searchSuggestionsKey = 0;
+	FileKey _secretChatsKey = 0;
+	FileKey _secretMessagesKey = 0;
 	FileKey _roundPlaceholderKey = 0;
 	FileKey _inlineBotsDownloadsKey = 0;
 	FileKey _mediaLastPlaybackPositionsKey = 0;
