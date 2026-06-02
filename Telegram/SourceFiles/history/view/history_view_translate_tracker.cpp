@@ -56,6 +56,10 @@ rpl::producer<bool> TranslateTracker::trackingLanguage() const {
 
 void TranslateTracker::setup() {
 	const auto peer = _history->peer;
+	if (peer->isSecretChat()) {
+		// Never offer (or run) server translation on end-to-end text.
+		return;
+	}
 	peer->updateFull();
 
 	const auto channel = peer->asChannel();

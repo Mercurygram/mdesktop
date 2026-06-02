@@ -7,9 +7,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "api/api_send_progress.h"
 
+#include "api/api_encrypted_chats.h"
 #include "main/main_session.h"
 #include "history/history.h"
 #include "data/data_peer.h"
+#include "data/data_secret_chat.h"
 #include "data/data_user.h"
 #include "base/unixtime.h"
 #include "data/data_peer_values.h"
@@ -113,6 +115,14 @@ void SendProgressManager::send(const Key &key, int progress) {
 		return;
 	}
 	using Type = SendProgressType;
+	if (const auto chat = key.history->peer->asSecretChat()) {
+		// Secret chats are not InputPeers; route typing through their own
+		// messages.setEncryptedTyping transport (only typing is modelled).
+		if (key.type == Type::Typing) {
+			_session->api().encryptedChats().setTyping(chat, true);
+		}
+		return;
+	}
 	const auto action = [&]() -> MTPsendMessageAction {
 		const auto p = MTP_int(progress);
 		switch (key.type) {

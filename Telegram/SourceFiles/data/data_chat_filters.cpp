@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 #include "data/data_peer.h"
 #include "data/data_user.h"
+#include "data/data_secret_chat.h"
 #include "data/data_chat.h"
 #include "data/data_channel.h"
 #include "data/data_session.h"
@@ -226,17 +227,22 @@ ChatFilter ChatFilter::withoutAlways(not_null<History*> history) const {
 }
 
 MTPDialogFilter ChatFilter::tl(FilterId replaceId) const {
+	// Secret chats have no InputPeer; listing one breaks the whole save.
 	auto always = _always;
 	auto pinned = QVector<MTPInputPeer>();
 	pinned.reserve(_pinned.size());
 	for (const auto &history : _pinned) {
-		pinned.push_back(history->peer->input());
+		if (!history->peer->isSecretChat()) {
+			pinned.push_back(history->peer->input());
+		}
 		always.remove(history);
 	}
 	auto include = QVector<MTPInputPeer>();
 	include.reserve(always.size());
 	for (const auto &history : always) {
-		include.push_back(history->peer->input());
+		if (!history->peer->isSecretChat()) {
+			include.push_back(history->peer->input());
+		}
 	}
 	auto title = MTP_textWithEntities(
 		MTP_string(_title.text),
@@ -275,7 +281,9 @@ MTPDialogFilter ChatFilter::tl(FilterId replaceId) const {
 	auto never = QVector<MTPInputPeer>();
 	never.reserve(_never.size());
 	for (const auto &history : _never) {
-		never.push_back(history->peer->input());
+		if (!history->peer->isSecretChat()) {
+			never.push_back(history->peer->input());
+		}
 	}
 	return MTP_dialogFilter(
 		MTP_flags(flags),
@@ -355,6 +363,14 @@ bool ChatFilter::contains(
 			} else {
 				return Flag::Groups;
 			}
+		} else if (const auto secret = peer->asSecretChat()) {
+			// A secret chat is a 1:1 conversation: classify by its partner.
+			const auto user = secret->user();
+			return (user && user->isBot())
+				? Flag::Bots
+				: (user && user->isContact())
+				? Flag::Contacts
+				: Flag::NonContacts;
 		} else {
 			Unexpected("Peer type in ChatFilter::contains.");
 		}

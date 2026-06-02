@@ -61,6 +61,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_channel.h"
 #include "data/data_chat.h"
 #include "data/data_user.h"
+#include "data/data_secret_chat.h"
 #include "data/data_file_origin.h"
 #include "data/data_download_manager.h"
 #include "data/data_web_page.h"
@@ -328,6 +329,7 @@ Session::Session(not_null<Main::Session*> session)
 , _contactsList(Dialogs::SortMode::Name)
 , _contactsNoChatsList(Dialogs::SortMode::Name)
 , _ttlCheckTimer([=] { checkTTLs(); })
+, _ttlCountdownTimer([=] { tickTTLCountdowns(); })
 , _mediaDestroyCheckTimer([=] { checkMediaDestroys(); })
 , _formattedDateTimer([=] { checkFormattedDateUpdates(); })
 , _clearPhotoCacheDelayed([=] { clearScheduledPhotoCache(); })
@@ -594,6 +596,8 @@ not_null<PeerData*> Session::peer(PeerId id) {
 			return std::make_unique<ChatData>(this, id);
 		} else if (peerIsChannel(id)) {
 			return std::make_unique<ChannelData>(this, id);
+		} else if (peerIsSecretChat(id)) {
+			return std::make_unique<SecretChatData>(this, id);
 		}
 		Unexpected("Peer id type.");
 	}();
@@ -610,6 +614,10 @@ not_null<ChatData*> Session::chat(ChatId id) {
 
 not_null<ChannelData*> Session::channel(ChannelId id) {
 	return peer(peerFromChannel(id))->asChannel();
+}
+
+not_null<SecretChatData*> Session::secretChat(SecretChatId id) {
+	return peer(peerFromSecretChat(id))->asSecretChat();
 }
 
 PeerData *Session::peerLoaded(PeerId id) const {
@@ -639,6 +647,13 @@ ChatData *Session::chatLoaded(ChatId id) const {
 ChannelData *Session::channelLoaded(ChannelId id) const {
 	if (const auto peer = peerLoaded(peerFromChannel(id))) {
 		return peer->asChannel();
+	}
+	return nullptr;
+}
+
+SecretChatData *Session::secretChatLoaded(SecretChatId id) const {
+	if (const auto peer = peerLoaded(peerFromSecretChat(id))) {
+		return peer->asSecretChat();
 	}
 	return nullptr;
 }
@@ -1657,6 +1672,15 @@ void Session::enumerateUsers(Fn<void(not_null<UserData*>)> action) const {
 	for (const auto &[peerId, peer] : _peers) {
 		if (const auto user = peer->asUser()) {
 			action(user);
+		}
+	}
+}
+
+void Session::enumerateSecretChats(
+		Fn<void(not_null<SecretChatData*>)> action) const {
+	for (const auto &[peerId, peer] : _peers) {
+		if (const auto secret = peer->asSecretChat()) {
+			action(secret);
 		}
 	}
 }
@@ -3154,6 +3178,17 @@ auto Session::messagesListForInsert(PeerId peerId)
 	return &_messages[peerId];
 }
 
+void Session::enumerateMessages(
+		PeerId peerId,
+		Fn<void(not_null<HistoryItem*>)> action) const {
+	const auto i = _messages.find(peerId);
+	if (i != end(_messages)) {
+		for (const auto &[id, item] : i->second) {
+			action(item);
+		}
+	}
+}
+
 void Session::registerMessage(not_null<HistoryItem*> item) {
 	const auto peerId = item->history()->peer->id;
 	const auto list = messagesListForInsert(peerId);
@@ -3176,11 +3211,30 @@ void Session::registerMessageTTL(TimeId when, not_null<HistoryItem*> item) {
 	auto &list = _ttlMessages[when];
 	list.emplace(item);
 
+	if (item->history()->peer->isSecretChat()
+		&& !_ttlCountdownTimer.isActive()) {
+		_ttlCountdownTimer.callEach(crl::time(1000));
+	}
 	const auto nearest = _ttlMessages.begin()->first;
 	if (nearest < when && _ttlCheckTimer.isActive()) {
 		return;
 	}
 	scheduleNextTTLs();
+}
+
+void Session::tickTTLCountdowns() {
+	auto any = false;
+	for (const auto &[when, items] : _ttlMessages) {
+		for (const auto &item : items) {
+			if (item->history()->peer->isSecretChat()) {
+				any = true;
+				notifyItemDataChange(item);
+			}
+		}
+	}
+	if (!any) {
+		_ttlCountdownTimer.cancel();
+	}
 }
 
 void Session::scheduleNextTTLs() {
