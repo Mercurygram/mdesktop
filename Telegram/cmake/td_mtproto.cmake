@@ -50,6 +50,10 @@ PRIVATE
     mtproto/mtproto_proxy_data.h
     mtproto/mtproto_response.cpp
     mtproto/mtproto_response.h
+    mtproto/secret_chat/secret_chat_dh.cpp
+    mtproto/secret_chat/secret_chat_dh.h
+    mtproto/secret_chat/secret_chat_encryption.cpp
+    mtproto/secret_chat/secret_chat_encryption.h
 )
 
 target_include_directories(td_mtproto

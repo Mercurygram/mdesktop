@@ -59,6 +59,10 @@ public:
 		int64 tonStake = 0;
 		int stars = 0;
 		TimeId scheduleRepeatPeriod = 0;
+		// Secret-chat self-destruct: unixtime the message is destroyed at
+		// (0 = no timer running); rendered as a "12s" countdown before the
+		// time, refreshed each second by Data::Session.
+		TimeId ttlDestroyAt = 0;
 		std::optional<int> views;
 		std::optional<int> replies;
 		std::optional<int> forwardsCount;

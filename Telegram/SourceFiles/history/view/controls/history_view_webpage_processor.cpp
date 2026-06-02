@@ -351,6 +351,11 @@ void WebpageProcessor::checkNow(bool force) {
 }
 
 void WebpageProcessor::checkPreview() {
+	if (_history->peer->isSecretChat()) {
+		// A typed link must never be resolved through the server
+		// (messages.getWebPagePreview names it in plaintext).
+		return;
+	}
 	const auto previewRestricted = _history->peer
 		&& _history->peer->amRestricted(ChatRestriction::EmbedLinks);
 	if (_parsedLinks.empty()) {
