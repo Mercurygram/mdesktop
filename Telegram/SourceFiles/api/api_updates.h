@@ -116,6 +116,9 @@ private:
 		const MTPVector<MTPChat> &chats,
 		const MTPVector<MTPMessage> &msgs,
 		const MTPVector<MTPUpdate> &other);
+	void feedDifferenceEncrypted(
+		const MTPVector<MTPEncryptedMessage> &messages,
+		int32 resultQts);
 	void stateDone(const MTPupdates_State &state);
 	void setState(int32 pts, int32 date, int32 qts, int32 seq);
 	void channelDifferenceDone(
