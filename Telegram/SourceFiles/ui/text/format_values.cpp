@@ -480,7 +480,11 @@ QString FormatTTLAfter(float64 ttl) {
 }
 
 QString FormatTTLTiny(float64 ttl) {
-	return (ttl <= 3600 * 9)
+	return (ttl < 60)
+		? tr::lng_seconds_tiny(tr::now, lt_count, int(ttl))
+		: (ttl < 3600)
+		? tr::lng_minutes_tiny(tr::now, lt_count, int(ttl / 60))
+		: (ttl <= 3600 * 9)
 		? tr::lng_hours_tiny(tr::now, lt_count, int(ttl / 3600))
 		: (ttl <= (86400) * 6)
 		? tr::lng_days_tiny(tr::now, lt_count, int(ttl / (86400)))

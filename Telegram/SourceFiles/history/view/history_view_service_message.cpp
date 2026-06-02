@@ -17,6 +17,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_abstract_structure.h"
 #include "data/data_chat.h"
 #include "data/data_channel.h"
+#include "data/data_secret_chat.h"
+#include "data/data_user.h"
 #include "data/data_todo_list.h"
 #include "info/profile/info_profile_cover.h"
 #include "ui/chat/chat_style.h"
@@ -868,7 +870,9 @@ EmptyPainter::EmptyPainter(not_null<History*> history)
 : _history(history)
 , _header(st::msgMinWidth)
 , _text(st::msgMinWidth) {
-	if (NeedAboutGroup(_history)) {
+	if (const auto secret = _history->peer->asSecretChat()) {
+		fillAboutSecretChat(secret);
+	} else if (NeedAboutGroup(_history)) {
 		fillAboutGroup();
 	}
 }
@@ -901,6 +905,27 @@ void EmptyPainter::fillAboutGroup() {
 	};
 	SetText(_header, tr::lng_group_about_header(tr::now));
 	SetText(_text, tr::lng_group_about_text(tr::now));
+	for (const auto &text : phrases) {
+		_phrases.emplace_back(st::msgMinWidth);
+		SetText(_phrases.back(), text);
+	}
+}
+
+void EmptyPainter::fillAboutSecretChat(not_null<SecretChatData*> secret) {
+	// Same placeholder as the mobile clients: who invited whom, then what a
+	// secret chat gives you.
+	const auto user = secret->user();
+	const auto name = user ? user->shortName() : QString();
+	const auto phrases = {
+		tr::lng_secret_chat_about1(tr::now),
+		tr::lng_secret_chat_about2(tr::now),
+		tr::lng_secret_chat_about3(tr::now),
+		tr::lng_secret_chat_about4(tr::now),
+	};
+	SetText(_header, secret->amCreator()
+		? tr::lng_secret_chat_about_outgoing(tr::now, lt_user, name)
+		: tr::lng_secret_chat_about_incoming(tr::now, lt_user, name));
+	SetText(_text, tr::lng_secret_chat_about_header(tr::now));
 	for (const auto &text : phrases) {
 		_phrases.emplace_back(st::msgMinWidth);
 		SetText(_phrases.back(), text);

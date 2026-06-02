@@ -66,6 +66,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/themes/window_theme.h"
 #include "window/window_controller.h"
 #include "window/window_main_menu_helpers.h"
+#include "window/window_peer_menu_secret.h"
 #include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
 #include "styles/style_chat.h" // popupMenuExpandedSeparator
@@ -698,6 +699,12 @@ void MainMenu::setupMenu() {
 			}
 		});
 
+		addAction(
+			tr::lng_secret_chat_new_title(),
+			{ &st::menuIconLock }
+		)->setClickedCallback([=] {
+			controller->show(PrepareNewSecretChatBox(controller));
+		});
 		addAction(
 			tr::lng_menu_contacts(),
 			{ &st::menuIconUserShow }

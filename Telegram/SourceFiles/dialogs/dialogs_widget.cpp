@@ -59,6 +59,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session_settings.h"
 #include "api/api_authorizations.h"
 #include "api/api_chat_filters.h"
+#include "api/api_messages_search.h"
 #include "apiwrap.h"
 #include "chat_helpers/message_field.h"
 #include "core/application.h"
@@ -3120,7 +3121,25 @@ bool Widget::search(bool inCache, SearchRequestDelay delay) {
 		process->full = false;
 		_migratedProcess.full = false;
 		cancelSearchRequest();
-		if (inPeer) {
+		if (inPeer && inPeer->isSecretChat()) {
+			// Secret chat messages exist only on this device: match them
+			// locally, delivered after searchRequested() below has switched
+			// the list into the loading state.
+			process->full = true;
+			const auto history = session().data().history(inPeer);
+			crl::on_main(this, [=] {
+				const auto items = Api::SearchSecretChatMessages(
+					history,
+					_searchQuery);
+				_inner->searchReceived(
+					items,
+					nullptr,
+					fromStartType,
+					int(items.size()));
+				listScrollUpdated();
+				update();
+			});
+		} else if (inPeer) {
 			const auto topic = searchInTopic();
 			auto &histories = session().data().histories();
 			const auto type = Data::Histories::RequestType::History;
@@ -4413,8 +4432,11 @@ void Widget::updateJumpToDateVisibility(bool fast) {
 		return;
 	}
 
+	// Jump-to-date resolves the message on the server, which cannot see
+	// secret chat messages.
+	const auto peer = searchInPeer();
 	_jumpToDate->toggle(
-		(searchInPeer() && _searchState.query.isEmpty()),
+		(peer && !peer->isSecretChat() && _searchState.query.isEmpty()),
 		fast ? anim::type::instant : anim::type::normal);
 }
 

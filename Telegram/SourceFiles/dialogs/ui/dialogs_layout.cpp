@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_forum_topic.h"
 #include "data/data_peer_values.h"
 #include "data/data_saved_sublist.h"
+#include "data/data_secret_chat.h"
 #include "data/data_session.h"
 #include "data/data_thread.h"
 #include "data/data_user.h"
@@ -597,7 +598,17 @@ void PaintRow(
 		rectForName.setLeft(position.x() + skip + st::dialogsChatTypeSkip);
 	} else if (from) {
 		if (const auto chatTypeIcon = ChatTypeIcon(from, context)) {
-			chatTypeIcon->paint(p, rectForName.topLeft(), context.width);
+			if (from->isSecretChat()) {
+				// Override the icon color at paint instead of via a themeable
+				// palette entry.
+				chatTypeIcon->paint(
+					p,
+					rectForName.topLeft(),
+					context.width,
+					SecretChatNameFg());
+			} else {
+				chatTypeIcon->paint(p, rectForName.topLeft(), context.width);
+			}
 			rectForName.setLeft(rectForName.left()
 				+ chatTypeIcon->width()
 				+ st::dialogsChatTypeSkip);
@@ -800,6 +811,20 @@ void PaintRow(
 					texttop,
 					context.width,
 					tr::lng_community_chat_loading(tr::now));
+			} else if (const auto secret = history
+				? history->peer->asSecretChat()
+				: nullptr) {
+				// No messages yet: show the handshake state / cancellation
+				// (or "started") like the mobile chat lists do.
+				const auto text = secret->stateText();
+				p.setPen(color);
+				p.drawTextLeft(
+					nameleft,
+					texttop,
+					context.width,
+					st::dialogsTextFont->elided(
+						text.isEmpty() ? secret->startedText() : text,
+						availableWidth));
 			}
 		}
 	} else if (!item->isEmpty()) {
@@ -950,11 +975,15 @@ void PaintRow(
 			paintPeerBadge(rowName.maxWidth());
 			badgeWidth = widthBefore - rectForName.width();
 		}
-		p.setPen(context.active
-			? st::dialogsNameFgActive
-			: context.selected
-			? st::dialogsNameFgOver
-			: st::dialogsNameFg);
+		if (from->isSecretChat()) {
+			p.setPen(SecretChatNameFg());
+		} else {
+			p.setPen(context.active
+				? st::dialogsNameFgActive
+				: context.selected
+				? st::dialogsNameFgOver
+				: st::dialogsNameFg);
+		}
 		rowName.draw(p, {
 			.position = rectForName.topLeft(),
 			.availableWidth = rectForName.width(),
@@ -1080,7 +1109,12 @@ const style::icon *ChatTypeIcon(not_null<PeerData*> peer) {
 const style::icon *ChatTypeIcon(
 		not_null<PeerData*> peer,
 		const PaintContext &context) {
-	if (const auto user = peer->asUser()) {
+	if (peer->isSecretChat()) {
+		return &ThreeStateIcon(
+			st::dialogsSecretChatIcon,
+			context.active,
+			context.selected);
+	} else if (const auto user = peer->asUser()) {
 		if (ShowUserBotIcon(user)) {
 			return &ThreeStateIcon(
 				st::dialogsBotIcon,

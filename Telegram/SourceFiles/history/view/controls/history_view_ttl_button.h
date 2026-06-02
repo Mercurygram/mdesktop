@@ -7,10 +7,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "base/unique_qptr.h"
 #include "ui/widgets/icon_button_with_text.h"
 
 namespace Ui {
 class Show;
+class PopupMenu;
 } // namespace Ui
 
 namespace HistoryView::Controls {
@@ -21,6 +23,7 @@ public:
 		not_null<Ui::RpWidget*> parent,
 		std::shared_ptr<Ui::Show> show,
 		not_null<PeerData*> peer);
+	~TTLButton();
 
 	[[nodiscard]] not_null<PeerData*> peer() const {
 		return _peer;
@@ -37,6 +40,7 @@ public:
 private:
 	const not_null<PeerData*> _peer;
 	Ui::IconButtonWithText _button;
+	base::unique_qptr<Ui::PopupMenu> _menu;
 
 };
 
