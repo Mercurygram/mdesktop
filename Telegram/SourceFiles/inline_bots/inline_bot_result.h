@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "data/data_cloud_file.h"
 #include "api/api_common.h"
+#include "inline_bots/inline_bot_send_data.h"
 #include "media/view/media_view_open_common.h"
 #include "ui/effects/message_sending_animation_common.h"
 
@@ -78,6 +79,9 @@ public:
 		HistoryItemCommonFields &&fields) const;
 	[[nodiscard]] Data::SendError getErrorOnSend(
 		not_null<History*> history) const;
+	// See internal::SendData::secretChatPayload.
+	[[nodiscard]] auto secretChatPayload() const
+		-> std::optional<internal::SendData::SecretChatPayload>;
 
 	// interface for Layout:: usage
 	std::optional<Data::LocationPoint> getLocationPoint() const;

@@ -198,7 +198,11 @@ constexpr auto kBlurRadius = 24;
 
 	const auto innerRect = QRect(QPoint(), partRect.size())
 		- st::dialogsTTLBadgeInnerMargins;
-	const auto ttlText = Ui::FormatTTLBadge(ttl);
+	// Secret chats mirror their timer here, and its sub-hour presets need
+	// the seconds/minutes form; the badge phrases start at hours.
+	const auto ttlText = (ttl < 3600)
+		? Ui::FormatTTLTiny(ttl)
+		: Ui::FormatTTLBadge(ttl);
 
 	Ui::PaintTimerIcon(q, innerRect, ttlText, st::premiumButtonFg->c);
 

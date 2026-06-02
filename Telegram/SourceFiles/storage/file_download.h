@@ -72,7 +72,8 @@ public:
 		LoadToCacheSetting toCache,
 		LoadFromCloudSetting fromCloud,
 		bool autoLoading,
-		uint8 cacheTag);
+		uint8 cacheTag,
+		bool allowLargeInMemory = false);
 	virtual ~FileLoader();
 
 	[[nodiscard]] Main::Session &session() const;

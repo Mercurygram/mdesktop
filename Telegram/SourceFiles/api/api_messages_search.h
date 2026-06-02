@@ -31,6 +31,12 @@ struct FoundMessages {
 	QString nextToken;
 };
 
+// Secret chat messages exist only on this device, so search them locally:
+// case-insensitive substring match on text / caption, newest first.
+[[nodiscard]] std::vector<not_null<HistoryItem*>> SearchSecretChatMessages(
+	not_null<History*> history,
+	const QString &query);
+
 class MessagesSearch final {
 public:
 	struct Request {

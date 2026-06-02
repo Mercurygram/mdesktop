@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_channel.h"
 #include "data/data_histories.h"
 #include "data/data_message_reaction_id.h"
+#include "data/data_messages.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
 #include "history/history.h"
@@ -77,6 +78,23 @@ constexpr auto kSearchPerPage = 50;
 
 } // namespace
 
+std::vector<not_null<HistoryItem*>> SearchSecretChatMessages(
+		not_null<History*> history,
+		const QString &query) {
+	auto result = std::vector<not_null<HistoryItem*>>();
+	history->owner().enumerateMessages(history->peer->id, [&](
+			not_null<HistoryItem*> item) {
+		if (!item->isService()
+			&& item->originalText().text.contains(
+				query,
+				Qt::CaseInsensitive)) {
+			result.push_back(item);
+		}
+	});
+	ranges::sort(result, ranges::greater(), &HistoryItem::position);
+	return result;
+}
+
 MessagesSearch::MessagesSearch(not_null<History*> history)
 : _history(history) {
 }
@@ -100,6 +118,21 @@ void MessagesSearch::searchMore() {
 }
 
 void MessagesSearch::searchRequest() {
+	if (_history->peer->isSecretChat()) {
+		// Nothing on the server (and no InputPeer to ask with): match the
+		// local messages in one go, so total == size and nobody pages.
+		auto found = FoundMessages{ 0, {}, RequestToToken(_request) };
+		if (_request.filter == SearchFilter::NoFilter) {
+			for (const auto &item : SearchSecretChatMessages(
+					_history,
+					_request.query)) {
+				found.messages.push_back(item->fullId());
+			}
+			found.total = int(found.messages.size());
+		}
+		_messagesFounds.fire(std::move(found));
+		return;
+	}
 	const auto nextToken = RequestToToken(_request);
 	if (!_offsetId) {
 		const auto it = _cacheOfStartByToken.find(nextToken);
