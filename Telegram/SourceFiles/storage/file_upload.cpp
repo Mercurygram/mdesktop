@@ -129,6 +129,12 @@ Uploader::Entry::Entry(
 		|| file->type == SendMediaType::Audio
 		|| file->type == SendMediaType::Round) {
 		setDocSize(file->filesize);
+	} else if (file->type == SendMediaType::Secure && file->filesize > 0) {
+		// A big encrypted (secret-chat) file: `fileparts` is left empty and the
+		// ciphertext lives in `content`, so it travels the doc-part path
+		// (upload.saveBigFilePart). Small Secure files keep filesize == 0 and use
+		// the sliced `fileparts` path instead.
+		setDocSize(file->filesize);
 	}
 }
 
@@ -596,6 +602,12 @@ auto Uploader::sendDocPart(not_null<Entry*> entry, uchar dcIndex)
 		});
 	};
 	if (entry->docSize > kUseBigFilesFrom) {
+		if (entry->file->type == SendMediaType::Secure
+			&& (part == 0 || part + 1 == entry->docPartsCount
+				|| !(part % 100))) {
+			DEBUG_LOG(("Secret Chat: saveBigFilePart %1/%2 (%3 bytes)."
+				).arg(part + 1).arg(entry->docPartsCount).arg(partBytes.size()));
+		}
 		send(MTPupload_SaveBigFilePart(
 			MTP_long(entry->file->id),
 			MTP_int(part),
@@ -814,9 +826,11 @@ void Uploader::partLoaded(const MTPBool &result, mtpRequestId requestId) {
 		}
 		_documentProgress.fire_copy(itemId);
 	} else if (entry.file->type == SendMediaType::Secure) {
+		// A big file accumulates in docSentSize (doc-part path); a small one in
+		// sentSize (sliced path). Only one is non-zero.
 		_secureProgress.fire_copy({
 			.fullId = itemId,
-			.offset = entry.sentSize,
+			.offset = entry.sentSize + entry.docSentSize,
 			.size = entry.file->partssize,
 		});
 	}
@@ -957,10 +971,14 @@ void Uploader::finishFront() {
 			_documentReady.fire(std::move(ready));
 		}
 	} else if (entry.file->type == SendMediaType::Secure) {
+		// A big secret-chat file travels the doc-part path (empty `parts`); use
+		// its docPartsCount. Small files use the sliced `parts` count.
 		_secureReady.fire({
 			entry.itemId,
 			entry.file->id,
-			int(entry.parts->size()),
+			int(entry.docPartsCount > 0
+				? entry.docPartsCount
+				: entry.parts->size()),
 		});
 	}
 }

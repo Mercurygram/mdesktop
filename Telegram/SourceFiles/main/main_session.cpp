@@ -240,6 +240,10 @@ Session::Session(
 		local().readRecentMasks();
 		local().readFavedStickers();
 		local().readSavedGifs();
+		local().readSecretChats();
+		// After the chats (and their histories) exist, restore the locally
+		// persisted message bubbles into them.
+		local().readSecretChatMessages();
 	}, [=] {
 		data().stickers().notifyUpdated(Data::StickersType::Stickers);
 		data().stickers().notifyUpdated(Data::StickersType::Masks);
