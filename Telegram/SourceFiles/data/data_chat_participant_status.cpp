@@ -284,6 +284,9 @@ bool CanSendAnyOf(
 			|| (!channel->isBroadcast()
 				&& (channel->hasAdminRights()
 					|| (rights & ~restricted)));
+	} else if (peer->isSecretChat()) {
+		// Secret chats are a plain 1:1 conversation: always writable.
+		return true;
 	}
 	Unexpected("Peer type in CanSendAnyOf.");
 }

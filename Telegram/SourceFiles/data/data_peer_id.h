@@ -97,6 +97,11 @@ bool operator>=(PeerIdZero, ChatIdType<Shift>) = delete;
 using UserId = ChatIdType<0>;
 using ChatId = ChatIdType<1>;
 using ChannelId = ChatIdType<2>;
+// Secret (end-to-end encrypted) chats. These are not real MTProto peers --
+// they are addressed by inputEncryptedChat, not InputPeer -- but they get a
+// dedicated PeerId namespace so a History / dialog list entry can exist for
+// them. The bare id is the int32 secret chat id from encryptedChat.
+using SecretChatId = ChatIdType<3>;
 using FakeChatId = ChatIdType<0x7F>;
 
 struct PeerIdHelper {
@@ -187,6 +192,10 @@ bool operator>=(PeerIdZero, PeerId) = delete;
 	return id.is<ChannelId>();
 }
 
+[[nodiscard]] inline constexpr bool peerIsSecretChat(PeerId id) noexcept {
+	return id.is<SecretChatId>();
+}
+
 [[nodiscard]] inline constexpr PeerId peerFromUser(UserId userId) noexcept {
 	return userId;
 }
@@ -198,6 +207,21 @@ bool operator>=(PeerIdZero, PeerId) = delete;
 [[nodiscard]] inline constexpr PeerId peerFromChannel(
 		ChannelId channelId) noexcept {
 	return channelId;
+}
+
+[[nodiscard]] inline constexpr PeerId peerFromSecretChat(
+		SecretChatId secretChatId) noexcept {
+	return secretChatId;
+}
+
+// encryptedChat.id is a *signed* int32 on the wire and is often negative.
+// Building a SecretChatId directly from it would sign-extend int32 -> uint64,
+// setting high bits that collide with the PeerId namespace byte (bits 48..55)
+// and corrupt the id. Zero-extend through uint32 instead. SecretChatData::
+// secretChatId() narrows the stored bare value back to the signed int32.
+[[nodiscard]] inline constexpr SecretChatId secretChatIdFromWire(
+		int32 id) noexcept {
+	return SecretChatId(BareId(uint32(id)));
 }
 
 [[nodiscard]] inline constexpr PeerId peerFromUser(MTPlong userId) noexcept {
@@ -223,6 +247,11 @@ bool operator>=(PeerIdZero, PeerId) = delete;
 
 [[nodiscard]] inline constexpr ChannelId peerToChannel(PeerId id) noexcept {
 	return id.to<ChannelId>();
+}
+
+[[nodiscard]] inline constexpr SecretChatId peerToSecretChat(
+		PeerId id) noexcept {
+	return id.to<SecretChatId>();
 }
 
 [[nodiscard]] inline MTPlong peerToBareMTPInt(PeerId id) {

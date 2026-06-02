@@ -17,10 +17,17 @@ set(scheme_files
 
 generate_scheme(td_scheme ${src_loc}/codegen/scheme/codegen_scheme.py "${scheme_files}")
 
+set(secret_scheme_files
+    ${src_loc}/mtproto/scheme/secret.tl
+)
+
+generate_secret_scheme(td_scheme ${src_loc}/codegen/scheme/codegen_secret_scheme.py "${secret_scheme_files}")
+
 nice_target_sources(td_scheme ${src_loc}/mtproto/scheme
 PRIVATE
     api.tl
     mtproto.tl
+    secret.tl
 )
 
 target_include_directories(td_scheme
