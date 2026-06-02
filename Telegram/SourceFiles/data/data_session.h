@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 class Image;
 class HistoryItem;
+class SecretChatData;
 struct WebPageCollage;
 struct WebPageStickerSet;
 struct WebPageAuction;
@@ -274,6 +275,7 @@ public:
 	[[nodiscard]] not_null<UserData*> user(UserId id);
 	[[nodiscard]] not_null<ChatData*> chat(ChatId id);
 	[[nodiscard]] not_null<ChannelData*> channel(ChannelId id);
+	[[nodiscard]] not_null<SecretChatData*> secretChat(SecretChatId id);
 	[[nodiscard]] not_null<UserData*> user(PeerId id) = delete;
 	[[nodiscard]] not_null<ChatData*> chat(PeerId id) = delete;
 	[[nodiscard]] not_null<ChannelData*> channel(PeerId id) = delete;
@@ -283,6 +285,7 @@ public:
 	[[nodiscard]] UserData *userLoaded(UserId id) const;
 	[[nodiscard]] ChatData *chatLoaded(ChatId id) const;
 	[[nodiscard]] ChannelData *channelLoaded(ChannelId id) const;
+	[[nodiscard]] SecretChatData *secretChatLoaded(SecretChatId id) const;
 	[[nodiscard]] UserData *userLoaded(PeerId id) const = delete;
 	[[nodiscard]] ChatData *chatLoaded(PeerId id) const = delete;
 	[[nodiscard]] ChannelData *channelLoaded(PeerId id) const = delete;
@@ -342,8 +345,15 @@ public:
 	}
 
 	void enumerateUsers(Fn<void(not_null<UserData*>)> action) const;
+	void enumerateSecretChats(
+		Fn<void(not_null<SecretChatData*>)> action) const;
 	void enumerateGroups(Fn<void(not_null<PeerData*>)> action) const;
 	void enumerateBroadcasts(Fn<void(not_null<ChannelData*>)> action) const;
+	// Enumerate every registered message of a peer (the complete in-memory set,
+	// independent of which slices are loaded into history blocks).
+	void enumerateMessages(
+		PeerId peerId,
+		Fn<void(not_null<HistoryItem*>)> action) const;
 	[[nodiscard]] UserData *userByPhone(const QString &phone) const;
 	[[nodiscard]] PeerData *peerByUsername(const QString &username) const;
 
@@ -1052,6 +1062,7 @@ private:
 
 	void scheduleNextTTLs();
 	void checkTTLs();
+	void tickTTLCountdowns();
 
 	void scheduleNextMediaDestroys();
 	void checkMediaDestroys();
@@ -1269,6 +1280,9 @@ private:
 		base::flat_set<not_null<HistoryItem*>>> _dependentMessages;
 	std::map<TimeId, base::flat_set<not_null<HistoryItem*>>> _ttlMessages;
 	base::Timer _ttlCheckTimer;
+	// Once a second while a secret-chat message has a running self-destruct
+	// timer: re-lays its bottom info so the countdown text advances.
+	base::Timer _ttlCountdownTimer;
 
 	std::map<
 		TimeId,
