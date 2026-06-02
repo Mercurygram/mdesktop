@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/window_peer_menu.h"
+#include "window/window_peer_menu_secret.h"
 
 #include "base/call_delayed.h"
 #include "menu/menu_check_item.h"
@@ -22,6 +23,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/vertical_layout.h"
 #include "ui/widgets/fields/input_field.h"
 #include "api/api_chat_participants.h"
+#include "api/api_encrypted_chats.h"
 #include "api/api_communities.h"
 #include "api/api_global_privacy.h"
 #include "lang/lang_keys.h"
@@ -65,6 +67,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/ui_utility.h"
 #include "main/main_app_config.h"
 #include "main/main_session.h"
+#include "storage/storage_account.h"
 #include "main/main_session_settings.h"
 #include "menu/menu_mute.h"
 #include "menu/menu_ttl_validator.h"
@@ -115,6 +118,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_user.h"
 #include "data/data_saved_messages.h"
 #include "data/data_saved_sublist.h"
+#include "data/data_secret_chat.h"
 #include "data/data_histories.h"
 #include "data/data_chat_filters.h"
 #include "data/data_peer_values.h"
@@ -441,7 +445,19 @@ void TogglePinnedThread(
 	}
 
 	owner->setChatPinned(entry, FilterId(), isPinned);
-	if (const auto history = entry->asHistory()) {
+	if (const auto history = entry->asHistory()
+		; history && history->peer->isSecretChat()) {
+		// No server dialog: the pin lives in the local secret chats blob.
+		owner->notifyPinnedDialogsOrderUpdated();
+		owner->session().local().writeSecretChats();
+		if (onToggled) {
+			onToggled();
+		}
+		if (isPinned) {
+			controller->content()->dialogsToUp();
+		}
+		return;
+	} else if (const auto history = entry->asHistory()) {
 		const auto flags = isPinned
 			? MTPmessages_ToggleDialogPin::Flag::f_pinned
 			: MTPmessages_ToggleDialogPin::Flag(0);
@@ -674,6 +690,7 @@ void Filler::addToggleFolder() {
 	const auto history = _request.key.history();
 	if (_topic
 		|| !history
+		|| history->peer->isSecretChat() // no InputPeer for a server filter
 		|| !history->owner().chatsFilters().has()
 		|| !history->inChatList()) {
 		return;
@@ -879,6 +896,11 @@ void Filler::addClearHistory() {
 void Filler::addDeleteChat() {
 	if (_topic || (!_sublist && _peer->isChannel())) {
 		return;
+	} else if (_peer->isSecretChat()) {
+		// Secret chats have no server peer/InputPeer; the generic delete path
+		// (deleteConversation/DeleteChatBox) does not apply -- a dedicated
+		// discardEncryption entry handles it (AddSecretChatActions).
+		return;
 	}
 	_addAction({
 		.text = ((_peer->isUser() || _sublist)
@@ -921,7 +943,9 @@ void Filler::addJoinChat() {
 }
 
 void Filler::addBlockUser() {
-	const auto user = _peer->asUser();
+	// A secret chat offers the same block / unblock for its partner.
+	const auto secret = _peer->asSecretChat();
+	const auto user = secret ? secret->user() : _peer->asUser();
 	if (!user
 		|| user->isInaccessible()
 		|| user->isSelf()
@@ -962,7 +986,7 @@ void Filler::addBlockUser() {
 		: &st::menuIconUnblock));
 
 	auto actionText = _peer->session().changes().peerUpdates(
-		_peer,
+		user,
 		Data::PeerUpdate::Flag::IsBlocked
 	) | rpl::map([=] { return blockText(user); });
 	SetActionText(blockAction, std::move(actionText));
@@ -1110,7 +1134,8 @@ void Filler::addReport() {
 }
 
 void Filler::addNewContact() {
-	const auto user = _peer->asUser();
+	const auto secret = _peer->asSecretChat();
+	const auto user = secret ? secret->user() : _peer->asUser();
 	if (!user
 		|| user->isContact()
 		|| user->isSelf()
@@ -1915,6 +1940,7 @@ void Filler::fillContextMenuActions() {
 	addBanFromChannel();
 	addClearHistory();
 	addDeleteChat();
+	AddSecretChatActions(_controller, _peer, _addAction);
 	addLeaveChat();
 	addDeleteTopic();
 }
@@ -1939,6 +1965,7 @@ void Filler::fillHistoryActions() {
 	addReport();
 	addClearHistory();
 	addDeleteChat();
+	AddSecretChatActions(_controller, _peer, _addAction);
 	addLeaveChat();
 }
 
@@ -1966,6 +1993,8 @@ void Filler::fillProfileActions() {
 	addBlockUser();
 	addBanFromChannel();
 	addReport();
+	AddStartSecretChatAction(_controller, _peer, _addAction);
+	AddSecretChatActions(_controller, _peer, _addAction);
 	addLeaveChat();
 	addDeleteContact();
 	addDeleteTopic();
@@ -2703,12 +2732,16 @@ void PeerMenuBlockUserBox(
 		not_null<PeerData*> peer,
 		std::variant<v::null_t, bool> suggestReport,
 		std::variant<v::null_t, ClearChat, ClearReply> suggestClear) {
-	const auto settings = peer->barSettings().value_or(PeerBarSettings(0));
+	// A secret chat blocks (and shows the settings of) the user on the other
+	// side; report and delete act on the secret chat itself.
+	const auto secret = peer->asSecretChat();
+	const auto user = secret ? secret->user() : peer->asUser();
+	const auto settings = (user ? user : peer.get())->barSettings().value_or(
+		PeerBarSettings(0));
 	const auto reportNeeded = v::is_null(suggestReport)
 		? ((settings & PeerBarSetting::ReportSpam) != 0)
 		: v::get<bool>(suggestReport);
 
-	const auto user = peer->asUser();
 	const auto name = user ? user->shortName() : peer->name();
 	if (user) {
 		box->addRow(object_ptr<Ui::FlatLabel>(
@@ -2786,6 +2819,19 @@ void PeerMenuBlockUserBox(
 			)).done([=](const MTPUpdates &result) {
 				peer->session().updates().applyUpdates(result);
 			}).send();
+		} else if (secret) {
+			if (user) {
+				peer->session().api().blockedPeers().block(user);
+			}
+			auto &chats = peer->session().api().encryptedChats();
+			if (reportChecked) {
+				chats.reportSpam(secret); // Closes and clears the chat too.
+			} else if (clearChecked) {
+				chats.discard(secret, true);
+			}
+			if (reportChecked || clearChecked) {
+				window->sessionController()->showBackFromStack();
+			}
 		} else {
 			peer->session().api().blockedPeers().block(peer);
 			if (reportChecked) {
@@ -3218,7 +3264,8 @@ base::weak_qptr<Ui::BoxContent> ShowForwardMessagesBox(
 
 		Controller(
 			not_null<Main::Session*> session,
-			ChannelData *suggestedChannel)
+			ChannelData *suggestedChannel,
+			HistoryItemsList items)
 		: ChooseRecipientBoxController({
 			.session = session,
 			.callback = [=](Chosen thread) {
@@ -3226,13 +3273,13 @@ base::weak_qptr<Ui::BoxContent> ShowForwardMessagesBox(
 			},
 			.moneyRestrictionError = WriteMoneyRestrictionError,
 		})
-		, _suggestedChannel(suggestedChannel) {
+		, _suggestedChannel(suggestedChannel)
+		, _items(std::move(items)) {
 		}
 
 		std::unique_ptr<PeerListRow> createRestoredRow(
 				not_null<PeerData*> peer) override final {
-			return ChooseRecipientBoxController::createRow(
-				peer->owner().history(peer));
+			return createRow(peer->owner().history(peer));
 		}
 
 		using PeerListController::setSearchNoResultsText;
@@ -3390,7 +3437,24 @@ base::weak_qptr<Ui::BoxContent> ShowForwardMessagesBox(
 			}
 		}
 
+		std::unique_ptr<Row> createRow(
+				not_null<History*> history) override final {
+			// A secret chat gets each item re-sent as a new encrypted message,
+			// so a kind the secret layer cannot carry must not even be
+			// pickable. Not ChooseRecipientArgs::filter: setting that replaces
+			// the default skip rules and would bring back broadcast rows.
+			if (history->peer->isSecretChat()) {
+				for (const auto &item : _items) {
+					if (item->errorTextForForwardIgnoreRights(history)) {
+						return nullptr;
+					}
+				}
+			}
+			return ChooseRecipientBoxController::createRow(history);
+		}
+
 		ChannelData * const _suggestedChannel = nullptr;
+		const HistoryItemsList _items;
 		Ui::SlideWrap<Ui::VerticalLayout> *_suggestionWrap = nullptr;
 		PeerListContentDelegateSimple *_suggestionDelegate = nullptr;
 		PeerListRow *_suggestionRow = nullptr;
@@ -3451,7 +3515,8 @@ base::weak_qptr<Ui::BoxContent> ShowForwardMessagesBox(
 	const auto state = [&] {
 		auto controller = std::make_unique<Controller>(
 			session,
-			suggestedChannel);
+			suggestedChannel,
+			itemsList);
 		const auto controllerRaw = controller.get();
 		auto init = [=](not_null<ListBox*> box) {
 			controllerRaw->setSearchNoResultsText(
@@ -3657,7 +3722,14 @@ base::weak_qptr<Ui::BoxContent> ShowForwardMessagesBox(
 			}
 			return false;
 		}();
-		return hasPaid
+		// The secret layer has no scheduling, and our send path does not
+		// carry the decryptedMessage silent flag, so the menu goes away.
+		const auto hasSecret = ranges::any_of(
+			selected,
+			&PeerData::isSecretChat);
+		return hasSecret
+			? SendMenu::Type::Disabled
+			: hasPaid
 			? SendMenu::Type::SilentOnly
 			: ranges::all_of(selected, HistoryView::CanScheduleUntilOnline)
 			? SendMenu::Type::ScheduledToUser

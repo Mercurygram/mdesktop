@@ -104,6 +104,9 @@ struct HistoryItemCommonFields {
 	bool ignoreForwardFrom = false;
 	bool ignoreForwardCaptions = false;
 	bool mediaSpoiler = false;
+	// Secret-chat self-destruct media viewed once: engages the upstream
+	// view-once cover (Data::Media::ttlSeconds) for a local photo / video.
+	crl::time mediaTtlSeconds = 0;
 };
 
 enum class HistoryReactionSource : char {
@@ -269,6 +272,7 @@ public:
 	[[nodiscard]] bool unread(not_null<Data::Thread*> thread) const;
 	[[nodiscard]] bool showNotification() const;
 	void markClientSideAsRead();
+	void markClientSideAsUnread();
 	[[nodiscard]] bool mentionsMe() const;
 	[[nodiscard]] bool isUnreadMention() const;
 	[[nodiscard]] bool hasUnreadReaction() const;
@@ -376,6 +380,8 @@ public:
 	[[nodiscard]] bool isRegular() const;
 	[[nodiscard]] bool isUploading() const;
 	void sendFailed();
+	// Secret-chat local echo confirmed by the server: drop the sending clock.
+	void markSecretSent(TimeId date);
 	[[nodiscard]] int viewsCount() const;
 	[[nodiscard]] int repliesCount() const;
 	[[nodiscard]] bool repliesAreComments() const;
@@ -669,6 +675,15 @@ public:
 
 	[[nodiscard]] TimeId ttlDestroyAt() const {
 		return _ttlDestroyAt;
+	}
+
+	// Secret-chat self-destruct: schedule this message to be destroyed at the
+	// given unixtime, registering it with the owner's message-TTL timer. Called
+	// by Api::EncryptedChats once the message is read (incoming) or the partner
+	// reads it (outgoing). A destroyAt in the past destroys it immediately; 0
+	// cancels a pending timer.
+	void setSecretChatSelfDestructAt(TimeId destroyAt) {
+		applyTTL(destroyAt);
 	}
 
 	[[nodiscard]] int boostsApplied() const {

@@ -398,6 +398,11 @@ not_null<HistoryItem*> Result::makeMessage(
 	return sendData->makeMessage(this, history, std::move(fields));
 }
 
+auto Result::secretChatPayload() const
+-> std::optional<internal::SendData::SecretChatPayload> {
+	return sendData->secretChatPayload();
+}
+
 Data::SendError Result::getErrorOnSend(not_null<History*> history) const {
 	return sendData->getErrorOnSend(this, history).value_or(
 		Data::RestrictionError(history->peer, ChatRestriction::SendInline));

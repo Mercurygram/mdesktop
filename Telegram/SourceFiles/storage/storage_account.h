@@ -159,6 +159,18 @@ public:
 	void writeSearchSuggestions();
 	void readSearchSuggestions();
 
+	void writeSecretChats();
+	void readSecretChats();
+	// Decrypted secret-chat media at rest (encrypted with the local key),
+	// per account so a logout wipes it with the rest of the base path.
+	[[nodiscard]] QString secretFilesPath() const;
+
+	// Local secret-chat message history (the server keeps none). The blob is
+	// produced/consumed by Api::EncryptedChats, which owns the message model;
+	// here we only encrypt+store / read it back.
+	void writeSecretChatMessages(const QByteArray &serialized);
+	void readSecretChatMessages();
+
 	void writeSelf();
 
 	// Read self is special, it can't get session from account, because
@@ -356,6 +368,10 @@ private:
 	FileKey _featuredCustomEmojiKey = 0;
 	FileKey _archivedCustomEmojiKey = 0;
 	FileKey _searchSuggestionsKey = 0;
+	FileKey _secretChatsKey = 0;
+	bool _secretChatsRead = false;
+	bool _secretMessagesRead = false;
+	FileKey _secretMessagesKey = 0;
 	FileKey _roundPlaceholderKey = 0;
 	FileKey _inlineBotsDownloadsKey = 0;
 	FileKey _mediaLastPlaybackPositionsKey = 0;

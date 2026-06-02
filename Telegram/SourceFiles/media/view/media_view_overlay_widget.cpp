@@ -1438,7 +1438,11 @@ bool OverlayWidget::hasCopyMediaRestriction(bool skipPremiumCheck) const {
 			? !story->canDownloadIfPremium()
 			: !story->canDownloadChecked();
 	}
-	return (_history && !_history->peer->allowsForwarding())
+	// A secret chat forbids forwarding, not saving: only its self-destruct
+	// media (forbidsSaving) is restricted, like the bubble menu.
+	return (_history
+			&& !_history->peer->allowsForwarding()
+			&& !_history->peer->isSecretChat())
 		|| (_message && _message->forbidsSaving());
 }
 
@@ -1450,7 +1454,7 @@ bool OverlayWidget::showCopyMediaRestriction(bool skipPRemiumCheck) {
 	} else if (_history) {
 		uiShow()->showToast(_history->peer->isBroadcast()
 			? tr::lng_error_nocopy_channel(tr::now)
-			: _history->peer->isUser()
+			: (_history->peer->isUser() || _history->peer->isSecretChat())
 			? tr::lng_error_nocopy_user(tr::now)
 			: tr::lng_error_nocopy_group(tr::now));
 	}
@@ -2236,7 +2240,7 @@ void OverlayWidget::fillContextMenuActions(
 			[=] { saveCancel(); },
 			&st::mediaMenuIconCancel);
 	}
-	if (_message && _message->isRegular()) {
+	if (_message && messageInChat()) {
 		addAction(
 			tr::lng_context_to_msg(tr::now),
 			[=] { toMessage(); },
@@ -3256,6 +3260,15 @@ void OverlayWidget::subscribeToScreenGeometry() {
 	}, _screenGeometryLifetime);
 }
 
+// A message the viewer can jump back to: a regular one, or a secret chat's
+// local-only message (its chat scrolls to local ids, like Android's
+// "Show in Chat" in a secret chat).
+bool OverlayWidget::messageInChat() const {
+	return _message
+		&& (_message->isRegular()
+			|| _message->history()->peer->isSecretChat());
+}
+
 void OverlayWidget::toMessage() {
 	if (const auto item = _message) {
 		close();
@@ -3832,7 +3845,11 @@ auto OverlayWidget::sharedMediaKey() const -> std::optional<SharedMediaKey> {
 				: (_message->id - ServerMaxMsgId))
 		};
 	};
-	if (!_message->isRegular() && !isScheduled) {
+	// A secret chat's messages are local-only (never "regular") but have
+	// their own shared-media index (SharedSecretMediaViewer), so the viewer
+	// can page through them like any chat's.
+	const auto secret = _history && _history->peer->isSecretChat();
+	if (!_message->isRegular() && !isScheduled && !secret) {
 		return std::nullopt;
 	}
 	return sharedMediaType() | keyForType;
@@ -8355,7 +8372,7 @@ void OverlayWidget::updateOver(QPoint pos) {
 		updateOverState(Over::Name);
 	} else if (!_stories
 		&& _message
-		&& _message->isRegular()
+		&& messageInChat()
 		&& _dateNav.contains(pos)) {
 		updateOverState(Over::Date);
 	} else if (!_stories && _headerHasLink && _headerNav.contains(pos)) {

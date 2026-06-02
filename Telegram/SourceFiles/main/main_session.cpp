@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 
 #include "apiwrap.h"
+#include "api/api_encrypted_chats.h"
 #include "api/api_peer_colors.h"
 #include "api/api_updates.h"
 #include "api/api_user_privacy.h"
@@ -244,6 +245,13 @@ Session::Session(
 		local().readRecentMasks();
 		local().readFavedStickers();
 		local().readSavedGifs();
+		local().readSecretChats();
+		// After the chats (and their histories) exist, restore the locally
+		// persisted message bubbles into them.
+		local().readSecretChatMessages();
+		api().encryptedChats().flushRestoredPendingMessages();
+		api().encryptedChats().notifyLayerIfOutdated();
+		updates().secretChatsRestored();
 	}, [=] {
 		data().stickers().notifyUpdated(Data::StickersType::Stickers);
 		data().stickers().notifyUpdated(Data::StickersType::Masks);
