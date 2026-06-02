@@ -603,7 +603,10 @@ rpl::producer<int> SharedMediaCountValue(
 		Storage::SharedMediaType type) {
 	auto aroundId = 0;
 	auto limit = 0;
-	auto updated = SharedMediaMergedViewer(
+	const auto viewer = peer->isSecretChat()
+		? SharedSecretMediaViewer
+		: SharedMediaMergedViewer;
+	auto updated = viewer(
 		&peer->session(),
 		SharedMediaMergedKey(
 			SparseIdsMergedSlice::Key(
