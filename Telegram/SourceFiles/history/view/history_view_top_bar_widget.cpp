@@ -49,10 +49,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_forum.h"
 #include "data/data_saved_messages.h"
 #include "data/data_saved_sublist.h"
+#include "data/data_secret_chat.h"
 #include "data/data_session.h"
 #include "data/data_stories.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
+#include "data/data_secret_chat.h"
 #include "data/data_user.h"
 #include "data/data_changes.h"
 #include "data/data_forum_topic.h"
@@ -656,6 +658,12 @@ void TopBarWidget::paintTopBar(Painter &p) {
 			nameleft += skip + st::dialogsChatTypeSkip;
 			namewidth -= skip + st::dialogsChatTypeSkip;
 		}
+		if (namePeer->isSecretChat()) {
+			const auto &icon = st::dialogsSecretChatIcon.icon;
+			icon.paint(p, nameleft, nametop, width(), SecretChatNameFg());
+			nameleft += icon.width() + st::dialogsChatTypeSkip;
+			namewidth -= icon.width() + st::dialogsChatTypeSkip;
+		}
 		const auto badgeWidth = _titleBadge.drawGetWidth(p, {
 			.peer = namePeer,
 			.rectForName = QRect(
@@ -678,7 +686,11 @@ void TopBarWidget::paintTopBar(Painter &p) {
 		});
 		namewidth -= badgeWidth;
 
-		p.setPen(st::dialogsNameFg);
+		if (namePeer->isSecretChat()) {
+			p.setPen(SecretChatNameFg());
+		} else {
+			p.setPen(st::dialogsNameFg);
+		}
 		_title.draw(p, {
 			.position = { nameleft, nametop },
 			.availableWidth = namewidth,
@@ -1753,6 +1765,9 @@ bool TopBarWidget::trackOnlineOf(not_null<PeerData*> user) const {
 		return false;
 	} else if (peer->isUser()) {
 		return (peer == user);
+	} else if (const auto secret = peer->asSecretChat()) {
+		// The displayed status is the partner's, so refresh when it updates.
+		return (secret->user() == user);
 	} else if (const auto chat = peer->asChat()) {
 		return chat->participants.contains(user->asUser());
 	} else if (const auto channel = peer->asMegagroup()) {
@@ -1773,7 +1788,10 @@ void TopBarWidget::updateOnlineDisplay() {
 	QString text;
 	const auto now = base::unixtime::now();
 	bool titlePeerTextOnline = false;
-	if (const auto user = peer->asUser()) {
+	// A secret chat shows its partner's online status in the top bar.
+	const auto secret = peer->asSecretChat();
+	const auto effectiveUser = secret ? secret->user() : peer->asUser();
+	if (const auto user = effectiveUser) {
 		if (session().supportMode()
 			&& !session().supportHelper().infoCurrent(user).text.empty()) {
 			text = QString::fromUtf8("\xe2\x9a\xa0\xef\xb8\x8f check info");
