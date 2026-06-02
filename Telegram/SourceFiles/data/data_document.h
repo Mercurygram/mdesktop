@@ -164,6 +164,13 @@ public:
 		bool check = false) const;
 	void setLocation(const Core::FileLocation &loc);
 
+	// A secret-chat media file kept ENCRYPTED at rest (see SecretFileLoader).
+	// Such a document has no remote location and no plaintext FileLocation; its
+	// bytes are produced on demand by decrypting this path.
+	void setSecretEncryptedLocation(const QString &path);
+	[[nodiscard]] bool isSecretEncrypted() const;
+	[[nodiscard]] const QString &secretEncryptedPath() const;
+
 	bool saveFromData();
 	bool saveFromDataSilent();
 	[[nodiscard]] QString filepath(bool check = false) const;
@@ -281,6 +288,8 @@ public:
 	[[nodiscard]] bool hasRemoteLocation() const;
 	[[nodiscard]] bool hasWebLocation() const;
 	[[nodiscard]] bool isNull() const;
+	[[nodiscard]] int32 getDC() const; // remote location dc; 0 if none
+	[[nodiscard]] uint64 getAccessHash() const; // remote location access hash
 	[[nodiscard]] MTPInputDocument mtpInput() const;
 	[[nodiscard]] QByteArray fileReference() const;
 	void refreshFileReference(const QByteArray &value);
@@ -406,6 +415,7 @@ private:
 	crl::time _duration = -1;
 
 	Core::FileLocation _location;
+	QString _secretEncryptedPath;
 	std::unique_ptr<DocumentAdditionalData> _additional;
 	mutable Flags _flags = kStreamingSupportedUnknown;
 	GoodThumbnailState _goodThumbnailState = GoodThumbnailState();
