@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 #include "data/data_peer.h"
 #include "data/data_user.h"
+#include "data/data_secret_chat.h"
 #include "data/data_chat.h"
 #include "data/data_channel.h"
 #include "data/data_session.h"
@@ -355,6 +356,14 @@ bool ChatFilter::contains(
 			} else {
 				return Flag::Groups;
 			}
+		} else if (const auto secret = peer->asSecretChat()) {
+			// A secret chat is a 1:1 conversation: classify by its partner.
+			const auto user = secret->user();
+			return (user && user->isBot())
+				? Flag::Bots
+				: (user && user->isContact())
+				? Flag::Contacts
+				: Flag::NonContacts;
 		} else {
 			Unexpected("Peer type in ChatFilter::contains.");
 		}

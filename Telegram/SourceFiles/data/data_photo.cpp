@@ -499,6 +499,14 @@ void PhotoData::setLocation(const Core::FileLocation &loc) {
 	}
 }
 
+void PhotoData::setSecretEncryptedLocation(const QString &path) {
+	_secretEncryptedPath = path;
+}
+
+const QString &PhotoData::secretEncryptedPath() const {
+	return _secretEncryptedPath;
+}
+
 Data::CloudFile &PhotoData::videoFile(PhotoSize size) {
 	Expects(_videoSizes != nullptr);
 
