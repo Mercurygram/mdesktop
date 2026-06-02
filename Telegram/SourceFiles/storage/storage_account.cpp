@@ -19,12 +19,16 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/serialize_document.h"
 #include "main/main_account.h"
 #include "main/main_domain.h"
+#include "apiwrap.h"
+#include "api/api_encrypted_chats.h"
 #include "main/main_session.h"
+#include "mtproto/secret_chat/secret_chat_encryption.h"
 #include "mtproto/mtproto_config.h"
 #include "mtproto/mtproto_dc_options.h"
 #include "mtproto/mtp_instance.h"
 #include "lang/lang_keys.h"
 #include "history/history.h"
+#include "base/unixtime.h"
 #include "core/application.h"
 #include "core/core_settings.h"
 #include "core/file_location.h"
@@ -37,6 +41,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "data/data_document.h"
 #include "data/data_user.h"
+#include "data/data_secret_chat.h"
+#include "data/data_folder.h"
+#include "data/notify/data_notify_settings.h"
+#include "data/notify/data_peer_notify_settings.h"
 #include "data/data_drafts.h"
 #include "export/export_settings.h"
 #include "webview/webview_interface.h"
@@ -104,6 +112,8 @@ enum { // Local Storage Keys
 	lskMediaLastPlaybackPositions = 0x1c, // no data
 	lskBotStorages = 0x1d, // data: PeerId botId
 	lskPrefs = 0x1e, // no data
+	lskSecretChats = 0x1f, // no data
+	lskSecretMessages = 0x20, // no data
 };
 
 auto EmptyMessageDraftSources()
@@ -271,6 +281,8 @@ base::flat_set<QString> Account::collectGoodNames() const {
 		_roundPlaceholderKey,
 		_inlineBotsDownloadsKey,
 		_mediaLastPlaybackPositionsKey,
+		_secretChatsKey,
+		_secretMessagesKey,
 	};
 	auto result = base::flat_set<QString>{
 		"map0",
@@ -362,6 +374,8 @@ Account::ReadMapResult Account::readMapWith(
 	quint64 legacyBackgroundKeyDay = 0, legacyBackgroundKeyNight = 0;
 	quint64 userSettingsKey = 0, recentHashtagsAndBotsKey = 0, exportSettingsKey = 0;
 	quint64 searchSuggestionsKey = 0;
+	quint64 secretChatsKey = 0;
+	quint64 secretMessagesKey = 0;
 	quint64 roundPlaceholderKey = 0;
 	quint64 inlineBotsDownloadsKey = 0;
 	quint64 mediaLastPlaybackPositionsKey = 0;
@@ -477,6 +491,12 @@ Account::ReadMapResult Account::readMapWith(
 		case lskSearchSuggestions: {
 			map.stream >> searchSuggestionsKey;
 		} break;
+		case lskSecretChats: {
+			map.stream >> secretChatsKey;
+		} break;
+		case lskSecretMessages: {
+			map.stream >> secretMessagesKey;
+		} break;
 		case lskRoundPlaceholder: {
 			map.stream >> roundPlaceholderKey;
 		} break;
@@ -542,6 +562,8 @@ Account::ReadMapResult Account::readMapWith(
 	_recentHashtagsAndBotsKey = recentHashtagsAndBotsKey;
 	_exportSettingsKey = exportSettingsKey;
 	_searchSuggestionsKey = searchSuggestionsKey;
+	_secretChatsKey = secretChatsKey;
+	_secretMessagesKey = secretMessagesKey;
 	_roundPlaceholderKey = roundPlaceholderKey;
 	_inlineBotsDownloadsKey = inlineBotsDownloadsKey;
 	_mediaLastPlaybackPositionsKey = mediaLastPlaybackPositionsKey;
@@ -657,6 +679,8 @@ void Account::writeMap() {
 		mapSize += sizeof(quint32) + 3 * sizeof(quint64);
 	}
 	if (_searchSuggestionsKey) mapSize += sizeof(quint32) + sizeof(quint64);
+	if (_secretChatsKey) mapSize += sizeof(quint32) + sizeof(quint64);
+	if (_secretMessagesKey) mapSize += sizeof(quint32) + sizeof(quint64);
 	if (!_webviewStorageIdBots.token.isEmpty()
 		|| !_webviewStorageIdOther.token.isEmpty()) {
 		mapSize += sizeof(quint32)
@@ -733,6 +757,14 @@ void Account::writeMap() {
 		mapData.stream << quint32(lskSearchSuggestions);
 		mapData.stream << quint64(_searchSuggestionsKey);
 	}
+	if (_secretChatsKey) {
+		mapData.stream << quint32(lskSecretChats);
+		mapData.stream << quint64(_secretChatsKey);
+	}
+	if (_secretMessagesKey) {
+		mapData.stream << quint32(lskSecretMessages);
+		mapData.stream << quint64(_secretMessagesKey);
+	}
 	if (!_webviewStorageIdBots.token.isEmpty()
 		|| !_webviewStorageIdOther.token.isEmpty()) {
 		mapData.stream << quint32(lskWebviewTokens);
@@ -789,6 +821,8 @@ void Account::reset() {
 	_legacyBackgroundKeyDay = _legacyBackgroundKeyNight = 0;
 	_settingsKey = _recentHashtagsAndBotsKey = _exportSettingsKey = 0;
 	_searchSuggestionsKey = 0;
+	_secretChatsKey = 0;
+	_secretMessagesKey = 0;
 	_roundPlaceholderKey = 0;
 	_inlineBotsDownloadsKey = 0;
 	_mediaLastPlaybackPositionsKey = 0;
@@ -832,6 +866,9 @@ void Account::reset() {
 				QFile::remove(base + name);
 			}
 		}
+		// Decrypted secret-chat media (encrypted at rest) belongs to the
+		// session that just ended.
+		QDir(base + u"secret_files"_q).removeRecursively();
 		QDir(LegacyTempDirectory()).removeRecursively();
 		if (!wvbots.isEmpty()) {
 			QDir(wvbots).removeRecursively();
@@ -3277,6 +3314,620 @@ void Account::readSearchSuggestions() {
 	} else {
 		DEBUG_LOG(("Suggestions: Could not read content."));
 	}
+}
+
+void Account::writeSecretChats() {
+	if (!_owner->sessionExists()) {
+		LOG(("Secret chats: write skipped, no session."));
+		return;
+	} else if (!_secretChatsRead) {
+		// The file is replaced whole: a write before the restore would keep
+		// only the chats known so far and drop every other key for good.
+		LOG(("Secret chats: write skipped, not read yet."));
+		return;
+	}
+
+	struct Entry {
+		qint32 secretChatId = 0;
+		quint64 accessHash = 0;
+		quint64 userId = 0;
+		qint32 state = 0;
+		qint32 amCreator = 0;
+		quint64 keyFingerprint = 0;
+		QByteArray key;
+		qint32 layer = 0;
+		qint32 ttl = 0;
+		qint32 sentCount = 0;
+		qint32 inSeqNo = 0;
+		qint32 seqStarted = 0;
+		qint32 keyCreationDate = 0;
+		qint32 keyUseCountOut = 0;
+		qint32 keyUseCountIn = 0;
+		// v2: the local-only dialog state (no server dialog exists), the
+		// handshake exponent, the in-flight rekey and the retired key.
+		qint32 pinned = 0;
+		qint32 muteUntil = 0;
+		qint32 archived = 0;
+		qint32 unreadMark = 0;
+		QByteArray pendingRandomPower;
+		QByteArray pendingGA;
+		qint32 rekeyStage = -1; // -1 none, else Api::EncryptedChats::Rekey::Stage
+		quint64 rekeyExchangeId = 0;
+		QByteArray rekeyRandomPower;
+		QByteArray rekeyNewKey;
+		quint64 rekeyNewKeyFingerprint = 0;
+		QByteArray previousKey;
+		quint64 previousKeyFingerprint = 0;
+		// v4: the verification hash of the handshake key (survives rekeys).
+		QByteArray keyHash;
+		// Trailer (after every entry, so a blob written before it existed
+		// still reads): the peer's ACK and the unacked sent layers, so a
+		// resend request after a restart is answered with the messages.
+		qint32 peerInSeqNo = 0;
+		const std::map<qint32, Api::EncryptedChats::SentLayer> *sentLayers
+			= nullptr;
+		// v4, second trailer: encrypted updates parked while the chat had no
+		// key yet, already ACKed to the server, so a restart must keep them.
+		std::vector<std::pair<qint32, QByteArray>> pendingMessages;
+	};
+	const auto toBytes = [](bytes::const_span span) {
+		return QByteArray(
+			reinterpret_cast<const char*>(span.data()),
+			int(span.size()));
+	};
+	auto list = std::vector<Entry>();
+	auto &chats = _owner->session().api().encryptedChats();
+	_owner->session().data().enumerateSecretChats([&](
+			not_null<SecretChatData*> chat) {
+		// Everything past Empty is persisted: a Requested / Waiting chat
+		// carries its handshake exponent so a restart can still finish it,
+		// and a discarded chat so it isn't revived from getDialogs.
+		if (chat->state() == SecretChatState::Empty) {
+			return;
+		}
+		const auto history = _owner->session().data().historyLoaded(chat);
+		const auto user = chat->user();
+		auto entry = Entry{
+			.secretChatId = chat->secretChatId(),
+			.accessHash = chat->accessHash(),
+			.userId = user ? peerToUser(user->id).bare : 0,
+			.state = qint32(chat->state()),
+			.amCreator = chat->amCreator() ? 1 : 0,
+			.keyFingerprint = chat->keyFingerprint(),
+			.key = chat->hasKey() ? toBytes(chat->key()) : QByteArray(),
+			// Peer layer in the low half, our announced layer in the high
+			// half (Android packs the same way). A blob written before the
+			// announce was tracked reads back 0 and re-announces once.
+			.layer = (chat->layer() & 0xffff)
+				| (chat->announcedLayer() << 16),
+			.ttl = chat->ttl(),
+			.sentCount = chat->rawOutSeqNo(),
+			.inSeqNo = chat->inSeqNo(),
+			.seqStarted = chat->seqStarted() ? 1 : 0,
+			.keyCreationDate = chat->keyCreationDate(),
+			.keyUseCountOut = chat->keyUseCountOut(),
+			.keyUseCountIn = chat->keyUseCountIn(),
+			.pinned = (history && history->isPinnedDialog(FilterId())) ? 1 : 0,
+			.muteUntil = chat->notify().muteUntil().value_or(0),
+			.archived = (history && history->folder()) ? 1 : 0,
+			.unreadMark = (history && history->unreadMark()) ? 1 : 0,
+			.keyHash = toBytes(chat->keyHash()),
+			.peerInSeqNo = chat->peerInSeqNo(),
+			.sentLayers = chats.sentLayers(chat->secretChatId()),
+		};
+		if (const auto pending = chats.pendingMessages(chat->secretChatId())) {
+			for (const auto &[message, qts] : *pending) {
+				entry.pendingMessages.emplace_back(
+					qts,
+					toBytes(MTP::SecretChat::SerializeObject(message)));
+			}
+		}
+		if (const auto pending = chats.pending(chat->secretChatId())) {
+			entry.pendingRandomPower = toBytes(pending->randomPower);
+			entry.pendingGA = toBytes(pending->gA);
+		}
+		if (const auto rekey = chats.rekey(chat->secretChatId())) {
+			entry.rekeyStage = qint32(rekey->stage);
+			entry.rekeyExchangeId = rekey->exchangeId;
+			entry.rekeyRandomPower = toBytes(rekey->randomPower);
+			if (rekey->haveNewKey) {
+				entry.rekeyNewKey = toBytes(rekey->newKey);
+				entry.rekeyNewKeyFingerprint = rekey->newKeyFingerprint;
+			}
+		}
+		if (chat->hasPreviousKey()) {
+			entry.previousKey = toBytes(chat->previousKey());
+			entry.previousKeyFingerprint = chat->previousKeyFingerprint();
+		}
+		list.push_back(std::move(entry));
+	});
+
+	if (list.empty()) {
+		// An empty enumerate is ambiguous: it can mean "no secret chats" but
+		// also "peers not loaded yet" (early startup) or "session tearing
+		// down" (shutdown). Deleting the data file on that signal would throw
+		// away unrecoverable E2E keys, so never clear here -- a stale,
+		// encrypted file is harmless and gets filtered on read. Real removal
+		// happens when a discarded chat is persisted with its Discarded state.
+		return;
+	}
+	if (!_secretChatsKey) {
+		_secretChatsKey = GenerateKey(_basePath);
+		// Persist the map synchronously: a secret-chat key is unrecoverable, so
+		// it must not be lost if the app is killed before a queued write runs.
+		// writeMap() is a no-op unless _mapChanged, so flag it first.
+		_mapChanged = true;
+		writeMap();
+	}
+
+	// The global secret-chat qts checkpoint is stored after the count, so the
+	// offline encrypted-update gap can be pulled via getDifference on launch.
+	const auto qts = chats.qts();
+	quint32 size = sizeof(qint32) * 3; // version + count + qts.
+	for (const auto &entry : list) {
+		size += sizeof(qint32) // secretChatId
+			+ sizeof(quint64) // accessHash
+			+ sizeof(quint64) // userId
+			+ sizeof(qint32) // state
+			+ sizeof(qint32) // amCreator
+			+ sizeof(quint64) // keyFingerprint
+			+ Serialize::bytearraySize(entry.key)
+			+ sizeof(qint32) // layer
+			+ sizeof(qint32) // ttl
+			+ sizeof(qint32) // sentCount
+			+ sizeof(qint32) // inSeqNo
+			+ sizeof(qint32) // seqStarted
+			+ sizeof(qint32) // keyCreationDate
+			+ sizeof(qint32) // keyUseCountOut
+			+ sizeof(qint32) // keyUseCountIn
+			+ sizeof(qint32) * 4 // pinned, muteUntil, archived, unreadMark
+			+ Serialize::bytearraySize(entry.pendingRandomPower)
+			+ Serialize::bytearraySize(entry.pendingGA)
+			+ sizeof(qint32) // rekeyStage
+			+ sizeof(quint64) // rekeyExchangeId
+			+ Serialize::bytearraySize(entry.rekeyRandomPower)
+			+ Serialize::bytearraySize(entry.rekeyNewKey)
+			+ sizeof(quint64) // rekeyNewKeyFingerprint
+			+ Serialize::bytearraySize(entry.previousKey)
+			+ sizeof(quint64) // previousKeyFingerprint
+			+ Serialize::bytearraySize(entry.keyHash)
+			+ sizeof(qint32) * 3 // trailer: secretChatId, peerInSeqNo, count
+			+ sizeof(qint32) * 2; // second trailer: secretChatId, count
+		if (entry.sentLayers) {
+			for (const auto &[seq, layer] : *entry.sentLayers) {
+				size += sizeof(qint32) // seq
+					+ sizeof(quint64) // randomId
+					+ sizeof(qint32) // isService
+					+ sizeof(quint32) + layer.serialized.size()
+					+ sizeof(quint64) * 2; // fileId, fileAccessHash
+			}
+		}
+		for (const auto &[qts, bytes] : entry.pendingMessages) {
+			size += sizeof(qint32) + Serialize::bytearraySize(bytes);
+		}
+	}
+	size += sizeof(qint32) * 2; // both trailer counts
+
+	// Persist the last accepted peer out_seq_no (+ a "started" flag) so the
+	// seq-no gap/duplicate checks survive a restart.
+	EncryptedDescriptor data(size);
+	data.stream << qint32(4) << qint32(list.size()) << qint32(qts);
+	for (const auto &entry : list) {
+		data.stream
+			<< entry.secretChatId
+			<< entry.accessHash
+			<< entry.userId
+			<< entry.state
+			<< entry.amCreator
+			<< entry.keyFingerprint
+			<< entry.key
+			<< entry.layer
+			<< entry.ttl
+			<< entry.sentCount
+			<< entry.inSeqNo
+			<< entry.seqStarted
+			<< entry.keyCreationDate
+			<< entry.keyUseCountOut
+			<< entry.keyUseCountIn
+			<< entry.pinned
+			<< entry.muteUntil
+			<< entry.archived
+			<< entry.unreadMark
+			<< entry.pendingRandomPower
+			<< entry.pendingGA
+			<< entry.rekeyStage
+			<< entry.rekeyExchangeId
+			<< entry.rekeyRandomPower
+			<< entry.rekeyNewKey
+			<< entry.rekeyNewKeyFingerprint
+			<< entry.previousKey
+			<< entry.previousKeyFingerprint
+			<< entry.keyHash;
+	}
+	data.stream << qint32(list.size());
+	for (const auto &entry : list) {
+		const auto count = entry.sentLayers ? entry.sentLayers->size() : 0;
+		data.stream
+			<< entry.secretChatId
+			<< entry.peerInSeqNo
+			<< qint32(count);
+		if (entry.sentLayers) {
+			for (const auto &[seq, layer] : *entry.sentLayers) {
+				data.stream
+					<< seq
+					<< quint64(layer.randomId)
+					<< qint32(layer.isService ? 1 : 0)
+					<< toBytes(layer.serialized)
+					<< quint64(layer.fileId)
+					<< quint64(layer.fileAccessHash);
+			}
+		}
+	}
+	data.stream << qint32(list.size());
+	for (const auto &entry : list) {
+		data.stream
+			<< entry.secretChatId
+			<< qint32(entry.pendingMessages.size());
+		for (const auto &[qts, bytes] : entry.pendingMessages) {
+			data.stream << qts << bytes;
+		}
+	}
+
+	// Write synchronously: a secret-chat key is unrecoverable, so the data
+	// file must hit disk before we return rather than risk being dropped from
+	// the async writer queue if the session ends.
+	FileWriteDescriptor file(_secretChatsKey, _basePath, /*sync=*/true);
+	file.writeEncrypted(data, _localKey);
+}
+
+void Account::readSecretChats() {
+	if (!_owner->sessionExists()) {
+		return;
+	}
+	// Whatever the outcome (no file, unreadable, restored), nothing more can
+	// be recovered from disk after this, so writes may replace the file.
+	const auto allowWrites = gsl::finally([&] { _secretChatsRead = true; });
+	if (!_secretChatsKey) {
+		return;
+	}
+
+	FileReadDescriptor chats;
+	if (!ReadEncryptedFile(chats, _secretChatsKey, _basePath, _localKey)) {
+		ClearKey(_secretChatsKey, _basePath);
+		_secretChatsKey = 0;
+		writeMapDelayed();
+		return;
+	}
+
+	qint32 version = 0, count = 0;
+	chats.stream >> version >> count;
+	if (!CheckStreamStatus(chats.stream)
+		|| version < 1
+		|| version > 4
+		|| count < 0) {
+		DEBUG_LOG(("Secret chats: Could not read header."));
+		return;
+	}
+	{
+		auto qts = qint32(0);
+		chats.stream >> qts;
+		if (!CheckStreamStatus(chats.stream)) {
+			DEBUG_LOG(("Secret chats: Could not read qts."));
+			return;
+		}
+		_owner->session().api().encryptedChats().restoreQts(qts);
+	}
+
+	auto &owner = _owner->session().data();
+	auto &encrypted = _owner->session().api().encryptedChats();
+	const auto toSpan = [](const QByteArray &bytes) {
+		return bytes::make_span(bytes.constData(), bytes.size());
+	};
+	auto waiting = std::vector<not_null<SecretChatData*>>();
+	auto restored = base::flat_map<qint32, not_null<SecretChatData*>>();
+	for (auto i = 0; i != count; ++i) {
+		qint32 secretChatId = 0, state = 0, amCreator = 0;
+		qint32 layer = 0, ttl = 0, sentCount = 0;
+		qint32 inSeqNo = 0, seqStarted = 0;
+		qint32 keyCreationDate = 0, keyUseCountOut = 0, keyUseCountIn = 0;
+		quint64 accessHash = 0, userId = 0, keyFingerprint = 0;
+		QByteArray key;
+		qint32 pinned = 0, muteUntil = 0, archived = 0, unreadMark = 0;
+		QByteArray pendingRandomPower, pendingGA;
+		qint32 rekeyStage = -1;
+		quint64 rekeyExchangeId = 0, rekeyNewKeyFingerprint = 0;
+		QByteArray rekeyRandomPower, rekeyNewKey;
+		QByteArray previousKey;
+		quint64 previousKeyFingerprint = 0;
+		QByteArray keyHash;
+		chats.stream
+			>> secretChatId
+			>> accessHash
+			>> userId
+			>> state
+			>> amCreator
+			>> keyFingerprint
+			>> key
+			>> layer
+			>> ttl
+			>> sentCount
+			>> inSeqNo
+			>> seqStarted
+			>> keyCreationDate
+			>> keyUseCountOut
+			>> keyUseCountIn;
+		if (version >= 2) {
+			chats.stream
+				>> pinned
+				>> muteUntil
+				>> archived
+				>> unreadMark
+				>> pendingRandomPower
+				>> pendingGA
+				>> rekeyStage
+				>> rekeyExchangeId
+				>> rekeyRandomPower
+				>> rekeyNewKey
+				>> rekeyNewKeyFingerprint
+				>> previousKey
+				>> previousKeyFingerprint;
+		}
+		if (version >= 4) {
+			chats.stream >> keyHash;
+		}
+		if (!CheckStreamStatus(chats.stream)) {
+			DEBUG_LOG(("Secret chats: Could not read entry."));
+			return;
+		}
+		const auto chatState = SecretChatState(state);
+		const auto hasKey = (key.size() == int(SecretChatData::kKeySize));
+		// A keyless row is only worth restoring when the handshake can still
+		// finish: our exponent (Requested) or the peer's g_a (Waiting).
+		const auto handshake = (chatState == SecretChatState::Requested
+				&& !pendingRandomPower.isEmpty())
+			|| (chatState == SecretChatState::Waiting
+				&& !pendingGA.isEmpty());
+		if (!userId
+			|| (!hasKey
+				&& chatState != SecretChatState::Discarded
+				&& !handshake)) {
+			continue;
+		}
+
+		const auto chat = owner.secretChat(secretChatIdFromWire(secretChatId));
+		const auto user = owner.user(UserId(BareId(userId)));
+		chat->setUser(user);
+		chat->setAccessHash(accessHash);
+		chat->setIsCreator(amCreator != 0);
+		chat->setLayer(layer & 0xffff);
+		chat->setAnnouncedLayer((layer >> 16) & 0xffff);
+		chat->setTtl(ttl);
+		chat->setRawSeqNo(sentCount, inSeqNo, seqStarted != 0);
+		if (hasKey) {
+			chat->setKey(toSpan(key), keyFingerprint);
+			// setKey() above reset the PFS clock to "now"; restore the persisted key
+			// age and use count so the weekly/100-message rekey trigger survives a
+			// restart.
+			chat->setKeyUsage(keyCreationDate, keyUseCountOut, keyUseCountIn);
+			// setKey() hashed the current key; a blob that carries the
+			// handshake key's hash restores that one instead.
+			if (!keyHash.isEmpty()) {
+				chat->setKeyHash(toSpan(keyHash));
+			}
+		}
+		if (previousKey.size() == int(SecretChatData::kKeySize)) {
+			chat->setPreviousKey(toSpan(previousKey), previousKeyFingerprint);
+		}
+		if (!pendingRandomPower.isEmpty() || !pendingGA.isEmpty()) {
+			encrypted.restorePending(secretChatId, {
+				.randomPower = bytes::make_vector(toSpan(pendingRandomPower)),
+				.gA = bytes::make_vector(toSpan(pendingGA)),
+			});
+		}
+		if (rekeyStage >= 0 && hasKey) {
+			using Rekey = Api::EncryptedChats::Rekey;
+			auto rekey = Rekey{
+				.stage = Rekey::Stage(rekeyStage),
+				.exchangeId = rekeyExchangeId,
+				.randomPower = bytes::make_vector(toSpan(rekeyRandomPower)),
+				.newKeyFingerprint = rekeyNewKeyFingerprint,
+				.haveNewKey = (rekeyNewKey.size()
+					== int(SecretChatData::kKeySize)),
+			};
+			if (rekey.haveNewKey) {
+				bytes::copy(rekey.newKey, toSpan(rekeyNewKey));
+			}
+			encrypted.restoreRekey(secretChatId, std::move(rekey));
+		}
+		chat->setState(chatState);
+		// Mark loaded so Session::secretChatLoaded() (used by the incoming
+		// message path) and the UI stop treating it as an inaccessible peer.
+		chat->setLoadedStatus(PeerData::LoadedStatus::Full);
+		// The partner user is restored minimal (no name yet); setUser now
+		// re-mirrors its name/photo reactively once the user data loads via
+		// normal startup peer loading.
+
+		// Make the restored chat visible in the dialog list: secret chats get
+		// no server dialog, so their History is otherwise never folder-known.
+		// (A discarded chat with history is a "cancelled" row; one without
+		// leaves the list, see History::shouldBeInChatList.)
+		const auto history = owner.history(chat->id);
+		if (archived) {
+			history->setFolder(owner.folder(Data::Folder::kId));
+		} else if (!history->folderKnown()) {
+			history->clearFolder();
+		}
+		// Empty histories sort to key 0 and are dropped from the chat list;
+		// give a date so a restored, message-less chat still shows, and keeps
+		// its position: the key creation time (a chat with messages gets the
+		// real last-message date when those are restored right after).
+		if (!history->chatListTimeId()) {
+			history->setChatListTimeId(chat->keyCreationDate()
+				? chat->keyCreationDate()
+				: base::unixtime::now());
+		}
+		if (pinned) {
+			owner.setChatPinned(history, FilterId(), true);
+		}
+		if (unreadMark) {
+			history->setUnreadMark(true);
+		}
+		if (muteUntil > base::unixtime::now()) {
+			owner.notifySettings().update(chat, Data::MuteValue{
+				.period = muteUntil - base::unixtime::now(),
+			});
+		}
+		if (chatState == SecretChatState::Waiting) {
+			waiting.push_back(chat);
+		}
+		restored.emplace(secretChatId, chat);
+	}
+	// Re-run the accept our restart interrupted (the peer's g_a is stored).
+	for (const auto &chat : waiting) {
+		encrypted.accept(chat);
+	}
+	// Trailer: peer ACK + unacked sent layers. Absent in a blob written by an
+	// earlier build; best-effort, a short read just leaves the cache empty.
+	if (chats.stream.atEnd()) {
+		return;
+	}
+	auto trailerCount = qint32(0);
+	chats.stream >> trailerCount;
+	for (auto i = 0; i != trailerCount; ++i) {
+		qint32 secretChatId = 0, peerInSeqNo = 0, layerCount = 0;
+		chats.stream >> secretChatId >> peerInSeqNo >> layerCount;
+		if (!CheckStreamStatus(chats.stream) || layerCount < 0) {
+			return;
+		}
+		auto layers = std::map<qint32, Api::EncryptedChats::SentLayer>();
+		for (auto j = 0; j != layerCount; ++j) {
+			qint32 seq = 0, isService = 0;
+			quint64 randomId = 0;
+			QByteArray serialized;
+			chats.stream >> seq >> randomId >> isService >> serialized;
+			// The file a message carried is resendable only from version 3 on;
+			// an older blob leaves it at 0, so such a message answers a resend
+			// request with a tombstone, as it did before.
+			quint64 fileId = 0, fileAccessHash = 0;
+			if (version >= 3) {
+				chats.stream >> fileId >> fileAccessHash;
+			}
+			if (!CheckStreamStatus(chats.stream)) {
+				return;
+			}
+			layers[seq] = {
+				.serialized = bytes::make_vector(toSpan(serialized)),
+				.randomId = randomId,
+				.isService = (isService != 0),
+				.fileId = fileId,
+				.fileAccessHash = fileAccessHash,
+			};
+		}
+		const auto chat = restored.find(secretChatId);
+		if (chat == restored.end()) {
+			continue;
+		}
+		chat->second->setPeerInSeqNo(peerInSeqNo);
+		encrypted.restoreSentLayers(secretChatId, std::move(layers));
+	}
+	// Second trailer (v4): the parked keyless-chat updates. A chat that was
+	// dropped above (discarded, keyless without a handshake) must not have
+	// its list revived, so only restored chats get theirs back.
+	if (version < 4 || chats.stream.atEnd()) {
+		return;
+	}
+	auto pendingCount = qint32(0);
+	chats.stream >> pendingCount;
+	for (auto i = 0; i != pendingCount; ++i) {
+		qint32 secretChatId = 0, messageCount = 0;
+		chats.stream >> secretChatId >> messageCount;
+		if (!CheckStreamStatus(chats.stream) || messageCount < 0) {
+			return;
+		}
+		auto messages = std::vector<Api::EncryptedChats::PendingMessage>();
+		for (auto j = 0; j != messageCount; ++j) {
+			qint32 qts = 0;
+			QByteArray bytes;
+			chats.stream >> qts >> bytes;
+			if (!CheckStreamStatus(chats.stream)) {
+				return;
+			}
+			auto message = MTPEncryptedMessage();
+			if (MTP::SecretChat::DeserializeObject(message, toSpan(bytes))) {
+				messages.emplace_back(std::move(message), qts);
+			}
+		}
+		const auto chat = restored.find(secretChatId);
+		if (chat == restored.end()) {
+			continue;
+		}
+		encrypted.restorePendingMessages(secretChatId, std::move(messages));
+	}
+}
+
+QString Account::secretFilesPath() const {
+	return _basePath + u"secret_files/"_q;
+}
+
+void Account::writeSecretChatMessages(const QByteArray &serialized) {
+	if (!_owner->sessionExists()) {
+		return;
+	} else if (!_secretMessagesRead) {
+		// Same guard as the chats blob: an encrypted update processed before
+		// the startup restore would serialize an empty message set and
+		// delete the file that still holds every stored message.
+		LOG(("Secret chats: messages write skipped, not read yet."));
+		return;
+	}
+	if (serialized.isEmpty()) {
+		// Nothing to store. Drop the file/key if one existed (e.g. the last
+		// secret chat was discarded / its history cleared).
+		if (_secretMessagesKey) {
+			ClearKey(_secretMessagesKey, _basePath);
+			_secretMessagesKey = 0;
+			writeMapDelayed();
+		}
+		return;
+	}
+	if (!_secretMessagesKey) {
+		_secretMessagesKey = GenerateKey(_basePath);
+		_mapChanged = true;
+		writeMap();
+	}
+
+	EncryptedDescriptor data(Serialize::bytearraySize(serialized));
+	data.stream << serialized;
+
+	// Synchronous like the chats blob: the qts checkpoint written right after
+	// a message ACKs it to the server, so a crash in between must not lose
+	// a message that will never be redelivered.
+	FileWriteDescriptor file(_secretMessagesKey, _basePath, /*sync=*/true);
+	file.writeEncrypted(data, _localKey);
+}
+
+void Account::readSecretChatMessages() {
+	const auto allowWrites = gsl::finally([&] { _secretMessagesRead = true; });
+	if (!_secretMessagesKey) {
+		return;
+	} else if (!_owner->sessionExists()) {
+		return;
+	}
+
+	FileReadDescriptor messages;
+	if (!ReadEncryptedFile(messages, _secretMessagesKey, _basePath, _localKey)) {
+		ClearKey(_secretMessagesKey, _basePath);
+		_secretMessagesKey = 0;
+		writeMapDelayed();
+		return;
+	}
+
+	QByteArray serialized;
+	messages.stream >> serialized;
+	if (!CheckStreamStatus(messages.stream)) {
+		DEBUG_LOG(("Secret chats: Could not read messages blob."));
+		return;
+	}
+	_owner->session().api().encryptedChats().restoreMessages(serialized);
 }
 
 void Account::writeSelf() {

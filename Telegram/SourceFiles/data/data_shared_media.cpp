@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_shared_media.h"
 
+#include <rpl/merge.h>
+#include "api/api_encrypted_chats.h"
 #include "apiwrap.h"
 #include "core/crash_reports.h"
 #include "data/components/scheduled_messages.h"
@@ -67,6 +69,41 @@ bool IsItemGoodForType(const not_null<HistoryItem*> item, Type type) {
 		|| (fileType && (document->isTheme()
 			|| document->isImage()
 			|| !document->canBeStreamed()));
+}
+
+// Match the Android client: keep short-lived self-destruct media out of the
+// shared-media index (their ttl lives in EncryptedChats, not on the media).
+constexpr auto kSecretMediaSkipTtl = 60;
+
+[[nodiscard]] std::pair<std::vector<MsgId>, int> CollectSecretMediaIds(
+		not_null<Main::Session*> session,
+		PeerId peerId,
+		Type type) {
+	auto &chats = session->api().encryptedChats();
+	auto items = std::vector<not_null<HistoryItem*>>();
+	session->data().enumerateMessages(peerId, [&](
+			not_null<HistoryItem*> item) {
+		// Use the same classifier the server-side index uses
+		// (item->sharedMediaTypes()) rather than IsItemGoodForType: it is
+		// mutually exclusive, so a gif lands only in GIF (not File) and a
+		// sticker is excluded entirely - matching regular chats.
+		if (!item->sharedMediaTypes().test(type)) {
+			return;
+		}
+		const auto ttl = chats.messageTtlSeconds(peerId, item->id);
+		if (ttl > 0 && ttl <= kSecretMediaSkipTtl) {
+			return;
+		}
+		items.push_back(item);
+	});
+	ranges::sort(items, ranges::less(), &HistoryItem::position);
+	auto ids = std::vector<MsgId>();
+	ids.reserve(items.size());
+	for (const auto &item : items) {
+		ids.push_back(item->id);
+	}
+	const auto fullCount = int(ids.size());
+	return { std::move(ids), fullCount };
 }
 
 } // namespace
@@ -232,6 +269,43 @@ rpl::producer<SparseIdsMergedSlice> SharedScheduledMediaViewer(
 		return SparseIdsMergedSlice(
 			key.mergedKey,
 			std::move(unsorted));
+	});
+}
+
+rpl::producer<SparseIdsMergedSlice> SharedSecretMediaViewer(
+		not_null<Main::Session*> session,
+		SharedMediaMergedKey key,
+		int limitBefore,
+		int limitAfter) {
+	const auto peerId = key.mergedKey.peerId;
+	const auto type = key.type;
+
+	auto itemAdded = session->data().newItemAdded(
+	) | rpl::filter([=](not_null<HistoryItem*> item) {
+		return (item->history()->peer->id == peerId);
+	}) | rpl::to_empty;
+	auto itemRemoved = session->data().itemRemoved(
+	) | rpl::filter([=](not_null<const HistoryItem*> item) {
+		return (item->history()->peer->id == peerId);
+	}) | rpl::to_empty;
+	auto itemChanged = session->data().itemDataChanges(
+	) | rpl::filter([=](not_null<HistoryItem*> item) {
+		return (item->history()->peer->id == peerId);
+	}) | rpl::to_empty;
+
+	return rpl::single(rpl::empty) | rpl::then(rpl::merge(
+		std::move(itemAdded),
+		std::move(itemRemoved),
+		std::move(itemChanged))
+	) | rpl::map([=] {
+		auto [ids, fullCount] = CollectSecretMediaIds(session, peerId, type);
+		return SparseIdsMergedSlice(
+			key.mergedKey,
+			SparseUnsortedIdsSlice(
+				std::move(ids),
+				fullCount,
+				0, // skippedBefore
+				0)); // skippedAfter
 	});
 }
 
@@ -499,6 +573,21 @@ rpl::producer<SharedMediaWithLastSlice> SharedMediaWithLastViewer(
 
 		if (std::get_if<not_null<PhotoData*>>(&key.universalId)) {
 			return SharedMediaMergedViewer(
+				session,
+				std::move(viewerKey),
+				limitBefore,
+				limitAfter
+			) | rpl::on_next([=](SparseIdsMergedSlice &&update) {
+				consumer.put_next(SharedMediaWithLastSlice(
+					session,
+					key,
+					std::move(update),
+					std::nullopt));
+			});
+		}
+
+		if (session->data().peer(key.peerId)->isSecretChat()) {
+			return SharedSecretMediaViewer(
 				session,
 				std::move(viewerKey),
 				limitBefore,

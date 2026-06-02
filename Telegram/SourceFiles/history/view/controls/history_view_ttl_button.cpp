@@ -9,11 +9,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "data/data_changes.h"
 #include "data/data_peer.h"
+#include "data/data_secret_chat.h"
 #include "main/main_session.h"
 #include "menu/menu_ttl_validator.h"
 #include "ui/text/format_values.h"
 #include "ui/text/text_utilities.h"
+#include "ui/widgets/popup_menu.h"
+#include "window/window_peer_menu_secret.h"
 #include "styles/style_chat_helpers.h"
+#include "styles/style_menu_icons.h"
 
 namespace HistoryView::Controls {
 
@@ -24,22 +28,38 @@ TTLButton::TTLButton(
 : _peer(peer)
 , _button(parent, st::historyMessagesTTL) {
 
-	const auto validator = TTLMenu::TTLValidator(std::move(show), peer);
-	_button.setClickedCallback([=] {
-		if (!validator.can()) {
-			validator.showToast();
-			return;
-		}
-		validator.showBox();
-	});
+	if (const auto secret = peer->asSecretChat()) {
+		// The secret-chat timer is a per-chat E2E setting with its own
+		// presets, not messages.setHistoryTTL: reuse the peer menu list.
+		_button.setClickedCallback([=] {
+			_menu = base::make_unique_q<Ui::PopupMenu>(
+				parent,
+				st::popupMenuWithIcons);
+			Window::FillSecretChatTtlMenu(_menu.get(), secret);
+			_menu->popup(QCursor::pos());
+		});
+	} else {
+		const auto validator = TTLMenu::TTLValidator(std::move(show), peer);
+		_button.setClickedCallback([=] {
+			if (!validator.can()) {
+				validator.showToast();
+				return;
+			}
+			validator.showBox();
+		});
+	}
 
 	peer->session().changes().peerFlagsValue(
 		peer,
 		Data::PeerUpdate::Flag::MessagesTTL
 	) | rpl::on_next([=] {
-		_button.setText(Ui::FormatTTLTiny(peer->messagesTTL()));
+		// Secret chat with the timer off: bare clock icon, no "0s".
+		const auto ttl = peer->messagesTTL();
+		_button.setText(ttl ? Ui::FormatTTLTiny(ttl) : QString());
 	}, _button.lifetime());
 }
+
+TTLButton::~TTLButton() = default;
 
 void TTLButton::show() {
 	_button.show();
