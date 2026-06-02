@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/share_box.h"
 
 #include "api/api_premium.h"
+#include "api/api_sending.h"
 #include "base/call_delayed.h"
 #include "base/random.h"
 #include "lang/lang_keys.h"
@@ -535,7 +536,14 @@ SendMenu::Details ShareBox::sendMenuDetails() const {
 		}
 		return false;
 	}();
-	const auto type = hasPaid
+	// The secret layer has no scheduling, and our send path does not carry
+	// the decryptedMessage silent flag, so the whole menu goes away.
+	const auto hasSecret = ranges::any_of(
+		selected | ranges::views::transform(&Data::Thread::peer),
+		&PeerData::isSecretChat);
+	const auto type = hasSecret
+		? SendMenu::Type::Disabled
+		: hasPaid
 		? SendMenu::Type::SilentOnly
 		: ranges::all_of(
 			selected | ranges::views::transform(&Data::Thread::peer),
@@ -1878,6 +1886,25 @@ ShareBox::SubmitCallback ShareBox::DefaultForwardCallback(
 				api.sendMessage(std::move(message));
 			}
 
+			if (const auto secret = peer->asSecretChat()) {
+				// The other forward implementation, same rule as
+				// ApiWrap::forwardMessages: copy each item out encrypted. No
+				// state->requests entry is added, so the toast bookkeeping
+				// below stays right whether some or all targets are secret.
+				auto action = Api::SendAction(effectiveThread, options);
+				api.sendAction(action);
+				const auto dropCaption = (forwardOptions
+					== Data::ForwardOptions::NoNamesAndCaptions);
+				for (const auto &item : items) {
+					Api::ForwardToSecretChat(
+						secret,
+						item,
+						action,
+						dropCaption);
+				}
+				continue;
+			}
+
 			const auto topicRootId = effectiveThread->topicRootId();
 			const auto sublistPeer = needNewTopic
 				? nullptr
@@ -2117,6 +2144,12 @@ void FastShareMessage(
 	const auto requiredRight = item->requiredSendRight();
 	const auto requiresInline = item->requiresSendInlineRight();
 	auto filterCallback = [=](not_null<Data::Thread*> thread) {
+		if (thread->peer()->isSecretChat()
+			&& item->errorTextForForwardIgnoreRights(thread)) {
+			// Hide secret chats that cannot carry this item instead of only
+			// refusing on submit.
+			return false;
+		}
 		if (const auto user = thread->peer()->asUser()) {
 			if (user->canSendIgnoreMoneyRestrictions()) {
 				return true;

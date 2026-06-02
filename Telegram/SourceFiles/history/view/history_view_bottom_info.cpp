@@ -498,11 +498,16 @@ void BottomInfo::layoutDateText() {
 		: _data.scheduleRepeatPeriod
 		? (SchedulePeriodText(_data.scheduleRepeatPeriod) + ' ')
 		: QString();
+	const auto countdown = _data.ttlDestroyAt
+		? (Ui::FormatTTLTiny(std::max(
+			_data.ttlDestroyAt - base::unixtime::now(),
+			TimeId(1))) + ' ')
+		: QString();
 	const auto author = _data.author;
 	const auto prefix = !author.isEmpty() ? u", "_q : QString();
 	const auto date = editedPrimary
 		? FormatEditedDate(_data.date, _data.editedDate)
-		: edited + ((_data.flags & Data::Flag::ForwardedDate)
+		: countdown + edited + ((_data.flags & Data::Flag::ForwardedDate)
 		? Ui::FormatDateTimeSavedFrom(_data.date)
 		: QLocale().toString(_data.date.time(), QLocale::ShortFormat));
 	const auto afterAuthor = prefix + date;
@@ -711,6 +716,11 @@ BottomInfo::Data BottomInfoDataFromMessage(not_null<Message*> message) {
 	}
 	if (item->isSending() || item->hasFailed()) {
 		result.flags |= Flag::Sending;
+	}
+	// Covered media (photo / video) counts down in its own top-left label.
+	if (item->history()->peer->isSecretChat()
+		&& !item->isTtlCoveredMedia()) {
+		result.ttlDestroyAt = item->ttlDestroyAt();
 	}
 	if (item->isEphemeral()
 		&& !message->hasBubble()

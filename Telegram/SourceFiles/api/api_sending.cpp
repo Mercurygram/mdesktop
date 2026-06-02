@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "api/api_sending.h"
 
+#include "api/api_encrypted_chats.h"
 #include "api/api_text_entities.h"
 #include "base/random.h"
 #include "base/unixtime.h"
@@ -16,6 +17,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_channel.h" // ChannelData::addsSignature.
 #include "data/data_user.h" // UserData::name
 #include "data/data_session.h"
+#include "data/data_media_types.h"
+#include "data/data_secret_chat.h"
 #include "data/data_file_origin.h"
 #include "data/data_histories.h"
 #include "data/data_changes.h"
@@ -696,12 +699,48 @@ void SendMusicSelectionBatch(
 	performRequest(performRequest, false);
 }
 
+// Preamble of every secret-chat send branch. The composer clears the reply bar
+// and scrolls to the end from the sendAction stream, so a branch that returns
+// without it leaves the reply bar hanging after the message was sent.
+void PrepareSecretAction(SendAction &action) {
+	action.clearDraft = false;
+	action.generateLocal = true;
+	action.history->session().api().sendAction(action);
+}
+
 } // namespace
 
 void SendExistingDocument(
 		MessageToSend &&message,
 		not_null<DocumentData*> document,
 		std::optional<MsgId> localMessageId) {
+	// Secret chats reference the document on the server (no InputPeer send path);
+	// route stickers/GIFs through the encrypted external-document send instead.
+	if (const auto secret = message.action.history->peer->asSecretChat()) {
+		auto &session = message.action.history->session();
+		PrepareSecretAction(message.action);
+		const auto replyToMsgId = LocalReplyToMsgId(
+			message.action.replyTo.messageId,
+			secret->id);
+		auto caption = TextWithEntities{
+			message.textWithTags.text,
+			TextUtilities::ConvertTextTagsToEntities(
+				message.textWithTags.tags)
+		};
+		TextUtilities::Trim(caption);
+		session.api().encryptedChats().sendExistingDocument(
+			secret,
+			document,
+			caption,
+			/*afterSetRefetch=*/false,
+			replyToMsgId,
+			{},
+			message.action.options.silent);
+		if (document->sticker()) {
+			document->owner().stickers().incrementSticker(document);
+		}
+		return;
+	}
 	const auto inputMedia = [=] {
 		return MTP_inputMediaDocument(
 			MTP_flags(message.action.options.mediaSpoiler
@@ -784,6 +823,20 @@ void SendExistingPhoto(
 		MessageToSend &&message,
 		not_null<PhotoData*> photo,
 		std::optional<MsgId> localMessageId) {
+	// The secret layer has no server-reference form for photos (unlike
+	// stickers), so the bytes are re-uploaded encrypted -- see
+	// EncryptedChats::sendExistingPhoto.
+	if (const auto secret = message.action.history->peer->asSecretChat()) {
+		auto &session = message.action.history->session();
+		PrepareSecretAction(message.action);
+		session.api().encryptedChats().sendExistingPhoto(
+			secret,
+			photo,
+			message.action,
+			Data::FileOrigin(),
+			message.textWithTags);
+		return;
+	}
 	const auto inputMedia = [=] {
 		return MTP_inputMediaPhoto(
 			MTP_flags(0),
@@ -797,6 +850,108 @@ void SendExistingPhoto(
 		inputMedia,
 		Data::FileOrigin(),
 		std::move(localMessageId));
+}
+
+bool CanForwardToSecretChat(not_null<const HistoryItem*> item) {
+	const auto media = item->media();
+	// A link preview travels as its text (the partner rebuilds it from the
+	// URL), so it must be recognized before photo()/document(), which return
+	// the preview's own media.
+	if (media && !media->webpage()) {
+		return media->document()
+			|| media->photo()
+			|| media->sharedContact()
+			|| media->location();
+	}
+	return !item->originalText().text.isEmpty();
+}
+
+bool ForwardToSecretChat(
+		not_null<SecretChatData*> chat,
+		not_null<HistoryItem*> item,
+		SendAction action,
+		bool dropCaption) {
+	auto &session = chat->session();
+	// A secret message has no forward header, so this is a copy-send. A reply
+	// left in the destination composer must not be stamped onto every copied
+	// item, and the compose draft is not the source of this text.
+	action.replyTo = {};
+	action.clearDraft = false;
+	action.generateLocal = true;
+	const auto media = item->media();
+	// MediaWebPage::document() / photo() return the preview's media, so a link
+	// preview has to be recognized before them: it must travel as its text (the
+	// partner rebuilds the preview from the URL), not as a re-upload of the
+	// preview image or of the linked video.
+	const auto page = media ? media->webpage() : nullptr;
+	const auto document = (media && !page) ? media->document() : nullptr;
+	const auto photo = (media && !page) ? media->photo() : nullptr;
+	const auto text = item->originalText();
+	const auto caption = dropCaption ? TextWithEntities() : text;
+	const auto origin = Data::FileOrigin(
+		Data::FileOriginMessage(item->fullId()));
+	// Anything not already cached is sent once its bytes arrive, so a burst of
+	// forwards can leave the chat out of order. The out_seq_no is taken at real
+	// send time, so the protocol stays consistent; the Android client behaves
+	// the same way. A per-chat send queue would be the fix if it ever matters.
+	if (document) {
+		session.api().encryptedChats().sendExistingDocument(
+			chat,
+			document,
+			caption,
+			/*afterSetRefetch=*/false,
+			/*replyToMsgId=*/MsgId(0),
+			origin);
+		return true;
+	} else if (photo) {
+		session.api().encryptedChats().sendExistingPhoto(
+			chat,
+			photo,
+			action,
+			origin,
+			TextWithTags{
+				caption.text,
+				TextUtilities::ConvertEntitiesToTextTags(caption.entities) });
+		return true;
+	} else if (const auto contact = media ? media->sharedContact() : nullptr) {
+		session.api().encryptedChats().sendContact(
+			chat,
+			contact->phoneNumber,
+			contact->firstName,
+			contact->lastName,
+			contact->userId,
+			MsgId(0));
+		return true;
+	} else if (media && media->location()) {
+		// location() is overridden only by MediaLocation, which is what makes
+		// the downcast safe; the point and title are private otherwise.
+		const auto location = static_cast<const Data::MediaLocation*>(media);
+		const auto lat = location->point().lat();
+		const auto lon = location->point().lon();
+		if (location->title().isEmpty()
+			&& location->description().isEmpty()) {
+			session.api().encryptedChats().sendLocation(
+				chat,
+				lat,
+				lon,
+				MsgId(0));
+		} else {
+			session.api().encryptedChats().sendVenue(chat, Data::InputVenue{
+				.lat = lat,
+				.lon = lon,
+				.title = location->title(),
+				.address = location->description(),
+			}, MsgId(0));
+		}
+		return true;
+	} else if (!text.empty()) {
+		// Covers a plain message and a link preview alike: the secret layer
+		// has no preview media, but the partner rebuilds one from the URL in
+		// the text.
+		session.api().encryptedChats().sendText(chat, text, MsgId(0));
+		return true;
+	}
+	return false;
 }
 
 bool SendDice(MessageToSend &message) {
@@ -948,6 +1103,17 @@ bool SendDice(MessageToSend &message) {
 }
 
 void SendLocation(SendAction action, float64 lat, float64 lon) {
+	if (const auto secret = action.history->peer->asSecretChat()) {
+		auto &session = action.history->session();
+		PrepareSecretAction(action);
+		session.api().encryptedChats().sendLocation(
+			secret,
+			lat,
+			lon,
+			LocalReplyToMsgId(action.replyTo.messageId, secret->id),
+			action.options.silent);
+		return;
+	}
 	SendSimpleMedia(
 		action,
 		MTP_inputMediaGeoPoint(
@@ -959,6 +1125,16 @@ void SendLocation(SendAction action, float64 lat, float64 lon) {
 }
 
 void SendVenue(SendAction action, Data::InputVenue venue) {
+	if (const auto secret = action.history->peer->asSecretChat()) {
+		auto &session = action.history->session();
+		PrepareSecretAction(action);
+		session.api().encryptedChats().sendVenue(
+			secret,
+			venue,
+			LocalReplyToMsgId(action.replyTo.messageId, secret->id),
+			action.options.silent);
+		return;
+	}
 	SendSimpleMedia(
 		action,
 		MTP_inputMediaVenue(
@@ -981,22 +1157,7 @@ void FillMessagePostFlags(
 	InnerFillMessagePostFlags(action.options, peer, flags);
 }
 
-namespace {
-
-struct ConfirmedLocalFile {
-	std::shared_ptr<FilePrepareResult> file;
-	not_null<History*> history;
-	not_null<PeerData*> peer;
-	FullMsgId newId;
-	SendAction action;
-	TextWithEntities caption;
-	MTPMessageMedia media;
-	MessageFlags flags = MessageFlags();
-	HistoryItem *itemToEdit = nullptr;
-	int starsPaid = 0;
-};
-
-[[nodiscard]] TextWithEntities PrepareConfirmedFileCaption(
+TextWithEntities PrepareConfirmedFileCaption(
 		not_null<History*> history,
 		not_null<Main::Session*> session,
 		const std::shared_ptr<FilePrepareResult> &file) {
@@ -1011,6 +1172,21 @@ struct ConfirmedLocalFile {
 	TextUtilities::Trim(caption);
 	return caption;
 }
+
+namespace {
+
+struct ConfirmedLocalFile {
+	std::shared_ptr<FilePrepareResult> file;
+	not_null<History*> history;
+	not_null<PeerData*> peer;
+	FullMsgId newId;
+	SendAction action;
+	TextWithEntities caption;
+	MTPMessageMedia media;
+	MessageFlags flags = MessageFlags();
+	HistoryItem *itemToEdit = nullptr;
+	int starsPaid = 0;
+};
 
 [[nodiscard]] MessageFlags PrepareConfirmedFileFlags(
 		not_null<Main::Session*> session,
@@ -1223,10 +1399,39 @@ void AddConfirmedLocalPlaceholder(const ConfirmedLocalFile &local) {
 		return;
 	}
 
+	const auto secret = local.peer->asSecretChat();
+	if (secret && local.file->type == SendMediaType::Photo) {
+		// EncryptedChats::sendFile already created an inline PhotoData bubble
+		// for this id (the normal photo media here renders black + a spinner
+		// because the secret upload bypasses the regular uploader/cache).
+		return;
+	}
+	auto flags = local.flags;
+	auto coverTtl = int32(0);
+	if (secret) {
+		// Secret-chat messages are local-only, so mark the file bubble Local
+		// like the text/photo bubbles. BeingSent stays: EncryptedChats clears
+		// it when messages.sendEncryptedFile confirms (or flags the failure).
+		flags |= MessageFlag::Local;
+		// Self-destruct media must not be savable/shareable on the sender
+		// either (matches the receive path + Android client). The timer is
+		// chat-wide (chat->ttl()); options.ttlSeconds is never populated on
+		// the secret-chat file path, so reading it left non-photo media
+		// (documents/videos/voice) unprotected.
+		if (secret->ttl() > 0) {
+			flags |= MessageFlag::NoForwards;
+			// Short-ttl video: covered on our side too, like the photo echo.
+			coverTtl = Api::SecretChatMediaCoverTtl(
+				secret->ttl(),
+				nullptr,
+				local.history->owner().processDocument(local.file->document));
+		}
+	}
+
 	const auto welcomeTemplate = local.file->to.options.welcomeTemplate;
 	const auto item = local.history->addNewLocalMessage({
 		.id = local.newId.msg,
-		.flags = local.flags,
+		.flags = flags,
 		.from = NewMessageFromId(local.action),
 		.replyTo = local.file->to.replyTo,
 		.date = NewMessageDate(local.file->to.options),
@@ -1241,9 +1446,26 @@ void AddConfirmedLocalPlaceholder(const ConfirmedLocalFile &local) {
 			: uint64(0),
 		.effectId = local.file->to.options.effectId,
 		.suggest = HistoryMessageSuggestInfo(local.file->to.options),
+		.mediaSpoiler = (coverTtl > 0),
+		.mediaTtlSeconds = coverTtl,
 	}, local.caption, local.media);
 	if (welcomeTemplate) {
 		local.history->session().welcomeMessages().appendSending(item);
+	}
+}
+
+void UploadConfirmedLocalFile(
+		not_null<Main::Session*> session,
+		const ConfirmedLocalFile &local) {
+	if (const auto secret = local.peer->asSecretChat()) {
+		// Secret chats encrypt the file themselves and send it via
+		// messages.sendEncryptedFile, not the normal InputPeer upload path.
+		session->api().encryptedChats().sendFile(
+			secret,
+			local.newId,
+			local.file);
+	} else {
+		session->uploader().upload(local.newId, local.file);
 	}
 }
 
@@ -1280,7 +1502,7 @@ void AddConfirmedLocalPlaceholder(const ConfirmedLocalFile &local) {
 				&& !local.file->to.options.welcomeTemplate);
 	}
 	for (const auto &local : locals) {
-		session->uploader().upload(local.newId, local.file);
+		UploadConfirmedLocalFile(session, local);
 	}
 
 	if (notifyHistory) {
@@ -1321,7 +1543,7 @@ void SendConfirmedFile(
 		std::min(
 			history->peer->starsPerMessageChecked(),
 			file->to.options.starsApproved));
-	session->uploader().upload(local.newId, file);
+	UploadConfirmedLocalFile(session, local);
 	session->api().sendAction(local.action);
 	AddConfirmedLocalPlaceholder(local);
 
