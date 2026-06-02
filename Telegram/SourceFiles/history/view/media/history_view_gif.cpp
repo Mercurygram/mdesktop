@@ -2050,6 +2050,12 @@ void Gif::dataMediaCreated() const {
 			_dataMedia->videoThumbnailWanted(_realParent->fullId());
 		}
 	}
+	// A secret-chat video/GIF/round is a local encrypted file with no remote or
+	// streaming source, so nothing else triggers a load. Decrypt it into memory
+	// on display (automaticLoad special-cases secret docs) so it can play.
+	if (_data->isSecretEncrypted()) {
+		_dataMedia->automaticLoad(_realParent->fullId(), _realParent);
+	}
 	history()->owner().registerHeavyViewPart(_parent);
 	togglePollingStory(true);
 }
