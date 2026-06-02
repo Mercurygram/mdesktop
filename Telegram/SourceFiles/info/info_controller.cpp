@@ -266,7 +266,9 @@ rpl::producer<SparseIdsMergedSlice> AbstractController::sharedMediaSource(
 		return false;
 	}();
 
-	const auto mediaViewer = isScheduled
+	const auto mediaViewer = peer()->isSecretChat()
+		? SharedSecretMediaViewer
+		: isScheduled
 		? SharedScheduledMediaViewer
 		: SharedMediaMergedViewer;
 	const auto topicId = isScheduled
@@ -610,16 +612,25 @@ rpl::producer<SparseIdsMergedSlice> Controller::mediaSource(
 			limitAfter);
 	}
 
+	const auto mergedKey = SharedMediaMergedKey(
+		SparseIdsMergedSlice::Key(
+			query.peerId,
+			query.topicRootId,
+			query.monoforumPeerId,
+			query.migratedPeerId,
+			aroundId),
+		query.type);
+	if (session().data().peer(query.peerId)->isSecretChat()) {
+		return SharedSecretMediaViewer(
+			&session(),
+			mergedKey,
+			limitBefore,
+			limitAfter);
+	}
+
 	return SharedMediaMergedViewer(
 		&session(),
-		SharedMediaMergedKey(
-			SparseIdsMergedSlice::Key(
-				query.peerId,
-				query.topicRootId,
-				query.monoforumPeerId,
-				query.migratedPeerId,
-				aroundId),
-			query.type),
+		mergedKey,
 		limitBefore,
 		limitAfter);
 }

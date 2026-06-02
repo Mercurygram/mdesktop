@@ -102,8 +102,15 @@ FullMsgId SparseIdsMergedSlice::operator[](int index) const {
 std::optional<int> SparseIdsMergedSlice::distance(
 		const Key &a,
 		const Key &b) const {
-	if (const auto i = indexOf(ComputeId(a))) {
-		if (const auto j = indexOf(ComputeId(b))) {
+	// An unsorted slice holds one peer's ids as they are (no migrated
+	// half), so a negative id is a local message, not a migrated one.
+	const auto compute = [&](const Key &key) {
+		return _unsorted
+			? ComputeId(key.peerId, key.universalId)
+			: ComputeId(key);
+	};
+	if (const auto i = indexOf(compute(a))) {
+		if (const auto j = indexOf(compute(b))) {
 			return *j - *i;
 		}
 	}

@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_message_reactions.h"
 #include "data/data_peer_values.h"
 #include "data/data_saved_sublist.h"
+#include "data/data_secret_chat.h"
 #include "data/data_session.h"
 #include "data/data_stories.h"
 #include "data/data_user.h"
@@ -32,8 +33,26 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Dialogs {
 namespace {
 
+// Secret chat text stays out of the accessibility tree, like the message
+// list of the chat itself (see HistoryInner::accessibleElements).
+[[nodiscard]] bool HidesMessageText(not_null<PeerData*> peer) {
+	return peer->isSecretChat();
+}
+
+// What the row paints for a secret chat that has no messages yet.
+[[nodiscard]] QString SecretChatStateText(not_null<PeerData*> peer) {
+	const auto secret = peer->asSecretChat();
+	if (!secret) {
+		return QString();
+	}
+	const auto text = secret->stateText();
+	return text.isEmpty() ? secret->startedText() : text;
+}
+
 [[nodiscard]] QString ChatTypeString(not_null<PeerData*> peer) {
-	if (const auto user = peer->asUser()) {
+	if (peer->isSecretChat()) {
+		return tr::lng_secret_chat_request_title(tr::now);
+	} else if (const auto user = peer->asUser()) {
 		if (user->isInaccessible()) {
 			return tr::lng_deleted(tr::now);
 		} else if (user->isSelf()) {
@@ -82,8 +101,11 @@ namespace {
 		statusBeforeMessage = false;
 	}
 
-	auto messageText = item->notificationText().text;
-	if (!messageText.isEmpty()) {
+	const auto hidden = HidesMessageText(peer);
+	auto messageText = hidden ? QString() : item->notificationText().text;
+	if (hidden && statusBeforeMessage) {
+		parts << status;
+	} else if (!messageText.isEmpty()) {
 		constexpr auto kMaxMessageLength = 100;
 		if (messageText.size() > kMaxMessageLength) {
 			messageText = messageText.left(kMaxMessageLength) + u"..."_q;
@@ -255,6 +277,9 @@ QString RowAccessibilityName(
 
 	if (const auto item = history->chatListMessage()) {
 		parts += MessageTailParts(item, history, peer);
+	} else if (const auto state = SecretChatStateText(peer)
+		; !state.isEmpty()) {
+		parts << state;
 	}
 
 	return parts.join(u", "_q);
@@ -429,7 +454,9 @@ QString SubItemValue(
 	}
 	case SubItem::Message: {
 		const auto chatItem = history->chatListMessage();
-		if (!chatItem || chatItem->isService()) {
+		if (!chatItem) {
+			return SecretChatStateText(peer);
+		} else if (chatItem->isService() || HidesMessageText(peer)) {
 			return {};
 		}
 		auto messageText = chatItem->notificationText().text;

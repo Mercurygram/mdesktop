@@ -158,7 +158,10 @@ void PaintTtlLabel(
 	if (!media || media->ttlSecondsSingleView()) {
 		return;
 	}
-	const auto destroyAt = item->mediaDestroyAt();
+	// A secret chat arms the whole message (ttlDestroyAt), not the media.
+	const auto destroyAt = item->mediaDestroyAt()
+		? item->mediaDestroyAt()
+		: item->ttlDestroyAt();
 	const auto seconds = (destroyAt > 0)
 		? std::max(destroyAt - base::unixtime::now(), TimeId(0))
 		: TimeId(media->ttlSeconds());

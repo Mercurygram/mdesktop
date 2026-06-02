@@ -105,7 +105,7 @@ private:
 	void setupState(not_null<PeerData*> peer, bool showInForum);
 	void setupHandlers(not_null<PeerData*> peer);
 	void setupAddHandler(not_null<UserData*> user);
-	void setupBlockHandler(not_null<UserData*> user);
+	void setupBlockHandler(not_null<PeerData*> peer);
 	void setupShareHandler(not_null<UserData*> user);
 	void setupUnarchiveHandler(not_null<PeerData*> peer);
 	void setupReportHandler(not_null<PeerData*> peer);

@@ -837,6 +837,9 @@ bool HistoryInner::hasSelectRestriction() const {
 		return !chat->canDeleteMessages();
 	} else if (const auto channel = _peer->asChannel()) {
 		return !channel->canDeleteMessages();
+	} else if (_peer->isSecretChat()) {
+		// No forwarding, but selecting to copy or delete is fine.
+		return false;
 	}
 	return true;
 }
@@ -2370,8 +2373,11 @@ std::unique_ptr<QMimeData> HistoryInner::prepareDrag() {
 	}
 
 	const auto pressedHandler = ClickHandler::getPressed();
+	// Pass the dragged item so per-item forbidsForward() (self-destruct media in
+	// a secret chat) blocks drag-out too -- the no-arg form can't see it.
+	const auto dragItem = _dragStateItem ? _dragStateItem : _mouseActionItem;
 	if (dynamic_cast<VoiceSeekClickHandler*>(pressedHandler.get())
-		|| hasCopyRestriction()) {
+		|| hasCopyRestriction(dragItem)) {
 		return nullptr;
 	}
 
@@ -3348,15 +3354,29 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 	};
 
 	const auto addReplyAction = [&](HistoryItem *item) {
-		if (!item
-			|| (!item->isRegular() && !CanReplyToEphemeral(item))
-			|| IsAnchoredEphemeral(item)) {
+		if (!item) {
+			return;
+		}
+		// Secret-chat messages are local items (negative ids), so isRegular() is
+		// false for them; still allow replying to a (non-service) secret-chat
+		// message in the history.
+		const auto replyableSecret = item->history()->peer->isSecretChat()
+			&& item->isHistoryEntry()
+			&& !item->isService();
+		if (((!item->isRegular() && !CanReplyToEphemeral(item))
+				|| IsAnchoredEphemeral(item))
+			&& !replyableSecret) {
 			return;
 		}
 		const auto canSendReply = CanSendReply(item);
 		const auto canReply = canSendReply || item->allowsForward();
 		if (canReply) {
-			const auto selected = selectedQuote(item);
+			// The secret-chat send path carries only reply_to_random_id, no quote
+			// field -- so don't offer "Quote and reply" there (the quote would be
+			// silently dropped on the wire and the echo); fall back to plain reply.
+			const auto selected = replyableSecret
+				? HistoryView::SelectedQuote()
+				: selectedQuote(item);
 			auto text = (selected
 				? tr::lng_context_quote_and_reply
 				: todoListTaskId
@@ -3458,7 +3478,9 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 					},
 					&st::menuIconCopy);
 			}
-			if (item && !Ui::SkipTranslate(selectedText.rich)) {
+			if (item
+				&& !item->history()->peer->isSecretChat()
+				&& !Ui::SkipTranslate(selectedText.rich)) {
 				const auto peer = item->history()->peer;
 				_menu->addAction(tr::lng_context_translate_selected({}), [=] {
 					_controller->show(Box(
@@ -3625,7 +3647,9 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 					},
 					&st::menuIconCopy);
 			}
-			if (item && !Ui::SkipTranslate(selectedText.rich)) {
+			if (item
+				&& !item->history()->peer->isSecretChat()
+				&& !Ui::SkipTranslate(selectedText.rich)) {
 				const auto peer = item->history()->peer;
 				_menu->addAction(tr::lng_context_translate_selected({}), [=] {
 					_controller->show(Box(
@@ -3741,7 +3765,8 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 								.append(item->originalText()))
 							: item->originalText();
 						if (!translate.text.isEmpty()
-							&& !Ui::SkipTranslate(translate)) {
+							&& !Ui::SkipTranslate(translate)
+							&& !peer->isSecretChat()) {
 							_menu->addAction(tr::lng_context_translate(tr::now), [=] {
 								_controller->show(Box(
 									Ui::TranslateBox,
@@ -3985,6 +4010,14 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 }
 
 bool HistoryInner::hasCopyRestriction(HistoryItem *item) const {
+	if (_peer->isSecretChat()) {
+		// Copying/saving content locally is allowed in a secret chat (mirrors
+		// the Android client), EXCEPT self-destruct media, which carries
+		// forbidsForward()/NoForwards and must stay blocked at every copy/save
+		// site that consults this (copy-text, primary-selection auto-copy,
+		// drag-out) -- not just the media-save actions.
+		return item && item->forbidsForward();
+	}
 	return !_peer->allowsForwarding() || (item && item->forbidsForward());
 }
 
@@ -3999,7 +4032,7 @@ bool HistoryInner::showCopyRestriction(HistoryItem *item) {
 	}
 	_controller->showToast(_peer->isBroadcast()
 		? tr::lng_error_nocopy_channel(tr::now)
-		: _peer->isUser()
+		: (_peer->isUser() || _peer->isSecretChat())
 		? tr::lng_error_nocopy_user(tr::now)
 		: tr::lng_error_nocopy_group(tr::now));
 	return true;
@@ -4011,7 +4044,7 @@ bool HistoryInner::showCopyMediaRestriction(not_null<HistoryItem*> item) {
 	}
 	_controller->showToast(_peer->isBroadcast()
 		? tr::lng_error_nocopy_channel(tr::now)
-		: _peer->isUser()
+		: (_peer->isUser() || _peer->isSecretChat())
 		? tr::lng_error_nocopy_user(tr::now)
 		: tr::lng_error_nocopy_group(tr::now));
 	return true;
@@ -5384,7 +5417,10 @@ MessageIdsList HistoryInner::getSelectedItems() const {
 		_selected.begin(),
 		_selected.end()
 	) | views::filter([](const auto &item) {
-		return !item->isService() && item->isRegular();
+		// Secret chat messages are local (not "regular") yet still
+		// deletable / copyable as a selection.
+		return !item->isService()
+			&& (item->isRegular() || item->history()->peer->isSecretChat());
 	}) | views::transform([](const auto &item) {
 		return item->fullId();
 	}) | to_vector;
@@ -6633,6 +6669,13 @@ bool CanSendReply(not_null<const HistoryItem*> item) {
 
 auto HistoryInner::accessibleElements() const
 -> const std::vector<HistoryView::Element*> & {
+	if (_peer->isSecretChat()) {
+		// Keep secret chat content out of the accessibility tree, so screen
+		// readers and other assistive tools never see the decrypted text
+		// (the mobile clients hide the message list the same way).
+		static const auto kEmpty = std::vector<Element*>();
+		return kEmpty;
+	}
 	// Accessibility asks about each row separately, several times per row,
 	// and every answer needs this list, so building it on each call made
 	// reading a long history quadratic. Keep it until the rows change.

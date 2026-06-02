@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/history_inner_widget_accessibility.h"
 
+#include "api/api_encrypted_chats.h"
 #include "base/unixtime.h"
 #include "data/data_document.h"
 #include "data/data_game.h"
@@ -291,6 +292,15 @@ QString MessageAccessibilityName(
 		tr::lng_schedule_at(tr::now)
 		+ u" "_q
 		+ QLocale().toString(dateTime.time(), QLocale::ShortFormat));
+	if (const auto destroyAt = item->ttlDestroyAt()) {
+		// The countdown painted next to the time of a secret chat message.
+		statusParts.push_back(tr::lng_secret_chat_sr_self_destruct(
+			tr::now,
+			lt_duration,
+			Api::SecretChatTtlDuration(std::max(
+				destroyAt - base::unixtime::now(),
+				TimeId(1)))));
+	}
 	if (const auto views = item->Get<HistoryMessageViews>()) {
 		if (views->views.count >= 0) {
 			statusParts.push_back(
