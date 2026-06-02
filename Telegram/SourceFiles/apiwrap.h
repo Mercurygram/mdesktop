@@ -81,6 +81,7 @@ class PeerColors;
 class Polls;
 class TodoLists;
 class ChatParticipants;
+class EncryptedChats;
 class UnreadThings;
 class Ringtones;
 class ComposeWithAi;
@@ -435,6 +436,7 @@ public:
 	[[nodiscard]] Api::Polls &polls();
 	[[nodiscard]] Api::TodoLists &todoLists();
 	[[nodiscard]] Api::ChatParticipants &chatParticipants();
+	[[nodiscard]] Api::EncryptedChats &encryptedChats();
 	[[nodiscard]] Api::UnreadThings &unreadThings();
 	[[nodiscard]] Api::Ringtones &ringtones();
 	[[nodiscard]] Api::ComposeWithAi &composeWithAi();
@@ -796,6 +798,7 @@ private:
 	const std::unique_ptr<Api::Polls> _polls;
 	const std::unique_ptr<Api::TodoLists> _todoLists;
 	const std::unique_ptr<Api::ChatParticipants> _chatParticipants;
+	const std::unique_ptr<Api::EncryptedChats> _encryptedChats;
 	const std::unique_ptr<Api::UnreadThings> _unreadThings;
 	const std::unique_ptr<Api::Ringtones> _ringtones;
 	const std::unique_ptr<Api::ComposeWithAi> _composeWithAi;

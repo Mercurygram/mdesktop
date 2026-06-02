@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_channel.h"
 #include "data/data_chat.h"
 #include "data/data_peer.h"
+#include "data/data_secret_chat.h"
 #include "data/data_user.h"
 #include "lang/lang_keys.h"
 #include "ui/widgets/labels.h"
@@ -93,7 +94,10 @@ void StatusLabel::refresh() {
 	auto statusText = [&]() -> TextWithEntities {
 		using namespace Ui::Text;
 		auto currentTime = base::unixtime::now();
-		if (auto user = _peer->asUser()) {
+		// A secret chat shows the online status of its conversation partner.
+		const auto secret = _peer->asSecretChat();
+		const auto asUser = secret ? secret->user() : _peer->asUser();
+		if (auto user = asUser) {
 			const auto result = Data::OnlineTextFull(user, currentTime);
 			const auto showOnline = Data::OnlineTextActive(
 				user,
