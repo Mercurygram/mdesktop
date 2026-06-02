@@ -450,6 +450,13 @@ void Gif::draw(Painter &p, const PaintContext &context) const {
 	const auto sti = context.imageStyle();
 	const auto cornerDownload = downloadInCorner();
 	const auto canBePlayed = _dataMedia->canBePlayed();
+	// A secret-chat video/GIF is a local encrypted file with no remote or
+	// streaming source. ensureDataMediaCreated() only fires the decrypt trigger
+	// when the media view is first created, which on live receive happens before
+	// the file is attached -- so re-trigger here on every draw until it can play.
+	if (_data->isSecretEncrypted() && !canBePlayed) {
+		_dataMedia->automaticLoad(_realParent->fullId(), _realParent);
+	}
 	const auto autoplay = autoplayEnabled()
 		&& canBePlayed
 		&& CanPlayInline(_data);
@@ -1551,6 +1558,9 @@ void Gif::drawGrouped(
 	_smallGroupPart = !fullFeaturedGrouped(sides);
 	const auto cornerDownload = !_smallGroupPart && downloadInCorner();
 	const auto canBePlayed = _dataMedia->canBePlayed();
+	if (_data->isSecretEncrypted() && !canBePlayed) {
+		_dataMedia->automaticLoad(_realParent->fullId(), _realParent);
+	}
 
 	const auto revealed = _spoiler
 		? _spoiler->revealAnimation.value(_spoiler->revealed ? 1. : 0.)
@@ -1818,6 +1828,13 @@ void Gif::dataMediaCreated() const {
 	}
 	history()->owner().registerHeavyViewPart(_parent);
 	togglePollingStory(true);
+
+	// A secret-chat video/GIF/round is a local encrypted file with no remote or
+	// streaming source, so nothing else triggers a load. Decrypt it into memory
+	// on display (automaticLoad special-cases secret docs) so it can play.
+	if (_data->isSecretEncrypted()) {
+		_dataMedia->automaticLoad(_realParent->fullId(), _realParent);
+	}
 }
 
 void Gif::togglePollingStory(bool enabled) const {

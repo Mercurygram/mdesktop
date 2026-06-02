@@ -616,6 +616,15 @@ public:
 		return _ttlDestroyAt;
 	}
 
+	// Secret-chat self-destruct: schedule this message to be destroyed at the
+	// given unixtime, registering it with the owner's message-TTL timer. Called
+	// by Api::EncryptedChats once the message is read (incoming) or the partner
+	// reads it (outgoing). A destroyAt in the past destroys it immediately; 0
+	// cancels a pending timer.
+	void setSecretChatSelfDestructAt(TimeId destroyAt) {
+		applyTTL(destroyAt);
+	}
+
 	[[nodiscard]] int boostsApplied() const {
 		return _boostsApplied;
 	}

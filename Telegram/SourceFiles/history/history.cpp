@@ -46,6 +46,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_photo.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
+#include "data/data_secret_chat.h"
 #include "data/data_user.h"
 #include "data/data_document.h"
 #include "data/data_histories.h"
@@ -3195,6 +3196,13 @@ bool History::shouldBeInChatList() const {
 		return false;
 	} else if (isPinnedDialog(FilterId())) {
 		return true;
+	} else if (const auto secret = peer->asSecretChat()) {
+		// Secret chats have no server dialog and may have no local messages
+		// yet; keep them in the list whenever their History exists (folder
+		// known), otherwise an empty one would be dropped once its last
+		// message resolves to a known-null. A discarded/rejected chat must
+		// instead leave the list (updateChatListExistence re-checks this).
+		return secret->state() != SecretChatState::Discarded;
 	} else if (const auto channel = peer->asChannel()) {
 		if (!channel->amIn()) {
 			return isTopPromoted();

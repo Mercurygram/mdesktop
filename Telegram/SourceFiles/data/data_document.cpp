@@ -28,6 +28,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/storage_account.h"
 #include "storage/streamed_file_downloader.h"
 #include "storage/file_download_mtproto.h"
+#include "storage/file_download_secret.h"
 #include "storage/file_download_web.h"
 #include "base/options.h"
 #include "history/history.h"
@@ -1209,8 +1210,32 @@ void DocumentData::save(
 		}
 	} else {
 		status = FileReady;
-		auto reader = owner().streaming().sharedReader(this, origin, true);
-		if (reader) {
+		auto reader = isSecretEncrypted()
+			? nullptr
+			: owner().streaming().sharedReader(this, origin, true);
+		if (isSecretEncrypted() && !_secretEncryptedPath.isEmpty()) {
+			// Secret-chat media kept encrypted at rest: decrypt on demand into
+			// memory (or to the chosen plaintext file on "Save as"). No remote
+			// location exists, so this fully replaces the mtpFileLoader below.
+			_loader = std::make_unique<SecretFileLoader>(
+				&session(),
+				_secretEncryptedPath,
+				toFile,
+				size,
+				size,
+				locationType(),
+				// Always cache: the decrypted bytes go into the local-key
+				// encrypted cache so any later media view re-reads them (survives
+				// view churn), and types with saveToCache()==false (video, plain
+				// file, image-as-document) still get a stable in-cache copy.
+				LoadToCacheAsWell,
+				// There is no cloud source: force cloud-or-local so start() does
+				// not cancel a LoadFromLocalOnly request before decrypting.
+				LoadFromCloudOrLocal,
+				autoLoading,
+				cacheTag(),
+				cacheKey());
+		} else if (reader) {
 			_loader = std::make_unique<Storage::StreamedFileDownloader>(
 				&session(),
 				id,
@@ -1403,6 +1428,23 @@ void DocumentData::setLocation(const Core::FileLocation &loc) {
 	}
 }
 
+void DocumentData::setSecretEncryptedLocation(const QString &path) {
+	_secretEncryptedPath = path;
+	if (path.isEmpty()) {
+		_flags &= ~Flag::SecretEncrypted;
+	} else {
+		_flags |= Flag::SecretEncrypted;
+	}
+}
+
+bool DocumentData::isSecretEncrypted() const {
+	return (_flags & Flag::SecretEncrypted);
+}
+
+const QString &DocumentData::secretEncryptedPath() const {
+	return _secretEncryptedPath;
+}
+
 QString DocumentData::filepath(bool check) const {
 	return (check && _location.name().isEmpty())
 		? QString()
@@ -1591,6 +1633,14 @@ bool DocumentData::hasRemoteLocation() const {
 	return (_dc != 0 && _access != 0);
 }
 
+int32 DocumentData::getDC() const {
+	return _dc;
+}
+
+uint64 DocumentData::getAccessHash() const {
+	return _access;
+}
+
 bool DocumentData::useStreamingLoader() const {
 	if (size <= 0) {
 		return false;
@@ -1675,7 +1725,12 @@ bool DocumentData::isNull() const {
 		&& !hasWebLocation()
 		&& _url.isEmpty()
 		&& !uploading()
-		&& _location.isEmpty();
+		&& _location.isEmpty()
+		// A secret-chat document has no remote/web/url/file source, but its
+		// content lives in the local encrypted file -- it is a real document,
+		// not a null one. Without this, click handlers that gate on !isNull()
+		// (e.g. the voice play button) are never assigned.
+		&& !isSecretEncrypted();
 }
 
 MTPInputDocument DocumentData::mtpInput() const {

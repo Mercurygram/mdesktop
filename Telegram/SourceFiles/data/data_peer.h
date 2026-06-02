@@ -19,6 +19,7 @@ class PeerData;
 class UserData;
 class ChatData;
 class ChannelData;
+class SecretChatData;
 
 enum class ChatRestriction;
 
@@ -258,6 +259,9 @@ public:
 	[[nodiscard]] bool isChannel() const {
 		return peerIsChannel(id);
 	}
+	[[nodiscard]] bool isSecretChat() const {
+		return peerIsSecretChat(id);
+	}
 	[[nodiscard]] bool isBot() const;
 	[[nodiscard]] bool isSelf() const;
 	[[nodiscard]] bool isVerified() const;
@@ -334,6 +338,8 @@ public:
 	[[nodiscard]] const ChatData *asChat() const;
 	[[nodiscard]] ChannelData *asChannel();
 	[[nodiscard]] const ChannelData *asChannel() const;
+	[[nodiscard]] SecretChatData *asSecretChat();
+	[[nodiscard]] const SecretChatData *asSecretChat() const;
 	[[nodiscard]] ChannelData *asMegagroup();
 	[[nodiscard]] const ChannelData *asMegagroup() const;
 	[[nodiscard]] ChannelData *asBroadcast();
