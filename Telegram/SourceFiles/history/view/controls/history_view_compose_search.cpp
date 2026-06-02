@@ -1085,7 +1085,9 @@ ComposeSearch::Inner::Inner(
 
 	_bottomBar->buttonCalendarToggleOn(_topBar->fromValue(
 	) | rpl::map([=](PeerData *from) {
-		return !from;
+		// Jump-to-date resolves the message on the server, which cannot
+		// see secret chat messages.
+		return !from && !_history->peer->isSecretChat();
 	}));
 
 	_bottomBar->buttonFromToggleOn(rpl::combine(

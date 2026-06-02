@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_chat_invite.h"
 #include "api/api_chat_links.h"
 #include "api/api_chat_participants.h"
+#include "api/api_encrypted_chats.h"
 #include "api/api_cloud_password.h"
 #include "api/api_communities.h"
 #include "api/api_hash.h"
@@ -67,6 +68,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_user.h"
 #include "data/data_chat_filters.h"
 #include "data/data_histories.h"
+#include "data/data_location.h"
 #include "data/data_history_messages.h"
 #include "core/core_cloud_password.h"
 #include "core/application.h"
@@ -226,6 +228,7 @@ ApiWrap::ApiWrap(not_null<Main::Session*> session)
 , _richTasks(std::make_unique<Api::RichTasks>(this))
 , _chatParticipants(std::make_unique<Api::ChatParticipants>(this))
 , _communities(std::make_unique<Api::Communities>(this))
+, _encryptedChats(std::make_unique<Api::EncryptedChats>(this))
 , _unreadThings(std::make_unique<Api::UnreadThings>(this))
 , _ringtones(std::make_unique<Api::Ringtones>(this))
 , _composeWithAi(std::make_unique<Api::ComposeWithAi>(this))
@@ -422,7 +425,14 @@ void ApiWrap::savePinnedOrder(Data::Folder *folder) {
 	auto peers = QVector<MTPInputDialogPeer>();
 	peers.reserve(order.size());
 	ranges::transform(
-		order,
+		// A pinned secret chat has no InputPeer, and sending inputPeerEmpty
+		// here would make the server reject the whole order. Its pinned flag
+		// lives in the local secret chats blob instead (the order within the
+		// pinned rows is not persisted yet).
+		ranges::views::filter(order, [](Dialogs::Key key) {
+			const auto history = key.history();
+			return !history || !history->peer->isSecretChat();
+		}),
 		ranges::back_inserter(peers),
 		input);
 	request(MTPmessages_ReorderPinnedDialogs(
@@ -482,6 +492,19 @@ void ApiWrap::toggleHistoryArchived(
 		not_null<History*> history,
 		bool archived,
 		Fn<void()> callback) {
+	if (history->peer->isSecretChat()) {
+		// No server dialog: the folder lives in the local secret chats blob.
+		if (archived) {
+			history->setFolder(_session->data().folder(Data::Folder::kId));
+		} else {
+			history->clearFolder();
+		}
+		_session->local().writeSecretChats();
+		if (callback) {
+			callback();
+		}
+		return;
+	}
 	if (const auto already = _historyArchivedRequests.take(history)) {
 		request(already->first).cancel();
 	}
@@ -1204,7 +1227,11 @@ void ApiWrap::requestWallPaper(
 }
 
 void ApiWrap::requestFullPeer(not_null<PeerData*> peer) {
-	if (_fullPeerRequests.contains(peer)) {
+	if (peer->isSecretChat()) {
+		// Secret chats are not real MTProto peers -- there is no full-peer
+		// info to fetch from the server.
+		return;
+	} else if (_fullPeerRequests.contains(peer)) {
 		return;
 	} else if (!peer->isUser() && !peer->barSettings().has_value()) {
 		requestPeerSettings(peer);
@@ -1327,7 +1354,8 @@ void ApiWrap::gotUserFull(
 void ApiWrap::requestPeerSettings(not_null<PeerData*> peer) {
 	if (!_requestedPeerSettings.emplace(peer).second) {
 		return;
-	} else if (peer->isMonoforum()) {
+	} else if (peer->isMonoforum() || peer->isSecretChat()) {
+		// Secret chats have no InputPeer and show no report bar.
 		peer->setBarSettings(PeerBarSettings());
 		_requestedPeerSettings.erase(peer);
 		return;
@@ -1440,9 +1468,19 @@ void ApiWrap::markContentsRead(
 	auto channelMarkedIds = base::flat_map<
 		not_null<ChannelData*>,
 		QVector<MTPint>>();
+	// Each secret-chat read costs an out_seq_no and an encrypted round trip,
+	// so the batch is grouped per chat and sent as one action.
+	auto secretMarked = base::flat_map<
+		not_null<SecretChatData*>,
+		std::vector<not_null<HistoryItem*>>>();
 	markedIds.reserve(items.size());
 	for (const auto &item : items) {
-		if (!item->markContentsRead(true) || !item->isRegular()) {
+		if (!item->markContentsRead(true)) {
+			continue;
+		} else if (const auto secret = item->history()->peer->asSecretChat()) {
+			secretMarked[secret].push_back(item);
+			continue;
+		} else if (!item->isRegular()) {
 			continue;
 		}
 		if (const auto channel = item->history()->peer->asChannel()) {
@@ -1450,6 +1488,9 @@ void ApiWrap::markContentsRead(
 		} else {
 			markedIds.push_back(MTP_int(item->id));
 		}
+	}
+	for (const auto &[secret, secretItems] : secretMarked) {
+		encryptedChats().contentRead(secret, secretItems);
 	}
 	if (!markedIds.isEmpty()) {
 		request(MTPmessages_ReadMessageContents(
@@ -1467,7 +1508,12 @@ void ApiWrap::markContentsRead(
 }
 
 void ApiWrap::markContentsRead(not_null<HistoryItem*> item) {
-	if (!item->markContentsRead(true) || !item->isRegular()) {
+	if (!item->markContentsRead(true)) {
+		return;
+	} else if (const auto secret = item->history()->peer->asSecretChat()) {
+		encryptedChats().contentRead(secret, { item });
+		return;
+	} else if (!item->isRegular()) {
 		return;
 	}
 	const auto ids = MTP_vector<MTPint>(1, MTP_int(item->id));
@@ -2103,7 +2149,13 @@ void ApiWrap::sendNotifySettingsUpdates() {
 			topic->notify().serialize()
 		)).afterDelay(kSmallDelayMs).send();
 	}
+	auto secretChanged = false;
 	for (const auto &peer : base::take(_updateNotifyPeers)) {
+		if (peer->isSecretChat()) {
+			// No server dialog: mute state lives in the local blob.
+			secretChanged = true;
+			continue;
+		}
 		const auto channel = peer->asChannel();
 		request(MTPaccount_UpdateNotifySettings(
 			(channel && channel->isCommunity())
@@ -2111,6 +2163,9 @@ void ApiWrap::sendNotifySettingsUpdates() {
 				: MTP_inputNotifyPeer(peer->input()),
 			peer->notify().serialize()
 		)).afterDelay(kSmallDelayMs).send();
+	}
+	if (secretChanged) {
+		_session->local().writeSecretChats();
 	}
 	const auto &settings = session().data().notifySettings();
 	for (const auto type : base::take(_updateNotifyDefaults)) {
@@ -2183,7 +2238,16 @@ void ApiWrap::updatePrivacyLastSeens() {
 }
 
 void ApiWrap::clearHistory(not_null<PeerData*> peer, bool revoke) {
+	const auto secret = peer->asSecretChat();
+	if (secret) {
+		// Propagate the clear to the partner's device too; the local history is
+		// wiped by deleteHistory() below as for any other peer.
+		encryptedChats().flushHistory(secret);
+	}
 	deleteHistory(peer, true, revoke);
+	if (secret) {
+		encryptedChats().historyCleared(secret);
+	}
 }
 
 void ApiWrap::deleteConversation(not_null<PeerData*> peer, bool revoke) {
@@ -2217,6 +2281,18 @@ void ApiWrap::deleteHistory(
 		int retries) {
 	auto deleteTillId = MsgId(0);
 	const auto history = _session->data().history(peer);
+	if (peer->isSecretChat()) {
+		// Local only: there is no server history (messages.deleteHistory on
+		// an empty input peer is doomed). Closing the chat itself goes through
+		// EncryptedChats::discard. deleteConversationLocally() clears the
+		// history itself, so it is one or the other.
+		if (justClear) {
+			history->clear(History::ClearType::ClearHistory);
+		} else {
+			_session->data().deleteConversationLocally(peer);
+		}
+		return;
+	}
 	if (justClear) {
 		// In case of clear history we need to know the last server message.
 		while (history->lastMessageKnown()) {
@@ -2372,6 +2448,13 @@ mtpRequestId ApiWrap::savePreparedDraftToCloud(
 		Fn<void(const MTP::Error &)> fail) {
 	const auto weak = base::make_weak(thread);
 	const auto history = thread->owningHistory();
+	if (history->peer->isSecretChat()) {
+		// A secret chat has no server dialog entry (peer->input() is
+		// inputPeerEmpty) and its text must never leave the device, which a
+		// messages.saveDraft would do. The local draft is still written by
+		// Storage::Account::writeDrafts, so nothing typed is lost.
+		return 0;
+	}
 	const auto topicRootId = thread->topicRootId();
 	const auto monoforumPeerId = thread->monoforumPeerId();
 	struct Callbacks {
@@ -3654,6 +3737,12 @@ void ApiWrap::requestSharedMedia(
 		SharedMediaType type,
 		MsgId messageId,
 		SliceType slice) {
+	if (peer->isSecretChat()) {
+		// Secret chats have no server-side history; peer->input() is
+		// inputPeerEmpty, so a messages.Search would run globally and return
+		// account-wide counts. Skip it - no shared-media index for them.
+		return;
+	}
 	const auto key = SharedMediaRequest{
 		peer,
 		topicRootId,
@@ -3826,6 +3915,26 @@ void ApiWrap::forwardMessages(
 		SendAction action,
 		FnMut<void()> &&successCallback) {
 	Expects(!draft.items.empty());
+
+	if (const auto secret = action.history->peer->asSecretChat()) {
+		// A secret chat has no messages.forwardMessages (its peer resolves to
+		// inputPeerEmpty): each item is copied out as a new encrypted message,
+		// mirroring the Android client. Items the secret layer cannot carry
+		// were already refused by errorTextForForwardIgnoreRights. This has to
+		// precede the saved-music pre-pass below, which would otherwise send
+		// through a path that drops the caption and the file origin.
+		sendAction(action);
+		const auto dropCaption = (draft.options
+			== Data::ForwardOptions::NoNamesAndCaptions);
+		for (const auto &item : draft.items) {
+			Api::ForwardToSecretChat(secret, item, action, dropCaption);
+		}
+		if (successCallback) {
+			successCallback();
+		}
+		_session->data().sendHistoryChangeNotifications();
+		return;
+	}
 
 	auto &histories = _session->data().histories();
 
@@ -4135,6 +4244,23 @@ void ApiWrap::sendSharedContact(
 	const auto history = action.history;
 	const auto peer = history->peer;
 
+	if (const auto secret = peer->asSecretChat()) {
+		// Covers both public shareContact() overloads: a secret chat has its
+		// own contact media and no InputPeer send path.
+		encryptedChats().sendContact(
+			secret,
+			phone,
+			firstName,
+			lastName,
+			userId,
+			Api::LocalReplyToMsgId(action.replyTo.messageId, peer->id),
+			action.options.silent);
+		if (done) {
+			done(true);
+		}
+		return;
+	}
+
 	const auto newId = FullMsgId(
 		peer->id,
 		_session->data().nextLocalMessageId());
@@ -4351,9 +4477,9 @@ void ApiWrap::sendFiles(
 void ApiWrap::sendFile(
 		const QByteArray &fileContent,
 		SendMediaType type,
-		const SendAction &action) {
+		const SendAction &action,
+		TextWithTags caption) {
 	const auto to = FileLoadTaskOptions(action);
-	auto caption = TextWithTags();
 	const auto spoiler = false;
 	_fileLoader->addTask(std::make_unique<FileLoadTask>(FileLoadTask::Args{
 		.session = &session(),
@@ -4691,6 +4817,44 @@ void ApiWrap::sendMessage(
 	const auto history = message.action.history;
 	const auto peer = history->peer;
 	const auto &textWithTags = message.textWithTags;
+
+	if (const auto secret = peer->asSecretChat()) {
+		// Secret chats are sent end-to-end encrypted via messages.sendEncrypted,
+		// not through the normal InputPeer-based send path.
+		auto action = message.action;
+		action.generateLocal = true;
+		// As in the normal path below: the composer clears the reply bar and
+		// scrolls to the end from this stream, so returning without it would
+		// leave the reply bar hanging after the message was sent.
+		sendAction(action);
+		const auto replyMsgId = Api::LocalReplyToMsgId(
+			message.action.replyTo.messageId,
+			peer->id);
+		// Same preparation and length splitting as the normal path below:
+		// one decryptedMessage per part, the reply on every part.
+		auto sending = TextWithEntities();
+		auto left = TextWithEntities{
+			textWithTags.text,
+			TextUtilities::ConvertTextTagsToEntities(textWithTags.tags)
+		};
+		TextUtilities::PrepareForSending(
+			left,
+			Ui::ItemTextOptions(history, _session->user()).flags);
+		const auto limit = Data::PremiumLimits(_session).messageLengthCurrent();
+		while (TextUtilities::CutPart(sending, left, limit)) {
+			TextUtilities::Trim(left);
+			encryptedChats().sendText(
+				secret,
+				sending,
+				replyMsgId,
+				message.action.options.silent);
+		}
+		// Also as at the end of the normal path: a forward draft sitting in
+		// the composer is sent (and cleared) from here, so returning without
+		// it would leave the forward panel hanging with nothing sent.
+		finishForwarding(action);
+		return;
+	}
 
 	auto action = message.action;
 	action.generateLocal = true;
@@ -5051,6 +5215,97 @@ void ApiWrap::sendInlineResult(
 
 	const auto history = action.history;
 	const auto peer = history->peer;
+	if (const auto secret = peer->asSecretChat()) {
+		// No server-side inline send in a secret chat: the result's content
+		// goes out as an ordinary secret message (photo / document re-uploaded
+		// encrypted, geo / venue / contact as their own media, text as text).
+		// Game and invoice results are dropped, like the Android client.
+		// via_bot is not carried (a bare username cannot render here).
+		const auto payload = data->secretChatPayload();
+		const auto fail = [&] {
+			if (done) {
+				done(false);
+			}
+		};
+		if (!payload) {
+			fail();
+			return;
+		}
+		auto &chats = encryptedChats();
+		const auto replyMsgId = Api::LocalReplyToMsgId(
+			action.replyTo.messageId,
+			peer->id);
+		const auto silent = action.options.silent;
+		const auto &text = payload->text;
+		if (const auto photo = payload->photo) {
+			chats.sendExistingPhoto(secret, photo, action, {}, TextWithTags{
+				text.text,
+				TextUtilities::ConvertEntitiesToTextTags(text.entities) });
+		} else if (const auto document = payload->document) {
+			chats.sendExistingDocument(
+				secret,
+				document,
+				text,
+				false,
+				replyMsgId,
+				{},
+				silent);
+		} else {
+			auto sent = true;
+			const auto location = [&](const MTPGeoPoint &geo) {
+				geo.match([&](const MTPDgeoPoint &g) {
+					chats.sendLocation(
+						secret,
+						g.vlat().v,
+						g.vlong().v,
+						replyMsgId,
+						silent);
+				}, [&](const MTPDgeoPointEmpty &) {
+					sent = false;
+				});
+			};
+			payload->media.match([&](const MTPDmessageMediaGeo &d) {
+				location(d.vgeo());
+			}, [&](const MTPDmessageMediaGeoLive &d) {
+				location(d.vgeo());
+			}, [&](const MTPDmessageMediaVenue &d) {
+				d.vgeo().match([&](const MTPDgeoPoint &g) {
+					chats.sendVenue(secret, Data::InputVenue{
+						.lat = g.vlat().v,
+						.lon = g.vlong().v,
+						.title = qs(d.vtitle()),
+						.address = qs(d.vaddress()),
+						.provider = qs(d.vprovider()),
+						.id = qs(d.vvenue_id()),
+					}, replyMsgId, silent);
+				}, [&](const MTPDgeoPointEmpty &) {
+					sent = false;
+				});
+			}, [&](const MTPDmessageMediaContact &d) {
+				chats.sendContact(
+					secret,
+					qs(d.vphone_number()),
+					qs(d.vfirst_name()),
+					qs(d.vlast_name()),
+					UserId(d.vuser_id().v),
+					replyMsgId,
+					silent);
+			}, [&](const MTPDmessageMediaEmpty &) {
+				chats.sendText(secret, text, replyMsgId, silent);
+			}, [&](const auto &) {
+				sent = false;
+			});
+			if (!sent) {
+				fail();
+				return;
+			}
+		}
+		finishForwarding(action);
+		if (done) {
+			done(true);
+		}
+		return;
+	}
 	const auto newId = FullMsgId(
 		peer->id,
 		localMessageId
@@ -5829,6 +6084,11 @@ Api::ChatParticipants &ApiWrap::chatParticipants() {
 Api::Communities &ApiWrap::communities() {
 	return *_communities;
 }
+
+Api::EncryptedChats &ApiWrap::encryptedChats() {
+	return *_encryptedChats;
+}
+
 
 Api::UnreadThings &ApiWrap::unreadThings() {
 	return *_unreadThings;
