@@ -301,6 +301,7 @@ private:
 	void hideControls(bool force = false);
 	void subscribeToScreenGeometry();
 
+	[[nodiscard]] bool messageInChat() const;
 	void toMessage();
 	void saveAs();
 	void downloadMedia();

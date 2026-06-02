@@ -64,6 +64,11 @@ public:
 	void getDifference();
 	void requestChannelRangeDifference(not_null<History*> history);
 
+	// The secret chats blob is read after this object is built; the qts
+	// catch-up (a getDifference from the persisted checkpoint) needs both
+	// the getState reply and the restored chats, whichever lands last.
+	void secretChatsRestored();
+
 	void addActiveChat(rpl::producer<PeerData*> chat);
 	[[nodiscard]] bool inActiveChats(not_null<PeerData*> peer) const;
 
@@ -116,8 +121,12 @@ private:
 		const MTPVector<MTPChat> &chats,
 		const MTPVector<MTPMessage> &msgs,
 		const MTPVector<MTPUpdate> &other);
+	void feedDifferenceEncrypted(
+		const MTPVector<MTPEncryptedMessage> &messages,
+		int32 resultQts);
 	void stateDone(const MTPupdates_State &state);
 	void setState(int32 pts, int32 date, int32 qts, int32 seq);
+	void secretCatchUp(int32 currentQts);
 	void channelDifferenceDone(
 		not_null<ChannelData*> channel,
 		const MTPupdates_ChannelDifference &diff);
@@ -174,6 +183,8 @@ private:
 	int32 _updatesDate = 0;
 	int32 _updatesQts = -1;
 	int32 _updatesSeq = 0;
+	std::optional<int32> _secretCatchUpQts;
+	bool _secretChatsRestored = false;
 	base::Timer _noUpdatesTimer;
 	base::Timer _onlineTimer;
 

@@ -31,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/notify/data_notify_settings.h"
 #include "data/data_emoji_statuses.h"
 #include "data/data_peer.h"
+#include "data/data_secret_chat.h"
 #include "data/data_user.h"
 #include "data/data_chat.h"
 #include "data/data_channel.h"
@@ -62,6 +63,16 @@ namespace HistoryView {
 namespace {
 
 constexpr auto kAddTooltipDelay = crl::time(1000);
+
+// A secret chat shows the bar (and peer settings) of the user on the other
+// side, keyed by that user like Android does, but only when they started it:
+// a secret chat we created is with someone we picked ourselves.
+[[nodiscard]] not_null<PeerData*> BarSubject(not_null<PeerData*> peer) {
+	const auto secret = peer->asSecretChat();
+	return (secret && !secret->amCreator() && secret->user())
+		? not_null<PeerData*>(secret->user())
+		: peer;
+}
 
 [[nodiscard]] bool BarCurrentlyHidden(not_null<PeerData*> peer) {
 	const auto settings = peer->barSettings();
@@ -756,8 +767,9 @@ ContactStatus::ContactStatus(
 	window->widget()->body(),
 	peer->shortName()))
 , _bar(parent, object_ptr<Bar>::fromRaw(_inner)) {
-	FinalizeSetBotPhotoFirstOpenState(peer);
-	setupState(peer, showInForum);
+	const auto subject = BarSubject(peer);
+	FinalizeSetBotPhotoFirstOpenState(subject);
+	setupState(subject, showInForum);
 	setupHandlers(peer);
 }
 
@@ -876,17 +888,20 @@ void ContactStatus::setupState(not_null<PeerData*> peer, bool showInForum) {
 }
 
 void ContactStatus::setupHandlers(not_null<PeerData*> peer) {
-	if (const auto user = peer->asUser()) {
+	// The bar acts on the subject user; only block (which may also report or
+	// delete the chat) and unarchive need the chat that is actually open.
+	const auto subject = BarSubject(peer);
+	if (const auto user = subject->asUser()) {
 		setupAddHandler(user);
-		setupBlockHandler(user);
+		setupBlockHandler(peer);
 		setupShareHandler(user);
 		setupSetBotPhotoHandler(user);
 	}
 	setupUnarchiveHandler(peer);
-	setupReportHandler(peer);
-	setupCloseHandler(peer);
-	setupRequestInfoHandler(peer);
-	setupEmojiStatusHandler(peer);
+	setupReportHandler(subject);
+	setupCloseHandler(subject);
+	setupRequestInfoHandler(subject);
+	setupEmojiStatusHandler(subject);
 }
 
 void ContactStatus::setupAddHandler(not_null<UserData*> user) {
@@ -896,13 +911,13 @@ void ContactStatus::setupAddHandler(not_null<UserData*> user) {
 	}, _bar.lifetime());
 }
 
-void ContactStatus::setupBlockHandler(not_null<UserData*> user) {
+void ContactStatus::setupBlockHandler(not_null<PeerData*> peer) {
 	_inner->blockClicks(
 	) | rpl::on_next([=] {
 		_controller->window().show(Box(
 			Window::PeerMenuBlockUserBox,
 			&_controller->window(),
-			user,
+			peer,
 			v::null,
 			Window::ClearChat{}));
 	}, _bar.lifetime());
@@ -946,11 +961,12 @@ void ContactStatus::setupUnarchiveHandler(not_null<PeerData*> peer) {
 		using namespace Window;
 		ToggleHistoryArchived(show, peer->owner().history(peer), false);
 		peer->owner().notifySettings().resetToDefault(peer);
-		if (const auto settings = peer->barSettings()) {
+		const auto subject = BarSubject(peer);
+		if (const auto settings = subject->barSettings()) {
 			const auto flags = PeerBarSetting::AutoArchived
 				| PeerBarSetting::BlockContact
 				| PeerBarSetting::ReportSpam;
-			peer->setBarSettings(*settings & ~flags);
+			subject->setBarSettings(*settings & ~flags);
 		}
 	}, _bar.lifetime());
 }

@@ -489,6 +489,11 @@ void ScheduledMessages::request(not_null<History*> history) {
 	const auto peer = history->peer;
 	if (peer->isBroadcast() && !Data::CanSendAnything(peer)) {
 		return;
+	} else if (peer->isSecretChat()) {
+		// Secret chats have no server-side history and no scheduled messages;
+		// peer->input() is inputPeerEmpty, so this would just fail on every
+		// chat switch.
+		return;
 	}
 	auto &request = _requests[history];
 	if (request.requestId || TooEarlyForRequest(request.lastReceived)) {
