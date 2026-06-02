@@ -165,6 +165,12 @@ public:
 	[[nodiscard]] const Core::FileLocation &location(bool check) const;
 	void setLocation(const Core::FileLocation &loc);
 
+	// Path of a secret-chat photo kept ENCRYPTED at rest. Not a render location
+	// (the large image is an in-memory copy); only carried so serializeMessages
+	// can persist it and restore can re-read + rebuild the photo.
+	void setSecretEncryptedLocation(const QString &path);
+	[[nodiscard]] const QString &secretEncryptedPath() const;
+
 	PhotoId id = 0;
 
 	PeerData *peer = nullptr; // for chat and channel photos connection
@@ -201,5 +207,6 @@ private:
 	not_null<Data::Session*> _owner;
 
 	Core::FileLocation _location;
+	QString _secretEncryptedPath;
 
 };

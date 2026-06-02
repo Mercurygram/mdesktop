@@ -309,7 +309,15 @@ void DocumentMedia::automaticLoad(
 		|| _owner->uploading()
 		|| _owner->cancelled()) {
 		return;
-	} else if (!item && !_owner->sticker() && !_owner->isAnimation()) {
+	}
+	if (_owner->isSecretEncrypted()) {
+		// A secret-chat media file kept encrypted at rest: "loading" just
+		// decrypts the local file into memory. Bypass the auto-download settings
+		// and the to-file gate -- always decrypt to memory (empty filename).
+		_owner->save(origin, QString(), LoadFromCloudOrLocal, true);
+		return;
+	}
+	if (!item && !_owner->sticker() && !_owner->isAnimation()) {
 		return;
 	}
 	const auto toCache = _owner->saveToCache();
