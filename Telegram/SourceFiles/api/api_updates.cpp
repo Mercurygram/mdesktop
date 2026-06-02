@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_updates.h"
 
 #include "api/api_authorizations.h"
+#include "api/api_encrypted_chats.h"
 #include "api/api_user_names.h"
 #include "api/api_chat_participants.h"
 #include "api/api_global_privacy.h"
@@ -249,7 +250,40 @@ Updates::Updates(not_null<Main::Session*> session)
 
 	api().request(MTPupdates_GetState(
 	)).done([=](const MTPupdates_State &result) {
+		const auto &d = result.c_updates_state();
+		auto &chats = session->api().encryptedChats();
+		const auto savedQts = chats.qts();
+		const auto currentQts = d.vqts().v;
 		stateDone(result);
+		auto hasSecret = false;
+		session->data().enumerateSecretChats([&](
+				not_null<SecretChatData*>) {
+			hasSecret = true;
+		});
+		if (savedQts > 0 && hasSecret) {
+			// Secret-chat (encrypted) updates ride the qts sequence. Replay from
+			// our checkpoint to pull anything that arrived while offline (text/
+			// media AND service actions like a delete). A delete done while we
+			// were closed sits at a qts just above the server's CURRENT qts and is
+			// returned as a pending update by getDifference -- so we must replay
+			// even when savedQts == currentQts. If our checkpoint somehow overshot
+			// the server (an unacked / over-counted advance), trust the server and
+			// re-pull from its qts; incoming messages are de-duplicated by
+			// random_id, so re-delivered content can't double up. pts is already
+			// current after stateDone -> getDifference returns only the qts gap.
+			const auto from = std::min(savedQts, currentQts);
+			if (savedQts > currentQts) {
+				chats.restoreQts(currentQts);
+			}
+			_updatesQts = from;
+			MTP_LOG(0, ("getDifference { good - secret-chat catch-up }%1"
+				).arg(_session->mtp().isTestMode() ? " TESTMODE" : ""));
+			getDifference();
+		} else if (!savedQts && hasSecret) {
+			// No checkpoint yet (first launch with the qts feature / a v2 blob):
+			// adopt the current qts as the baseline so future gaps are detectable.
+			chats.setQts(currentQts);
+		}
 	}).send();
 
 	using namespace rpl::mappers;
@@ -495,9 +529,10 @@ void Updates::differenceDone(const MTPupdates_Difference &result) {
 	} break;
 	case mtpc_updates_differenceSlice: {
 		auto &d = result.c_updates_differenceSlice();
-		feedDifference(d.vusers(), d.vchats(), d.vnew_messages(), d.vother_updates());
-
 		auto &s = d.vintermediate_state().c_updates_state();
+		feedDifference(d.vusers(), d.vchats(), d.vnew_messages(), d.vother_updates());
+		feedDifferenceEncrypted(d.vnew_encrypted_messages(), s.vqts().v);
+
 		setState(s.vpts().v, s.vdate().v, s.vqts().v, s.vseq().v);
 
 		_ptsWaiter.setRequesting(false);
@@ -510,6 +545,9 @@ void Updates::differenceDone(const MTPupdates_Difference &result) {
 	case mtpc_updates_difference: {
 		auto &d = result.c_updates_difference();
 		feedDifference(d.vusers(), d.vchats(), d.vnew_messages(), d.vother_updates());
+		feedDifferenceEncrypted(
+			d.vnew_encrypted_messages(),
+			d.vstate().c_updates_state().vqts().v);
 
 		stateDone(d.vstate());
 	} break;
@@ -616,6 +654,24 @@ void Updates::feedDifference(
 	feedMessageIds(other);
 	session().data().processMessages(msgs, NewMessageType::Unread);
 	feedUpdateVector(other, SkipUpdatePolicy::SkipMessageIds);
+}
+
+void Updates::feedDifferenceEncrypted(
+		const MTPVector<MTPEncryptedMessage> &messages,
+		int32 resultQts) {
+	// Secret-chat messages accumulated while we were offline arrive here (the
+	// qts-driven new_encrypted_messages of updates.difference), NOT in the regular
+	// new_messages / other_updates streams. Route each through the same decrypt
+	// path live updateNewEncryptedMessage uses, so offline text/media AND service
+	// actions (e.g. a delete done while desktop was closed) are applied on catch-up.
+	auto &chats = session().api().encryptedChats();
+	for (const auto &message : messages.v) {
+		// Pass the replayed-from baseline (not the per-message qts, which the
+		// difference doesn't carry) -> newMessage's own setQts no-ops; we advance
+		// the checkpoint once below to the difference's final qts and ACK it.
+		chats.newMessage(message, chats.qts());
+	}
+	chats.setQts(resultQts);
 }
 
 void Updates::differenceFail(const MTP::Error &error) {
@@ -2153,15 +2209,39 @@ void Updates::feedUpdate(const MTPUpdate &update) {
 	} break;
 
 	case mtpc_updateNewEncryptedMessage: {
+		const auto &d = update.c_updateNewEncryptedMessage();
+		auto &chats = session().api().encryptedChats();
+		const auto qts = d.vqts().v;
+		const auto last = chats.qts();
+		if (last > 0 && qts <= last) {
+			// Already processed -- a server re-delivery before our ACK landed.
+			break;
+		} else if (last > 0 && qts > last + 1) {
+			// We missed encrypted update(s): replay from our checkpoint via
+			// getDifference (it returns the gap in new_encrypted_messages).
+			_updatesQts = last;
+			MTP_LOG(0, ("getDifference { good - secret-chat qts gap }%1"
+				).arg(_session->mtp().isTestMode() ? " TESTMODE" : ""));
+			return getDifference();
+		}
+		chats.newMessage(d.vmessage(), qts);
 	} break;
 
 	case mtpc_updateEncryptedChatTyping: {
+		const auto &d = update.c_updateEncryptedChatTyping();
+		session().api().encryptedChats().chatTyping(d.vchat_id().v);
 	} break;
 
 	case mtpc_updateEncryption: {
+		const auto &d = update.c_updateEncryption();
+		session().api().encryptedChats().processUpdate(d.vchat());
 	} break;
 
 	case mtpc_updateEncryptedMessagesRead: {
+		const auto &d = update.c_updateEncryptedMessagesRead();
+		session().api().encryptedChats().messagesRead(
+			d.vchat_id().v,
+			d.vmax_date().v);
 	} break;
 
 	case mtpc_updatePhoneCall:
