@@ -498,6 +498,8 @@ int main(int argc, char *argv[])
 	QString outName((targetwinarm ? QString("tarm64upd%1") : targetwin64 ? QString("tx64upd%1") : QString("tupdate%1")).arg(AlphaVersion ? AlphaVersion : version));
 #elif defined Q_OS_MAC
 	QString outName((targetarmac ? QString("tarmacupd%1") : QString("tmacupd%1")).arg(AlphaVersion ? AlphaVersion : version));
+#elif defined(__aarch64__) || defined(__arm64__)
+	QString outName(QString("tlinuxarmupd%1").arg(AlphaVersion ? AlphaVersion : version));
 #else
 	QString outName(QString("tlinuxupd%1").arg(AlphaVersion ? AlphaVersion : version));
 #endif
