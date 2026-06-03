@@ -1200,7 +1200,7 @@ bool Application::openInternalUrl(const QString &url, QVariant context) {
 }
 
 QString Application::changelogLink() const {
-	return u"https://telegramdesktop.github.io/tdesktop/changelog/"_q;
+	return u"https://github.com/Mercurygram/mdesktop/releases"_q;
 }
 
 bool Application::openCustomUrl(
@@ -1908,8 +1908,8 @@ void Application::RegisterUrlScheme() {
 		.executable = Platform::ExecutablePathForShortcuts(),
 		.arguments = arguments,
 		.protocol = u"tg"_q,
-		.protocolName = u"Telegram Link"_q,
-		.shortAppName = u"tdesktop"_q,
+		.protocolName = u"Mercurygram Link"_q,
+		.shortAppName = u"mercurygram"_q,
 		.longAppName = QCoreApplication::applicationName(),
 		.displayAppName = AppName.utf16(),
 		.displayAppDescription = AppName.utf16(),
