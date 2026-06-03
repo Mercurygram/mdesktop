@@ -1,9 +1,9 @@
-#define MyAppShortName "Telegram"
-#define MyAppName "Telegram Desktop"
-#define MyAppPublisher "Telegram FZ-LLC"
-#define MyAppURL "https://desktop.telegram.org"
-#define MyAppExeName "Telegram.exe"
-#define MyAppId "53F49750-6209-4FBF-9CA8-7A333C87D1ED"
+#define MyAppShortName "Mercurygram"
+#define MyAppName "Mercurygram Desktop"
+#define MyAppPublisher "Mercurygram"
+#define MyAppURL "https://github.com/Mercurygram/mdesktop"
+#define MyAppExeName "Mercurygram.exe"
+#define MyAppId "A16A18E5-43ED-4E02-904B-B2A4D1968459"
 #define CurrentYear GetDateTimeString('yyyy','','')
 
 [Setup]
@@ -24,7 +24,7 @@ AllowNoIcons=yes
 OutputDir={#ReleasePath}
 SetupIconFile={#SourcePath}..\Resources\art\icon256.ico
 UninstallDisplayName={#MyAppName}
-UninstallDisplayIcon={app}\Telegram.exe
+UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma
 SolidCompression=yes
 DisableStartupPrompt=yes
@@ -70,7 +70,7 @@ Name: "ua";      MessagesFile: "compiler:Languages\Ukrainian.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "{#ReleasePath}\Telegram.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#ReleasePath}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ReleasePath}\Updater.exe"; DestDir: "{app}"; Flags: ignoreversion
 #if MyBuildTarget != "winarm"
 Source: "{#ReleasePath}\{#ModulesFolder}\d3d\d3dcompiler_47.dll"; DestDir: "{app}\{#ModulesFolder}\d3d"; Flags: ignoreversion

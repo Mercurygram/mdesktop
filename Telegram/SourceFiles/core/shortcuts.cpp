@@ -544,7 +544,7 @@ void Manager::writeDefaultFile() {
 		return;
 	}
 	const char *defaultHeader = R"HEADER(
-// This is a list of default shortcuts for Telegram Desktop
+// This is a list of default shortcuts for Mercurygram Desktop
 // Please don't modify it, its content is not used in any way
 // You can place your own shortcuts in the 'shortcuts-custom.json' file
 
@@ -651,7 +651,7 @@ void Manager::writeCustomFile() {
 		return;
 	}
 	const char *customHeader = R"HEADER(
-// This is a list of changed shortcuts for Telegram Desktop
+// This is a list of changed shortcuts for Mercurygram Desktop
 // You can edit them in Settings > Chat Settings > Keyboard Shortcuts.
 
 )HEADER";
