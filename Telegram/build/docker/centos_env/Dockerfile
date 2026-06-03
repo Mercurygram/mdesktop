@@ -429,13 +429,26 @@ rm -rf libjxl
 EOF
 
 FROM builder AS rnnoise
+# Use the desktop-app rnnoise fork (CMake) instead of xiph v0.2: the xiph tag's
+# NEON path (src/vec_neon.h) fails to build on aarch64, breaking the linux-arm64
+# image. The fork builds on both arches and matches the pin used by prepare.py.
 RUN --mount=type=cache,target=/var/cache/ccache <<EOF
-git clone -b v0.2 --depth=1 https://github.com/xiph/rnnoise.git
+git clone https://github.com/desktop-app/rnnoise.git
 cd rnnoise
-./autogen.sh
-./configure --enable-static --disable-shared
-make -j$(nproc)
-make DESTDIR=/usr/src/rnnoise-cache install
+git checkout d8ea2b0
+cmake -B build \
+	-D CMAKE_BUILD_TYPE=Release \
+	-D CMAKE_INSTALL_PREFIX=/usr/local \
+	-D BUILD_SHARED_LIBS=OFF
+cmake --build build -j$(nproc)
+DESTDIR=/usr/src/rnnoise-cache cmake --install build
+mkdir -p /usr/src/rnnoise-cache/usr/local/lib/pkgconfig
+printf '%s\n' 'prefix=/usr/local' 'exec_prefix=${prefix}' \
+	'libdir=${prefix}/lib' 'includedir=${prefix}/include' '' \
+	'Name: rnnoise' 'Description: Recurrent neural network for audio noise suppression' \
+	'Version: 0.2' 'Libs: -L${libdir} -lrnnoise' 'Libs.private: -lm' \
+	'Cflags: -I${includedir}' \
+	> /usr/src/rnnoise-cache/usr/local/lib/pkgconfig/rnnoise.pc
 cd ..
 rm -rf rnnoise
 EOF
