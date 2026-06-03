@@ -1,0 +1,54 @@
+name: Update feed check.
+
+# The autoupdater fetches <prefix>/current<N>, N = AutoUpdateVersion() from
+# lib_base. Upstream bumps N without notice (4 -> 6 in lib_base 11f2874), and
+# a client whose feed file is missing gets a 404 and never updates again.
+# Fail when lib_base asks for a feed that release.yml does not publish.
+#
+# Runs on every dev push (after a rebase onto a new upstream tag) and is
+# called by release.yml before any build starts.
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'Telegram/lib_base'
+      - '.github/workflows/update-feed.yml'
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check update feeds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone.
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Compare lib_base feeds with the published ones.
+        run: |
+          set -e
+          # Keep in sync with the current<N> files written by release.yml.
+          PUBLISHED="2 4 6"
+          git submodule update --init --depth 1 Telegram/lib_base
+          cd Telegram/lib_base/base/platform
+          FOUND=$(grep -h -A6 '^int AutoUpdateVersion()' \
+              linux/base_info_linux.cpp mac/base_info_mac.mm win/base_info_win.cpp \
+            | grep -o 'return [0-9]\+' | awk '{print $2}' | sort -un | xargs)
+          echo "lib_base feeds: '$FOUND', published: '$PUBLISHED'"
+          if [ -z "$FOUND" ]; then
+            echo "::error::Cannot find the AutoUpdateVersion() feed numbers in lib_base."
+            exit 1
+          fi
+          for n in $FOUND; do
+            case " $PUBLISHED " in
+              *" $n "*) ;;
+              *)
+                echo "::error::lib_base requests current$n, release.yml does not publish it. Check the feed format, then add current$n to release.yml and PUBLISHED here."
+                exit 1
+                ;;
+            esac
+          done
