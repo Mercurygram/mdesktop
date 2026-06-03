@@ -49,23 +49,17 @@ inline const char *cGUIDStr() {
 // private keys (kept outside the repo, never committed).
 static const char *UpdatesPublicKey = "\
 -----BEGIN RSA PUBLIC KEY-----\n\
-MIIBCgKCAQEAt+T349wW8F41pbXFZjElgkqOAkAqlFcSJvDc93hj0Ets/T4kp+lM\n\
-jphespAxymNQErsCZgbISsgXt8kvLSOtwFHAOmTfm7Bg8jszZRrV2VVxN8GDfa1Q\n\
-JWoPDyYvyT2TCBQ75Odj3FrA+dctlL9FVJNlGrlD1CwV2xesvgxpycZaylyI5j/K\n\
-l+tFcVeFiaRZRfM0KCuD2WdOk80rk2wBgSqosIXkFW0bM0D+POR4tdrX5mZ0yL51\n\
-VlSkLEwqed6kMgVaZgpPDb79iLcuHTtcDMxRNISh/EigFGxmrEKy9CP5h7RoI6Oi\n\
-vuSgT/cQdSYk7rjiwdl48jV6luzOIjcRQQIDAQAB\n\
+MIGJAoGBAMFT0YU/YL2OuCAR8ZZkUv5hCvrtkp0B6M0Ld2r6SqwZnvk4yzARTX9p\n\
+07aOj1w2qpvAWez9Nx2r0FAbNhzsxWOG74+aee2bregSiGsubxXtt+YEzcAjVP8n\n\
+2ULCrjuTDC92NaEGhMiOjfLFoS1KQZpAl3cejSg8bPtoCpmKLU4tAgMBAAE=\n\
 -----END RSA PUBLIC KEY-----\
 ";
 
 static const char *UpdatesPublicBetaKey = "\
 -----BEGIN RSA PUBLIC KEY-----\n\
-MIIBCgKCAQEA1xJmuCBgM1hUNAWJRz/lVXVx9NKvABJpcaMCL/Ns0eTlhM95IYfl\n\
-68LXCuuo8cZw1x8F4SjWDRA6Rq+jZV7qropekZ64lrI0n4ME+NRsTFh1QXUl23Z0\n\
-zd7BLIceysI+ZiUyHIIIns/QR/EDRgDqN8615yEU/mQdz2BegpaXNGikuj/BvPzh\n\
-GAfthpCi+JXGyv8N60lWMPd5Tz4JNjgAPTVCMng6qmKa2fZdZaQsWDzcLE8fWVfV\n\
-0K9EtPuApAGI5bSxwDVD/u4Zlmanh9OJ3o3qI1IGnyu3rrQNs/7jgD99u5P9/KfN\n\
-zj8uNEWadnc9IrjrcJjbH+wWE8QsVph4iwIDAQAB\n\
+MIGJAoGBALT3YGXY43sr++sLC6YZrSPlq8NoKsbuw32R8KvPaoPw0BkBz0Cl4foq\n\
+H9+wu/njwqlnCvuA549RNbM0GFh7wOKJfr8HPUZ9uHNsPLGF+UW0l0E9Ul10za6+\n\
+weLEFlKOeUvzqm9CO8eVia4ZI45W341WORkslUr3RzTEpw6s5lchAgMBAAE=\n\
 -----END RSA PUBLIC KEY-----\
 ";
 
