@@ -403,6 +403,17 @@ QString ExtractFilename(const QString &url) {
 	return QString();
 }
 
+// Linux arm64 reads the dedicated "linuxarm" index key (tlinuxarmupd and
+// td-update-linux-arm packages); every other platform keeps
+// Platform::AutoUpdateKey().
+[[nodiscard]] QString FeedPlatformKey() {
+#if defined Q_OS_LINUX && (defined(__aarch64__) || defined(__arm64__))
+	return QString("linuxarm");
+#else
+	return Platform::AutoUpdateKey();
+#endif
+}
+
 #ifndef TDESKTOP_DISABLE_AUTOUPDATE
 
 enum class ManifestAdoption {
@@ -465,10 +476,10 @@ enum class ManifestAdoption {
 	// The expected target follows the feed key, not the build: an x64
 	// build under Rosetta asks for armac and must accept that package.
 	const auto target = Updates::TargetFromPlatformKey(
-		Platform::AutoUpdateKey().toLatin1());
+		FeedPlatformKey().toLatin1());
 	if (!target) {
 		LOG(("Update Error: No v2 target for platform key '%1'."
-			).arg(Platform::AutoUpdateKey()));
+			).arg(FeedPlatformKey()));
 		return false;
 	}
 
@@ -620,7 +631,7 @@ bool ParseCommonMap(
 		return false;
 	}
 	const auto platforms = document.object();
-	const auto platform = Platform::AutoUpdateKey();
+	const auto platform = FeedPlatformKey();
 	const auto it = platforms.constFind(platform);
 	if (it == platforms.constEnd()) {
 		LOG(("Update Error: MTP platform '%1' not found in response."
