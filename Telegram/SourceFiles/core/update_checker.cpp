@@ -303,6 +303,7 @@ QString FindUpdateFile() {
 			"tmacupd|"
 			"tarmacupd|"
 			"tlinuxupd|"
+			"tlinuxarmupd|"
 			")\\d+(_[a-z\\d]+)?$",
 			QRegularExpression::CaseInsensitiveOption
 		);
@@ -603,7 +604,13 @@ bool ParseCommonMap(
 		return false;
 	}
 	const auto platforms = document.object();
+#if defined Q_OS_LINUX && (defined(__aarch64__) || defined(__arm64__))
+	// Linux arm64 reads the dedicated "linuxarm" index key (tlinuxarmupd
+	// packages); every other platform keeps Platform::AutoUpdateKey().
+	const auto platform = QString("linuxarm");
+#else
 	const auto platform = Platform::AutoUpdateKey();
+#endif
 	const auto it = platforms.constFind(platform);
 	if (it == platforms.constEnd()) {
 		LOG(("Update Error: MTP platform '%1' not found in response."
