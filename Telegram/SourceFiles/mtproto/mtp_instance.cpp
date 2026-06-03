@@ -932,9 +932,8 @@ void Instance::Private::configLoadDone(const MTPConfig &result) {
 	Lang::CurrentCloudManager().setCurrentVersions(
 		data.vlang_pack_version().value_or_empty(),
 		data.vbase_lang_pack_version().value_or_empty());
-	if (const auto prefix = data.vautoupdate_url_prefix()) {
-		Local::writeAutoupdatePrefix(qs(*prefix));
-	}
+	// Mercurygram: ignore the server-provided autoupdate prefix so Telegram's
+	// config cannot redirect updates away from the Mercurygram update server.
 
 	_configExpiresAt = crl::now()
 		+ (data.vexpires().v - base::unixtime::now()) * crl::time(1000);
