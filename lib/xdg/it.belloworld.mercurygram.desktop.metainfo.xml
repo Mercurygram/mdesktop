@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component type="desktop">
+    <id>it.belloworld.mercurygram.desktop</id>
+    <metadata_license>CC0-1.0</metadata_license>
+    <project_license>GPL-3.0-or-later</project_license>
+    <name>Mercurygram</name>
+    <summary>Privacy-focused Telegram Desktop fork</summary>
+    <description>
+        <p>Mercurygram Desktop is an unofficial, privacy and security focused fork of Telegram Desktop. It is the desktop counterpart of the Mercurygram Android client, built by rebasing Mercurygram patches on top of upstream Telegram Desktop.</p>
+        <p>It connects to the regular Telegram network over the MTProto protocol while adding extra privacy and anti-tracking mitigations on top of the upstream client.</p>
+        <p>Its headline feature is support for end-to-end encrypted secret chats on the desktop — something the official Telegram Desktop client and most other desktop forks do not offer.</p>
+        <p>Mercurygram is not affiliated with or endorsed by Telegram FZ-LLC. Builds are signed with Mercurygram's own update keys and the in-app updater points at the Mercurygram release server. Please report Mercurygram issues to the Mercurygram project, not to upstream Telegram.</p>
+        <p>As a Telegram client it offers the familiar messaging experience:</p>
+        <p>Messages, chats, groups and channels stay synced across all your devices, with the client running standalone without needing your phone connected.</p>
+        <p>Send and receive media and files of any type, with chat history stored in the Telegram cloud.</p>
+        <p>Group chats and channels, bots, photo and video editing, animated stickers, emoji and customizable themes.</p>
+    </description>
+    <categories>
+        <category>Network</category>
+        <category>InstantMessaging</category>
+    </categories>
+    <developer id="it.belloworld"><name>Mercurygram Contributors</name></developer>
+    <url type="homepage">https://github.com/Mercurygram/mdesktop</url>
+    <url type="faq">https://telegram.org/faq</url>
+    <url type="bugtracker">https://github.com/Mercurygram/mdesktop/issues</url>
+    <url type="vcs-browser">https://github.com/Mercurygram/mdesktop</url>
+    <url type="contribute">https://github.com/Mercurygram/mdesktop/blob/dev/.github/CONTRIBUTING.md</url>
+    <branding>
+        <color type="primary" scheme_preference="light">#edf0f2</color>
+        <color type="primary" scheme_preference="dark">#2d363f</color>
+    </branding>
+    <screenshots>
+      <screenshot type="default">
+        <image>https://raw.githubusercontent.com/Mercurygram/mdesktop/dev/docs/assets/preview.png</image>
+      </screenshot>
+      <screenshot>
+        <image>https://raw.githubusercontent.com/Mercurygram/mdesktop/dev/docs/assets/slide.01.jpg</image>
+        <caption>A lightning-fast native app that seamlessly syncs with your other devices</caption>
+      </screenshot>
+      <screenshot>
+        <image>https://raw.githubusercontent.com/Mercurygram/mdesktop/dev/docs/assets/slide.02.jpg</image>
+        <caption>A fully autonomous Telegram app, no phone connection required</caption>
+      </screenshot>
+      <screenshot>
+        <image>https://raw.githubusercontent.com/Mercurygram/mdesktop/dev/docs/assets/slide.03.jpg</image>
+        <caption>A quick way to view photos, videos and files</caption>
+      </screenshot>
+      <screenshot>
+        <image>https://raw.githubusercontent.com/Mercurygram/mdesktop/dev/docs/assets/slide.04.jpg</image>
+        <caption>Send and store unlimited media and files of any type</caption>
+      </screenshot>
+    </screenshots>
+    <keywords>
+        <keyword>tg</keyword>
+        <keyword>telegram</keyword>
+        <keyword>tdesktop</keyword>
+        <keyword>mercurygram</keyword>
+        <keyword>messaging</keyword>
+        <keyword>messenger</keyword>
+        <keyword>chat</keyword>
+        <keyword>sms</keyword>
+        <keyword>im</keyword>
+    </keywords>
+    <requires>
+        <!-- windowMinHeight from Telegram/SourceFiles/window/window.style -->
+        <display_length compare="ge">480</display_length>
+        <internet>always</internet>
+        <!-- on-screen keyboards are too big for current minimal display height -->
+        <control>keyboard</control>
+    </requires>
+    <supports>
+        <control>pointing</control>
+        <control>touch</control>
+    </supports>
+    <content_rating type="oars-1.1">
+        <content_attribute id="violence-cartoon">none</content_attribute>
+        <content_attribute id="violence-fantasy">none</content_attribute>
+        <content_attribute id="violence-realistic">none</content_attribute>
+        <content_attribute id="violence-bloodshed">none</content_attribute>
+        <content_attribute id="violence-sexual">none</content_attribute>
+        <content_attribute id="violence-desecration">none</content_attribute>
+        <content_attribute id="violence-slavery">none</content_attribute>
+        <content_attribute id="violence-worship">none</content_attribute>
+        <content_attribute id="drugs-alcohol">none</content_attribute>
+        <content_attribute id="drugs-narcotics">none</content_attribute>
+        <content_attribute id="drugs-tobacco">none</content_attribute>
+        <content_attribute id="sex-nudity">none</content_attribute>
+        <content_attribute id="sex-themes">none</content_attribute>
+        <content_attribute id="sex-homosexuality">none</content_attribute>
+        <content_attribute id="sex-prostitution">none</content_attribute>
+        <content_attribute id="sex-adultery">none</content_attribute>
+        <content_attribute id="sex-appearance">none</content_attribute>
+        <content_attribute id="language-profanity">none</content_attribute>
+        <content_attribute id="language-humor">none</content_attribute>
+        <content_attribute id="language-discrimination">none</content_attribute>
+        <content_attribute id="social-chat">intense</content_attribute>
+        <content_attribute id="social-info">none</content_attribute>
+        <content_attribute id="social-audio">intense</content_attribute>
+        <content_attribute id="social-location">none</content_attribute>
+        <content_attribute id="social-contacts">intense</content_attribute>
+        <content_attribute id="money-purchasing">intense</content_attribute>
+        <content_attribute id="money-gambling">none</content_attribute>
+        <content_attribute id="money-advertising">moderate</content_attribute>
+    </content_rating>
+    <launchable type="desktop-id">it.belloworld.mercurygram.desktop.desktop</launchable>
+    <provides>
+        <binary>Mercurygram</binary>
+        <dbus type="session">it.belloworld.mercurygram.desktop</dbus>
+        <mediatype>x-scheme-handler/tg</mediatype>
+        <mediatype>x-scheme-handler/tonsite</mediatype>
+    </provides>
+</component>

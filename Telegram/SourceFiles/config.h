@@ -43,19 +43,27 @@ inline const char *cGUIDStr() {
 	return gGuidStr;
 }
 
+// Mercurygram: update-signing keys. Sign release maps with the matching
+// private keys (kept outside the repo, never committed).
 static const char *UpdatesPublicKey = "\
 -----BEGIN RSA PUBLIC KEY-----\n\
-MIGJAoGBAMA4ViQrjkPZ9xj0lrer3r23JvxOnrtE8nI69XLGSr+sRERz9YnUptnU\n\
-BZpkIfKaRcl6XzNJiN28cVwO1Ui5JSa814UAiDHzWUqCaXUiUEQ6NmNTneiGx2sQ\n\
-+9PKKlb8mmr3BB9A45ZNwLT6G9AK3+qkZLHojeSA+m84/a6GP4svAgMBAAE=\n\
+MIIBCgKCAQEAt+T349wW8F41pbXFZjElgkqOAkAqlFcSJvDc93hj0Ets/T4kp+lM\n\
+jphespAxymNQErsCZgbISsgXt8kvLSOtwFHAOmTfm7Bg8jszZRrV2VVxN8GDfa1Q\n\
+JWoPDyYvyT2TCBQ75Odj3FrA+dctlL9FVJNlGrlD1CwV2xesvgxpycZaylyI5j/K\n\
+l+tFcVeFiaRZRfM0KCuD2WdOk80rk2wBgSqosIXkFW0bM0D+POR4tdrX5mZ0yL51\n\
+VlSkLEwqed6kMgVaZgpPDb79iLcuHTtcDMxRNISh/EigFGxmrEKy9CP5h7RoI6Oi\n\
+vuSgT/cQdSYk7rjiwdl48jV6luzOIjcRQQIDAQAB\n\
 -----END RSA PUBLIC KEY-----\
 ";
 
 static const char *UpdatesPublicBetaKey = "\
 -----BEGIN RSA PUBLIC KEY-----\n\
-MIGJAoGBALWu9GGs0HED7KG7BM73CFZ6o0xufKBRQsdnq3lwA8nFQEvmdu+g/I1j\n\
-0LQ+0IQO7GW4jAgzF/4+soPDb6uHQeNFrlVx1JS9DZGhhjZ5rf65yg11nTCIHZCG\n\
-w/CVnbwQOw0g5GBwwFV3r0uTTvy44xx8XXxk+Qknu4eBCsmrAFNnAgMBAAE=\n\
+MIIBCgKCAQEA1xJmuCBgM1hUNAWJRz/lVXVx9NKvABJpcaMCL/Ns0eTlhM95IYfl\n\
+68LXCuuo8cZw1x8F4SjWDRA6Rq+jZV7qropekZ64lrI0n4ME+NRsTFh1QXUl23Z0\n\
+zd7BLIceysI+ZiUyHIIIns/QR/EDRgDqN8615yEU/mQdz2BegpaXNGikuj/BvPzh\n\
+GAfthpCi+JXGyv8N60lWMPd5Tz4JNjgAPTVCMng6qmKa2fZdZaQsWDzcLE8fWVfV\n\
+0K9EtPuApAGI5bSxwDVD/u4Zlmanh9OJ3o3qI1IGnyu3rrQNs/7jgD99u5P9/KfN\n\
+zj8uNEWadnc9IrjrcJjbH+wWE8QsVph4iwIDAQAB\n\
 -----END RSA PUBLIC KEY-----\
 ";
 
@@ -66,7 +74,7 @@ constexpr auto ApiHash = QT_STRINGIFY(TDESKTOP_API_HASH);
 
 #else // TDESKTOP_API_ID && TDESKTOP_API_HASH
 
-// To build your version of Telegram Desktop you're required to provide
+// To build your version of Mercurygram Desktop you're required to provide
 // your own 'api_id' and 'api_hash' for the Telegram API access.
 //
 // How to obtain your 'api_id' and 'api_hash' is described here:
