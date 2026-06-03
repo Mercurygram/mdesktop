@@ -514,7 +514,7 @@ void Updates::differenceDone(const MTPupdates_Difference &result) {
 		stateDone(d.vstate());
 	} break;
 	case mtpc_updates_differenceTooLong: {
-		LOG(("API Error: updates.differenceTooLong is not supported by Telegram Desktop!"));
+		LOG(("API Error: updates.differenceTooLong is not supported by Mercurygram Desktop!"));
 	} break;
 	};
 }
