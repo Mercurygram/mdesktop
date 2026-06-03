@@ -1,45 +1,41 @@
-# [Telegram Desktop][telegram_desktop] – Official Messenger
+<div align="center">
 
-This is the complete source code and the build instructions for the official [Telegram][telegram] messenger desktop client, based on the [Telegram API][telegram_api] and the [MTProto][telegram_proto] secure protocol.
+<img src="./docs/assets/mercurygram_logo.png" alt="Mercurygram Desktop logo" title="Mercurygram Desktop" width="96"/>
 
-[![Version](https://badge.fury.io/gh/telegramdesktop%2Ftdesktop.svg)](https://github.com/telegramdesktop/tdesktop/releases)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/Windows./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/MacOS./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/Linux./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
-[![Built with Depot](https://img.shields.io/badge/Built%20with-Depot.dev-46A75A)](https://depot.dev)
+# Mercurygram Desktop
 
-[![Preview of Telegram Desktop][preview_image]][preview_image_url]
+</div>
 
-The source code is published under GPLv3 with OpenSSL exception, the license is available [here][license].
+[Telegram](https://telegram.org) is a messaging app with a focus on speed and security. It's superfast, simple and free.
 
-## Supported systems
+**Mercurygram Desktop** is an unofficial, privacy and security focused fork of [Telegram Desktop](https://github.com/telegramdesktop/tdesktop). It is the desktop counterpart of the [Mercurygram](https://github.com/Mercurygram/Mercurygram) Android client, built by rebasing Mercurygram patches on top of upstream Telegram Desktop. It connects to the regular [Telegram API](https://core.telegram.org) over the [MTProto](https://core.telegram.org/mtproto) protocol while adding extra privacy mitigations (such as the secret-chat work in progress on this branch).
 
-The latest version is available for
+The source code is published under GPLv3 with OpenSSL exception, the license is available [here](LICENSE).
 
-* [Windows 7 and above (64 bit)](https://telegram.org/dl/desktop/win64) ([portable](https://telegram.org/dl/desktop/win64_portable))
-* [Windows 7 and above (32 bit)](https://telegram.org/dl/desktop/win) ([portable](https://telegram.org/dl/desktop/win_portable))
-* [macOS 10.13 and above](https://telegram.org/dl/desktop/mac)
-* [Linux static build for 64 bit](https://telegram.org/dl/desktop/linux)
-* [Snap](https://snapcraft.io/telegram-desktop)
-* [Flatpak](https://flathub.org/apps/details/org.telegram.desktop)
+## Install
 
-## Old system versions
+Mercurygram Desktop is distributed through [GitHub Releases](https://github.com/Mercurygram/mdesktop/releases) for Windows, macOS and Linux. There is no association with Telegram FZ-LLC; do not report Mercurygram issues to upstream Telegram.
 
-Version **4.9.9** was the last that supports older systems
+> **Note:** because this is an unofficial fork, builds are signed with Mercurygram's own update keys and the in-app updater points at the Mercurygram release server, not Telegram's.
 
-* [macOS 10.12](https://updates.tdesktop.com/tmac/tsetup.4.9.9.dmg)
-* [Linux with glibc < 2.28 static build](https://updates.tdesktop.com/tlinux/tsetup.4.9.9.tar.xz)
+## Build instructions
 
-Version **2.4.4** was the last that supports older systems
+* [Windows (32-bit and 64-bit)](docs/building-win.md)
+* [macOS](docs/building-mac.md)
+* [GNU/Linux using Docker](docs/building-linux.md)
 
-* [OS X 10.10 and 10.11](https://updates.tdesktop.com/tosx/tsetup-osx.2.4.4.dmg)
-* [Linux static build for 32 bit](https://updates.tdesktop.com/tlinux32/tsetup32.2.4.4.tar.xz)
+To build you must supply your own Telegram `api_id` / `api_hash` at configure time
+(`-D TDESKTOP_API_ID=… -D TDESKTOP_API_HASH=…`); credentials are never committed.
+See <https://core.telegram.org/api/obtaining_api_id>.
 
-Version **1.8.15** was the last that supports older systems
+## Why the name Mercurygram?
 
-* [Windows XP and Vista](https://updates.tdesktop.com/tsetup/tsetup.1.8.15.exe) ([portable](https://updates.tdesktop.com/tsetup/tportable.1.8.15.zip))
-* [OS X 10.8 and 10.9](https://updates.tdesktop.com/tmac/tsetup.1.8.15.dmg)
-* [OS X 10.6 and 10.7](https://updates.tdesktop.com/tmac32/tsetup32.1.8.15.dmg)
+For a couple of reasons:
+
+- Mercury is the Roman (and I'm Italian) god and the "**messenger** of the gods".
+- The logo is a stylized 'F' representing his winged shoes, but it also resembles an 'F' in honor of **Freddy Mercury**.
+
+The application icon is the [hermes wing (created by Anthony Ledoux from the Noun Project)](https://thenounproject.com/icon/hermes-wing-3559879/).
 
 ## Third-party
 
@@ -66,34 +62,3 @@ Version **1.8.15** was the last that supports older systems
 * CMake ([New BSD License](https://github.com/Kitware/CMake/blob/master/Copyright.txt))
 * Hunspell ([LGPL](https://github.com/hunspell/hunspell/blob/master/COPYING.LESSER))
 * Ada ([Apache License 2.0](https://github.com/ada-url/ada/blob/main/LICENSE-APACHE))
-
-## Build instructions
-
-* [Windows (32-bit and 64-bit)][win]
-* [macOS][mac]
-* [GNU/Linux using Docker][linux]
-
-[//]: # (LINKS)
-[telegram]: https://telegram.org
-[telegram_desktop]: https://desktop.telegram.org
-[telegram_api]: https://core.telegram.org
-[telegram_proto]: https://core.telegram.org/mtproto
-[license]: LICENSE
-[win]: docs/building-win.md
-[mac]: docs/building-mac.md
-[linux]: docs/building-linux.md
-[preview_image]: https://github.com/telegramdesktop/tdesktop/blob/dev/docs/assets/preview.png "Preview of Telegram Desktop"
-[preview_image_url]: https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/docs/assets/preview.png
-
-## Thanks to
-
-<a href="https://depot.dev">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://depot.dev/assets/brand/1693758816/depot-logo-horizontal-on-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://depot.dev/assets/brand/1693758816/depot-logo-horizontal-on-light.svg">
-    <img alt="Depot" src="https://depot.dev/assets/brand/1693758816/depot-logo-horizontal-on-light.svg" width="150">
-  </picture>
-</a>
-
-CI infrastructure sponsored by [Depot](https://depot.dev) — fast GitHub Actions runners.
-
