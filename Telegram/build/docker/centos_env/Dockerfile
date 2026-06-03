@@ -413,13 +413,26 @@ rm -rf libjxl
 EOF
 
 FROM builder AS rnnoise
+# Use the desktop-app rnnoise fork (CMake) instead of xiph v0.2: the xiph tag's
+# NEON path (src/vec_neon.h) fails to build on aarch64, breaking the linux-arm64
+# image. The fork builds on both arches and matches the pin used by prepare.py.
 RUN --mount=type=cache,target=/var/cache/ccache <<EOF
-git clone -b v0.2 --depth=1 https://github.com/xiph/rnnoise.git
+git clone https://github.com/desktop-app/rnnoise.git
 cd rnnoise
-./autogen.sh
-./configure --enable-static --disable-shared
-make -j$(nproc)
-make DESTDIR=/usr/src/rnnoise-cache install
+git checkout d8ea2b0
+cmake -B build \
+	-D CMAKE_BUILD_TYPE=Release \
+	-D CMAKE_INSTALL_PREFIX=/usr/local \
+	-D BUILD_SHARED_LIBS=OFF
+cmake --build build -j$(nproc)
+DESTDIR=/usr/src/rnnoise-cache cmake --install build
+mkdir -p /usr/src/rnnoise-cache/usr/local/lib/pkgconfig
+printf '%s\n' 'prefix=/usr/local' 'exec_prefix=${prefix}' \
+	'libdir=${prefix}/lib' 'includedir=${prefix}/include' '' \
+	'Name: rnnoise' 'Description: Recurrent neural network for audio noise suppression' \
+	'Version: 0.2' 'Libs: -L${libdir} -lrnnoise' 'Libs.private: -lm' \
+	'Cflags: -I${includedir}' \
+	> /usr/src/rnnoise-cache/usr/local/lib/pkgconfig/rnnoise.pc
 cd ..
 rm -rf rnnoise
 EOF
@@ -1012,6 +1025,9 @@ rm rustup-init.sh
 export RUSTUP_TOOLCHAIN=$RUST_TOOLCHAIN
 export PATH=$CARGO_HOME/bin:$PATH
 export DESTDIR=/usr/src/tlottie-cache
+# rustup --profile minimal installs the host target only, so the target must
+# follow the image arch or the aarch64 build fails with a missing std crate.
+TLOTTIE_TARGET=$(uname -m)-unknown-linux-gnu
 git init tlottie
 cd tlottie
 git remote add origin https://github.com/dkaraush/tlottie.git
@@ -1019,10 +1035,10 @@ git fetch --depth=1 origin 4b940c7942fbde8ee56f10f39a5224a4153bd91e
 git reset --hard FETCH_HEAD
 cargo rustc --lib --release --locked \
 	--features c-api --crate-type staticlib \
-	--target x86_64-unknown-linux-gnu \
+	--target $TLOTTIE_TARGET \
 	-- --print native-static-libs
 mkdir -p $DESTDIR/usr/local/lib $DESTDIR/usr/local/include/tlottie
-objcopy --strip-debug target/x86_64-unknown-linux-gnu/release/libtlottie.a $DESTDIR/usr/local/lib/libtlottie.a
+objcopy --strip-debug target/$TLOTTIE_TARGET/release/libtlottie.a $DESTDIR/usr/local/lib/libtlottie.a
 cp include/tlottie.h $DESTDIR/usr/local/include/tlottie/tlottie.h
 cd ..
 rm -rf tlottie rustup cargo
