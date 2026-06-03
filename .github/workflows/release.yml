@@ -1,0 +1,1326 @@
+name: Release.
+
+# Mercurygram signed-release pipeline.
+#
+# Trigger: push a tag.
+#   vX.Y.Z.N        -> stable release
+#   vX.Y.Z.N-beta   -> beta release (published as a GitHub prerelease)
+#
+# Trigger: workflow_dispatch (manual, from a branch e.g. dev).
+#   Builds Linux only and uploads the artifacts to the Actions run; it does NOT
+#   touch any GitHub release (no `updates` index, no per-version release). The
+#   version is derived from the committed Telegram/build/version. Use it to grab
+#   a dev build without cutting a release. The release-only jobs (windows, macos,
+#   source, publish) are gated on `github.event_name == 'push'`.
+#
+# Each platform builds Release + the Packer tool, signs the update package with
+# the channel's private key (written from repo secrets into DesktopPrivate), and
+# uploads it. The `publish` job then regenerates the signed-channel index
+# (current2/current4) on the fixed `updates` release and creates the per-version
+# release with the human installers.
+#
+# The autoupdater reads <prefix>/current{2,4} and the package links from the
+# `updates` release (see storage/localstorage.cpp). The index itself is not
+# signed (HTTPS is the integrity layer); only the .xz package is RSA-verified
+# against the public keys in config.h.
+#
+# Per release this produces the upstream-parity human asset set plus arm64:
+#   Mercurygram-<ver>-windows-x86_64-installer.exe / -portable.zip
+#   Mercurygram-<ver>-windows-arm64-installer.exe  / -portable.zip
+#   Mercurygram-<ver>-macos.dmg
+#   Mercurygram-<ver>-linux-x86_64.tar.xz          Mercurygram-<ver>-linux-arm64.tar.xz
+#   Mercurygram-<ver>-source-full.tar.gz
+# and the autoupdate packages tx64upd/tarm64upd (win), tmacupd/tarmacupd
+# (mac), tlinuxupd/tlinuxarmupd (linux).
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Manual Linux-only build (no release side effects). See header.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write   # push/pull the centos_env libraries image to GHCR
+  actions: write    # gh run cancel: abort sibling legs on the first failed one
+
+# Serialize releases: the publish job does a read-modify-write of the shared
+# `updates` index (current2/current4). Two concurrent tag runs would race and
+# drop a channel/platform entry. Never cancel an in-flight publish.
+#
+# Tag runs all share one fixed group so they queue (never cancel). Manual dev
+# builds have no release side effects, so each ref gets its own group and a new
+# dispatch cancels the previous in-flight dev build (and never the release).
+concurrency:
+  group: ${{ github.ref_type == 'tag' && 'mercurygram-release' || format('mercurygram-dev-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+env:
+  UPDATES_TAG: updates
+  # Publish job has no checkout, so gh can't infer the repo from git.
+  GH_REPO: ${{ github.repository }}
+  # Fail-fast kill switch: when 'true', the first failed build leg cancels the
+  # whole run (saves CI minutes; publish is all-legs-green anyway). Set 'false'
+  # to let every leg run to completion -- useful for diagnosing several legs at
+  # once without one failure masking the others.
+  CANCEL_ON_FAILURE: 'true'
+
+jobs:
+
+  meta:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}       # X.Y.Z.N
+      appversion: ${{ steps.v.outputs.appversion }} # monotonic int
+      channel: ${{ steps.v.outputs.channel }}       # stable | beta
+      prerelease: ${{ steps.v.outputs.prerelease }} # true | false
+    steps:
+      - name: Clone.
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Resolve version.
+        id: v
+        # Tag push: set_release_version.py owns the tag grammar, the monotonic-int
+        # formula and the per-part validation; --github-output just prints them
+        # (no file patching) so the build jobs and this job share one source of
+        # truth. Manual dispatch has no tag, so read the already-committed
+        # Telegram/build/version instead and mark the build as a dev prerelease.
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            python3 Telegram/build/set_release_version.py --github-output "${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            APPV=$(awk '$1=="AppVersion"{print $2}' Telegram/build/version)
+            VSTR=$(awk '$1=="AppVersionStrSmall"{print $2}' Telegram/build/version)
+            {
+              echo "version=${VSTR}-dev-${GITHUB_SHA:0:7}"
+              echo "appversion=${APPV}"
+              echo "channel=beta"
+              echo "prerelease=true"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cancel the run on failure.
+        # No native "one job fails -> cancel the others" in Actions (fail-fast is
+        # matrix-only; tag runs set cancel-in-progress=false). Abort the whole run
+        # on the first failed leg so siblings stop instead of finishing a build
+        # that publish will skip anyway (publish is gated on all-legs-green).
+        if: ${{ failure() && env.CANCEL_ON_FAILURE == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run cancel ${{ github.run_id }} || true
+
+  linux:
+    name: Linux (${{ matrix.arch }})
+    needs: meta
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            update_prefix: tlinuxupd
+          - arch: arm64
+            # GitHub-hosted ARM runner; rockylinux:8 is a multi-arch manifest so
+            # the centos_env image builds natively for aarch64.
+            runner: ubuntu-24.04-arm
+            update_prefix: tlinuxarmupd
+    env:
+      IMAGE_TAG: tdesktop:centos_env
+    steps:
+      - name: Clone.
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Set release version.
+        # Tag push only: patch the version files from the tag. A manual dispatch
+        # has no tag and builds the version already committed to the tree.
+        if: github.event_name == 'push'
+        run: python3 Telegram/build/set_release_version.py "${GITHUB_REF_NAME}"
+
+      - name: Write update signing keys.
+        # DesktopPrivate must sit next to the checkout so packer.cpp's
+        # ../../../../DesktopPrivate include resolves; inside the centos
+        # container (-v $PWD:/usr/src/tdesktop) that is /usr/src/DesktopPrivate.
+        env:
+          UPDATE_PRIVATE_KEY: ${{ secrets.UPDATE_PRIVATE_KEY }}
+          UPDATE_PRIVATE_BETA_KEY: ${{ secrets.UPDATE_PRIVATE_BETA_KEY }}
+        run: bash Telegram/build/write_update_keys.sh "${GITHUB_WORKSPACE}/../DesktopPrivate"
+
+      - name: First set up.
+        run: |
+          sudo apt update
+          curl -sSL https://install.python-poetry.org | python3 -
+          cd Telegram/build/docker/centos_env
+          poetry install
+          DOCKERFILE=$(DEBUG= LTO= poetry run gen_dockerfile)
+          echo "$DOCKERFILE" > Dockerfile
+          rm -rf __pycache__
+
+      - name: Free up some disk space.
+        # Inlined (was jlumbroso/free-disk-space): jlumbroso is an individual repo,
+        # not a Marketplace verified creator, so org policy rejects it. Plain rm of
+        # preinstalled toolchains we never use - the centos_env image build needs
+        # the room (Qt+boost+webrtc from source overflow the runner's small root fs).
+        run: |
+          echo "Before:"; df -h /
+          sudo rm -rf \
+            /opt/hostedtoolcache \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc /usr/local/.ghcup \
+            /usr/share/swift \
+            /usr/local/share/boost \
+            /usr/local/lib/node_modules \
+            /usr/local/share/powershell \
+            /usr/lib/google-cloud-sdk \
+            /usr/local/share/chromium /opt/microsoft || true
+          sudo apt-get clean || true
+          sudo docker image prune --all --force 2>/dev/null || true
+          echo "After:"; df -h /
+
+      - name: Libraries (pull from GHCR, or build + push on miss).
+        # centos_env is fully determined by centos_env/**, so cache the whole built
+        # image in GHCR (free + unlimited for public repos; the per-layer 10GB and
+        # 10-min upload limits comfortably fit our ~3.5GB image). Pull on hit
+        # (seconds), build + push on miss. Replaces the buildx local cache, whose
+        # mode=max blob overflowed the 10GB actions/cache cap and so never saved -
+        # every run rebuilt cold (~40min) and overran the runner disk.
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: |
+          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+          owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          ref="ghcr.io/$owner/centos_env:${{ matrix.arch }}-${{ hashFiles('Telegram/build/docker/centos_env/**') }}"
+          if docker manifest inspect "$ref" >/dev/null 2>&1; then
+            echo "GHCR hit -> pulling $ref"
+            docker pull "$ref"
+          else
+            echo "GHCR miss -> building $ref"
+            docker build -t "$ref" Telegram/build/docker/centos_env
+            # Best-effort cache push: a registry hiccup must not sink a leg whose
+            # image already built. The local "$ref" image is tagged below either
+            # way; a failed push just makes the next release re-miss and rebuild.
+            docker push "$ref" || echo "::warning::centos_env cache push failed; continuing with the local image"
+          fi
+          docker tag "$ref" "$IMAGE_TAG"
+
+      - name: Build (Release + Packer).
+        run: |
+          set -e
+          API="-D TDESKTOP_API_ID=${{ secrets.APP_ID }} -D TDESKTOP_API_HASH=${{ secrets.APP_HASH }}"
+          # Cap the compile parallelism: ninja defaults to cores+2 (=6 on the
+          # 4-core runner), and 6 concurrent -O3 LTO fat-object TUs peak ~15.4GB,
+          # right at the 16GB RAM ceiling. 4 jobs keeps the peak ~11GB. The LTO
+          # link self-limits to nproc (=4) ltrans (~9GB) -- both fit with margin.
+          docker run --rm \
+            -u $(id -u) \
+            -v $PWD:/usr/src/tdesktop \
+            -v ${GITHUB_WORKSPACE}/../DesktopPrivate:/usr/src/DesktopPrivate \
+            -e CONFIG=Release \
+            -e CMAKE_BUILD_PARALLEL_LEVEL=4 \
+            $IMAGE_TAG \
+            /usr/src/tdesktop/Telegram/build/docker/centos_env/build.sh \
+            -D CMAKE_CONFIGURATION_TYPES=Release \
+            -D CMAKE_COMPILE_WARNING_AS_ERROR=OFF \
+            -D DESKTOP_APP_ENABLE_LTO=ON \
+            $API \
+            -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF \
+            -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF \
+            -D DESKTOP_APP_SPECIAL_TARGET=linux
+          # Single-config + OUTPUT_NAME=Mercurygram -> binaries land in out/Release/bin;
+          # locate them by name rather than hardcoding the path.
+          BIN="$(find out -type f -name Mercurygram | head -n1)"
+          UPD="$(find out -type f -name Updater | head -n1)"
+          PKR="$(find out -type f -name Packer | head -n1)"
+          # Separate statements: under `set -e` a failing test on the left of
+          # `&&` does NOT abort (only the final operand triggers errexit).
+          test -n "$BIN" || { echo "Mercurygram binary not found under out/"; exit 1; }
+          test -n "$UPD" || { echo "Updater not found under out/"; exit 1; }
+          test -n "$PKR" || { echo "Packer not found under out/"; exit 1; }
+          echo "BIN=$BIN" >> "$GITHUB_ENV"
+          echo "UPD=$UPD" >> "$GITHUB_ENV"
+          echo "PKR=$PKR" >> "$GITHUB_ENV"
+
+      - name: Sign update package + build tarball.
+        run: |
+          set -e
+          APPV="${{ needs.meta.outputs.appversion }}"
+          VER="${{ needs.meta.outputs.version }}"
+          PREFIX="${{ matrix.update_prefix }}"
+          BETA=""
+          [ "${{ needs.meta.outputs.channel }}" = "beta" ] && BETA="-beta"
+          rm -rf pack && mkdir -p pack/root
+          cp "$BIN" pack/root/Mercurygram
+          cp "$UPD" pack/root/Updater
+          cp "$PKR" pack/Packer
+          # Run Packer inside the build container (matches the runtime glibc and,
+          # crucially, the build arch -> packer.cpp emits tlinuxarmupd on aarch64).
+          docker run --rm \
+            -u $(id -u) \
+            -v $PWD/pack:/pack \
+            -w /pack/root \
+            $IMAGE_TAG \
+            /pack/Packer -path Mercurygram -path Updater -version $APPV $BETA
+          ls -la pack/root
+          test -f "pack/root/${PREFIX}${APPV}"
+          mkdir -p out_pkg out_installer
+          cp "pack/root/${PREFIX}${APPV}" out_pkg/
+          # Human binary tarball: the app + updater.
+          tar -C pack/root -cJf "out_installer/Mercurygram-${VER}-linux-${{ matrix.arch }}.tar.xz" Mercurygram Updater
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pkg-linux-${{ matrix.arch }}
+          path: out_pkg/
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: installer-linux-${{ matrix.arch }}
+          path: out_installer/
+
+      - name: Cancel the run on failure.  # see meta job for rationale
+        if: ${{ failure() && env.CANCEL_ON_FAILURE == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run cancel ${{ github.run_id }} || true
+
+  windows:
+    name: Windows (${{ matrix.arch }})
+    needs: meta
+    # Release-only (tag push); manual dev builds are Linux-only.
+    if: github.event_name == 'push'
+    # Faithful adaptation of .github/workflows/win.yml for a signed Release build.
+    # NOTE: the installer/portable/arm64 paths have never had a real CI run --
+    # expect 1-2 fixup iterations (VS edition path, d3dcompiler location, iscc).
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            # Pinned, NOT windows-latest: GitHub rolled latest to a VS2026 image
+            # (windows-2025-vs2026) that (a) mismatches the cached v143 LTCG libs
+            # -> codegen_emoji LNK1319, and (b) ships without the ATL component
+            # breakpad needs. windows-2022 has VS2022 (v143) + ATL, matching the
+            # toolchain the GHCR libs cache was built with. Revisit deliberately
+            # when porting to VS2026 (needs an ATL install + a fresh libs cache).
+            runner: windows-2022
+            cfg_arch: x64          # first positional to configure.bat -> run_cmake -Ax64
+            platform: x64          # prepare.py %Platform% (x86|x64|arm64); also the
+                                   # out\Release\modules\<x>\d3d + setup.iss ArchModulesFolder dir
+            special_target: win64  # DESKTOP_APP_SPECIAL_TARGET, setup.iss MyBuildTarget, Packer -target
+            vcvars: x64
+            update_prefix: tx64upd
+          - arch: arm64
+            runner: windows-11-arm
+            cfg_arch: arm
+            platform: arm64
+            special_target: winarm
+            vcvars: arm64
+            update_prefix: tarm64upd
+    env:
+      PREPARE_PATH: "Telegram/build/prepare/prepare.py"
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - name: Prepare directories.
+        run: |
+          mkdir %userprofile%\TBuild\Libraries
+          mklink /d %GITHUB_WORKSPACE%\TBuild %userprofile%\TBuild
+          echo TBUILD=%GITHUB_WORKSPACE%\TBuild>>%GITHUB_ENV%
+          echo LibrariesPath=%GITHUB_WORKSPACE%\TBuild\Libraries${{ matrix.cfg_arch == 'x64' && '\win64' || '' }}>>%GITHUB_ENV%
+
+      - name: Get repository name.
+        shell: bash
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Clone.
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          path: ${{ env.TBUILD }}\${{ env.REPO_NAME }}
+
+      - name: Set release version.
+        shell: bash
+        run: python3 "$TBUILD/$REPO_NAME/Telegram/build/set_release_version.py" "${GITHUB_REF_NAME}"
+
+      - name: Write update signing keys.
+        shell: bash
+        env:
+          UPDATE_PRIVATE_KEY: ${{ secrets.UPDATE_PRIVATE_KEY }}
+          UPDATE_PRIVATE_BETA_KEY: ${{ secrets.UPDATE_PRIVATE_BETA_KEY }}
+        run: bash "$TBUILD/$REPO_NAME/Telegram/build/write_update_keys.sh" "$TBUILD/DesktopPrivate"
+
+      - name: First set up.
+        shell: bash
+        run: |
+          DOCPATH=$TBUILD/$REPO_NAME/docs/building-win.md
+          SDK="$(grep "SDK version" $DOCPATH | sed -r 's/.*\*\*(.*)\*\* SDK version.*/\1/')"
+          echo "SDK=$SDK" >> $GITHUB_ENV
+          # Resolve the VS install dir (edition/year-independent) for the cmd
+          # build steps -- the hosted image's VS rolls without warning (the
+          # windows-latest x86_64 runner moved 2022 -> 2026, while windows-11-arm
+          # is still 2022), so a hardcoded ...\2022\Enterprise path breaks. vswhere
+          # ships in the fixed Installer dir on every image.
+          VSWHERE="/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe"
+          echo "VSINSTALL=$("$VSWHERE" -latest -property installationPath | tr -d '\r')" >> $GITHUB_ENV
+          sed -i '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/${_Zi}//' "$PROGRAMFILES"/CMake/share/cmake*/Modules/Platform/Windows-MSVC.cmake
+          git config --global user.email "you@example.com"
+          git config --global user.name "Sample"
+
+      - name: Exclude the build tree from Microsoft Defender.
+        # Real-time scanning of every Qt/tg_owt/tdesktop .obj drags the build
+        # out, so exclude the whole TBuild tree (both the workspace symlink and
+        # its %userprofile% target, since Defender matches the real path).
+        # Best-effort: the cmdlet is absent/locked on some images (notably the
+        # windows-11-arm runner) and a missing exclusion must never sink the
+        # leg. (The qtpaths "does not exist" failure of run 27372941072 was
+        # once blamed on Defender locking; it was really the deterministic
+        # single-config Debug-install bug fixed in "Patch prepare.py" below.)
+        continue-on-error: true
+        shell: powershell
+        run: |
+          foreach ($p in @($env:TBUILD, "$env:USERPROFILE\TBuild")) {
+            Add-MpPreference -ExclusionPath $p
+            Write-Host "Defender exclusion added for $p"
+          }
+
+      - name: Free up some disk space.
+        # windows-latest ships tens of GB of toolchains this build never touches;
+        # on a GHCR cache miss the Qt 6.11 + tg_owt (Debug+Release) + tdesktop
+        # build otherwise fills C: and dies -- "fatal error C1085 ... not enough
+        # space on the disk" (release run 26911869346), git "No space left on
+        # device" mid Libraries/protobuf fetch (release run 26986854658), and
+        # "Out of diskspace" at the tg_owt clone after the Qt 6.11 build
+        # (release run 27361405424), all Windows x86_64. The earlier prune left
+        # only 46.9GB free, so sweep every large toolchain we never touch.
+        # Kept on purpose: Python (win.bat runs plain `python` off PATH),
+        # Strawberry Perl (the openssl3 stage needs perl), VS, git, choco,
+        # 7zip, nuget. Best-effort: a missing or locked path must never sink
+        # the leg.
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          "Before: " + (Get-PSDrive C | ForEach-Object { "{0:N1}GB free" -f ($_.Free/1GB) })
+          $targets = @(
+            $env:ANDROID_HOME, $env:ANDROID_SDK_ROOT,
+            'C:\Android', "$env:ProgramFiles\Android", "${env:ProgramFiles(x86)}\Android",
+            "$env:ProgramFiles\dotnet",
+            "$env:AGENT_TOOLSDIRECTORY\CodeQL", 'C:\hostedtoolcache\windows\CodeQL',
+            'C:\Program Files\Swift',
+            'C:\Program Files (x86)\Microsoft Visual Studio\Shared\Android',
+            'C:\Program Files\Google\Chrome',
+            'C:\Program Files (x86)\Microsoft\Edge',
+            'C:\Program Files\Mozilla Firefox',
+            'C:\ghcup', 'C:\tools\ghc',
+            'C:\Program Files\MongoDB', 'C:\Program Files\PostgreSQL',
+            'C:\Program Files\MySQL', 'C:\Program Files\Microsoft SQL Server',
+            'C:\Program Files (x86)\Microsoft SQL Server',
+            'C:\Program Files\LLVM', 'C:\Program Files\Java', 'C:\Miniconda',
+            'C:\msys64', 'C:\vcpkg', 'C:\Program Files\R', 'C:\rust',
+            "$env:USERPROFILE\.rustup", "$env:USERPROFILE\.cargo",
+            'C:\selenium', 'C:\Program Files (x86)\Google\Cloud SDK'
+          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+          foreach ($p in $targets) {
+            Write-Host "Removing $p"
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $p
+          }
+          # The whole toolcache except Python (Go/Node/Ruby/PyPy/Java, ~10GB).
+          if (Test-Path 'C:\hostedtoolcache\windows') {
+            Get-ChildItem 'C:\hostedtoolcache\windows' -Directory |
+              Where-Object { $_.Name -ne 'Python' } |
+              ForEach-Object {
+                Write-Host "Removing $($_.FullName)"
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $_.FullName
+              }
+          }
+          "After: " + (Get-PSDrive C | ForEach-Object { "{0:N1}GB free" -f ($_.Free/1GB) })
+
+      - name: Enlarge the pagefile (MSVC PCH commit headroom).
+        # tdesktop's PCH is huge; loading it commits ~2-3GB of private memory per
+        # cl.exe, and the Telegram project's internal /MP fans out to every core
+        # regardless of cmake --parallel. On the 16GB runner with its tiny default
+        # pagefile the system commit limit is exhausted the instant several cl.exe
+        # load the PCH together -> "C3859 Failed to create virtual memory for PCH"
+        # + "C1076 internal heap limit reached", every TU dying at (1,1) (release
+        # run 27106229656, Windows x86_64). Raising the pagefile's MaximumSize lets
+        # the OS grow it under pressure, lifting the commit limit live (no reboot).
+        # x86_64 only: arm64 (windows-11-arm) does not hit the 16GB wall and its
+        # WMI provider rejects Set-WmiInstance ("Generic failure"), which would
+        # fail the step and skip the otherwise-green arm64 build.
+        if: matrix.arch == 'x86_64'
+        # Runs under Windows PowerShell 5.1 (shell: powershell) on purpose: the
+        # auto-managed pagefile exposes no Win32_PageFileSetting row, so it must be
+        # *created*, and only the WMI Set-WmiInstance path creates it reliably with
+        # the UInt32 coercion the class needs (the pwsh 7 / New-CimInstance path
+        # failed with "Type mismatch for property MaximumSize").
+        shell: powershell
+        # Best-effort: the WMI pagefile path that works on the windows-2025 image
+        # is rejected by the windows-2022 (Server 2022) WMI provider with a
+        # SetWMIManagementException, same as arm64's "Generic failure". A failed
+        # enlargement must not sink the leg -- the build proceeds on the default
+        # pagefile, and if MSVC then OOMs on the PCH (C3859/C1076) the fix is to
+        # lower the build `--parallel`, not to hard-fail here.
+        run: |
+          $ErrorActionPreference = 'Stop'
+          try {
+            "Commit limit before: {0:N1}GB" -f ((Get-WmiObject Win32_OperatingSystem).TotalVirtualMemorySize/1MB)
+            $sys = Get-WmiObject -Class Win32_ComputerSystem -EnableAllPrivileges
+            if ($sys.AutomaticManagedPagefile) {
+              $sys.AutomaticManagedPagefile = $false
+              $sys.Put() | Out-Null
+            }
+            $pf = Get-WmiObject -Class Win32_PageFileSetting | Where-Object { $_.Name -ieq 'C:\pagefile.sys' }
+            if ($pf) {
+              $pf.InitialSize = 8192
+              $pf.MaximumSize = 24576
+              $pf.Put() | Out-Null
+            } else {
+              Set-WmiInstance -Class Win32_PageFileSetting -Arguments @{ Name = 'C:\pagefile.sys'; InitialSize = 8192; MaximumSize = 24576 } | Out-Null
+            }
+            Get-WmiObject Win32_PageFileSetting | Format-List Name, InitialSize, MaximumSize
+            "Commit limit after: {0:N1}GB (grows on demand up to RAM + pagefile max)" -f ((Get-WmiObject Win32_OperatingSystem).TotalVirtualMemorySize/1MB)
+          } catch {
+            Write-Host "::warning::Pagefile enlargement failed ($($_.Exception.Message)); continuing on the default pagefile. If MSVC OOMs on the PCH (C3859/C1076), lower the build --parallel."
+          }
+
+      # MSVC toolchain (was Eden-CI/msvc-dev-cmd) is initialized inline via
+      # vcvarsall.bat at the start of each cmd step that needs it -- org policy
+      # allows only actions/*, github/*, Mercurygram/* and a couple of patterns.
+
+      - name: NuGet sources.
+        run: |
+          nuget sources Disable -Name "Microsoft Visual Studio Offline Packages"
+          nuget sources Add -Source https://api.nuget.org/v3/index.json & exit 0
+
+      - name: Install ORAS + zstd.
+        # Manual install: org policy allows only actions/*, github/*, Mercurygram/*
+        # (see the vcvars comment above), so oras-project/setup-oras is off-limits.
+        # ORAS publishes no windows_arm64 binary -> the amd64 build runs under
+        # emulation on the windows-11-arm runner. zstd comes from choco (which
+        # this job also uses for Inno Setup); its PATH entry reaches later steps.
+        shell: bash
+        run: |
+          set -e
+          ORAS_VERSION=1.3.2
+          ORAS_SHA=c896f26245f11e6385d52010bb0a65a4e500e1f3244680a6556ed05462fa1c0d
+          curl -fsSL --retry 3 --retry-delay 2 -o oras.zip "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_windows_amd64.zip"
+          echo "${ORAS_SHA}  oras.zip" | sha256sum -c -
+          mkdir -p "$HOME/bin"
+          # 7-Zip (already used by this workflow's Portable step) reliably reads
+          # .zip; git-bash's bundled tar is GNU tar, which cannot extract zip.
+          7z e oras.zip oras.exe -o"$(cygpath -w "$HOME/bin")" -y
+          rm -f oras.zip
+          cygpath -w "$HOME/bin" >> "$GITHUB_PATH"
+          choco install zstandard -y --no-progress
+
+      - name: Patch prepare.py for the release build.
+        # CI-side patches only -- prepare.py in the repo stays byte-identical to
+        # upstream (no rebase conflict). Runs before "Restore libraries from
+        # GHCR" so the libs cache key hashes the patched file.
+        #
+        # v145 -> v143: upstream forces the v145 toolset for the winarm lzma and
+        # breakpad builds (ToolsetProp) and the libvpx target
+        # (TOOLCHAIN=arm64-win64-vs17-v145), but the windows-11-arm runner ships
+        # VS Enterprise 2022 17.14, whose newest ARM64 toolset is v143 (v145 is
+        # VS 2026 -> MSB8020 on a fresh build; release run 27361405424 died in
+        # libvpx because only PlatformToolset= was patched). Upstream stays green
+        # only because their libs are always cache-hit. Plain arm64-win64-vs17 is
+        # a stock libvpx target whose vs17 default toolset is v143; the
+        # desktop-app/patches 0005 patch only *adds* the -v145 variant. The grep
+        # guard fails this step loudly if upstream grows a new v145 form, instead
+        # of a cryptic MSB8020 hours in. The winarm lines never execute on
+        # x86_64, so patching unconditionally is harmless there.
+        #
+        # Qt -debug-and-release -> -release (win sections only; mac uses plain
+        # CONFIGURATIONS= and keeps upstream behavior): this pipeline builds
+        # tdesktop with CMAKE_CONFIGURATION_TYPES=Release, which links only the
+        # release Qt. The Debug half is ~15GB + ~1h of dead weight that ran the
+        # x86_64 leg out of disk at the tg_owt stage (release run 27361405424,
+        # "Out of diskspace").
+        #
+        # That sed alone broke the stage: -release configures a single-config
+        # Ninja tree, where `cmake --build . --config Debug` is indeed a no-op
+        # duplicate of the release build, but `cmake --install . --config Debug`
+        # is NOT -- it sets CMAKE_INSTALL_CONFIG_NAME=Debug. Most of Qt's
+        # install rules are unguarded (headers/libs install fine), but the tool
+        # executables are installed with CONFIGURATIONS Release (skipped under
+        # Debug) while the qtpaths.exe -> qtpaths6.exe versioned hard link is
+        # an unguarded install(CODE) -- so it runs before any tool .exe exists
+        # and dies with "Cannot hard link ... as it does not exist",
+        # deterministically, before the real `cmake --install .` (release runs
+        # 27372941072 and 27412302154, both Windows legs, every attempt).
+        # Drop the Debug pair from the qt stage instead. The multi-line match
+        # is unambiguous: the qt stage is the only place where the Debug pair
+        # is followed by the unconfigured build/install pair (every other
+        # stage's `--config Debug` lines precede `--config Release` ones and
+        # run in real multi-config MSVC trees that do want a Debug install).
+        shell: bash
+        run: |
+          set -e
+          f="$(cygpath "$TBUILD")/$REPO_NAME/$PREPARE_PATH"
+          sed -i 's/PlatformToolset=v145/PlatformToolset=v143/g' "$f"
+          sed -i 's/arm64-win64-vs17-v145/arm64-win64-vs17/g' "$f"
+          if grep -n 'v145' "$f"; then
+            echo "::error::prepare.py still references the v145 toolset after patching; extend the seds in this step."
+            exit 1
+          fi
+          grep -q 'PlatformToolset=v143' "$f"
+          sed -i 's/^    SET CONFIGURATIONS=-debug-and-release$/    SET CONFIGURATIONS=-release/' "$f"
+          if ! grep -q '^    SET CONFIGURATIONS=-release$' "$f"; then
+            echo "::error::Qt CONFIGURATIONS line not found in prepare.py; upstream changed the qt stage -- update this step."
+            exit 1
+          fi
+          perl -0777 -pi -e 's/^    cmake --build \. --config Debug\n    cmake --install \. --config Debug\n(    cmake --build \.\n    cmake --install \.\n)/$1/m' "$f"
+          if grep -A1 'cmake --install \. --config Debug' "$f" | grep -q 'cmake --build \.$'; then
+            echo "::error::qt stage Debug install pair still present; upstream changed the qt stage -- update this step."
+            exit 1
+          fi
+
+          # nasm pin (msys2 3.02 -> 2.16.03): the msys2 rolling nasm 3.02 crashes
+          # with an access violation (0xC0000005) while assembling libvpx's
+          # postproc asm on a fresh libs build, truncating add_noise_sse2_asm.obj
+          # so the vpx link dies with LNK1136. All 3 build retries hit it
+          # deterministically, then CANCEL_ON_FAILURE fail-fast-cancels the whole
+          # release matrix -- the run just shows "cancelled", masking the one real
+          # failure (release runs 28807675729, 28874643005). Only bites on a libs
+          # cache MISS that actually rebuilds libvpx; a warm pre-3.02 cache hides
+          # it (why upstream and earlier stables stayed green). Force the base
+          # msys2 stage back to the last-good nasm 2.16.03 right after the
+          # pacman -Syu that pulls 3.02 in. repo.msys2.org still serves that exact
+          # package; pacman -U verifies its signature against the keyring
+          # populated in the same stage. Drop this once msys2 ships a fixed nasm.
+          perl -0777 -pi -e 's{(\n        mingw-w64-x86_64-pkgconf\n)}{$1    pacman -U --noconfirm https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-nasm-2.16.03-1-any.pkg.tar.zst\n}' "$f"
+          if ! grep -q 'mingw-w64-x86_64-nasm-2.16.03-1-any.pkg.tar.zst' "$f"; then
+            echo "::error::nasm pin not injected; the pacman base stage in prepare.py changed -- update this step."
+            exit 1
+          fi
+
+      - name: Restore libraries from GHCR.
+        # Mirror the Linux GHCR cache (pull on hit, build+push on miss) for the
+        # Qt + third-party libs, keyed by prepare.py + MSVC SDK. (The runner is
+        # pinned to windows-2022, so the VS toolset is fixed and need not be in
+        # the key -- a toolset change would come from a deliberate runner bump
+        # that also invalidates the cache by intent.) Avoids the 10GB
+        # actions/cache cap. The archive holds the whole Libraries dir (covers the
+        # x64 win64 subdir) + ThirdParty; both live under %TBUILD% (prepare.py
+        # chdirs to the checkout parent). On a hit we skip the heavy win.bat below.
+        id: libs
+        shell: bash
+        run: |
+          set -e
+          owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          TB="$(cygpath "$TBUILD")"
+          SHA_PREP=$(sha256sum "$TB/$REPO_NAME/$PREPARE_PATH" | awk '{print $1}')
+          KEY=$(printf '%s\n%s\n' "$SHA_PREP" "$SDK" | sha256sum | awk '{print $1}')
+          REF="ghcr.io/$owner/mercurygram-windows-libs:${{ matrix.arch }}-${KEY}"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo '${{ secrets.GITHUB_TOKEN }}' | oras login ghcr.io -u '${{ github.actor }}' --password-stdin
+          if oras manifest fetch "$REF" >/dev/null 2>&1; then
+            echo "GHCR hit -> pulling"
+            # The manifest exists, so a pull failure is a transient flake -- retry
+            # rather than let the fail-fast reaper cancel the release over it.
+            for i in 1 2 3; do
+              oras pull "$REF" && break
+              [ "$i" = 3 ] && { echo "oras pull failed after 3 attempts"; exit 1; }
+              echo "oras pull failed (attempt $i), retrying in 10s"; sleep 10
+            done
+            zstd -dc libs.tar.zst | tar -xf - -C "$TB"
+            rm -f libs.tar.zst
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "GHCR miss"
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Libraries.
+        if: steps.libs.outputs.hit != 'true'
+        env:
+          GYP_MSVS_VERSION: 2022
+        run: |
+          set "GYP_MSVS_OVERRIDE_PATH=%VSINSTALL%\"
+          call "%VSINSTALL%\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.vcvars }} %SDK%
+          rem vcvarsall sets %Platform% (ARM64 uppercase for arm64); prepare.py
+          rem matches x86|x64|arm64 case-sensitively, so pin it explicitly.
+          set "Platform=${{ matrix.platform }}"
+          rem Bounded retry for genuinely transient flakes (network clones, disk
+          rem hiccups): re-running win.bat is idempotent -- prepare.py skips libs
+          rem already marked built and each recipe rmdir's its own dir first --
+          rem so a retry rebuilds only the failed stage + the tail. Note it is
+          rem useless against deterministic failures: the qtpaths hard-link
+          rem error it was originally added for (run 27372941072) reproduced on
+          rem all 3 attempts of run 27412302154 at ~50min each, and was really
+          rem the Debug-install bug fixed in "Patch prepare.py" above.
+          for /L %%i in (1,1,3) do (
+            call %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent qt6 && goto :libs_ok
+            echo ::warning::Libraries build attempt %%i failed, retrying
+          )
+          echo ::error::Libraries build failed after 3 attempts
+          exit /b 1
+          :libs_ok
+
+      - name: Push libraries to GHCR.
+        # Miss path only: prune to the link-time set (same filter as win.yml CI)
+        # so the archive stays well under GHCR's per-blob limit, then push.
+        if: steps.libs.outputs.hit != 'true'
+        # Best-effort: caching must never sink a leg that already built the libs.
+        # The build step below runs regardless; a failed push just makes the next
+        # release re-miss and rebuild.
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -e
+          # Also drop symlinks (-type l): the prune deletes their targets, leaving
+          # dangling links that git-bash GNU tar fatally fails to recreate on the
+          # Windows extract side (libjxl benchmark/research scripts, brotli dict).
+          find "$(cygpath "$LibrariesPath")" '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' ')' -type f ')' -o -type l -o -empty ')' -delete
+          TB="$(cygpath "$TBUILD")"
+          tar -cf - -C "$TB" Libraries ThirdParty | zstd -T0 -9 -o libs.tar.zst
+          # Already logged in to GHCR in the Restore step (creds persist on the
+          # runner); this miss path always runs after it.
+          oras push "${{ steps.libs.outputs.ref }}" \
+            --artifact-type application/vnd.mercurygram.libs.layer.v1+tar \
+            libs.tar.zst:application/zstd
+          rm -f libs.tar.zst
+
+      - name: Provide a runnable Python for cmake configure.
+        # find_package(Python3) at configure time (generate_scheme.cmake) must
+        # not resolve to the vendored TBuild/ThirdParty/python: a cache-hit run
+        # restores that tree built on another runner and its interpreter cannot
+        # execute there, so configure aborts (no .sln -> MSBUILD MSB1009). Pin
+        # cmake to the runner's own Python instead, independent of the libs cache.
+        id: setup-python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.x'
+
+      - name: Telegram Desktop build.
+        run: |
+          call "%VSINSTALL%\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.vcvars }} %SDK%
+          set "Platform=${{ matrix.platform }}"
+          rem Pin cmake's FindPython to the setup-python interpreter. Root
+          rem CMakeLists.txt otherwise sets Python3_EXECUTABLE to the vendored
+          rem TBuild\ThirdParty\python venv, restored from the cross-runner libs
+          rem cache -> its baked interpreter cannot run here (fatal on arm64). The
+          rem guard there skips that set() when Python3_EXECUTABLE is already
+          rem provided. Forward-slash so the path survives configure.py's re-quote
+          rem into the cmake subprocess.
+          set "PY3=${{ steps.setup-python.outputs.python-path }}"
+          set "PY3=%PY3:\=/%"
+          cd %TBUILD%\%REPO_NAME%\Telegram
+          call configure.bat ^
+          ${{ matrix.cfg_arch }} ^
+          qt6 ^
+          -D TDESKTOP_API_ID=${{ secrets.APP_ID }} ^
+          -D TDESKTOP_API_HASH=${{ secrets.APP_HASH }} ^
+          -D CMAKE_CONFIGURATION_TYPES=Release ^
+          -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF ^
+          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF ^
+          -D DESKTOP_APP_SPECIAL_TARGET=${{ matrix.special_target }} ^
+          -D Python3_EXECUTABLE="%PY3%"
+          rem Cap parallelism: uncapped --parallel lets MSBuild /m (all cores)
+          rem compound with the vcxproj /MP, spawning more cl.exe than the 16GB
+          rem runner can feed -> C1060 out-of-heap. 2 keeps the peak under the
+          rem ceiling (and avoids swap thrash that ran the build out to 4h+).
+          cmake --build ..\out --config Release --parallel 2
+
+      - name: Stage d3dcompiler (qt6 build skips win_directx_helper).
+        # cmake/win_directx_helper -- which copies d3dcompiler_47.dll into
+        # out/Release/modules/<plat>/d3d via validate_d3d_compiler() -- is only
+        # added `if (WIN32 AND QT_VERSION LESS 6)`. We build qt6, so nothing
+        # produces that DLL, yet three consumers expect it at $OUT: the Portable
+        # cp below, setup.iss ({#ReleasePath}\modules\<plat>\d3d), and the Packer
+        # Sign step. Restore the Qt5-era layout from the prebuilt DLL shipped in
+        # the cmake submodule. arm64 has no ANGLE D3D backend -> skip it.
+        if: matrix.arch != 'arm64'
+        shell: bash
+        run: |
+          set -e
+          OUT="$TBUILD/$REPO_NAME/out/Release"
+          SRC="$TBUILD/$REPO_NAME/cmake/win_directx_helper/modules/${{ matrix.platform }}/d3d/d3dcompiler_47.dll"
+          mkdir -p "$OUT/modules/${{ matrix.platform }}/d3d"
+          cp "$SRC" "$OUT/modules/${{ matrix.platform }}/d3d/"
+
+      - name: Portable package.
+        shell: bash
+        run: |
+          set -e
+          OUT="$TBUILD/$REPO_NAME/out/Release"
+          VER="${{ needs.meta.outputs.version }}"
+          ARCH="${{ matrix.arch }}"
+          MODARCH="${{ matrix.platform }}"
+          test -f "$OUT/Mercurygram.exe"
+          rm -rf stage && mkdir -p "stage/Mercurygram"
+          cp "$OUT/Mercurygram.exe" "stage/Mercurygram/"
+          # d3dcompiler ships only on x86/x64 (arm64 has no ANGLE D3D backend);
+          # setup.iss skips it for winarm too.
+          if [ "$ARCH" != "arm64" ]; then
+            mkdir -p "stage/Mercurygram/modules/$MODARCH/d3d"
+            cp "$OUT/modules/$MODARCH/d3d/d3dcompiler_47.dll" "stage/Mercurygram/modules/$MODARCH/d3d/"
+          fi
+          mkdir -p "$GITHUB_WORKSPACE/out_installer"
+          ( cd stage && 7z a -mx9 "$GITHUB_WORKSPACE/out_installer/Mercurygram-${VER}-windows-${ARCH}-portable.zip" Mercurygram )
+
+      - name: Installer package.
+        shell: bash
+        run: |
+          set -e
+          OUT="$TBUILD/$REPO_NAME/out/Release"
+          VER="${{ needs.meta.outputs.version }}"
+          # Inno's VersionInfoVersion is built as "{#MyAppVersion}.0" and accepts
+          # at most 4 numeric parts, so MyAppVersion must be the 3-part X.Y.Z
+          # (the 4th fork-counter component lives in the asset filename + the full
+          # MyAppVersionFull). Dropping it here is intentional, not a truncation bug.
+          SHORT="${VER%.*}"
+          ARCH="${{ matrix.arch }}"
+          TARGET="${{ matrix.special_target }}"
+          ISS="$TBUILD/$REPO_NAME/Telegram/build/setup.iss"
+          # No fork code-signing cert -> drop the SignTool directive (the file
+          # stays faithful for the upstream signed flow).
+          sed -i '/^SignTool=sha256$/d' "$ISS"
+          # Non-fatal: on the arm runner Inno Setup is pre-installed, so choco
+          # returns non-zero ("0/1 packages") and the step's `bash -e` would
+          # abort before ISCC runs. The `test -n "$ISCC"` below is the real gate.
+          choco install innosetup -y --no-progress || true
+          # choco's innosetup package installs ISCC.exe under Program Files but
+          # does not put it on PATH (and a PATH change would not reach this
+          # already-running shell anyway), so resolve the absolute path.
+          ISCC="$(find "/c/Program Files (x86)/Inno Setup 6" "/c/Program Files/Inno Setup 6" -maxdepth 1 -iname 'ISCC.exe' 2>/dev/null | head -n1 || true)"
+          test -n "$ISCC" || { echo "ISCC.exe not found after choco install innosetup"; exit 1; }
+          # MSYS_NO_PATHCONV stops git-bash from mangling the /d switches; iscc
+          # wants native Windows paths for ReleasePath and the script.
+          MSYS_NO_PATHCONV=1 "$ISCC" \
+            "/dMyAppVersion=$SHORT" "/dMyAppVersionZero=$VER" "/dMyAppVersionFull=$VER" \
+            "/dReleasePath=$(cygpath -w "$OUT")" "/dMyBuildTarget=$TARGET" \
+            "$(cygpath -w "$ISS")"
+          SETUP="$(find "$OUT" -maxdepth 1 -iname 'tsetup*.exe' | head -n1)"
+          test -n "$SETUP"
+          mkdir -p "$GITHUB_WORKSPACE/out_installer"
+          cp "$SETUP" "$GITHUB_WORKSPACE/out_installer/Mercurygram-${VER}-windows-${ARCH}-installer.exe"
+
+      - name: Sign update package.
+        shell: bash
+        run: |
+          set -e
+          OUT="$TBUILD/$REPO_NAME/out/Release"
+          APPV="${{ needs.meta.outputs.appversion }}"
+          PREFIX="${{ matrix.update_prefix }}"
+          MODARCH="${{ matrix.platform }}"
+          BETA=""
+          [ "${{ needs.meta.outputs.channel }}" = "beta" ] && BETA="-beta"
+          mkdir -p pack && cd pack
+          cp "$OUT/Mercurygram.exe" "$OUT/Updater.exe" "$OUT/Packer.exe" .
+          PACK_D3D=""
+          if [ "${{ matrix.arch }}" != "arm64" ]; then
+            # Only the single DLL is needed in the update package; don't copy the
+            # whole multi-MB modules tree.
+            mkdir -p "modules/$MODARCH/d3d"
+            cp "$OUT/modules/$MODARCH/d3d/d3dcompiler_47.dll" "modules/$MODARCH/d3d/"
+            PACK_D3D="-path modules\\${MODARCH}\\d3d\\d3dcompiler_47.dll"
+          fi
+          ./Packer.exe -version "$APPV" -path Mercurygram.exe -path Updater.exe $PACK_D3D -target "${{ matrix.special_target }}" $BETA
+          ls -la
+          test -f "${PREFIX}${APPV}"
+          mkdir -p "$GITHUB_WORKSPACE/out_pkg"
+          cp "${PREFIX}${APPV}" "$GITHUB_WORKSPACE/out_pkg/"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pkg-windows-${{ matrix.arch }}
+          path: out_pkg/
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: installer-windows-${{ matrix.arch }}
+          path: out_installer/
+
+      - name: Cancel the run on failure.  # see meta job for rationale
+        if: ${{ failure() && env.CANCEL_ON_FAILURE == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run cancel ${{ github.run_id }} || true
+
+  macos-libs:
+    name: macOS Libraries
+    needs: meta
+    # Release-only (tag push); manual dev builds are Linux-only.
+    if: github.event_name == 'push'
+    # Build (or cache-restore) the universal (arm64;x86_64) Qt + third-party libs
+    # only, then guarantee they are in GHCR. Split out of the macOS app build so
+    # each phase gets its own GitHub 6h job ceiling: a cold-miss mac.sh + the app
+    # build together overran 6h in one job (release run 26986854658, macOS).
+    runs-on: macos-latest
+    env:
+      PREPARE_PATH: "Telegram/build/prepare/prepare.py"
+    steps:
+      - name: Get repository name.
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Clone.
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          path: ${{ env.REPO_NAME }}
+
+      # No "Set release version" / "Write update signing keys" here: libraries do
+      # not depend on the version files or update keys. Those run in the macos
+      # (app) job below.
+
+      - name: Install ORAS + zstd.
+        # brew install of just oras+zstd is light; the heavy "First set up" below
+        # is gated on a cache miss, so a hit reaches the manifest check having
+        # paid only this. oras-project/setup-oras is barred by org action policy.
+        run: brew install oras zstd
+
+      - name: Restore libraries from GHCR.
+        # Same GHCR cache model as Linux/Windows: build+push on miss, keyed by
+        # prepare.py. Runs before "First set up" so a hit short-circuits the slow
+        # brew upgrade/install -- the KEY needs only the checkout and the manifest
+        # query needs only oras. The app job (macos) does the actual pull+extract.
+        id: libs
+        run: |
+          set -e
+          owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          KEY=$(shasum -a 256 "$REPO_NAME/$PREPARE_PATH" | awk '{print $1}')
+          REF="ghcr.io/$owner/mercurygram-macos-libs:${KEY}"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo '${{ secrets.GITHUB_TOKEN }}' | oras login ghcr.io -u '${{ github.actor }}' --password-stdin
+          if oras manifest fetch "$REF" >/dev/null 2>&1; then
+            echo "GHCR hit -> already cached, nothing to build"
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "GHCR miss"
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: First set up.
+        # Miss path only: the build toolchain is needed solely to run mac.sh.
+        if: steps.libs.outputs.hit != 'true'
+        run: |
+          sudo chown -R `whoami`:admin /usr/local/share
+          brew update
+          brew upgrade || true
+          brew install automake libtool meson nasm ninja pkg-config
+          sudo mdutil -a -i off
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Free up some disk space.
+        # Miss path only: the runner starts with ~23GB avail and the universal
+        # Qt + tg_owt libs build needs more headroom (same sweep as the macos
+        # app job below; see that step's comment for the failure evidence).
+        if: steps.libs.outputs.hit != 'true'
+        run: |
+          echo "Before:"; df -h /
+          ACTIVE_APP="$(readlink -f "$(xcode-select -p | sed 's|/Contents/Developer$||')")"
+          for app in /Applications/Xcode*.app; do
+            [ -e "$app" ] || continue
+            if [ "$(readlink -f "$app")" != "$ACTIVE_APP" ]; then
+              echo "Removing $app"
+              sudo rm -rf "$app" || true
+            fi
+          done
+          sudo xcrun simctl runtime delete all 2>/dev/null || true
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/* || true
+          sudo xcrun simctl delete unavailable || true
+          sudo rm -rf "$HOME/hostedtoolcache" "$HOME/Library/Android" \
+            /usr/local/share/dotnet "$HOME/.dotnet" || true
+          echo "After:"; df -h /
+
+      - name: Libraries.
+        if: steps.libs.outputs.hit != 'true'
+        run: ./$REPO_NAME/Telegram/build/prepare/mac.sh silent
+
+      - name: Push libraries to GHCR.
+        # Miss path only: prune to the link-time set (same filter as mac.yml CI),
+        # then push the archive. Authoritative (NOT best-effort): the macos app
+        # job below pulls this cache and has no fallback Libraries step, so a
+        # failed push must fail this job rather than silently break the app build.
+        if: steps.libs.outputs.hit != 'true'
+        run: |
+          set -e
+          find Libraries '(' '(' ! '(' -name '*.a' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -perm +111 ')' -type f ')' -o -empty ')' -delete
+          tar -cf - -C "$GITHUB_WORKSPACE" Libraries ThirdParty | zstd -T0 -9 -o libs.tar.zst
+          # Already logged in to GHCR in the Restore step (creds persist on the
+          # runner); this miss path always runs after it. Retry: oras has no
+          # built-in retry and the build job depends on this push landing.
+          for i in 1 2 3; do
+            oras push "${{ steps.libs.outputs.ref }}" \
+              --artifact-type application/vnd.mercurygram.libs.layer.v1+tar \
+              libs.tar.zst:application/zstd && break
+            [ "$i" = 3 ] && { echo "oras push failed after 3 attempts"; exit 1; }
+            echo "oras push failed (attempt $i), retrying in 10s"; sleep 10
+          done
+
+      - name: Cancel the run on failure.  # see meta job for rationale
+        if: ${{ failure() && env.CANCEL_ON_FAILURE == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run cancel ${{ github.run_id }} || true
+
+  macos:
+    name: macOS
+    needs: [meta, macos-libs]
+    # Release-only (tag push); manual dev builds are Linux-only.
+    if: github.event_name == 'push'
+    # Faithful adaptation of .github/workflows/mac.yml for a signed Release build.
+    # Universal (arm64;x86_64) app, unsigned dmg (codesign/notarize is FZ-LLC-only).
+    # Libraries are built by macos-libs above and pulled from GHCR here (always a
+    # hit), so this job is the app build/sign/package only -- its own 6h budget.
+    runs-on: macos-latest
+    env:
+      PREPARE_PATH: "Telegram/build/prepare/prepare.py"
+    steps:
+      - name: Get repository name.
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Clone.
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          path: ${{ env.REPO_NAME }}
+
+      - name: Set release version.
+        run: python3 "$REPO_NAME/Telegram/build/set_release_version.py" "${GITHUB_REF_NAME}"
+
+      - name: Write update signing keys.
+        env:
+          UPDATE_PRIVATE_KEY: ${{ secrets.UPDATE_PRIVATE_KEY }}
+          UPDATE_PRIVATE_BETA_KEY: ${{ secrets.UPDATE_PRIVATE_BETA_KEY }}
+        run: bash "$REPO_NAME/Telegram/build/write_update_keys.sh" "$PWD/DesktopPrivate"
+
+      - name: First set up.
+        run: |
+          sudo chown -R `whoami`:admin /usr/local/share
+          brew update
+          brew upgrade || true
+          brew install automake libtool meson nasm ninja pkg-config
+          sudo mdutil -a -i off
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Install ORAS + zstd.
+        # brew is already the toolchain source for this job (see First set up);
+        # oras-project/setup-oras is barred by org action policy.
+        run: brew install oras zstd
+
+      - name: Restore libraries from GHCR.
+        # macos-libs guaranteed this ref exists; pull + extract the universal libs
+        # + ThirdParty to the workspace root. A miss here means the macos-libs
+        # push failed -- fail fast with a clear message instead of a confusing
+        # later compile error (this job has no fallback Libraries step).
+        id: libs
+        run: |
+          set -e
+          owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          KEY=$(shasum -a 256 "$REPO_NAME/$PREPARE_PATH" | awk '{print $1}')
+          REF="ghcr.io/$owner/mercurygram-macos-libs:${KEY}"
+          echo '${{ secrets.GITHUB_TOKEN }}' | oras login ghcr.io -u '${{ github.actor }}' --password-stdin
+          # macos-libs guarantees the ref exists, so a pull failure here is a
+          # transient GHCR/network flake (e.g. HTTP2 PROTOCOL_ERROR mid-blob) --
+          # retry rather than fail, which (with the fail-fast reaper) would
+          # otherwise cancel the whole release over one flaky download.
+          for i in 1 2 3; do
+            oras pull "$REF" && break
+            [ "$i" = 3 ] && { echo "libs pull failed after 3 attempts (ref should exist -- macos-libs pushed it)"; exit 1; }
+            echo "oras pull failed (attempt $i), retrying in 10s"; sleep 10
+          done
+          zstd -dc libs.tar.zst | tar -xf - -C "$GITHUB_WORKSPACE"
+          rm -f libs.tar.zst
+
+      - name: Free up some disk space.
+        # The universal (arm64;x86_64) Release tree carries two slices plus
+        # ~1.5GB DWARF each; the final lipo filled the runner disk
+        # ("lipo: ... No space left on device") and later the link itself died
+        # with "ld: write() failed, errno=28" (release run 27112516886). The old
+        # `rm -rf /Applications/Xcode_15*.app` freed nothing on the current
+        # image -- it ships only Xcode 16.x, so df went 24Gi -> 23Gi avail.
+        # Drop every Xcode except the selected one, the simulator runtimes and
+        # the other toolchains this build never touches. Best-effort per item:
+        # a missing path must never sink the leg.
+        run: |
+          echo "Before:"; df -h /
+          ACTIVE_APP="$(readlink -f "$(xcode-select -p | sed 's|/Contents/Developer$||')")"
+          for app in /Applications/Xcode*.app; do
+            [ -e "$app" ] || continue
+            if [ "$(readlink -f "$app")" != "$ACTIVE_APP" ]; then
+              echo "Removing $app"
+              sudo rm -rf "$app" || true
+            fi
+          done
+          sudo xcrun simctl runtime delete all 2>/dev/null || true
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/* || true
+          sudo xcrun simctl delete unavailable || true
+          sudo rm -rf "$HOME/hostedtoolcache" "$HOME/Library/Android" \
+            /usr/local/share/dotnet "$HOME/.dotnet" || true
+          echo "After:"; df -h /
+
+      - name: Telegram Desktop build.
+        run: |
+          cd $REPO_NAME/Telegram
+          ./configure.sh \
+          -D CMAKE_CONFIGURATION_TYPES=Release \
+          -D CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
+          -D DESKTOP_APP_MAC_ARCH="arm64;x86_64" \
+          -D TDESKTOP_API_ID=${{ secrets.APP_ID }} \
+          -D TDESKTOP_API_HASH=${{ secrets.APP_HASH }} \
+          -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF \
+          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF \
+          -D DESKTOP_APP_SPECIAL_TARGET=mac
+          cmake --build ../out --config Release --parallel
+          # Resolve the bundle + Packer once; the Sign and Build-dmg steps reuse
+          # these via $GITHUB_ENV instead of re-running find. Use an absolute,
+          # cwd-independent path -- this runs after `cd $REPO_NAME/Telegram`.
+          OUT_DIR="$GITHUB_WORKSPACE/$REPO_NAME/out"
+          APP="$(find "$OUT_DIR" -maxdepth 3 -type d -name 'Mercurygram.app' | head -n1)"
+          PKR="$(find "$OUT_DIR" -type f -name Packer | head -n1)"
+          test -n "$APP" || { echo "Mercurygram.app not found under out/"; exit 1; }
+          test -n "$PKR" || { echo "Packer not found under out/"; exit 1; }
+          echo "APP=$APP" >> "$GITHUB_ENV"
+          echo "PKR=$PKR" >> "$GITHUB_ENV"
+
+      - name: Strip debug symbols.
+        # The universal (arm64;x86_64) Release binary embeds ~1.5GB of DWARF;
+        # unstripped it overruns Packer's 1GiB package cap ("Bad result len" in
+        # packer.cpp) and bloats the dmg + autoupdate download. Crash
+        # symbolication uses separately stored symbols, not the shipped binary,
+        # so stripping the linked executable is safe.
+        run: strip -x -S "$APP/Contents/MacOS/Mercurygram"
+
+      - name: Sign update packages.
+        run: |
+          set -e
+          APPV="${{ needs.meta.outputs.appversion }}"
+          BETA=""
+          [ "${{ needs.meta.outputs.channel }}" = "beta" ] && BETA="-beta"
+          rm -rf pack && mkdir -p pack && cd pack
+          cp -R "$APP" .
+          cp "$PKR" Packer
+          mkdir -p "$GITHUB_WORKSPACE/out_pkg"
+          for arch in x86_64 arm64; do
+            ./Packer -path Mercurygram.app -target mac -version "$APPV" -arch "$arch" $BETA
+          done
+          ls -la
+          # tmacupd<int> (x86_64) and tarmacupd<int> (arm64); both must exist.
+          cp "tmacupd${APPV}" "tarmacupd${APPV}" "$GITHUB_WORKSPACE/out_pkg/"
+
+      - name: Build dmg.
+        run: |
+          set -e
+          VER="${{ needs.meta.outputs.version }}"
+          rm -rf dmgroot && mkdir -p dmgroot
+          cp -R "$APP" dmgroot/
+          ln -s /Applications dmgroot/Applications
+          mkdir -p "$GITHUB_WORKSPACE/out_installer"
+          hdiutil create -volname Mercurygram -srcfolder dmgroot -ov \
+            -format UDBZ "$GITHUB_WORKSPACE/out_installer/Mercurygram-${VER}-macos.dmg"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pkg-macos
+          path: out_pkg/
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: installer-macos
+          path: out_installer/
+
+      - name: Cancel the run on failure.  # see meta job for rationale
+        if: ${{ failure() && env.CANCEL_ON_FAILURE == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run cancel ${{ github.run_id }} || true
+
+  source:
+    name: Source archive
+    needs: meta
+    # Release-only (tag push); manual dev builds are Linux-only.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone.
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Build full source tarball.
+        # Ports release.py prepareSources: archive the tag, then concatenate each
+        # (recursive) submodule's archive at its checked-out commit, then gzip -9.
+        run: |
+          set -e
+          VER="${{ needs.meta.outputs.version }}"
+          TAG="${GITHUB_REF_NAME}"
+          ROOT="tdesktop-${VER}-full"
+          git archive --prefix="${ROOT}/" -o sources.tar "${TAG}"
+          git submodule foreach --recursive --quiet '
+            git archive --prefix="'"${ROOT}"'/$displaypath/" "$sha1" -o /tmp/sub.tar
+            tar --concatenate --file="'"${GITHUB_WORKSPACE}"'/sources.tar" /tmp/sub.tar
+            rm -f /tmp/sub.tar
+          '
+          gzip -9 sources.tar
+          mkdir -p out_installer
+          mv sources.tar.gz "out_installer/Mercurygram-${VER}-source-full.tar.gz"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: installer-source
+          path: out_installer/
+
+      - name: Cancel the run on failure.  # see meta job for rationale
+        if: ${{ failure() && env.CANCEL_ON_FAILURE == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run cancel ${{ github.run_id }} || true
+
+  publish:
+    name: Publish
+    needs: [meta, linux, windows, macos, source]
+    # Publish ONLY when every platform leg is green. Omitting always() keeps
+    # GitHub's implicit all-needs-succeeded gate, so a failed OR cancelled leg
+    # skips publish entirely -- a partial run must never create a half-populated
+    # per-version release or rewrite the shared `updates` index from an
+    # incomplete package set. Tag pushes only; a manual dev build (no tag) must
+    # never touch a GitHub release.
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download package artifacts.
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: pkg-*
+          path: pkgs
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Download installer artifacts.
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: installer-*
+          path: installers
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Require at least one artifact.
+        # The downloads above are continue-on-error so a single missing artifact
+        # type can't crash publish; but if NOTHING built (every platform leg
+        # failed) we must fail loudly here rather than create an empty release.
+        run: |
+          set -e
+          shopt -s nullglob
+          pk=(pkgs/*); ins=(installers/*)
+          echo "packages=${#pk[@]} installers=${#ins[@]}"
+          if [ ${#pk[@]} -eq 0 ] && [ ${#ins[@]} -eq 0 ]; then
+            echo "::error::No package or installer artifacts were produced; nothing to publish."
+            exit 1
+          fi
+
+      - name: Regenerate signed-channel index.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          APPV="${{ needs.meta.outputs.appversion }}"
+          CH="${{ needs.meta.outputs.channel }}"
+          # Ensure the fixed `updates` release exists (machine endpoint).
+          gh release view "$UPDATES_TAG" >/dev/null 2>&1 || \
+            gh release create "$UPDATES_TAG" --title "Update channel" \
+              --notes "Mercurygram autoupdate endpoint. Do not delete." --latest=false
+          # Start from the live index. Only fall back to empty when the current4
+          # asset genuinely does not exist yet (first release) -- otherwise a
+          # transient download failure must abort, never silently reset the index
+          # and clobber every other platform's entry on re-upload.
+          if gh release view "$UPDATES_TAG" --json assets -q '.assets[].name' 2>/dev/null | grep -qx current4; then
+            gh release download "$UPDATES_TAG" -p current4 -O index.json
+          else
+            echo '{}' > index.json
+          fi
+          shopt -s nullglob
+          for f in pkgs/*; do
+            base=$(basename "$f")
+            case "$base" in
+              tlinuxarmupd*) key=linuxarm;;
+              tlinuxupd*)    key=linux;;
+              tx64upd*)      key=win64;;
+              tarm64upd*)    key=winarm;;
+              tarmacupd*)    key=armac;;
+              tmacupd*)      key=mac;;
+              *) echo "skip unknown $base"; continue;;
+            esac
+            echo "index[$key][$CH] -> /$base ($APPV)"
+            jq --arg k "$key" --arg ch "$CH" --arg v "$APPV" --arg link "/$base" \
+              '.[$k] = (.[$k] // {}) | .[$k][$ch] = {released: $v, link: $link}' \
+              index.json > index.tmp && mv index.tmp index.json
+          done
+          cat index.json
+          cp index.json current2
+          cp index.json current4
+
+      - name: Upload packages + index to the updates release.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          shopt -s nullglob
+          gh release upload "$UPDATES_TAG" current2 current4 --clobber
+          PKGS=(pkgs/*)
+          if [ ${#PKGS[@]} -gt 0 ]; then
+            gh release upload "$UPDATES_TAG" "${PKGS[@]}" --clobber
+          else
+            echo "No package artifacts to upload."
+          fi
+
+      - name: Create per-version release.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          shopt -s nullglob
+          TAG="${GITHUB_REF_NAME}"
+          PRE=""
+          [ "${{ needs.meta.outputs.prerelease }}" = "true" ] && PRE="--prerelease"
+          FILES=(installers/*)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Re-run: release exists. Only upload if we actually have installers
+            # (gh release upload with no files errors out).
+            if [ ${#FILES[@]} -gt 0 ]; then
+              gh release upload "$TAG" "${FILES[@]}" --clobber
+            else
+              echo "Release $TAG exists, no installers to upload; nothing to do."
+            fi
+          elif [ ${#FILES[@]} -gt 0 ]; then
+            gh release create "$TAG" $PRE \
+              --title "Mercurygram Desktop ${{ needs.meta.outputs.version }}" \
+              --generate-notes "${FILES[@]}"
+          else
+            # No human installers built this run (autoupdate packages, if any,
+            # already went to the `updates` release). Don't create an empty
+            # per-version release; a later re-run can populate it.
+            echo "No installers produced; skipping per-version release creation."
+          fi
+
+  # Tell the website (mercurygram.belloworld.it) to show the just-released
+  # version. The site's bump-version workflow updates config.toml and
+  # redeploys. Stable tag releases only (skip betas and manual dev builds).
+  # The full 4-part X.Y.Z.N display version is sent so the site matches the tag,
+  # the in-app About box and the Flatpak/AppStream metadata.
+  notify-website:
+    name: Update website version
+    needs: [meta, publish]
+    if: ${{ github.event_name == 'push' && needs.meta.outputs.channel == 'stable' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch version to website
+        env:
+          GH_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          version='${{ needs.meta.outputs.version }}'
+          jq -n --arg v "$version" \
+            '{event_type:"desktop-release",client_payload:{version:$v}}' \
+            | gh api repos/Mercurygram/mercurygram.belloworld.it/dispatches --input -
