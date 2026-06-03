@@ -1,6 +1,6 @@
-# Agent Guide for Telegram Desktop
+# Agent Guide for Mercurygram Desktop
 
-This guide defines repository-wide instructions for coding agents working with the Telegram Desktop codebase.
+This guide defines repository-wide instructions for coding agents working with the Mercurygram Desktop codebase — an unofficial, privacy and security focused fork of Telegram Desktop.
 
 ## Working from Codex on Windows + WSL
 
