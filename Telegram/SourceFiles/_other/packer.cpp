@@ -664,7 +664,11 @@ int main(int argc, char *argv[])
 		V2Target.arch = targetarmac ? Arch::Arm : Arch::X64;
 #else
 		V2Target.os = Os::Linux;
+#if defined(__aarch64__) || defined(__arm64__)
+		V2Target.arch = Arch::Arm;
+#else
 		V2Target.arch = Arch::X64;
+#endif // __aarch64__ || __arm64__
 #endif
 	}
 
@@ -1015,6 +1019,8 @@ int main(int argc, char *argv[])
 	QString outName((targetwinarm ? QString("tarm64upd%1") : targetwin64 ? QString("tx64upd%1") : QString("tupdate%1")).arg(AlphaVersion ? AlphaVersion : version));
 #elif defined Q_OS_MAC
 	QString outName((targetarmac ? QString("tarmacupd%1") : QString("tmacupd%1")).arg(AlphaVersion ? AlphaVersion : version));
+#elif defined(__aarch64__) || defined(__arm64__)
+	QString outName(QString("tlinuxarmupd%1").arg(AlphaVersion ? AlphaVersion : version));
 #else
 	QString outName(QString("tlinuxupd%1").arg(AlphaVersion ? AlphaVersion : version));
 #endif

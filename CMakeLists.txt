@@ -39,7 +39,12 @@ get_filename_component(third_party_loc "Telegram/ThirdParty" REALPATH)
 get_filename_component(submodules_loc "Telegram" REALPATH)
 get_filename_component(cmake_helpers_loc "cmake" REALPATH)
 
-if (NOT DESKTOP_APP_USE_PACKAGED AND WIN32)
+if (NOT DESKTOP_APP_USE_PACKAGED AND WIN32 AND NOT Python3_EXECUTABLE)
+    # MG: honour an externally supplied -D Python3_EXECUTABLE. Our Windows release
+    # CI restores ThirdParty/python from a cross-runner libs cache, so the vendored
+    # venv's baked interpreter cannot run on the build runner (fatal on arm64). The
+    # CI passes the runner's own interpreter instead; without this guard the plain
+    # set() below (a normal variable) would shadow that cache value and win.
     set(Python3_EXECUTABLE ${CMAKE_CURRENT_SOURCE_DIR}/../ThirdParty/python/Scripts/python)
 endif()
 
