@@ -554,7 +554,8 @@ const QString &readAutoupdatePrefixRaw() {
 			return AutoupdatePrefix(value);
 		}
 	}
-	return AutoupdatePrefix("https://td.telegram.org");
+	return AutoupdatePrefix(
+		"https://github.com/Mercurygram/mdesktop/releases/download/updates");
 }
 
 void writeAutoupdatePrefix(const QString &prefix) {
