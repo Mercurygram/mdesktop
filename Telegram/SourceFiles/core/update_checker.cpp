@@ -2001,16 +2001,19 @@ void Updater::start(bool forceWait) {
 			// Canary builds discover updates only through their own MTP
 			// channels, the v1 HTTP feed serves other channels.
 			startImplementation(&_httpImplementation, nullptr);
+			startImplementation(
+				&_mtpImplementation,
+				std::make_unique<MtpChecker>(
+					LookupCanaryPrivateSession(_session),
+					_testing));
 		} else {
 			startImplementation(
 				&_httpImplementation,
 				std::make_unique<HttpChecker>(_testing));
+			// Telegram's MTP feed offers official Telegram builds; the
+			// Mercurygram feed is the HTTP one on GitHub Releases.
+			startImplementation(&_mtpImplementation, nullptr);
 		}
-		startImplementation(
-			&_mtpImplementation,
-			std::make_unique<MtpChecker>(
-				LookupCanaryPrivateSession(_session),
-				_testing));
 
 		_checking.fire({});
 	} else {
