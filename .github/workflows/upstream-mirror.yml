@@ -1,0 +1,97 @@
+name: Upstream mirror
+
+# Watch upstream Telegram Desktop and mirror its latest stable and latest
+# pre-release into Mercurygram releases.
+#
+# For each not-yet-mirrored upstream release this rebases the Mercurygram commits
+# on top (linear, no merge commits), adds a "Version X.Y.Z.1[ beta]" commit, and
+# pushes a release/X.Y.Z branch and a vX.Y.Z.1[-beta] tag. The tag push (with the
+# MIRROR_TOKEN PAT) triggers .github/workflows/release.yml.
+#
+#   upstream stable vX.Y.Z      -> tag vX.Y.Z.1
+#   upstream pre-release vX.Y.Z -> tag vX.Y.Z.1-beta
+#
+# All logic lives in .github/upstream-mirror.sh and
+# .github/disable-upstream-workflows.sh so it can be run/tested locally.
+#
+# Prerequisites (repository settings):
+#   secret MIRROR_TOKEN  PAT with contents:write AND workflows:write. Required:
+#                        the MG commits touch .github/workflows/release.yml (so
+#                        workflows scope is needed to push them), and a tag pushed
+#                        with the default GITHUB_TOKEN would NOT trigger
+#                        release.yml (GitHub's workflow-loop guard).
+#   var MIRROR_GIT_NAME / MIRROR_GIT_EMAIL  author of the version commit
+#                        (optional; sensible defaults in the script).
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'   # every 6 hours
+  workflow_dispatch:
+    inputs:
+      force_tag:
+        description: 'Re-mirror exactly this upstream tag (e.g. v6.8.5), force-replacing its release branch + tag.'
+        required: false
+        default: ''
+
+# contents: push the release branch/tag (the push itself uses MIRROR_TOKEN).
+# actions:  let GITHUB_TOKEN disable the upstream workflows.
+permissions:
+  contents: write
+  actions: write
+
+# Never let two runs rebase/push at the same time.
+concurrency:
+  group: upstream-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Mirror upstream releases
+    runs-on: ubuntu-latest
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+      MIRROR_GIT_NAME: ${{ vars.MIRROR_GIT_NAME }}
+      MIRROR_GIT_EMAIL: ${{ vars.MIRROR_GIT_EMAIL }}
+      FORCE_TAG: ${{ github.event.inputs.force_tag }}
+    steps:
+      # Fail fast BEFORE the disable step: a missing MIRROR_TOKEN would otherwise
+      # disable the upstream workflows and then fail with nothing mirrored.
+      - name: Require MIRROR_TOKEN
+        run: test -n "$MIRROR_TOKEN" || { echo "MIRROR_TOKEN secret is not set"; exit 1; }
+
+      - name: Checkout (full history, no stored creds)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Persist the rerere conflict-resolution cache between runs so a resolution
+      # the maintainer records once keeps replaying. restore + always-save so a
+      # resolution made during a re-run survives even if the job later fails.
+      - name: Restore rerere cache
+        id: rrcache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: .git/rr-cache
+          key: rerere-cache-${{ github.run_id }}
+          restore-keys: |
+            rerere-cache-
+
+      - name: Disable upstream workflows (pre-push)
+        run: bash .github/disable-upstream-workflows.sh
+
+      - name: Mirror latest upstream stable + beta
+        run: bash .github/upstream-mirror.sh
+
+      - name: Disable upstream workflows (post-push)
+        if: always()
+        run: bash .github/disable-upstream-workflows.sh
+
+      - name: Save rerere cache
+        if: always()
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: .git/rr-cache
+          key: rerere-cache-${{ github.run_id }}
