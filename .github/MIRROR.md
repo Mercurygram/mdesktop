@@ -1,0 +1,91 @@
+# Upstream release mirroring
+
+`upstream-mirror.yml` watches [telegramdesktop/tdesktop][up] and turns its
+releases into Mercurygram releases automatically.
+
+| upstream release      | what we push          | triggers      |
+| --------------------- | --------------------- | ------------- |
+| stable `vX.Y.Z`       | tag `vX.Y.Z.1`        | `release.yml` |
+| pre-release `vX.Y.Z`  | tag `vX.Y.Z.1-beta`   | `release.yml` |
+
+Each run mirrors only the **latest** unmirrored stable and the **latest**
+unmirrored pre-release (older ones are not backfilled). Stable vs pre-release is
+read from the GitHub Releases `prerelease` flag and cross-checked against
+`BetaChannel` in the tag's `Telegram/build/version`.
+
+## What a mirror produces
+
+For upstream `vX.Y.Z` it creates a `release/X.Y.Z` branch shaped like:
+
+```
+<upstream vX.Y.Z>
+  + [MG] Mercurygram branding
+  + [MG] Autoupdate from GitHub Releases
+  + [MG] CI: GitHub Releases pipeline, ...
+  + [MG] Add secret chat ...
+  + export: avoid -Wtype-limits ...
+  + Version X.Y.Z.1[ beta]        <- set_release_version.py, tag points here
+```
+
+Linear, **no merge commits**, MG commits last. The MG commit set is exactly
+`git merge-base origin/dev upstream/dev .. origin/dev` (every commit on `dev`
+not in upstream's `dev`). Keep `dev` rebased on upstream so that stays true.
+
+## One-time setup
+
+Add in the repo's **Settings → Secrets and variables → Actions**:
+
+- Secret **`MIRROR_TOKEN`** — a PAT (classic: `repo` + `workflow` scopes; or a
+  fine-grained token with `contents: write` **and** `workflows: write`). Required
+  because the MG commits modify `.github/workflows/release.yml`, and because a
+  tag pushed by the default `GITHUB_TOKEN` does **not** trigger `release.yml`.
+- Variables **`MIRROR_GIT_NAME`** / **`MIRROR_GIT_EMAIL`** (optional) — author of
+  the `Version X.Y.Z.1` commit.
+
+## Conflict handling
+
+Rebasing the MG commits onto a newer upstream tag conflicts in two ways:
+
+1. **Version files** (`version`, `version.h`, the two `.rc`, `AppxManifest.xml`).
+   The branding commit renames product strings on lines next to the version
+   numbers upstream bumps, so they always collide. Resolved automatically with
+   `git merge-file --theirs` (keep branding, keep upstream's other changes); the
+   stale numbers are overwritten by `set_release_version.py`. No action needed.
+
+2. **Anything else** (e.g. a source file the secret-chat commit and upstream both
+   changed). Left to **rerere**. If rerere has no recorded resolution, the rebase
+   is aborted, nothing is pushed, and the job fails — you get the standard Actions
+   failure email. Resolve it once and teach rerere (below); the next upstream bump
+   replays it.
+
+### Seeding / updating the rerere cache
+
+The cache is persisted between runs via the Actions cache, and seeded at job
+start from the committed `.github/rerere-seed/` if present. To record a
+resolution durably:
+
+```sh
+git config rerere.enabled true
+git checkout -B tmp origin/dev
+git rebase --onto vX.Y.Z "$(git merge-base origin/dev upstream/dev)"
+# resolve the conflict, git add, then:
+git rebase --continue
+cp -a .git/rr-cache/. .github/rerere-seed/      # commit this on dev
+git checkout dev && git branch -D tmp
+```
+
+## Manual / forced re-mirror
+
+Run the **Upstream mirror** workflow via *Run workflow* with `force_tag` set to an
+upstream tag (e.g. `v6.8.5`). This bypasses the latest-only and idempotency
+checks and force-replaces that release's branch and tag.
+
+## Disabling upstream workflows
+
+A mirror pulls in upstream's ~18 workflow files. `disable-upstream-workflows.sh`
+runs before and after the push and disables every workflow whose file is not in
+the keep-list (`release.yml`, `upstream-mirror.yml`) via `gh workflow disable` —
+a settings change, so it persists and never edits the workflow files. Add a new
+Mercurygram-owned workflow? Add its filename to `KEEP` in that script.
+
+[up]: https://github.com/telegramdesktop/tdesktop
