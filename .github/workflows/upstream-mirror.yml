@@ -1,0 +1,150 @@
+name: Upstream mirror
+
+# Watch upstream Telegram Desktop and mirror its latest stable and latest
+# pre-release into Mercurygram releases.
+#
+# For each not-yet-mirrored upstream release this rebases the Mercurygram commits
+# on top (linear, no merge commits), adds a "Version X.Y.Z.1[ beta]" commit, and
+# pushes a release/X.Y.Z branch and a vX.Y.Z.1[-beta] tag. The tag push (with the
+# MIRROR_TOKEN PAT) triggers .github/workflows/release.yml.
+#
+#   upstream stable vX.Y.Z      -> tag vX.Y.Z.1
+#   upstream pre-release vX.Y.Z -> tag vX.Y.Z.1-beta
+#
+# An unresolved rebase conflict fails the run once and files a "mirror conflict"
+# issue with the conflicting commit and hunks; while the issue is open the tag
+# is skipped (no repeated failure emails). A weekly canary job dry-runs the same
+# replay against the upstream/dev tip to surface upcoming conflicts before the
+# release tag lands.
+#
+# All logic lives in .github/upstream-mirror.sh and
+# .github/disable-upstream-workflows.sh so it can be run/tested locally.
+#
+# Prerequisites (repository settings):
+#   secret MIRROR_TOKEN  PAT with contents:write AND workflows:write. Required:
+#                        the MG commits touch .github/workflows/release.yml (so
+#                        workflows scope is needed to push them), and a tag pushed
+#                        with the default GITHUB_TOKEN would NOT trigger
+#                        release.yml (GitHub's workflow-loop guard).
+#   var MIRROR_GIT_NAME / MIRROR_GIT_EMAIL  author of the version commit
+#                        (optional; sensible defaults in the script).
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'   # mirror: every 6 hours
+    - cron: '47 5 * * 1'     # canary: weekly, Monday 05:47 UTC
+  workflow_dispatch:
+    inputs:
+      force_tag:
+        description: 'Re-mirror exactly this upstream tag (e.g. v6.8.5), force-replacing its release branch + tag.'
+        required: false
+        default: ''
+      canary:
+        description: 'Run the canary (dry-run replay onto upstream/dev) instead of mirroring.'
+        type: boolean
+        required: false
+        default: false
+
+# contents: push the release branch/tag (the push itself uses MIRROR_TOKEN).
+# actions:  let GITHUB_TOKEN disable the upstream workflows.
+# issues:   file/close the mirror-conflict issues.
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+# Never let two runs rebase/push at the same time.
+concurrency:
+  group: upstream-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Mirror upstream releases
+    if: github.event.schedule != '47 5 * * 1' && github.event.inputs.canary != 'true'
+    runs-on: ubuntu-latest
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+      MIRROR_GIT_NAME: ${{ vars.MIRROR_GIT_NAME }}
+      MIRROR_GIT_EMAIL: ${{ vars.MIRROR_GIT_EMAIL }}
+      FORCE_TAG: ${{ github.event.inputs.force_tag }}
+    steps:
+      # Fail fast BEFORE the disable step: a missing MIRROR_TOKEN would otherwise
+      # disable the upstream workflows and then fail with nothing mirrored.
+      - name: Require MIRROR_TOKEN
+        run: test -n "$MIRROR_TOKEN" || { echo "MIRROR_TOKEN secret is not set"; exit 1; }
+
+      - name: Checkout (full history, no stored creds)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Persist the rerere conflict-resolution cache between runs so a resolution
+      # the maintainer records once keeps replaying. restore + always-save so a
+      # resolution made during a re-run survives even if the job later fails.
+      - name: Restore rerere cache
+        id: rrcache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: .git/rr-cache
+          key: rerere-cache-${{ github.run_id }}
+          restore-keys: |
+            rerere-cache-
+
+      - name: Disable upstream workflows (pre-push)
+        run: bash .github/disable-upstream-workflows.sh
+
+      - name: Mirror latest upstream stable + beta
+        run: bash .github/upstream-mirror.sh
+
+      - name: Disable upstream workflows (post-push)
+        if: always()
+        run: bash .github/disable-upstream-workflows.sh
+
+      - name: Save rerere cache
+        if: always()
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: .git/rr-cache
+          key: rerere-cache-${{ github.run_id }}
+
+  # Dry-run replay of the MG commits onto the upstream/dev tip: no pushes, no
+  # tags, exit 0 even on conflict -- the rolling "canary" issue is the signal
+  # (opened/updated while the replay conflicts, closed when clean again). This
+  # surfaces the conflicts the next release tag will hit weeks early, while
+  # they are still cheap to fix on dev. Restores the rerere cache but does not
+  # save it, so canary-only preimages never pollute the mirror's cache.
+  canary:
+    name: Canary rebase onto upstream/dev
+    if: github.event.schedule == '47 5 * * 1' || github.event.inputs.canary == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+      MIRROR_GIT_NAME: ${{ vars.MIRROR_GIT_NAME }}
+      MIRROR_GIT_EMAIL: ${{ vars.MIRROR_GIT_EMAIL }}
+      CANARY: '1'
+    steps:
+      - name: Require MIRROR_TOKEN
+        run: test -n "$MIRROR_TOKEN" || { echo "MIRROR_TOKEN secret is not set"; exit 1; }
+
+      - name: Checkout (full history, no stored creds)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore rerere cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: .git/rr-cache
+          key: rerere-cache-${{ github.run_id }}
+          restore-keys: |
+            rerere-cache-
+
+      - name: Canary replay onto upstream/dev
+        run: bash .github/upstream-mirror.sh
