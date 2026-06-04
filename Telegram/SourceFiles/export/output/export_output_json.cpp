@@ -43,7 +43,7 @@ QByteArray SerializeString(const QByteArray &value) {
 			result.append("\\\"", 2);
 		} else if (ch == '\\') {
 			result.append("\\\\", 2);
-		} else if (ch >= 0 && ch < 32) {
+		} else if (static_cast<unsigned char>(ch) < 32) {
 			result.append("\\x", 2).append('0' + (ch >> 4));
 			const auto left = (ch & 0x0F);
 			if (left >= 10) {
