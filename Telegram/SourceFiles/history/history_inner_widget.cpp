@@ -3885,6 +3885,8 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 		}
 	}
 
+	HistoryView::AddMessageDetailsAction(_menu.get(), _dragStateItem, _controller);
+
 	if (_menu->empty()) {
 		_menu = nullptr;
 		return;
