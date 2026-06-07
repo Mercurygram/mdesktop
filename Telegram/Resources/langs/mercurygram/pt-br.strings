@@ -1,0 +1,11 @@
+"lng_mg_settings_title" = "Mercurygram";
+"lng_mg_general" = "Geral";
+"lng_mg_media" = "Mídia";
+"lng_mg_show_peer_id" = "Mostrar IDs no perfil";
+"lng_mg_hide_stories" = "Ocultar stories";
+"lng_mg_delete_for_all" = "Excluir para todos por padrão";
+"lng_mg_large_photos" = "Enviar fotos grandes";
+"lng_mg_large_photos_about" = "Enviar fotos com até 2560px em vez de 1280px.";
+"lng_mg_message_details" = "Menu de detalhes da mensagem";
+"lng_mg_message_details_menu" = "Detalhes da mensagem";
+"lng_mg_hide_all_chats" = "Ocultar a aba da pasta \"Todos\"";

@@ -1,0 +1,11 @@
+"lng_mg_settings_title" = "Mercurygram";
+"lng_mg_general" = "Загальні";
+"lng_mg_media" = "Медіа";
+"lng_mg_show_peer_id" = "Показувати ID у профілі";
+"lng_mg_hide_stories" = "Сховати історії";
+"lng_mg_delete_for_all" = "Видаляти в усіх за замовчуванням";
+"lng_mg_large_photos" = "Надсилати фото у високій якості";
+"lng_mg_large_photos_about" = "Завантажувати фото до 2560px замість 1280px.";
+"lng_mg_message_details" = "Меню відомостей про повідомлення";
+"lng_mg_message_details_menu" = "Відомості про повідомлення";
+"lng_mg_hide_all_chats" = "Сховати вкладку папки «Усі»";
