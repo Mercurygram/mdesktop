@@ -125,6 +125,12 @@ private:
 	void updatePluralRules();
 	void updateChoosingStickerReplacement();
 
+	// Overlay bundled Mercurygram (lng_mg_*) translations for the active
+	// language onto the compiled English defaults. These keys are never
+	// delivered by Telegram's cloud lang pack, so without this they stay
+	// English while every upstream string is translated.
+	void applyMercurygramOverlay();
+
 	Instance *_derived = nullptr;
 
 	QString _id, _pluralId;
