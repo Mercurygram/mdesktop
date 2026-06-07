@@ -572,6 +572,8 @@ PRIVATE
     core/launcher.h
     core/local_url_handlers.cpp
     core/local_url_handlers.h
+    core/mg_settings.cpp
+    core/mg_settings.h
     core/phone_click_handler.cpp
     core/phone_click_handler.h
     core/sandbox.cpp
@@ -1381,6 +1383,8 @@ PRIVATE
     lang/lang_cloud_manager.h
     lang/lang_instance.cpp
     lang/lang_instance.h
+    lang/lang_mercurygram.cpp
+    lang/lang_mercurygram.h
     lang/lang_numbers_animation.cpp
     lang/lang_numbers_animation.h
     lang/lang_translator.cpp
@@ -1805,6 +1809,8 @@ PRIVATE
     settings/settings_faq_suggestions.h
     settings/settings_builder.cpp
     settings/settings_builder.h
+    settings/sections/settings_mercurygram.cpp
+    settings/sections/settings_mercurygram.h
     settings/sections/settings_notifications.cpp
     settings/sections/settings_notifications.h
     settings/sections/settings_privacy_security.cpp
@@ -2097,6 +2103,7 @@ PRIVATE
     qrc/telegram/export.qrc
     qrc/telegram/picker.qrc
     qrc/telegram/telegram.qrc
+    qrc/telegram/mercurygram_langs.qrc
     qrc/telegram/sounds.qrc
     winrc/Telegram.rc
     winrc/Telegram.manifest
