@@ -26,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/history_view_reaction_preview.h"
 #include "history/history.h"
 #include "history/history_item.h"
+#include "history/history_item_helpers.h"
 #include "history/history_item_components.h"
 #include "history/history_item_helpers.h"
 #include "history/history_item_text.h"
@@ -97,6 +98,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/message_field.h" // FactcheckFieldIniter.
 #include "core/file_utilities.h"
 #include "core/click_handler_types.h"
+#include "core/mg_settings.h"
 #include "base/platform/base_platform_info.h"
 #include "base/call_delayed.h"
 #include "settings/sections/settings_premium.h"
@@ -120,6 +122,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <QtGui/QGuiApplication>
 #include <QtGui/QClipboard>
+#include <QtCore/QJsonDocument>
+#include <QtCore/QJsonObject>
 
 namespace HistoryView {
 namespace {
@@ -1750,6 +1754,67 @@ ContextMenuRequest::ContextMenuRequest(
 : navigation(navigation) {
 }
 
+void AddMessageDetailsAction(
+		not_null<Ui::PopupMenu*> menu,
+		HistoryItem *item,
+		not_null<Window::SessionController*> controller) {
+	if (!item || !MG::MessageDetails()) {
+		return;
+	}
+	const auto fullId = item->fullId();
+	const auto peerId = Data::PeerIdBotApiString(item->history()->peer);
+	const auto date = ItemDateTime(item);
+	const auto author = item->author()->name();
+	menu->addAction(tr::lng_mg_message_details_menu(tr::now), [=] {
+		auto text = QString("id: %1\npeer id: %2\ndate: %3\nauthor: %4")
+			.arg(fullId.msg.bare)
+			.arg(peerId)
+			.arg(Ui::FormatDateTime(date))
+			.arg(author);
+		controller->showToast(std::move(text));
+	}, &st::menuIconInfo);
+
+	// The raw TL message is not kept after parsing, so this is built from
+	// the fields the item holds rather than dumped like on Android.
+	auto json = QJsonObject{
+		{ "id", qint64(fullId.msg.bare) },
+		{ "peer_id", peerId },
+		{ "from_id", Data::PeerIdBotApiString(item->from()) },
+		{ "author", author },
+		{ "date", qint64(item->date()) },
+		{ "text", item->originalText().text },
+	};
+	if (const auto edited = item->Get<HistoryMessageEdited>()) {
+		json.insert("edit_date", qint64(edited->date));
+	}
+	if (const auto replyTo = item->replyToId()) {
+		json.insert("reply_to_msg_id", qint64(replyTo.bare));
+	}
+	if (const auto forwarded = item->Get<HistoryMessageForwarded>()) {
+		auto fwd = QJsonObject{ { "date", qint64(forwarded->originalDate) } };
+		if (const auto sender = forwarded->originalSender) {
+			fwd.insert("from_id", Data::PeerIdBotApiString(sender));
+		}
+		if (forwarded->originalId) {
+			fwd.insert("msg_id", qint64(forwarded->originalId.bare));
+		}
+		json.insert("forward", fwd);
+	}
+	if (const auto views = item->viewsCount(); views >= 0) {
+		json.insert("views", views);
+	}
+	if (const auto group = item->groupId().value) {
+		json.insert("grouped_id", QString::number(group));
+	}
+	json.insert("has_media", item->media() != nullptr);
+	const auto serialized = QString::fromUtf8(
+		QJsonDocument(json).toJson(QJsonDocument::Indented));
+	menu->addAction(tr::lng_mg_export_json(tr::now), [=] {
+		QGuiApplication::clipboard()->setText(serialized);
+		controller->showToast(tr::lng_text_copied(tr::now));
+	}, &st::menuIconCopy);
+}
+
 void FillContextMenuItems(
 		not_null<Ui::PopupMenu*> result,
 		not_null<ListWidget*> list,
@@ -1938,6 +2003,8 @@ void FillContextMenuItems(
 
 	AddCopyLinkAction(result, link);
 	AddMessageActions(result, request, list);
+
+	AddMessageDetailsAction(result, item, list->controller());
 
 	const auto wasAmount = result->actions().size();
 	if (const auto textItem = view ? view->textItem() : item) {
