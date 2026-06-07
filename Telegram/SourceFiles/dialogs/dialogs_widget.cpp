@@ -62,6 +62,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "chat_helpers/message_field.h"
 #include "core/application.h"
+#include "core/mg_settings.h"
 #include "core/ui_integration.h"
 #include "core/update_checker.h"
 #include "core/shortcuts.h"
@@ -1803,6 +1804,10 @@ void Widget::setupStories() {
 		updateStoriesVisibility();
 	}, lifetime());
 
+	MG::HideStoriesValue() | rpl::skip(1) | rpl::on_next([=] {
+		updateStoriesVisibility();
+	}, lifetime());
+
 	_stories->widthValue() | rpl::on_next([=] {
 		updateLockUnlockPosition();
 	}, lifetime());
@@ -2737,6 +2742,7 @@ void Widget::updateStoriesVisibility() {
 		|| _openedCommunity
 		|| (widthAnimation && !suggestionsAnimation)
 		|| _childList
+		|| MG::HideStories()
 		|| _stories->empty()
 		|| (_scroll->position().overscroll < -st::dialogsFilterSkip);
 	const auto hiddenAnimated = _searchHasFocus
