@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/passkeys.h"
 #include "ui/layers/generic_box.h"
 #include "main/main_session.h"
+#include "data/components/sponsored_messages.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/search_field_controller.h"
 #include "ui/text/text_entity.h"
@@ -337,6 +338,7 @@ void SetupExperimental(
 	};
 
 	addToggle(ChatHelpers::kOptionTabbedPanelShowOnClick);
+	addToggle(Data::kOptionRemoveSponsored);
 	addToggle(Dialogs::kOptionForumHideChatsList);
 	addToggle(Dialogs::kOptionDialogsUnreadOnTop);
 	addToggle(Dialogs::Ui::kOptionDialogsMuteIcon);
