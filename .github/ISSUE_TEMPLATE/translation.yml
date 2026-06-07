@@ -1,0 +1,45 @@
+name: Mercurygram translation
+description: Submit or correct translations for Mercurygram-only (lng_mg_*) strings.
+labels: [translation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form if you can't open a pull request. For git users, editing
+        `Telegram/Resources/langs/mercurygram/<locale>.strings` directly and
+        opening a PR is preferred — see CONTRIBUTING.md.
+
+        Only Mercurygram-only strings live here (the `lng_mg_*` keys). All
+        other Telegram Desktop strings are translated through Telegram's own
+        cloud language packs, not this repository.
+  - type: input
+    attributes:
+      label: Locale
+      description: >
+        Telegram language id, e.g. `it`, `de`, `pt-br`. Only locales that
+        already exist upstream make sense.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Translations
+      description: >
+        One `"lng_mg_key" = "translation";` per line. Copy the key names and
+        English source values from
+        `Telegram/Resources/langs/lang.strings` (search `lng_mg_`). Escape
+        inner double quotes as `\"`. Keep proper nouns (e.g. Mercurygram)
+        untranslated.
+      render: text
+      placeholder: |
+        "lng_mg_general" = "Generale";
+        "lng_mg_show_peer_id" = "Mostra gli ID nel profilo";
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Native speaker?
+      description: >
+        Are you a native speaker of this language? Helps us mark the
+        translation as reviewed vs. draft.
+    validations:
+      required: false

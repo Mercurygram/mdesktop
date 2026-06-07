@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/scroll_area.h"
 
 namespace Data {
+class ChatFilter;
 struct ChatFilterTitle;
 } // namespace Data
 
@@ -43,6 +44,7 @@ public:
 private:
 	void setup();
 	void refresh();
+	[[nodiscard]] std::vector<Data::ChatFilter> shownFilters() const;
 	void setupList();
 	void updateFavorite();
 	void createFavorite();
