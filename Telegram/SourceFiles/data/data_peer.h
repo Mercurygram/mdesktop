@@ -706,6 +706,8 @@ void SetTopPinnedMessageId(
 [[nodiscard]] ProfileTab ParseProfileTab(const MTPProfileTab *tab);
 [[nodiscard]] MTPProfileTab ProfileTabToMTP(ProfileTab tab);
 
+[[nodiscard]] QString PeerIdBotApiString(not_null<const PeerData*> peer);
+
 [[nodiscard]] bool IsBotUserCreatesTopics(not_null<PeerData*>);
 [[nodiscard]] bool IsBotCreatesTopics(not_null<const PeerData*>);
 
