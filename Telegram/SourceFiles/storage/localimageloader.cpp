@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_user.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "core/mg_settings.h"
 #include "core/file_utilities.h"
 #include "core/mime_type.h"
 #include "base/unixtime.h"
@@ -203,7 +204,7 @@ struct PreparedFileThumbnail {
 } // namespace
 
 int PhotoSideLimit(bool large) {
-	return large ? 2560 : 1280;
+	return (large || MG::LargePhotos()) ? 2560 : 1280;
 }
 
 int PhotoSideLimit() {

@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/filters/edit_filter_box.h"
 #include "boxes/premium_limits_box.h"
 #include "core/application.h"
+#include "core/mg_settings.h"
 #include "core/shortcuts.h"
 #include "core/ui_integration.h"
 #include "data/data_chat_filters.h"
@@ -55,7 +56,51 @@ struct State final {
 
 	std::unique_ptr<Ui::ChatsFiltersTabsReorder> reorder;
 	bool ignoreRefresh = false;
+
+	std::vector<Data::ChatFilter> shownList;
 };
+
+[[nodiscard]] std::vector<Data::ChatFilter> ShownFilters(
+		not_null<Main::Session*> session) {
+	const auto &list = session->data().chatsFilters().list();
+	auto result = ranges::views::all(list) | ranges::to_vector;
+	if (MG::HideAllChats() && result.size() > 1) {
+		result.erase(
+			ranges::remove(result, FilterId(), &Data::ChatFilter::id),
+			end(result));
+	}
+	return result;
+}
+
+// The "All chats" tab (id 0) is always first when present; it occupies a
+// free, non-reorderable slot in the premium-lock math. When it is hidden
+// that slot disappears, so the offsets below must be adjusted.
+[[nodiscard]] bool ShownHasAllTab(
+		const std::vector<Data::ChatFilter> &list) {
+	return !list.empty() && (list.front().id() == FilterId());
+}
+
+struct FilterLockMath {
+	bool reorderAll = false;
+	bool hasAllTab = false;
+	int maxLimit = 0;
+	int premiumFrom = 0;
+};
+
+// premiumFrom is the first slider section that is premium-locked. The "All"
+// tab (when shown) occupies a free, non-reorderable slot, so hiding it shifts
+// the lock boundary down by one.
+[[nodiscard]] FilterLockMath ComputeFilterLockMath(
+		not_null<Main::Session*> session,
+		const std::vector<Data::ChatFilter> &list) {
+	const auto reorderAll = session->user()->isPremium();
+	const auto hasAllTab = ShownHasAllTab(list);
+	const auto maxLimit = (reorderAll ? 1 : 0)
+		+ Data::PremiumLimits(session).dialogFiltersCurrent();
+	const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit
+		- (hasAllTab ? 0 : 1);
+	return { reorderAll, hasAllTab, maxLimit, premiumFrom };
+}
 
 void ShowMenu(
 		not_null<Ui::RpWidget*> parent,
@@ -66,7 +111,7 @@ void ShowMenu(
 
 	auto id = FilterId(0);
 	{
-		const auto &list = session->data().chatsFilters().list();
+		const auto &list = state->shownList;
 		if (index < 0 || index >= list.size()) {
 			return;
 		}
@@ -141,16 +186,13 @@ void ShowFiltersListMenu(
 		not_null<State*> state,
 		int active,
 		Fn<void(int)> changeActive) {
-	const auto &list = session->data().chatsFilters().list();
+	const auto &list = state->shownList;
 
 	state->menu = base::make_unique_q<Ui::PopupMenu>(
 		parent,
 		st::popupMenuWithIcons);
 
-	const auto reorderAll = session->user()->isPremium();
-	const auto maxLimit = (reorderAll ? 1 : 0)
-		+ Data::PremiumLimits(session).dialogFiltersCurrent();
-	const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit;
+	const auto premiumFrom = ComputeFilterLockMath(session, list).premiumFrom;
 
 	for (auto i = 0; i < list.size(); ++i) {
 		const auto title = list[i].title();
@@ -232,7 +274,7 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 	const auto state = wrap->lifetime().make_state<State>();
 	const auto reassignUnreadValue = [=] {
 		state->reorderLifetime.destroy();
-		const auto &list = session->data().chatsFilters().list();
+		const auto &list = state->shownList;
 		auto includeMuted = Data::IncludeMutedCounterFoldersValue();
 		for (auto i = 0; i < list.size(); i++) {
 			rpl::combine(
@@ -269,15 +311,33 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 					filters->moveAllToFront();
 				}
 			}
-			Assert(oldPosition >= 0 && oldPosition < list.size());
-			Assert(newPosition >= 0 && newPosition < list.size());
 
 			auto order = ranges::views::all(
 				list
 			) | ranges::views::transform(
 				&Data::ChatFilter::id
 			) | ranges::to_vector;
-			base::reorder(order, oldPosition, newPosition);
+
+			// oldPosition/newPosition index the slider, whose sections are
+			// state->shownList (the "All" tab is dropped when HideAllChats
+			// is on). Translate them to full-list positions so the saved
+			// order keeps the hidden "All" tab in place.
+			const auto toFull = [&](int shownPosition) {
+				if (shownPosition < 0
+					|| shownPosition >= int(state->shownList.size())) {
+					return shownPosition;
+				}
+				const auto id = state->shownList[shownPosition].id();
+				const auto i = ranges::find(order, id);
+				return (i != end(order))
+					? int(i - begin(order))
+					: shownPosition;
+			};
+			const auto fullOld = toFull(oldPosition);
+			const auto fullNew = toFull(newPosition);
+			Assert(fullOld >= 0 && fullOld < list.size());
+			Assert(fullNew >= 0 && fullNew < list.size());
+			base::reorder(order, fullOld, fullNew);
 
 			state->ignoreRefresh = true;
 			filters->saveOrder(order);
@@ -312,8 +372,7 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 						? slider->lookupSectionLeft(i + 1)
 						: slider->width();
 					if (x >= left && x < right) {
-						const auto &list
-							= session->data().chatsFilters().list();
+						const auto &list = state->shownList;
 						return (i < list.size())
 							? list[i].id()
 							: FilterId();
@@ -323,7 +382,7 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 			},
 			[=] { return state->lastFilterId.value_or(FilterId()); },
 			[=](FilterId id) {
-				const auto &list = session->data().chatsFilters().list();
+				const auto &list = state->shownList;
 				for (auto i = 0; i < list.size(); i++) {
 					if (list[i].id() == id) {
 						slider->selectSection(i);
@@ -371,13 +430,14 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 	};
 
 	const auto filterByIndex = [=](int index) -> const Data::ChatFilter& {
-		const auto &list = session->data().chatsFilters().list();
+		const auto &list = state->shownList;
 		Assert(index >= 0 && index < list.size());
 		return list[index];
 	};
 
 	const auto rebuild = [=] {
-		const auto &list = session->data().chatsFilters().list();
+		state->shownList = ShownFilters(session);
+		const auto &list = state->shownList;
 		if ((list.size() <= 1 && !slider->width()) || state->ignoreRefresh) {
 			return;
 		}
@@ -403,10 +463,11 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 		state->rebuildLifetime.destroy();
 		slider->fitWidthToSections();
 		{
-			const auto reorderAll = session->user()->isPremium();
-			const auto maxLimit = (reorderAll ? 1 : 0)
-				+ Data::PremiumLimits(session).dialogFiltersCurrent();
-			const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit;
+			const auto lock = ComputeFilterLockMath(session, list);
+			const auto reorderAll = lock.reorderAll;
+			const auto hasAllTab = lock.hasAllTab;
+			const auto maxLimit = lock.maxLimit;
+			const auto premiumFrom = lock.premiumFrom;
 			slider->setLockedFrom((premiumFrom >= list.size())
 				? 0
 				: premiumFrom);
@@ -416,7 +477,7 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 			if (state->reorder) {
 				state->reorder->cancel();
 				state->reorder->clearPinnedIntervals();
-				if (!reorderAll) {
+				if (!reorderAll && hasAllTab) {
 					state->reorder->addPinnedInterval(0, 1);
 				}
 				state->reorder->addPinnedInterval(
@@ -454,7 +515,7 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 		if (trackActiveFilterAndUnreadAndReorder) {
 			controller->activeChatsFilter(
 			) | rpl::on_next([=](FilterId id) {
-				const auto &list = session->data().chatsFilters().list();
+				const auto &list = state->shownList;
 				for (auto i = 0; i < list.size(); ++i) {
 					if (list[i].id() == id) {
 						slider->setActiveSection(i);
@@ -499,7 +560,8 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 	};
 	rpl::combine(
 		session->data().chatsFilters().changed(),
-		Data::AmPremiumValue(session) | rpl::to_empty
+		Data::AmPremiumValue(session) | rpl::to_empty,
+		MG::HideAllChatsValue() | rpl::to_empty
 	) | rpl::on_next(rebuild, wrap->lifetime());
 	rebuild();
 
