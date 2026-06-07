@@ -58,6 +58,11 @@ base::unique_qptr<Ui::PopupMenu> FillContextMenu(
 	not_null<ListWidget*> list,
 	const ContextMenuRequest &request);
 
+void AddMessageDetailsAction(
+	not_null<Ui::PopupMenu*> menu,
+	HistoryItem *item,
+	not_null<Window::SessionController*> controller);
+
 void InsertPollHiddenResultsLabel(not_null<Ui::PopupMenu*> menu);
 void InsertPollVoteRestrictionsLabel(
 	not_null<Ui::PopupMenu*> menu,
