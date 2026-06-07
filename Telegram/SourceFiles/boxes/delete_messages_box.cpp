@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unixtime.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "core/mg_settings.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
 #include "data/data_histories.h"
@@ -190,8 +191,8 @@ void DeleteMessagesBox::prepare() {
 				|| hasSavedMusicMessages()) {
 			} else if (auto revoke = revokeText(peer)) {
 				const auto &settings = Core::App().settings();
-				const auto revokeByDefault
-					= !settings.rememberedDeleteMessageOnlyForYou();
+				const auto revokeByDefault = MG::DeleteForAllDefault()
+					|| !settings.rememberedDeleteMessageOnlyForYou();
 				_revoke.create(
 					this,
 					revoke->checkbox,
