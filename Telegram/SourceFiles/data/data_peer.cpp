@@ -2334,6 +2334,23 @@ MTPProfileTab ProfileTabToMTP(ProfileTab tab) {
 	Unexpected("Tab in Data::ProfileTabToMTP.");
 }
 
+QString PeerIdBotApiString(not_null<const PeerData*> peer) {
+	// Secret chats have no Bot API id of their own, so report the user on
+	// the other side instead of their bare local id, which would read as an
+	// unrelated user id.
+	if (const auto secret = peer->asSecretChat()) {
+		if (const auto user = secret->user()) {
+			return PeerIdBotApiString(user);
+		}
+	}
+	const auto bare = QString::number(peer->id.value & PeerId::kChatTypeMask);
+	return peer->isChannel()
+		? (u"-100"_q + bare)
+		: peer->isChat()
+		? (u"-"_q + bare)
+		: bare;
+}
+
 bool IsBotUserCreatesTopics(not_null<PeerData*> peer) {
 	if (const auto user = peer->asUser()) {
 		return user->botInfo && user->botInfo->userCreatesTopics;
