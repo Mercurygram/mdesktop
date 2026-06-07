@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/passkeys.h"
 #include "ui/layers/generic_box.h"
 #include "main/main_session.h"
+#include "data/components/sponsored_messages.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/search_field_controller.h"
 #include "ui/text/text_entity.h"
@@ -520,6 +521,14 @@ void SetupExperimental(
 			}
 		});
 	}
+
+	// Kept in its own category instead of inside the lists above, so upstream
+	// adding or reordering options there does not touch this line.
+	addCategory(u"Mercurygram"_q, [&](
+			not_null<Ui::VerticalLayout*> inner,
+			std::vector<QString> &searchable) {
+		searchable.push_back(addOption(inner, Data::kOptionRemoveSponsored));
+	});
 
 	addCategory(u"Other"_q, [&](
 			not_null<Ui::VerticalLayout*> inner,
