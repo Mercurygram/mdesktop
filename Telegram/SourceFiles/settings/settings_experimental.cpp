@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_experimental.h"
 
 #include "data/components/passkeys.h"
+#include "data/components/sponsored_messages.h"
 #include "main/main_session.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/search_field_controller.h"
@@ -317,6 +318,7 @@ void SetupExperimental(
 	addToggle(HistoryView::Controls::kOptionMacCmdReplyImmediately);
 	addToggle(Ui::kOptionQScroller);
 	addToggle(FFmpeg::kOptionFFmpegMultiThread);
+	addToggle(Data::kOptionRemoveSponsored);
 }
 
 } // namespace
