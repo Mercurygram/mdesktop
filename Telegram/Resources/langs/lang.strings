@@ -1888,6 +1888,19 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_secret_chat_delete_for_both" = "Also delete for {user}";
 "lng_secret_chat_ttl_menu" = "Self-destruct timer";
 "lng_secret_chat_ttl_off" = "Off";
+
+"lng_mg_settings_title" = "Mercurygram";
+"lng_mg_general" = "General";
+"lng_mg_media" = "Media";
+"lng_mg_show_peer_id" = "Show IDs in profile";
+"lng_mg_hide_stories" = "Hide stories";
+"lng_mg_delete_for_all" = "Delete for everyone by default";
+"lng_mg_large_photos" = "Send large photos";
+"lng_mg_large_photos_about" = "Upload photos at up to 2560px instead of 1280px.";
+"lng_mg_message_details" = "Message details menu";
+"lng_mg_message_details_menu" = "Message details";
+"lng_mg_hide_all_chats" = "Hide \"All\" folder tab";
+
 "lng_profile_export_chat" = "Export chat history";
 "lng_profile_export_topic" = "Export topic history";
 "lng_profile_gift_premium" = "Gift Premium";
