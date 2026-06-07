@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/localstorage.h"
 #include "ui/boxes/confirm_box.h"
 #include "lang/lang_file_parser.h"
+#include "lang/lang_mercurygram.h"
 #include "lang/lang_tag.h" // kTextCommandLangTag.
 #include "base/platform/base_platform_info.h"
 #include "base/qthelp_regex.h"
@@ -297,6 +298,7 @@ void Instance::reset(const Language &data) {
 		_values[i] = GetOriginalValue(ushort(i));
 	}
 	ranges::fill(_nonDefaultSet, 0);
+	applyMercurygramOverlay();
 	updateChoosingStickerReplacement();
 
 	_idChanges.fire_copy(_id);
@@ -542,6 +544,7 @@ void Instance::fillFromSerialized(
 	for (auto i = 0, count = nonDefaultValuesCount * 2; i != count; i += 2) {
 		applyValue(nonDefaultStrings[i], nonDefaultStrings[i + 1]);
 	}
+	applyMercurygramOverlay();
 	updatePluralRules();
 	updateChoosingStickerReplacement();
 
@@ -556,6 +559,34 @@ void Instance::loadFromContent(const QByteArray &content) {
 		LOG(("Lang load errors: %1").arg(loader.errors()));
 	} else if (!loader.warnings().isEmpty()) {
 		LOG(("Lang load warnings: %1").arg(loader.warnings()));
+	}
+}
+
+void Instance::applyMercurygramOverlay() {
+	if (_derived || isCustom()) {
+		return;
+	}
+	const auto content = Lang::MercurygramOverlay(_id, baseId());
+	if (content.isEmpty()) {
+		return;
+	}
+	// Write straight into _values without touching _nonDefaultValues /
+	// _nonDefaultSet: the overlay is ephemeral and re-applied on every load
+	// (reset/fillFromSerialized), so it must not be serialized into the cached
+	// langpack nor mistaken for a cloud-provided override.
+	Lang::FileParser loader(content, [this](
+			QLatin1String key,
+			const QByteArray &value) {
+		ParseKeyValue(
+			QByteArray(key.data(), key.size()),
+			value,
+			[this](ushort index, QString &&parsed) {
+				_values[index] = std::move(parsed);
+			});
+	});
+	if (!loader.errors().isEmpty()) {
+		LOG(("Lang Error: Mercurygram overlay '%1': %2"
+			).arg(_id, loader.errors()));
 	}
 }
 

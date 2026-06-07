@@ -1,0 +1,11 @@
+"lng_mg_settings_title" = "Mercurygram";
+"lng_mg_general" = "Allgemein";
+"lng_mg_media" = "Medien";
+"lng_mg_show_peer_id" = "IDs im Profil anzeigen";
+"lng_mg_hide_stories" = "Stories ausblenden";
+"lng_mg_delete_for_all" = "Standardmäßig für alle löschen";
+"lng_mg_large_photos" = "Große Fotos senden";
+"lng_mg_large_photos_about" = "Fotos mit bis zu 2560px statt 1280px hochladen.";
+"lng_mg_message_details" = "Menü „Nachrichtendetails“";
+"lng_mg_message_details_menu" = "Nachrichtendetails";
+"lng_mg_hide_all_chats" = "Tab „Alle“-Ordner ausblenden";
