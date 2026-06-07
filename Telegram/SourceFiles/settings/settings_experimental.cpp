@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_experimental.h"
 
 #include "data/components/passkeys.h"
+#include "data/components/sponsored_messages.h"
 #include "main/main_session.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/text/text_entity.h"
@@ -235,6 +236,7 @@ void SetupExperimental(
 	addToggle(kForceComposeSearchOneColumn);
 	addToggle(ChatHelpers::kOptionUnlimitedRecentStickers);
 	addToggle(Ui::kOptionHideAiButton);
+	addToggle(Data::kOptionRemoveSponsored);
 }
 
 } // namespace
