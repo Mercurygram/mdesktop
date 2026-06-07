@@ -1,0 +1,13 @@
+<RCC>
+  <qresource prefix="/langs/mercurygram">
+    <file alias="ar.strings">../../langs/mercurygram/ar.strings</file>
+    <file alias="de.strings">../../langs/mercurygram/de.strings</file>
+    <file alias="es.strings">../../langs/mercurygram/es.strings</file>
+    <file alias="it.strings">../../langs/mercurygram/it.strings</file>
+    <file alias="ko.strings">../../langs/mercurygram/ko.strings</file>
+    <file alias="nl.strings">../../langs/mercurygram/nl.strings</file>
+    <file alias="pt-br.strings">../../langs/mercurygram/pt-br.strings</file>
+    <file alias="ru.strings">../../langs/mercurygram/ru.strings</file>
+    <file alias="uk.strings">../../langs/mercurygram/uk.strings</file>
+  </qresource>
+</RCC>

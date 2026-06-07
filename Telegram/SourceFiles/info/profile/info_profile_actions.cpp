@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/translate_box.h"
 #include "core/application.h"
 #include "core/click_handler_types.h"
+#include "core/mg_settings.h"
 #include "core/ui_integration.h"
 #include "data/business/data_business_common.h"
 #include "data/business/data_business_info.h"
@@ -152,6 +153,10 @@ base::options::toggle ShowChannelJoinedBelowAbout({
 	.description = "Show when you join Channel under its Description.",
 });
 
+[[nodiscard]] bool ShowPeerIdInAbout() {
+	return ShowPeerIdBelowAbout.value() || MG::ShowPeerId();
+}
+
 [[nodiscard]] rpl::producer<TextWithEntities> UsernamesSubtext(
 		not_null<PeerData*> peer,
 		rpl::producer<QString> fallback) {
@@ -234,22 +239,22 @@ base::options::toggle ShowChannelJoinedBelowAbout({
 	return AboutValue(
 		peer
 	) | rpl::map([=](TextWithEntities &&value) {
-		if (ShowPeerIdBelowAbout.value()) {
+		const auto showId = ShowPeerIdInAbout();
+		if (showId) {
 			using namespace Ui::Text;
 			if (!value.empty()) {
 				value.append("\n\n");
 			}
 			value.append(Italic(u"id: "_q));
-			const auto raw = peer->id.value & PeerId::kChatTypeMask;
 			value.append(Link(
-				Italic(Lang::FormatCountDecimal(raw)),
+				Italic(Data::PeerIdBotApiString(peer)),
 				kPeerIdLinkIndex));
 		}
 		if (ShowChannelJoinedBelowAbout.value()) {
 			if (const auto channel = peer->asChannel()) {
 				if (!channel->amCreator() && channel->inviteDate) {
 					if (!value.empty()) {
-						if (ShowPeerIdBelowAbout.value()) {
+						if (showId) {
 							value.append("\n");
 						} else {
 							value.append("\n\n");
@@ -276,18 +281,19 @@ base::options::toggle ShowChannelJoinedBelowAbout({
 void SetupAboutPeerIdDrag(
 		not_null<Ui::FlatLabel*> label,
 		not_null<PeerData*> peer) {
-	if (!ShowPeerIdBelowAbout.value()) {
-		return;
-	}
-	const auto id = QString::number(peer->id.value & PeerId::kChatTypeMask);
+	const auto id = Data::PeerIdBotApiString(peer);
+	const auto handler = std::make_shared<DraggableUrlClickHandler>(
+		u"internal:~peer_id~:copy:"_q + id,
+		id);
 	AboutValue(
 		peer
 	) | rpl::on_next([=] {
-		label->setLink(
-			kPeerIdLinkIndex,
-			std::make_shared<DraggableUrlClickHandler>(
-				u"internal:~peer_id~:copy:"_q + id,
-				id));
+		// Index 1 is the id link only when the id line is rendered,
+		// otherwise it belongs to the bio or join date link.
+		if (!ShowPeerIdInAbout()) {
+			return;
+		}
+		label->setLink(kPeerIdLinkIndex, handler);
 	}, label->lifetime());
 }
 

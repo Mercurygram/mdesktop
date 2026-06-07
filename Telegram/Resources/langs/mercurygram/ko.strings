@@ -1,0 +1,11 @@
+"lng_mg_settings_title" = "Mercurygram";
+"lng_mg_general" = "일반";
+"lng_mg_media" = "미디어";
+"lng_mg_show_peer_id" = "프로필에 ID 표시";
+"lng_mg_hide_stories" = "스토리 숨기기";
+"lng_mg_delete_for_all" = "기본적으로 모두에게서 삭제";
+"lng_mg_large_photos" = "고화질 사진 보내기";
+"lng_mg_large_photos_about" = "사진을 1280px 대신 최대 2560px로 업로드합니다.";
+"lng_mg_message_details" = "메시지 세부정보 메뉴";
+"lng_mg_message_details_menu" = "메시지 세부정보";
+"lng_mg_hide_all_chats" = "\"전체\" 폴더 탭 숨기기";
