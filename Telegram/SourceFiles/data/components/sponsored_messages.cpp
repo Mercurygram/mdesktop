@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_text_entities.h"
 #include "api/api_peer_search.h" // SponsoredSearchResult
 #include "apiwrap.h"
+#include "base/options.h"
 #include "core/click_handler_types.h"
 #include "data/data_channel.h"
 #include "data/data_document.h"
@@ -31,6 +32,15 @@ namespace {
 
 constexpr auto kMs = crl::time(1000);
 constexpr auto kRequestTimeLimit = 5 * 60 * crl::time(1000);
+
+base::options::toggle RemoveSponsoredMessages({
+	.id = kOptionRemoveSponsored,
+	.name = "Remove sponsored messages",
+	.description = "Hide sponsored messages in channels. Note: Telegram API "
+		"ToS section 3.3 requires clients to not interfere with sponsored "
+		"messages - enable at your own discretion.",
+	.restartRequired = true,
+});
 
 const auto kFlaggedPreload = ((MediaPreload*)quintptr(0x01));
 
@@ -262,6 +272,9 @@ bool SponsoredMessages::isTopBarFor(not_null<History*> history) const {
 }
 
 void SponsoredMessages::request(not_null<History*> history, Fn<void()> done) {
+	if (RemoveSponsoredMessages.value()) {
+		return;
+	}
 	if (!canHaveFor(history)) {
 		return;
 	}
@@ -302,6 +315,10 @@ void SponsoredMessages::requestForVideo(
 		Fn<void(SponsoredForVideo)> done) {
 	Expects(done != nullptr);
 
+	if (RemoveSponsoredMessages.value()) {
+		done({});
+		return;
+	}
 	if (!canHaveFor(item)) {
 		done({});
 		return;
@@ -847,5 +864,7 @@ bool SponsoredMessages::hasUnshownFor(not_null<History*> history) const {
 		return (entry.item == nullptr);
 	});
 }
+
+const char kOptionRemoveSponsored[] = "remove-sponsored-messages";
 
 } // namespace Data
