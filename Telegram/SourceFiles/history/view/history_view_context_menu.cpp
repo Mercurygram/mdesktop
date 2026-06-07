@@ -23,6 +23,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/history_view_cursor_state.h"
 #include "history/history.h"
 #include "history/history_item.h"
+#include "history/history_item_helpers.h"
 #include "history/history_item_components.h"
 #include "history/history_item_text.h"
 #include "history/view/history_view_schedule_box.h"
@@ -87,6 +88,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/message_field.h" // FactcheckFieldIniter.
 #include "core/file_utilities.h"
 #include "core/click_handler_types.h"
+#include "core/mg_settings.h"
 #include "base/platform/base_platform_info.h"
 #include "base/call_delayed.h"
 #include "settings/sections/settings_premium.h"
@@ -1544,6 +1546,23 @@ void FillContextMenuItems(
 
 	AddCopyLinkAction(result, link);
 	AddMessageActions(result, request, list);
+
+	if (item && MG::MessageDetails()) {
+		const auto controller = list->controller();
+		const auto fullId = item->fullId();
+		const auto peerId = item->history()->peer->id.value
+			& PeerId::kChatTypeMask;
+		const auto date = ItemDateTime(item);
+		const auto author = item->author()->name();
+		result->addAction(tr::lng_mg_message_details_menu(tr::now), [=] {
+			auto text = QString("id: %1\npeer id: %2\ndate: %3\nauthor: %4")
+				.arg(fullId.msg.bare)
+				.arg(peerId)
+				.arg(Ui::FormatDateTime(date))
+				.arg(author);
+			controller->showToast(std::move(text));
+		}, &st::menuIconInfo);
+	}
 
 	const auto wasAmount = result->actions().size();
 	if (const auto textItem = view ? view->textItem() : item) {
