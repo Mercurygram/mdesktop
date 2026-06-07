@@ -20,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/application.h"
 #include "core/core_settings.h"
 #include "core/ui_integration.h"
+#include "core/mg_settings.h"
 #include "data/data_session.h"
 #include "data/data_chat_filters.h"
 #include "data/data_user.h"
@@ -157,7 +158,8 @@ void FiltersMenu::setup() {
 	const auto filters = &_session->session().data().chatsFilters();
 	rpl::combine(
 		rpl::single(rpl::empty) | rpl::then(filters->changed()),
-		std::move(premium)
+		std::move(premium),
+		MG::HideAllChatsValue() | rpl::to_empty
 	) | rpl::on_next([=] {
 		refresh();
 	}, _outer.lifetime());
@@ -343,11 +345,36 @@ bool FiltersMenu::listFocused() const {
 	return false;
 }
 
+// Mirror the horizontal tabs strip's MG::HideAllChats handling
+// (ui/widgets/chat_filters_tabs_strip.cpp): drop the "All" tab (id 0) from the
+// shown list. The "All" tab occupies a free, non-reorderable slot in the
+// premium-lock math, so hiding it shifts the lock boundary down by one. The
+// buttons in _list follow this list, so a position in _list is a position here
+// and not in the full one.
+std::vector<Data::ChatFilter> FiltersMenu::shownFilters() const {
+	auto list = _session->session().data().chatsFilters().list();
+	if (MG::HideAllChats() && list.size() > 1) {
+		list.erase(
+			std::remove_if(
+				begin(list),
+				end(list),
+				[](const Data::ChatFilter &f) {
+					return f.id() == FilterId();
+				}),
+			end(list));
+	}
+	return list;
+}
+
 void FiltersMenu::refresh() {
 	const auto filters = &_session->session().data().chatsFilters();
 	if (!filters->has() || _ignoreRefresh) {
 		return;
 	}
+	const auto list = shownFilters();
+	const auto hasAllTab = !list.empty()
+		&& (list.front().id() == FilterId());
+
 	const auto oldTop = _scroll.scrollTop();
 	const auto reorderAll = premium();
 	if (!_list) {
@@ -358,13 +385,22 @@ void FiltersMenu::refresh() {
 	_reorder->clearPinnedIntervals();
 	const auto maxLimit = (reorderAll ? 1 : 0)
 		+ Data::PremiumLimits(&_session->session()).dialogFiltersCurrent();
-	const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit;
-	if (!reorderAll) {
+	const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit
+		- (hasAllTab ? 0 : 1);
+	if (!reorderAll && hasAllTab) {
 		_reorder->addPinnedInterval(0, 1);
 	}
 	_reorder->addPinnedInterval(
 		premiumFrom,
-		std::max(1, int(filters->list().size()) - maxLimit));
+		std::max(1, int(list.size()) - maxLimit));
+
+	// If the active filter is the now-hidden "All" tab, move the selection to
+	// the first shown folder so the panel doesn't end up with nothing active.
+	if (!hasAllTab
+		&& !list.empty()
+		&& (_session->activeChatsFilterCurrent() == FilterId())) {
+		_session->setActiveChatsFilter(list.front().id());
+	}
 
 	// Remember which folder holds keyboard focus so the roving Tab-stop can be
 	// re-established on its replacement after the rebuild: the new buttons are
@@ -379,8 +415,8 @@ void FiltersMenu::refresh() {
 	}
 
 	auto now = base::flat_map<int, base::unique_qptr<Ui::SideBarButton>>();
-	const auto &currentFilter = _session->activeChatsFilterCurrent();
-	for (const auto &filter : filters->list()) {
+	const auto currentFilter = _session->activeChatsFilterCurrent();
+	for (const auto &filter : list) {
 		const auto nextIsLocked = (now.size() >= premiumFrom);
 		if (nextIsLocked && (currentFilter == filter.id())) {
 			_session->setActiveChatsFilter(FilterId(0));
@@ -747,7 +783,9 @@ void FiltersMenu::showMenu(QPoint position, FilterId id) {
 		return;
 	}
 	const auto i = _filters.find(id);
-	if ((i == end(_filters)) && id) {
+	if (i == end(_filters)) {
+		// [MG] With MG::HideAllChats() there is no button for the "All chats"
+		// folder, so an id of 0 no longer promises an entry here either.
 		return;
 	}
 	_popupMenu = base::make_unique_q<Ui::PopupMenu>(
@@ -810,15 +848,16 @@ void FiltersMenu::applyReorder(
 	}
 
 	const auto filters = &_session->session().data().chatsFilters();
+	const auto shown = shownFilters();
 	const auto &list = filters->list();
 	if (!premium()) {
 		if (list[0].id() != FilterId()) {
 			filters->moveAllToFront();
 		}
 	}
-	Assert(oldPosition >= 0 && oldPosition < list.size());
-	Assert(newPosition >= 0 && newPosition < list.size());
-	const auto id = list[oldPosition].id();
+	Assert(oldPosition >= 0 && oldPosition < shown.size());
+	Assert(newPosition >= 0 && newPosition < shown.size());
+	const auto id = shown[oldPosition].id();
 	const auto i = _filters.find(id);
 	Assert(i != end(_filters));
 	Assert(i->second == widget);
@@ -828,7 +867,20 @@ void FiltersMenu::applyReorder(
 	) | ranges::views::transform(
 		&Data::ChatFilter::id
 	) | ranges::to_vector;
-	base::reorder(order, oldPosition, newPosition);
+	// [MG] The positions index the shown list, which drops the "All chats"
+	// folder when MG::HideAllChats() is on; the saved order is the full one, so
+	// translate both and leave the hidden folder where it sits.
+	const auto toFull = [&](int shownPosition) {
+		const auto i = ranges::find(order, shown[shownPosition].id());
+		return (i != end(order))
+			? int(i - begin(order))
+			: shownPosition;
+	};
+	const auto fullOld = toFull(oldPosition);
+	const auto fullNew = toFull(newPosition);
+	Assert(fullOld >= 0 && fullOld < list.size());
+	Assert(fullNew >= 0 && fullNew < list.size());
+	base::reorder(order, fullOld, fullNew);
 
 	_ignoreRefresh = true;
 	filters->saveOrder(order);

@@ -1,0 +1,11 @@
+"lng_mg_settings_title" = "Mercurygram";
+"lng_mg_general" = "عام";
+"lng_mg_media" = "الوسائط";
+"lng_mg_show_peer_id" = "إظهار المعرّفات في الملف الشخصي";
+"lng_mg_hide_stories" = "إخفاء القصص";
+"lng_mg_delete_for_all" = "الحذف لدى الجميع افتراضيًا";
+"lng_mg_large_photos" = "إرسال صور كبيرة";
+"lng_mg_large_photos_about" = "رفع الصور بدقة تصل إلى 2560 بكسل بدلاً من 1280 بكسل.";
+"lng_mg_message_details" = "قائمة تفاصيل الرسالة";
+"lng_mg_message_details_menu" = "تفاصيل الرسالة";
+"lng_mg_hide_all_chats" = "إخفاء علامة تبويب مجلد \"الكل\"";
