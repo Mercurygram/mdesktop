@@ -53,19 +53,49 @@ Rebasing the MG commits onto a newer upstream tag conflicts in two ways:
    stale numbers are overwritten by `set_release_version.py`. No action needed.
 
 2. **Anything else** (e.g. a source file the secret-chat commit and upstream both
-   changed). Left to **rerere**. If rerere has no recorded resolution, the rebase
+   changed). For C++ sources/headers the mirror script registers a merge driver
+   that resolves the content merge with git's own three-way `git merge-file`
+   (xdiff) instead of the rebase's default `ort` strategy. This is required, not
+   cosmetic: ort's internal merge is *zealous* and, for an MG hunk that lands next
+   to an upstream change (the usual case once upstream relocates the code an MG
+   patch hooks into), can silently resolve the whole file to the upstream side —
+   dropping the MG insertion with **no conflict markers**. `git merge-file` keeps
+   both sides' non-overlapping changes (so the MG hook lands on the relocated
+   upstream code) and emits markers only where the two genuinely overlap. A clean
+   driver merge exits 0 and git stages it; an overlap leaves markers and falls
+   through to **rerere**. If rerere has no recorded resolution either, the rebase
    is aborted, nothing is pushed, and the job fails — you get the standard Actions
    failure email. Resolve it once and teach rerere (below); the next upstream bump
    replays it.
 
+   > An earlier revision used the **mergiraf** syntax-aware driver here. It kept
+   > the MG hooks but reordered class members — it sank `ApiWrap`'s
+   > `using SharedMediaType` alias below the structs that use it, producing an
+   > uncompilable `apiwrap.h`. `git merge-file` preserves declaration order, needs
+   > no external binary, and is always present.
+
 ### Seeding / updating the rerere cache
 
-The cache is persisted between runs via the Actions cache, and seeded at job
-start from the committed `.github/rerere-seed/` if present. To record a
-resolution durably:
+The cache is persisted between runs via the Actions cache, and the committed
+`.github/rerere-seed/` is overlaid onto it at job start (unconditionally, so a
+recorded resolution wins even over a warm cache that a previous failed run left
+holding only the unresolved preimage).
+
+rerere stores a *normalised* preimage, so a seed is independent of
+`merge.conflictstyle` and of which merge produced the conflict. Record under the
+same setup the mirror uses — git's `merge-file` driver for C++ and
+`merge.conflictStyle = diff3` — so the recorded preimage matches the CI run. The
+helper below reproduces that setup; CMake/`.txt`/non-C++ files have no driver and
+go through git's own merge on both sides, so their seeds need nothing special.
+
+To record a resolution durably:
 
 ```sh
 git config rerere.enabled true
+git config merge.conflictStyle diff3
+# Drive C++ conflicts through git merge-file (xdiff), matching the mirror:
+git config merge.xmerge.driver 'git merge-file --diff3 -L ours -L base -L theirs %A %O %B'
+printf '*.cpp merge=xmerge\n*.h merge=xmerge\n*.hpp merge=xmerge\n*.cc merge=xmerge\n*.hh merge=xmerge\n*.cxx merge=xmerge\n*.hxx merge=xmerge\n' >> .git/info/attributes
 git checkout -B tmp origin/dev
 git rebase --onto vX.Y.Z "$(git merge-base origin/dev upstream/dev)"
 # resolve the conflict, git add, then:
