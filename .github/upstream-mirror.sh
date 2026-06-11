@@ -81,9 +81,13 @@ setup() {
 	git config rerere.autoUpdate true
 	git config advice.detachedHead false
 
-	# Seed the rerere cache from the committed seed if the live cache is cold,
-	# so resolutions the maintainer recorded earlier replay automatically.
-	if [ -d "$seed_dir" ] && [ -z "$(ls -A "${repo_root}/.git/rr-cache" 2>/dev/null || true)" ]; then
+	# Overlay the committed rerere seed onto the live cache (which the Actions
+	# cache restores between runs) so the maintainer's recorded resolutions
+	# always replay. Done unconditionally, not just when the cache is cold: a
+	# failed run saves a preimage-only entry for the unresolved conflict, and a
+	# cold-only seed would then be shadowed by that warm-but-incomplete cache --
+	# the seed's postimage must win so the next run resolves instead of aborting.
+	if [ -d "$seed_dir" ]; then
 		mkdir -p "${repo_root}/.git/rr-cache"
 		cp -a "${seed_dir}/." "${repo_root}/.git/rr-cache/" 2>/dev/null || true
 		log "seeded rerere cache from .github/rerere-seed"

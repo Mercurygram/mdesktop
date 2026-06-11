@@ -60,9 +60,10 @@ Rebasing the MG commits onto a newer upstream tag conflicts in two ways:
 
 ### Seeding / updating the rerere cache
 
-The cache is persisted between runs via the Actions cache, and seeded at job
-start from the committed `.github/rerere-seed/` if present. To record a
-resolution durably:
+The cache is persisted between runs via the Actions cache, and the committed
+`.github/rerere-seed/` is overlaid onto it at job start (unconditionally, so a
+recorded resolution wins even over a warm cache that a previous failed run left
+holding only the unresolved preimage). To record a resolution durably:
 
 ```sh
 git config rerere.enabled true
