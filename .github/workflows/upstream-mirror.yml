@@ -4,12 +4,18 @@ name: Upstream mirror
 # pre-release into Mercurygram releases.
 #
 # For each not-yet-mirrored upstream release this rebases the Mercurygram commits
-# on top (linear, no merge commits), adds a "Version X.Y.Z.1[ beta]" commit, and
-# pushes a release/X.Y.Z branch and a vX.Y.Z.1[-beta] tag. The tag push (with the
+# on top (linear, no merge commits), adds a "Version X.Y.Z.N[ beta]" commit, and
+# pushes a release/X.Y.Z branch and a vX.Y.Z.N[-beta] tag. The tag push (with the
 # MIRROR_TOKEN PAT) triggers .github/workflows/release.yml.
 #
-#   upstream stable vX.Y.Z      -> tag vX.Y.Z.1
-#   upstream pre-release vX.Y.Z -> tag vX.Y.Z.1-beta
+#   upstream stable vX.Y.Z      -> tag vX.Y.Z.N
+#   upstream pre-release vX.Y.Z -> tag vX.Y.Z.N-beta
+#
+# N is the fork revision. The scheduled mirror always cuts .1 (it only ever runs
+# on a base it has not mirrored yet). To ship new dev commits on top of an
+# already-released upstream base, dispatch with force_tag + bump_revision: that
+# cuts the next revision (.2, .3, ...) so the version string changes and the
+# autoupdater offers the build to clients already on the old one.
 #
 # An unresolved rebase conflict fails the run once and files a "mirror conflict"
 # issue with the conflicting commit and hunks; while the issue is open the tag
@@ -39,6 +45,11 @@ on:
         description: 'Re-mirror exactly this upstream tag (e.g. v6.8.5), force-replacing its release branch + tag.'
         required: false
         default: ''
+      bump_revision:
+        description: 'With force_tag: cut the next fork revision (vX.Y.Z.2, .3, ...) instead of force-replacing the existing one.'
+        type: boolean
+        required: false
+        default: false
       canary:
         description: 'Run the canary (dry-run replay onto upstream/dev) instead of mirroring.'
         type: boolean
@@ -70,6 +81,7 @@ jobs:
       MIRROR_GIT_NAME: ${{ vars.MIRROR_GIT_NAME }}
       MIRROR_GIT_EMAIL: ${{ vars.MIRROR_GIT_EMAIL }}
       FORCE_TAG: ${{ github.event.inputs.force_tag }}
+      BUMP_REVISION: ${{ github.event.inputs.bump_revision }}
     steps:
       # Fail fast BEFORE the disable step: a missing MIRROR_TOKEN would otherwise
       # disable the upstream workflows and then fail with nothing mirrored.
