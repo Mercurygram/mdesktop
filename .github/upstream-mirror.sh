@@ -26,9 +26,33 @@
 #    `git merge-file --theirs` (keep MG branding in the conflicting hunks, keep
 #    every non-conflicting upstream change), and the stale version numbers it
 #    leaves behind are overwritten by set_release_version.py in step 2.
-#  - Any *other* conflict is left to rerere (a persisted resolution cache). If
-#    rerere cannot resolve it, the rebase is aborted and the script fails, so the
-#    Actions run emails the maintainer instead of pushing a broken tag.
+#  - For C++ sources/headers and the non-C++ files MG patches touch next to
+#    upstream churn (build lists, lang strings, .style, CI recipes) a merge
+#    driver (configure_merge_driver()) resolves the content merge with git's own
+#    three-way `git merge-file` (xdiff) instead of the rebase's default `ort`
+#    strategy. This is required, not cosmetic: ort's internal merge is *zealous*
+#    -- for an MG hunk that lands next to an upstream change (the common case
+#    once upstream relocates the code an MG patch hooks into) ort can silently
+#    resolve the whole file to the upstream side, dropping the MG insertion with
+#    no conflict markers. `git merge-file` instead keeps
+#    both sides' non-overlapping changes (so the MG hook lands on the relocated
+#    upstream code) and emits markers only where the two genuinely overlap. A
+#    clean driver merge exits 0, so git stages it; an overlap leaves markers and
+#    falls through to rerere.
+#  - Whatever the driver/ort leaves conflicted falls through to rerere (a
+#    persisted resolution cache). If rerere cannot resolve it either, the rebase
+#    is aborted and the script fails, so the Actions run emails the maintainer
+#    instead of pushing a broken tag.
+#
+# (This replaced an earlier mergiraf syntax-aware driver: mergiraf kept the MG
+# hooks but reordered class members -- it sank ApiWrap's `using SharedMediaType`
+# alias below the structs that use it, producing an uncompilable apiwrap.h.
+# `git merge-file` preserves declaration order, needs no external binary, and is
+# always present.)
+#
+# rerere stores a *normalised* preimage, so a recorded seed is independent of the
+# merge.conflictstyle and of which merge produced the conflict -- the committed
+# seeds replay under this script's diff3 setup unchanged.
 #
 # Required environment:
 #   MIRROR_TOKEN      PAT with contents:write AND workflows:write on GH_REPO
@@ -74,16 +98,76 @@ seed_dir="${repo_root}/.github/rerere-seed"
 log() { printf '>> %s\n' "$*"; }
 err() { printf '!! %s\n' "$*" >&2; }
 
+# Register a merge driver that resolves conflict-prone files with git's own
+# three-way `git merge-file` (xdiff) instead of the rebase's default `ort`
+# content merge (see the header "Conflicts:" note for why ort is unsafe here:
+# it can silently drop an MG insertion that lands next to an upstream change --
+# and, worse, it does so with *no conflict markers*, so rerere never sees it and
+# the run ships a branding-stripped release. `git merge-file` instead keeps both
+# sides or leaves visible markers).
+# Strictly additive to the rerere policy:
+#   * A file the driver merges cleanly exits 0, so git stages it and rerere
+#     records nothing; a file it leaves conflicted (markers) falls through to
+#     rerere exactly as before.
+#   * `git merge-file` is a git builtin -- always present, no install step, no
+#     fail-open path.
+# Globs cover the C++ tree plus the non-C++ files MG commits routinely touch
+# next to upstream churn (build lists, lang strings, .style, CI recipes). The
+# version files (.rc / AppxManifest.xml / version) are deliberately NOT listed:
+# the resolve loop re-derives them from the index stages with
+# `merge-file --theirs`, independent of whatever the driver did.
+# The attributes are repo-scoped and uncommitted (.git/info/attributes, rebuilt
+# per run like the rr-cache): the tree tracks upstream, so a committed
+# .gitattributes would itself be a rebase-conflict surface.
+configure_merge_driver() {
+	git config merge.xmerge.name "git merge-file (xdiff three-way)"
+	# %A current/ours (edited in place = output), %O base, %B theirs; -L labels
+	# match the diff3 marker order; exit code is the conflict count (0 = clean).
+	git config merge.xmerge.driver \
+		'git merge-file --diff3 -L ours -L base -L theirs %A %O %B'
+	local attrs="${repo_root}/.git/info/attributes"
+	mkdir -p "${repo_root}/.git/info" || return 0
+	if ! grep -q 'merge=xmerge' "$attrs" 2>/dev/null; then
+		{
+			echo '*.cpp         merge=xmerge'
+			echo '*.h           merge=xmerge'
+			echo '*.hpp         merge=xmerge'
+			echo '*.cc          merge=xmerge'
+			echo '*.hh          merge=xmerge'
+			echo '*.cxx         merge=xmerge'
+			echo '*.hxx         merge=xmerge'
+			echo 'CMakeLists.txt merge=xmerge'
+			echo '*.cmake       merge=xmerge'
+			echo '*.style       merge=xmerge'
+			echo '*.strings     merge=xmerge'
+			echo '*.yaml        merge=xmerge'
+			echo '*.yml         merge=xmerge'
+			echo 'Dockerfile    merge=xmerge'
+			echo '*.md          merge=xmerge'
+		} >> "$attrs"
+	fi
+	log "registered git merge-file (xdiff) merge driver for C++ and conflict-prone text files"
+}
+
 setup() {
 	git config user.name "$MIRROR_GIT_NAME"
 	git config user.email "$MIRROR_GIT_EMAIL"
 	git config rerere.enabled true
 	git config rerere.autoUpdate true
+	# diff3 conflict style: the merge driver renders its markers with --diff3, so
+	# matching the global style keeps conflict output consistent. rerere normalises
+	# the preimage, so diff3 does not perturb seed matching.
+	git config merge.conflictstyle diff3
 	git config advice.detachedHead false
+	configure_merge_driver
 
-	# Seed the rerere cache from the committed seed if the live cache is cold,
-	# so resolutions the maintainer recorded earlier replay automatically.
-	if [ -d "$seed_dir" ] && [ -z "$(ls -A "${repo_root}/.git/rr-cache" 2>/dev/null || true)" ]; then
+	# Overlay the committed rerere seed onto the live cache (which the Actions
+	# cache restores between runs) so the maintainer's recorded resolutions
+	# always replay. Done unconditionally, not just when the cache is cold: a
+	# failed run saves a preimage-only entry for the unresolved conflict, and a
+	# cold-only seed would then be shadowed by that warm-but-incomplete cache --
+	# the seed's postimage must win so the next run resolves instead of aborting.
+	if [ -d "$seed_dir" ]; then
 		mkdir -p "${repo_root}/.git/rr-cache"
 		cp -a "${seed_dir}/." "${repo_root}/.git/rr-cache/" 2>/dev/null || true
 		log "seeded rerere cache from .github/rerere-seed"
