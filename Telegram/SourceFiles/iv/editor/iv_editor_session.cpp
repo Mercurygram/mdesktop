@@ -151,10 +151,12 @@ private:
 	return session->premium();
 }
 
-void ShowRichMessagesPremiumToast(
-		not_null<Window::SessionController*> controller) {
+void ShowRichMessagesPremiumToast(std::shared_ptr<ChatHelpers::Show> show) {
+	if (!show) {
+		return;
+	}
 	Settings::ShowPremiumPromoToast(
-		controller->uiShow(),
+		std::move(show),
 		tr::lng_article_premium_required(
 			tr::now,
 			lt_link,
@@ -435,32 +437,34 @@ class ArticleSession final
 	, public base::has_weak_ptr {
 public:
 	static void ShowCompose(
-		not_null<Window::SessionController*> controller,
+		not_null<Main::Session*> session,
 		not_null<PeerData*> peer,
 		Api::SendAction action,
 		Fn<SendMenu::Details()> sendMenuDetails) {
-		auto session = std::shared_ptr<ArticleSession>(new ArticleSession(
-			controller,
+		auto articleSession = std::shared_ptr<ArticleSession>(new ArticleSession(
+			session,
 			peer,
 			Mode::Compose,
-			FullMsgId(peer->id, controller->session().data().nextLocalMessageId()),
+			FullMsgId(peer->id, session->data().nextLocalMessageId()),
 			std::make_shared<RichPage>(),
 			std::move(action),
 			std::move(sendMenuDetails),
 			std::nullopt));
-		session->showWindow();
+		articleSession->showWindow();
 	}
 
 	static void ShowEdit(
-		not_null<Window::SessionController*> controller,
 		not_null<HistoryItem*> item,
 		std::shared_ptr<const RichPage> richPage) {
 		if (!richPage || !CanEditRichPage(richPage)) {
-			controller->showToast(tr::lng_edit_error(tr::now));
+			if (const auto window = item->history()->session().tryResolveWindow(
+					item->history()->peer)) {
+				window->showToast(tr::lng_edit_error(tr::now));
+			}
 			return;
 		}
-		auto session = std::shared_ptr<ArticleSession>(new ArticleSession(
-			controller,
+		auto articleSession = std::shared_ptr<ArticleSession>(new ArticleSession(
+			&item->history()->session(),
 			item->history()->peer,
 			Mode::Edit,
 			item->fullId(),
@@ -473,7 +477,7 @@ public:
 				.summary = item->originalText(),
 				.fullPage = item->fullRichPage(),
 			}));
-		session->showWindow();
+		articleSession->showWindow();
 	}
 
 	~ArticleSession() {
@@ -533,7 +537,7 @@ private:
 	};
 
 	ArticleSession(
-		not_null<Window::SessionController*> controller,
+		not_null<Main::Session*> session,
 		not_null<PeerData*> peer,
 		Mode mode,
 		FullMsgId articleId,
@@ -541,9 +545,7 @@ private:
 		std::optional<Api::SendAction> action,
 		Fn<SendMenu::Details()> sendMenuDetails,
 		std::optional<EditedItemSnapshot> edited)
-	: _controller(controller)
-	, _session(&controller->session())
-	, _show(controller->uiShow())
+	: _session(session)
 	, _peer(peer)
 	, _mode(mode)
 	, _articleId(articleId)
@@ -558,30 +560,29 @@ private:
 		},
 		[](QString) {
 		}))
-	, _showLimitToast([controller](RichMessageLimitError error) {
-		switch (error) {
-		case RichMessageLimitError::Length:
-			controller->showToast(tr::lng_article_limit_length(tr::now));
-			return;
-		case RichMessageLimitError::Blocks:
-			controller->showToast(tr::lng_article_limit_blocks(tr::now));
-			return;
-		case RichMessageLimitError::Depth:
-			controller->showToast(tr::lng_article_limit_depth(tr::now));
-			return;
-		case RichMessageLimitError::Media:
-			controller->showToast(tr::lng_article_limit_media(tr::now));
-			return;
-		case RichMessageLimitError::TableColumns:
-			controller->showToast(tr::lng_article_limit_columns(tr::now));
-			return;
-		}
-		controller->showToast(tr::lng_edit_error(tr::now));
-	})
 	, _limits(ResolveRichMessageLimits(_session))
 	, _state(std::make_shared<State>(_page, _runtime, _limits))
 	, _submitOptions(_composeAction ? _composeAction->options : Api::SendOptions()) {
 		subscribeToUploader();
+	}
+
+	void setEditorShow(std::shared_ptr<ChatHelpers::Show> show) {
+		_editorShow = std::move(show);
+	}
+
+	[[nodiscard]] std::shared_ptr<ChatHelpers::Show> resolveShow() const {
+		if (_editorShow && _editorShow->valid()) {
+			return _editorShow;
+		} else if (const auto window = _session->tryResolveWindow(_peer)) {
+			return window->uiShow();
+		}
+		return nullptr;
+	}
+
+	void showToast(const QString &text) const {
+		if (const auto show = resolveShow()) {
+			show->showToast(text);
+		}
 	}
 
 	[[nodiscard]] bool submitRequested() {
@@ -589,7 +590,7 @@ private:
 			return false;
 		}
 		if (!CanUseRichMessages(_session)) {
-			ShowRichMessagesPremiumToast(_controller);
+			ShowRichMessagesPremiumToast(resolveShow());
 			return false;
 		}
 		if (hasPendingPreparation()) {
@@ -607,7 +608,7 @@ private:
 			return false;
 		}
 		if (!applySubmittedLocalState(page)) {
-			_controller->showToast(tr::lng_edit_error(tr::now));
+			showToast(tr::lng_edit_error(tr::now));
 			return false;
 		}
 		_submitDeferred = false;
@@ -877,7 +878,7 @@ private:
 			[weak = base::make_weak(this)](const QString &error, mtpRequestId) {
 				if (const auto session = weak.get()) {
 					session->restoreEditedItem();
-					session->_controller->showToast(error.isEmpty()
+					session->showToast(error.isEmpty()
 						? tr::lng_edit_error(tr::now)
 						: error);
 					session->finishSubmittedWork();
@@ -906,6 +907,10 @@ private:
 		if (_mode != Mode::Compose || !_sendMenuDetails) {
 			return;
 		}
+		const auto show = _editorShow;
+		if (!show) {
+			return;
+		}
 		const auto weak = base::make_weak(this);
 		const auto submit = [weak](Api::SendOptions options) {
 			if (const auto session = weak.get()) {
@@ -914,7 +919,7 @@ private:
 		};
 		SendMenu::SetupMenuAndShortcuts(
 			button,
-			_controller->uiShow(),
+			show,
 			[weak] {
 				if (const auto session = weak.get()) {
 					return session->_sendMenuDetails
@@ -923,7 +928,7 @@ private:
 				}
 				return SendMenu::Details();
 			},
-			SendMenu::DefaultCallback(_controller->uiShow(), submit));
+			SendMenu::DefaultCallback(show, submit));
 	}
 
 	void requestMedia(not_null<Widget*> editor, QPointer<QWidget> parent) {
@@ -980,14 +985,14 @@ private:
 		_backgroundHold = shared_from_this();
 		auto descriptor = ShowWindowDescriptor{
 			.session = _session,
-			.show = _show,
 			.peer = _peer,
 			.state = _state,
 			.submitType = (_mode == Mode::Compose)
 				? ShowWindowDescriptor::SubmitType::Send
 				: ShowWindowDescriptor::SubmitType::Save,
-			.customEmojiPaused = [show = _show] {
-				return show->paused(ChatHelpers::PauseReason::Layer);
+			.showCreated = [session = shared_from_this()](
+					std::shared_ptr<ChatHelpers::Show> show) {
+				session->setEditorShow(std::move(show));
 			},
 			.cancelled = [session = shared_from_this()] {
 				return session->cancelRequested();
@@ -1016,7 +1021,10 @@ private:
 			.closed = [session = shared_from_this()] {
 				session->windowClosed();
 			},
-			.showLimitToast = _showLimitToast,
+			.showLimitToast = [session = shared_from_this()](
+					RichMessageLimitError error) {
+				session->showRichMessageLimitToast(error);
+			},
 		};
 		_windowHost = ShowWindow(std::move(descriptor));
 	}
@@ -1025,6 +1033,7 @@ private:
 		_editor = nullptr;
 		_submitButton = nullptr;
 		_windowHost = nullptr;
+		_editorShow = nullptr;
 		if (!_submittedPage && !_submitApiRequested) {
 			_backgroundHold = nullptr;
 		}
@@ -1034,7 +1043,7 @@ private:
 		QPointer<Widget> editor,
 		FileDialog::OpenResult &&result) {
 		auto showError = [=](tr::phrase<> phrase) {
-			_controller->showToast(phrase(tr::now));
+			showToast(phrase(tr::now));
 		};
 		auto list = Storage::PreparedFileFromFilesDialog(
 			std::move(result),
@@ -1777,11 +1786,28 @@ private:
 	}
 
 	void showAttachmentFailedToast() {
-		_controller->showToast(tr::lng_attach_failed(tr::now));
+		showToast(tr::lng_attach_failed(tr::now));
 	}
 
 	void showRichMessageLimitToast(RichMessageLimitError error) const {
-		_showLimitToast(error);
+		switch (error) {
+		case RichMessageLimitError::Length:
+			showToast(tr::lng_article_limit_length(tr::now));
+			return;
+		case RichMessageLimitError::Blocks:
+			showToast(tr::lng_article_limit_blocks(tr::now));
+			return;
+		case RichMessageLimitError::Depth:
+			showToast(tr::lng_article_limit_depth(tr::now));
+			return;
+		case RichMessageLimitError::Media:
+			showToast(tr::lng_article_limit_media(tr::now));
+			return;
+		case RichMessageLimitError::TableColumns:
+			showToast(tr::lng_article_limit_columns(tr::now));
+			return;
+		}
+		showToast(tr::lng_edit_error(tr::now));
 	}
 
 	void showUnsupportedMediaToast(uint64 batchId) {
@@ -1789,7 +1815,7 @@ private:
 			return;
 		}
 		_rejectedToastBatchId = batchId;
-		_controller->showToast(tr::lng_iv_editor_media_invalid_file(tr::now));
+		showToast(tr::lng_iv_editor_media_invalid_file(tr::now));
 	}
 
 	[[nodiscard]] bool hasPendingPreparation() const {
@@ -1827,9 +1853,7 @@ private:
 		post(QEvent::MouseButtonRelease);
 	}
 
-	const not_null<Window::SessionController*> _controller;
 	const not_null<Main::Session*> _session;
-	const std::shared_ptr<ChatHelpers::Show> _show;
 	const not_null<PeerData*> _peer;
 	const Mode _mode;
 	const FullMsgId _articleId;
@@ -1838,10 +1862,10 @@ private:
 	const std::optional<EditedItemSnapshot> _edited;
 	const std::shared_ptr<RichPage> _page;
 	const std::shared_ptr<Markdown::MediaRuntime> _runtime;
-	const Fn<void(RichMessageLimitError)> _showLimitToast;
 	const RichMessageLimits _limits;
 	const std::shared_ptr<State> _state;
 	Api::SendOptions _submitOptions;
+	std::shared_ptr<ChatHelpers::Show> _editorShow;
 	QPointer<Ui::RpWidget> _submitButton;
 	QPointer<Widget> _editor;
 	std::unique_ptr<WindowHost> _windowHost;
@@ -1869,11 +1893,11 @@ void ShowComposeBox(
 		Api::SendAction action,
 		Fn<SendMenu::Details()> sendMenuDetails) {
 	if (!CanUseRichMessages(&controller->session())) {
-		ShowRichMessagesPremiumToast(controller);
+		ShowRichMessagesPremiumToast(controller->uiShow());
 		return;
 	}
 	ArticleSession::ShowCompose(
-		controller,
+		&controller->session(),
 		peer,
 		std::move(action),
 		std::move(sendMenuDetails));
@@ -1883,7 +1907,7 @@ void ShowEditBox(
 		not_null<Window::SessionController*> controller,
 		not_null<HistoryItem*> item) {
 	if (!CanUseRichMessages(&controller->session())) {
-		ShowRichMessagesPremiumToast(controller);
+		ShowRichMessagesPremiumToast(controller->uiShow());
 		return;
 	}
 	const auto weak = base::make_weak(controller);
@@ -1902,7 +1926,6 @@ void ShowEditBox(
 			return;
 		}
 		ArticleSession::ShowEdit(
-			not_null{ strong },
 			not_null{ current },
 			std::move(page));
 	});

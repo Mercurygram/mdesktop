@@ -292,144 +292,11 @@ using PreparedEditTableCellSource = Markdown::PreparedEditTableCellSource;
 using PreparedEditTableRowSource = Markdown::PreparedEditTableRowSource;
 using ApplyResult = State::ApplyResult;
 using PreparedMutationKind = State::PreparedMutationKind;
-using GroupedMediaItem = RichPage::GroupedMediaItem;
-using ListItem = RichPage::ListItem;
-using RelatedArticle = RichPage::RelatedArticle;
-using RichText = RichPage::RichText;
-using TableCell = RichPage::TableCell;
-using TableRow = RichPage::TableRow;
-using Block = RichPage::Block;
-
-template <typename Range, typename Equals>
-[[nodiscard]] bool RangesEqual(
-		const Range &a,
-		const Range &b,
-		Equals equals) {
-	return (a.size() == b.size())
-		&& std::equal(a.begin(), a.end(), b.begin(), equals);
-}
-
-[[nodiscard]] bool RichTextEquals(const RichText &a, const RichText &b) {
-	return (a.text == b.text)
-		&& (a.anchorId == b.anchorId)
-		&& (a.anchorIds == b.anchorIds);
-}
-
-[[nodiscard]] bool GroupedMediaItemEquals(
-		const GroupedMediaItem &a,
-		const GroupedMediaItem &b) {
-	return (a.kind == b.kind)
-		&& (a.photo == b.photo)
-		&& (a.document == b.document)
-		&& (a.photoId == b.photoId)
-		&& (a.documentId == b.documentId)
-		&& (a.width == b.width)
-		&& (a.height == b.height)
-		&& (a.autoplay == b.autoplay)
-		&& (a.loop == b.loop)
-		&& (a.spoiler == b.spoiler);
-}
-
-[[nodiscard]] bool TableCellEquals(const TableCell &a, const TableCell &b) {
-	return RichTextEquals(a.text, b.text)
-		&& (a.colspan == b.colspan)
-		&& (a.rowspan == b.rowspan)
-		&& (a.header == b.header)
-		&& (a.alignment == b.alignment)
-		&& (a.verticalAlignment == b.verticalAlignment);
-}
-
-[[nodiscard]] bool TableRowEquals(const TableRow &a, const TableRow &b) {
-	return RangesEqual(a.cells, b.cells, TableCellEquals);
-}
-
-[[nodiscard]] bool RelatedArticleEquals(
-		const RelatedArticle &a,
-		const RelatedArticle &b) {
-	return (a.url == b.url)
-		&& (a.webpageId == b.webpageId)
-		&& (a.photo == b.photo)
-		&& (a.photoId == b.photoId)
-		&& (a.title == b.title)
-		&& (a.description == b.description)
-		&& (a.author == b.author)
-		&& (a.publishedDate == b.publishedDate);
-}
-
-[[nodiscard]] bool BlockEquals(const Block &a, const Block &b);
-
-[[nodiscard]] bool ListItemEquals(const ListItem &a, const ListItem &b) {
-	return (a.taskState == b.taskState)
-		&& (a.number == b.number)
-		&& (a.anchorId == b.anchorId)
-		&& RichTextEquals(a.text, b.text)
-		&& RangesEqual(a.blocks, b.blocks, BlockEquals);
-}
-
-[[nodiscard]] bool BlockEquals(const Block &a, const Block &b) {
-	return (a.kind == b.kind)
-		&& (a.anchorId == b.anchorId)
-		&& RichTextEquals(a.text, b.text)
-		&& RichTextEquals(a.caption, b.caption)
-		&& (a.language == b.language)
-		&& (a.formula == b.formula)
-		&& (a.url == b.url)
-		&& (a.html == b.html)
-		&& (a.author == b.author)
-		&& (a.username == b.username)
-		&& (a.channelTitle == b.channelTitle)
-		&& (a.audioTitle == b.audioTitle)
-		&& (a.audioPerformer == b.audioPerformer)
-		&& (a.audioFileName == b.audioFileName)
-		&& (a.date == b.date)
-		&& (a.audioDuration == b.audioDuration)
-		&& (a.headingLevel == b.headingLevel)
-		&& (a.width == b.width)
-		&& (a.height == b.height)
-		&& (a.zoom == b.zoom)
-		&& (a.photoId == b.photoId)
-		&& (a.documentId == b.documentId)
-		&& (a.channelId == b.channelId)
-		&& (a.fullWidth == b.fullWidth)
-		&& (a.fixedHeight == b.fixedHeight)
-		&& (a.allowScrolling == b.allowScrolling)
-		&& (a.autoplay == b.autoplay)
-		&& (a.loop == b.loop)
-		&& (a.spoiler == b.spoiler)
-		&& (a.open == b.open)
-		&& (a.bordered == b.bordered)
-		&& (a.striped == b.striped)
-		&& (a.pullquote == b.pullquote)
-		&& (a.listKind == b.listKind)
-		&& (a.mediaIntent == b.mediaIntent)
-		&& (a.photo == b.photo)
-		&& (a.document == b.document)
-		&& (a.peer == b.peer)
-		&& (a.latitude == b.latitude)
-		&& (a.longitude == b.longitude)
-		&& (a.accessHash == b.accessHash)
-		&& RangesEqual(a.blocks, b.blocks, BlockEquals)
-		&& RangesEqual(a.listItems, b.listItems, ListItemEquals)
-		&& RangesEqual(a.mediaItems, b.mediaItems, GroupedMediaItemEquals)
-		&& RangesEqual(a.tableRows, b.tableRows, TableRowEquals)
-		&& RangesEqual(
-			a.relatedArticles,
-			b.relatedArticles,
-			RelatedArticleEquals);
-}
-
-[[nodiscard]] bool RichPageEquals(const RichPage &a, const RichPage &b) {
-	return (a.url == b.url)
-		&& (a.rtl == b.rtl)
-		&& (a.part == b.part)
-		&& (a.views == b.views)
-		&& RangesEqual(a.blocks, b.blocks, BlockEquals);
-}
 
 [[nodiscard]] bool SnapshotEquals(
 		const State::Snapshot &a,
 		const State::Snapshot &b) {
-	return RichPageEquals(a.richPage, b.richPage)
+	return RichPagesEqual(a.richPage, b.richPage)
 		&& (a.activeLeaf == b.activeLeaf)
 		&& (a.temporaryDownParagraph == b.temporaryDownParagraph);
 }
@@ -1080,6 +947,18 @@ ApplyResult Widget::commitInlineField() {
 	}
 	revertInlineFieldToState();
 	showLastLimitToast();
+	return result;
+}
+
+ApplyResult Widget::commitInlineFieldForClose() {
+	const auto result = recordMutationTransaction([&] {
+		return applyFieldTextToState();
+	});
+	if (result == ApplyResult::Failed) {
+		showLastLimitToast();
+	} else if (result == ApplyResult::Changed) {
+		refreshAfterInlineFieldCommit(result);
+	}
 	return result;
 }
 

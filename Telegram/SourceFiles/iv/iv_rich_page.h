@@ -31,6 +31,10 @@ struct RichPage {
 		TextWithEntities text;
 		QString anchorId;
 		std::vector<QString> anchorIds;
+
+		friend inline bool operator==(
+			const RichText &,
+			const RichText &) = default;
 	};
 	enum class BlockKind : uchar {
 		Unsupported,
@@ -87,6 +91,10 @@ struct RichPage {
 		QString anchorId;
 		RichText text;
 		std::vector<Block> blocks;
+
+		friend inline bool operator==(
+			const ListItem &,
+			const ListItem &) = default;
 	};
 	struct GroupedMediaItem {
 		BlockKind kind = BlockKind::Unsupported;
@@ -99,6 +107,10 @@ struct RichPage {
 		bool autoplay = false;
 		bool loop = false;
 		bool spoiler = false;
+
+		friend inline bool operator==(
+			const GroupedMediaItem &,
+			const GroupedMediaItem &) = default;
 	};
 	struct TableCell {
 		RichText text;
@@ -108,9 +120,17 @@ struct RichPage {
 		TableAlignment alignment = TableAlignment::Left;
 		TableVerticalAlignment verticalAlignment
 			= TableVerticalAlignment::Top;
+
+		friend inline bool operator==(
+			const TableCell &,
+			const TableCell &) = default;
 	};
 	struct TableRow {
 		std::vector<TableCell> cells;
+
+		friend inline bool operator==(
+			const TableRow &,
+			const TableRow &) = default;
 	};
 	struct RelatedArticle {
 		QString url;
@@ -121,6 +141,10 @@ struct RichPage {
 		QString description;
 		QString author;
 		TimeId publishedDate = 0;
+
+		friend inline bool operator==(
+			const RelatedArticle &,
+			const RelatedArticle &) = default;
 	};
 	struct Block {
 		BlockKind kind = BlockKind::Unsupported;
@@ -169,12 +193,20 @@ struct RichPage {
 		std::vector<GroupedMediaItem> mediaItems;
 		std::vector<TableRow> tableRows;
 		std::vector<RelatedArticle> relatedArticles;
+
+		friend inline bool operator==(
+			const Block &,
+			const Block &) = default;
 	};
 	QString url;
 	bool rtl = false;
 	bool part = false;
 	int views = 0;
 	std::vector<Block> blocks;
+
+	friend inline bool operator==(
+		const RichPage &,
+		const RichPage &) = default;
 };
 
 struct RichMessageLimits {
@@ -200,6 +232,9 @@ struct RichPageLinkUrl {
 
 [[nodiscard]] RichMessageLimits ResolveRichMessageLimits(
 	not_null<Main::Session*> session);
+[[nodiscard]] bool RichPagesEqual(
+	const RichPage &a,
+	const RichPage &b);
 [[nodiscard]] std::optional<RichMessageLimitError> ValidateRichMessage(
 	const RichPage &page,
 	const RichMessageLimits &limits);

@@ -37,7 +37,6 @@ namespace {
 using Block = RichPage::Block;
 using BlockKind = RichPage::BlockKind;
 using GroupedMediaIntent = RichPage::GroupedMediaIntent;
-using GroupedMediaItem = RichPage::GroupedMediaItem;
 using ListItem = RichPage::ListItem;
 using ListKind = RichPage::ListKind;
 using RelatedArticle = RichPage::RelatedArticle;
@@ -1732,6 +1731,12 @@ std::shared_ptr<const RichPage> ParsePage(
 }
 
 } // namespace
+
+bool RichPagesEqual(
+		const RichPage &a,
+		const RichPage &b) {
+	return (a == b);
+}
 
 RichMessageLimits ResolveRichMessageLimits(not_null<Main::Session*> session) {
 	const auto &config = session->appConfig();

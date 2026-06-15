@@ -47,12 +47,11 @@ struct ShowWindowDescriptor {
 	};
 
 	not_null<Main::Session*> session;
-	std::shared_ptr<ChatHelpers::Show> show;
 	not_null<PeerData*> peer;
 	std::shared_ptr<State> state;
 	QString submitLabel;
 	SubmitType submitType = SubmitType::Send;
-	Fn<bool()> customEmojiPaused;
+	Fn<void(std::shared_ptr<ChatHelpers::Show>)> showCreated;
 	Fn<bool()> cancelled;
 	Fn<bool()> confirmed;
 	Fn<void(not_null<Ui::RpWidget*>)> setupSubmitButton;

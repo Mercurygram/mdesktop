@@ -73,6 +73,7 @@ public:
 	void activateInitialNode();
 	void activateSegment(int segmentIndex, int cursorOffset);
 	[[nodiscard]] State::ApplyResult commitInlineField();
+	[[nodiscard]] State::ApplyResult commitInlineFieldForClose();
 	void refreshPreparedContent();
 	void refreshPreparedLeafAtActiveSource();
 	void applyExternalRichPageMutation(Fn<bool(RichPage&)> mutation);

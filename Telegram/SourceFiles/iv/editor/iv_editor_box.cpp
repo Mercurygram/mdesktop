@@ -12,8 +12,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/algorithm.h"
 #include "base/event_filter.h"
 #include "base/unique_qptr.h"
+#include "base/weak_qptr.h"
 #include "boxes/premium_preview_box.h"
 #include "chat_helpers/compose/compose_show.h"
+#include "data/data_file_origin.h"
 #include "data/data_msg_id.h"
 #include "data/data_types.h"
 #include "data/data_emoji_statuses.h"
@@ -30,6 +32,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "iv/editor/iv_editor_widget.h"
 #include "iv/editor/iv_editor_window.h"
 #include "lang/lang_keys.h"
+#include "menu/menu_send_details.h"
+#include "ui/boxes/confirm_box.h"
+#include "ui/delayed_activation.h"
 #include "ui/rect_part.h"
 #include "ui/rp_widget.h"
 #include "ui/ui_utility.h"
@@ -150,6 +155,111 @@ private:
 	const auto info = document->sticker();
 	return info && (info->setType == Data::StickersType::Emoji);
 }
+
+class WindowContext final : public ChatHelpers::Show {
+public:
+	WindowContext(
+		not_null<Window*> window,
+		not_null<Main::Session*> session)
+	: _window(window.get())
+	, _session(session) {
+	}
+
+	void activate() override {
+		if (const auto window = _window.data()) {
+			Ui::ActivateWindow(window);
+		}
+	}
+
+	void showOrHideBoxOrLayer(
+			std::variant<
+				v::null_t,
+				object_ptr<Ui::BoxContent>,
+				std::unique_ptr<Ui::LayerWidget>> &&layer,
+			Ui::LayerOptions options,
+			anim::type animated) const override {
+		using ObjectBox = object_ptr<Ui::BoxContent>;
+		using UniqueLayer = std::unique_ptr<Ui::LayerWidget>;
+		const auto window = _window.data();
+		if (!window) {
+			return;
+		} else if (auto layerWidget = std::get_if<UniqueLayer>(&layer)) {
+			window->showLayer(std::move(*layerWidget), options, animated);
+		} else if (auto box = std::get_if<ObjectBox>(&layer)) {
+			window->showBox(std::move(*box), options, animated);
+		} else {
+			window->hideLayer(animated);
+		}
+	}
+
+	not_null<QWidget*> toastParent() const override {
+		const auto window = _window.data();
+		Assert(window != nullptr);
+		return window->body();
+	}
+
+	bool valid() const override {
+		return !_window.isNull();
+	}
+
+	operator bool() const override {
+		return valid();
+	}
+
+	Main::Session &session() const override {
+		return *_session;
+	}
+
+	bool paused(ChatHelpers::PauseReason reason) const override {
+		const auto window = _window.data();
+		if (!window
+			|| window->isHidden()
+			|| !window->isActiveWindow()) {
+			return true;
+		} else if (reason < ChatHelpers::PauseReason::RoundPlaying
+			&& window->isLayerShown()) {
+			return true;
+		}
+		return false;
+	}
+
+	rpl::producer<> pauseChanged() const override {
+		return rpl::never<>();
+	}
+
+	rpl::producer<bool> adjustShadowLeft() const override {
+		return rpl::single(false);
+	}
+
+	SendMenu::Details sendMenuDetails() const override {
+		return { SendMenu::Type::Disabled };
+	}
+
+	bool showMediaPreview(
+			Data::FileOrigin,
+			not_null<DocumentData*>) const override {
+		return false;
+	}
+
+	bool showMediaPreview(
+			Data::FileOrigin,
+			not_null<PhotoData*>) const override {
+		return false;
+	}
+
+	void processChosenSticker(
+			ChatHelpers::FileChosen &&) const override {
+	}
+
+	::Window::SessionController *resolveWindow() const override {
+		return nullptr;
+	}
+
+private:
+	const QPointer<Window> _window;
+	const not_null<Main::Session*> _session;
+
+};
 
 Toolbar::Toolbar(
 	QWidget *parent,
@@ -431,10 +541,15 @@ private:
 	void setEmojiPanelInteractionActive(bool active);
 	void finishCloseFromAcceptedEvent();
 	void finishClose();
+	[[nodiscard]] bool articleChanged();
+	[[nodiscard]] bool showCloseConfirmation();
 	[[nodiscard]] bool confirmCancel();
 	void submit();
 
 	std::unique_ptr<Window> _window;
+	std::shared_ptr<ChatHelpers::Show> _show;
+	std::shared_ptr<State> _state;
+	RichPage _initialPage;
 	object_ptr<Ui::RpWidget> _top = { nullptr };
 	object_ptr<Ui::ScrollArea> _scroll = { nullptr };
 	QPointer<Widget> _editor;
@@ -445,6 +560,7 @@ private:
 	Fn<bool()> _cancelled;
 	Fn<bool()> _confirmed;
 	Fn<void()> _closed;
+	base::weak_qptr<Ui::GenericBox> _closeConfirmation;
 	rpl::lifetime _lifetime;
 	bool _emojiPanelInteractionActive = false;
 	bool _closingApproved = false;
@@ -463,8 +579,18 @@ WindowHost::Impl::~Impl() {
 void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 	const auto title = tr::lng_article_editor_title(tr::now);
 
+	if (!descriptor.state) {
+		descriptor.state = std::make_shared<State>();
+	}
+	_state = descriptor.state;
+	_initialPage = _state->richPage();
+
 	_window = std::make_unique<Window>();
 	const auto window = _window.get();
+	_show = std::make_shared<WindowContext>(window, descriptor.session);
+	if (descriptor.showCreated) {
+		descriptor.showCreated(_show);
+	}
 	window->setTitle(title);
 	window->setWindowTitle(title);
 	window->setMinimumSize(st::ivEditorWindowMinSize);
@@ -484,9 +610,11 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 		_scroll.data(),
 		WidgetServices{
 			.session = descriptor.session,
-			.show = descriptor.show,
+			.show = _show,
 			.outer = window->body(),
-			.customEmojiPaused = std::move(descriptor.customEmojiPaused),
+			.customEmojiPaused = [show = _show] {
+				return show->paused(ChatHelpers::PauseReason::Layer);
+			},
 			.imeCompositionStarts = window->imeCompositionStarts(),
 		},
 		descriptor.peer,
@@ -579,7 +707,7 @@ void WindowHost::Impl::setupEmojiPanel(const ShowWindowDescriptor &descriptor) {
 			.ownedSelector = object_ptr<Selector>(
 				nullptr,
 				ChatHelpers::TabbedSelectorDescriptor{
-					.show = descriptor.show,
+					.show = _show,
 					.st = st::defaultEmojiPan,
 					.level = ChatHelpers::PauseReason::Layer,
 					.mode = Selector::Mode::EmojiOnly,
@@ -614,7 +742,7 @@ void WindowHost::Impl::setupEmojiPanel(const ShowWindowDescriptor &descriptor) {
 			&& !descriptor.session->premium()
 			&& !Data::AllowEmojiWithoutPremium(descriptor.peer, document)) {
 			ShowPremiumPreviewBox(
-				descriptor.show,
+				_show,
 				PremiumFeature::AnimatedEmoji);
 		} else if (_editor) {
 			setEmojiPanelInteractionActive(true);
@@ -739,8 +867,48 @@ void WindowHost::Impl::finishClose() {
 	}
 }
 
+bool WindowHost::Impl::articleChanged() {
+	if (!_state) {
+		return false;
+	}
+	if (_editor
+		&& (_editor->commitInlineFieldForClose()
+			== State::ApplyResult::Failed)) {
+		return true;
+	}
+	return !RichPagesEqual(_initialPage, _state->richPage());
+}
+
+bool WindowHost::Impl::showCloseConfirmation() {
+	if (_closeConfirmation) {
+		return true;
+	} else if (!_show || !_show->valid()) {
+		return false;
+	}
+	const auto window = QPointer<Window>(_window.get());
+	const auto close = [=](Fn<void()> closeBox) {
+		closeBox();
+		if (!window) {
+			return;
+		} else if (!_cancelled || _cancelled()) {
+			finishClose();
+		}
+	};
+	_closeConfirmation = _show->show(Ui::MakeConfirmBox({
+		.text = tr::lng_theme_editor_sure_close(),
+		.confirmed = close,
+		.confirmText = tr::lng_close(),
+	}));
+	return true;
+}
+
 bool WindowHost::Impl::confirmCancel() {
-	return !_cancelled || _cancelled();
+	if (!articleChanged()) {
+		return !_cancelled || _cancelled();
+	}
+	return showCloseConfirmation()
+		? false
+		: (!_cancelled || _cancelled());
 }
 
 void WindowHost::Impl::submit() {
