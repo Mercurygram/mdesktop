@@ -271,6 +271,7 @@ private:
 	[[nodiscard]] bool prepareFieldForInput();
 	[[nodiscard]] std::optional<int> removeCurrentStructuralSelection(
 		bool forward);
+	void removeStructuralSelectionAndReposition(bool forward);
 	[[nodiscard]] bool replayKeyIntoField(QKeyEvent *e);
 	[[nodiscard]] bool replayImeIntoField(QInputMethodEvent *e);
 	[[nodiscard]] bool handleTabNavigation(QKeyEvent *e);

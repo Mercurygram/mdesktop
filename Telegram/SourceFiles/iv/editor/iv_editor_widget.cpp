@@ -1290,6 +1290,15 @@ bool Widget::handleClipboardKey(QKeyEvent *e) {
 		copyCurrentSelectionToClipboard();
 		e->accept();
 		return true;
+	} else if (e == QKeySequence::Cut) {
+		if (!hasStructuralSelection()
+			|| !_state->canRemoveStructuralSelection(_structuralSelection)) {
+			return false;
+		}
+		copyCurrentSelectionToClipboard();
+		removeStructuralSelectionAndReposition(true);
+		e->accept();
+		return true;
 	} else if ((e == QKeySequence::Paste) && _field->isHidden()) {
 		if (const auto data = ClipboardDataFromMimeData(
 				QApplication::clipboard()->mimeData())) {
@@ -4441,10 +4450,14 @@ bool Widget::handleStructuralSelectionKey(QKeyEvent *e) {
 	if (!forward && key != Qt::Key_Backspace) {
 		return false;
 	}
-	if (!_state->canRemoveStructuralSelection(_structuralSelection)) {
-		e->accept();
-		return true;
+	if (_state->canRemoveStructuralSelection(_structuralSelection)) {
+		removeStructuralSelectionAndReposition(forward);
 	}
+	e->accept();
+	return true;
+}
+
+void Widget::removeStructuralSelectionAndReposition(bool forward) {
 	const auto origin = [&]() -> std::optional<BoundarySelectionOrigin> {
 		if (_boundarySelectionOrigin
 			&& _boundarySelectionOrigin->forward == forward) {
@@ -4454,8 +4467,7 @@ bool Widget::handleStructuralSelectionKey(QKeyEvent *e) {
 	}();
 	const auto target = removeCurrentStructuralSelection(forward);
 	if (hasStructuralSelection()) {
-		e->accept();
-		return true;
+		return;
 	}
 	auto activatedOrigin = false;
 	if (origin && _state->setActiveTextByOrdinal(origin->ordinal)) {
@@ -4474,8 +4486,6 @@ bool Widget::handleStructuralSelectionKey(QKeyEvent *e) {
 			activateInitialNode();
 		}
 	}
-	e->accept();
-	return true;
 }
 
 std::optional<int> Widget::removeCurrentStructuralSelection(bool forward) {
