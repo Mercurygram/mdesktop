@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_unread_things.h"
 #include "history/history.h"
 #include "iv/iv_data.h"
+#include "iv/editor/iv_editor_state.h"
 #include "iv/iv_rich_page.h"
 #include "mtproto/mtproto_config.h"
 #include "ui/text/format_values.h"
@@ -4254,7 +4255,7 @@ void HistoryItem::setRichPage(std::shared_ptr<const Iv::RichPage> page) {
 			++source->fullPageVersion;
 		}
 		source->fullPage = nullptr;
-		source->canEdit = false;
+		source->canEdit = Iv::Editor::CanEditRichPage(source->page);
 		media->url = QString();
 		media->documents.clear();
 		media->photos.clear();
@@ -4270,7 +4271,7 @@ void HistoryItem::setFullRichPage(std::shared_ptr<const Iv::RichPage> page) {
 		AddComponents(HistoryMessageRichPageSource::Bit());
 		const auto source = Get<HistoryMessageRichPageSource>();
 		source->fullPage = std::move(page);
-		source->canEdit = false;
+		source->canEdit = Iv::Editor::CanEditRichPage(BestRichPage(source));
 	} else {
 		clearFullRichPage();
 	}
@@ -4284,7 +4285,7 @@ void HistoryItem::clearFullRichPage() {
 	++source->fullPageVersion;
 	source->fullPage = nullptr;
 	if (source->page) {
-		source->canEdit = false;
+		source->canEdit = Iv::Editor::CanEditRichPage(source->page);
 	} else {
 		RemoveComponents(HistoryMessageRichPageSource::Bit());
 	}

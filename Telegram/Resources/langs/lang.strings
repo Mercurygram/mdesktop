@@ -372,9 +372,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 "lng_edit_media_album_error" = "This file cannot be saved as a part of an album.";
 "lng_edit_media_invalid_file" = "Sorry, no way to use this file.";
-/*
 "lng_iv_editor_media_invalid_file" = "Sorry, only photos, video, and audio files are supported here.";
-*/
 "lng_edit_photo_editor_hint" = "Left-click on the photo to edit.";
 "lng_edit_caption_attach" = "Sorry, you can't attach new media while editing a message.";
 "lng_edit_caption_voice" = "Sorry, you can't edit messages when you have an unsent voice message.";
@@ -7202,7 +7200,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_polls_stop_warning" = "If you stop this poll now, nobody will be able to vote in it anymore. This action cannot be undone.";
 "lng_polls_stop_sure" = "Stop";
 "lng_article_menu_item" = "Article";
-/*
 "lng_article_editor_title" = "Article";
 "lng_article_insert_heading" = "Heading";
 "lng_article_insert_heading1" = "Heading 1";
@@ -7248,7 +7245,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_article_table_delete_table" = "Delete Table";
 "lng_article_table_bordered" = "Bordered Table";
 "lng_article_table_striped" = "Striped Table";
-*/
 "lng_polls_menu_item" = "Poll";
 "lng_polls_create" = "Create poll";
 "lng_polls_create_title" = "New poll";

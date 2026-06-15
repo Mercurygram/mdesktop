@@ -80,9 +80,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "inline_bots/bot_attach_web_view.h"
 #include "inline_bots/inline_results_widget.h"
 #include "inline_bots/inline_bot_result.h"
-#ifdef TDESKTOP_IV_EDITOR
 #include "iv/editor/iv_editor_session.h"
-#endif // TDESKTOP_IV_EDITOR
 #include "lang/lang_keys.h"
 #include "main/main_app_config.h"
 #include "main/main_session.h"
@@ -4157,13 +4155,11 @@ void ComposeControls::editMessage(not_null<HistoryItem*> item) {
 	Expects(draftKeyCurrent() != Data::DraftKey::None());
 
 	if (item->richPage()) {
-#ifdef TDESKTOP_IV_EDITOR
 		if (_regularWindow) {
 			Iv::Editor::ShowEditBox(_regularWindow, item);
 		} else {
 			_show->showToast(tr::lng_edit_error(tr::now));
 		}
-#endif // TDESKTOP_IV_EDITOR
 		return;
 	} else if (_voiceRecordBar->isActive()) {
 		_show->showBox(Ui::MakeInformBox(tr::lng_edit_caption_voice()));
