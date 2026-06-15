@@ -37,6 +37,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/delayed_activation.h"
 #include "ui/rect_part.h"
 #include "ui/rp_widget.h"
+#include "ui/wrap/fade_wrap.h"
 #include "ui/ui_utility.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
@@ -61,6 +62,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <vector>
 
 #include "styles/style_chat_helpers.h"
+#include "styles/style_basic.h"
+#include "styles/style_editor.h"
 #include "styles/style_iv.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
@@ -69,9 +72,193 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Iv::Editor {
 namespace {
 
+enum class ToolbarGroupId : uchar {
+	UndoRedo,
+	TextModifiers,
+	HeadingLinkMath,
+	BlockInsertion,
+	Lists,
+	Insertions,
+};
+
+enum class ToolbarActionId : uchar {
+	Undo,
+	Redo,
+	Bold,
+	Italic,
+	Underline,
+	StrikeOut,
+	Spoiler,
+	Subscript,
+	Superscript,
+	Marked,
+	PlainText,
+	Heading,
+	Link,
+	Math,
+	Blockquote,
+	Pullquote,
+	CodeBlock,
+	Details,
+	OrderedList,
+	BulletList,
+	TaskList,
+	Attach,
+	Table,
+	Location,
+	Divider,
+};
+
+[[nodiscard]] auto SimpleTooltipFactory(QString text) {
+	return [text = std::move(text)] {
+		return rpl::single(TextWithEntities::Simple(text));
+	};
+}
+
+[[nodiscard]] QString ToolbarActionLabel(
+		ToolbarActionId action,
+		Widget::ToolbarLinkMode linkMode
+			= Widget::ToolbarLinkMode::Create) {
+	switch (action) {
+	case ToolbarActionId::Undo:
+		return tr::lng_wnd_menu_undo(tr::now);
+	case ToolbarActionId::Redo:
+		return tr::lng_wnd_menu_redo(tr::now);
+	case ToolbarActionId::Bold:
+		return tr::lng_menu_formatting_bold(tr::now);
+	case ToolbarActionId::Italic:
+		return tr::lng_menu_formatting_italic(tr::now);
+	case ToolbarActionId::Underline:
+		return tr::lng_menu_formatting_underline(tr::now);
+	case ToolbarActionId::StrikeOut:
+		return tr::lng_menu_formatting_strike_out(tr::now);
+	case ToolbarActionId::Spoiler:
+		return tr::lng_menu_formatting_spoiler(tr::now);
+	case ToolbarActionId::Subscript:
+		return tr::lng_menu_formatting_subscript(tr::now);
+	case ToolbarActionId::Superscript:
+		return tr::lng_menu_formatting_superscript(tr::now);
+	case ToolbarActionId::Marked:
+		return tr::lng_menu_formatting_marked(tr::now);
+	case ToolbarActionId::PlainText:
+		return tr::lng_menu_formatting_plain_text(tr::now);
+	case ToolbarActionId::Heading:
+		return tr::lng_article_insert_heading(tr::now);
+	case ToolbarActionId::Link:
+		return (linkMode == Widget::ToolbarLinkMode::Edit)
+			? tr::lng_menu_formatting_link_edit(tr::now)
+			: tr::lng_menu_formatting_link_create(tr::now);
+	case ToolbarActionId::Math:
+		return tr::lng_article_insert_math(tr::now);
+	case ToolbarActionId::Blockquote:
+		return tr::lng_article_insert_blockquote(tr::now);
+	case ToolbarActionId::Pullquote:
+		return tr::lng_article_insert_pullquote(tr::now);
+	case ToolbarActionId::CodeBlock:
+		return tr::lng_article_insert_code(tr::now);
+	case ToolbarActionId::Details:
+		return tr::lng_article_insert_details(tr::now);
+	case ToolbarActionId::OrderedList:
+		return tr::lng_article_insert_ordered_list(tr::now);
+	case ToolbarActionId::BulletList:
+		return tr::lng_article_insert_bullet_list(tr::now);
+	case ToolbarActionId::TaskList:
+		return tr::lng_article_insert_task_list(tr::now);
+	case ToolbarActionId::Attach:
+		return tr::lng_article_insert_media(tr::now);
+	case ToolbarActionId::Table:
+		return tr::lng_article_insert_table(tr::now);
+	case ToolbarActionId::Location:
+		return tr::lng_article_insert_map(tr::now);
+	case ToolbarActionId::Divider:
+		return tr::lng_article_insert_divider(tr::now);
+	}
+	return QString();
+}
+
+[[nodiscard]] QString OverflowLabel() {
+	return tr::lng_profile_action_short_more(tr::now);
+}
+
+[[nodiscard]] const style::icon *HeadingIcon(int level) {
+	switch (level) {
+	case 1: return &st::ivEditorToolbarHeading1Icon;
+	case 2: return &st::ivEditorToolbarHeading2Icon;
+	case 3: return &st::ivEditorToolbarHeading3Icon;
+	case 4: return &st::ivEditorToolbarHeading4Icon;
+	case 5: return &st::ivEditorToolbarHeading5Icon;
+	case 6: return &st::ivEditorToolbarHeading6Icon;
+	}
+	return &st::ivEditorToolbarHeadingIcon;
+}
+
+[[nodiscard]] std::optional<Widget::ToolbarFormatAction> ToolbarFormatAction(
+		ToolbarActionId action) {
+	switch (action) {
+	case ToolbarActionId::Undo:
+		return Widget::ToolbarFormatAction::Undo;
+	case ToolbarActionId::Redo:
+		return Widget::ToolbarFormatAction::Redo;
+	case ToolbarActionId::Bold:
+		return Widget::ToolbarFormatAction::Bold;
+	case ToolbarActionId::Italic:
+		return Widget::ToolbarFormatAction::Italic;
+	case ToolbarActionId::Underline:
+		return Widget::ToolbarFormatAction::Underline;
+	case ToolbarActionId::StrikeOut:
+		return Widget::ToolbarFormatAction::StrikeOut;
+	case ToolbarActionId::Spoiler:
+		return Widget::ToolbarFormatAction::Spoiler;
+	case ToolbarActionId::Subscript:
+		return Widget::ToolbarFormatAction::Subscript;
+	case ToolbarActionId::Superscript:
+		return Widget::ToolbarFormatAction::Superscript;
+	case ToolbarActionId::Marked:
+		return Widget::ToolbarFormatAction::Marked;
+	case ToolbarActionId::PlainText:
+		return Widget::ToolbarFormatAction::PlainText;
+	case ToolbarActionId::Link:
+		return Widget::ToolbarFormatAction::Link;
+	case ToolbarActionId::Math:
+		return Widget::ToolbarFormatAction::Math;
+	case ToolbarActionId::Heading:
+	case ToolbarActionId::Blockquote:
+	case ToolbarActionId::Pullquote:
+	case ToolbarActionId::CodeBlock:
+	case ToolbarActionId::Details:
+	case ToolbarActionId::OrderedList:
+	case ToolbarActionId::BulletList:
+	case ToolbarActionId::TaskList:
+	case ToolbarActionId::Attach:
+	case ToolbarActionId::Table:
+	case ToolbarActionId::Location:
+	case ToolbarActionId::Divider:
+		return std::nullopt;
+	}
+	return std::nullopt;
+}
+
 struct ToolbarButton {
-	object_ptr<Ui::IconButton> widget;
+	ToolbarActionId action = ToolbarActionId::Undo;
+	ToolbarGroupId group = ToolbarGroupId::UndoRedo;
+	QString label;
 	Fn<rpl::producer<TextWithEntities>()> tooltipFactory;
+	const style::icon *icon = nullptr;
+	const style::icon *iconOver = nullptr;
+	Fn<void()> callback;
+	object_ptr<Ui::RippleButton> widget = { nullptr };
+	object_ptr<Ui::FadeWrapScaled<Ui::IconButton>> wrap = { nullptr };
+	Ui::RippleButton *button = nullptr;
+	Ui::IconButton *iconButton = nullptr;
+	bool stateInitialized = false;
+	bool shown = false;
+	bool enabled = false;
+
+	[[nodiscard]] Ui::RpWidget *host() const {
+		return wrap
+			? static_cast<Ui::RpWidget*>(wrap.data())
+			: static_cast<Ui::RpWidget*>(widget.data());
+	}
 };
 
 class Toolbar final : public Ui::RpWidget {
@@ -90,30 +277,48 @@ public:
 
 protected:
 	bool eventFilter(QObject *object, QEvent *event) override;
+	void paintEvent(QPaintEvent *e) override;
 
 private:
-	not_null<Ui::IconButton*> addButton(
-		QString label,
-		Fn<rpl::producer<TextWithEntities>()> tooltipFactory,
+	not_null<Ui::RippleButton*> addAction(
+		ToolbarActionId action,
+		ToolbarGroupId group,
 		const style::icon *icon,
-		Fn<void()> callback);
-	void addInsertButtons();
+		const style::icon *iconOver,
+		Fn<void()> callback,
+		bool wrapped = false);
+	void addButtons();
+	void addEmojiButton();
+	void fillHeadingMenu(not_null<Ui::PopupMenu*> menu);
 	void showHeadingMenu(not_null<Ui::IconButton*> button);
-	void showTooltip(not_null<Ui::IconButton*> button);
+	void showOverflowMenu(not_null<Ui::IconButton*> button);
+	void showTooltip(not_null<Ui::RippleButton*> button);
 	void hideTooltip();
 	void updateTooltipGeometry();
-	[[nodiscard]] ToolbarButton *buttonData(not_null<Ui::IconButton*> button);
+	void refreshButtonText(ToolbarButton &button);
+	void updateFromEditorState();
+	void updateOverflowButtonState();
+	[[nodiscard]] Widget::ToolbarActionState actionState(
+		const ToolbarButton &button) const;
+	[[nodiscard]] ToolbarButton *buttonData(not_null<Ui::RippleButton*> button);
 
 	const QPointer<Widget> _editor;
 	const QPointer<QWidget> _tooltipParent;
 	const Fn<void(not_null<Widget*>, QPointer<QWidget>)> _requestMedia;
 	const Fn<void(not_null<Widget*>, QPointer<QWidget>, rpl::producer<>)> _requestMap;
 	const Fn<void(not_null<Ui::IconButton*>)> _toggleEmoji;
+	Widget::ToolbarState _toolbarState = {};
 	std::vector<ToolbarButton> _buttons;
+	ToolbarButton _emoji;
+	object_ptr<Ui::IconButton> _overflow = { nullptr };
+	std::vector<int> _overflowActions;
+	std::vector<int> _dividerXs;
 	base::unique_qptr<Ui::ImportantTooltip> _tooltip;
 	base::unique_qptr<Ui::PopupMenu> _menu;
 	Ui::IconButton *_emojiButton = nullptr;
-	Ui::IconButton *_hovered = nullptr;
+	Ui::RippleButton *_hovered = nullptr;
+	bool _overflowStateInitialized = false;
+	bool _overflowEnabled = false;
 
 };
 
@@ -275,31 +480,72 @@ Toolbar::Toolbar(
 , _requestMap(std::move(requestMap))
 , _toggleEmoji(std::move(toggleEmoji)) {
 	setMouseTracking(true);
-	addInsertButtons();
+	_buttons.reserve(25);
+	addButtons();
+	addEmojiButton();
+	_overflow = object_ptr<Ui::IconButton>(this, st::ivEditorToolbarOverflowButton);
+	_overflow->setAccessibleName(OverflowLabel());
+	_overflow->setIsMenuButton(true);
+	_overflow->setClickedCallback([=] {
+		hideTooltip();
+		showOverflowMenu(not_null<Ui::IconButton*>(_overflow.data()));
+	});
+	_overflow->hide();
+	_toolbarState = _editor ? _editor->toolbarStateValue() : Widget::ToolbarState();
+	if (_editor) {
+		_editor->toolbarStateChanges() | rpl::on_next([=](const Widget::ToolbarState &state) {
+			_toolbarState = state;
+			updateFromEditorState();
+		}, lifetime());
+	}
+	updateFromEditorState();
 }
 
-not_null<Ui::IconButton*> Toolbar::addButton(
-		QString label,
-		Fn<rpl::producer<TextWithEntities>()> tooltipFactory,
+not_null<Ui::RippleButton*> Toolbar::addAction(
+		ToolbarActionId action,
+		ToolbarGroupId group,
 		const style::icon *icon,
-		Fn<void()> callback) {
+		const style::icon *iconOver,
+		Fn<void()> callback,
+		bool wrapped) {
+	auto data = ToolbarButton{
+		.action = action,
+		.group = group,
+		.label = ToolbarActionLabel(action),
+		.tooltipFactory = SimpleTooltipFactory(ToolbarActionLabel(action)),
+		.icon = icon,
+		.iconOver = iconOver,
+		.callback = std::move(callback),
+	};
+	Assert(icon != nullptr);
 	auto button = object_ptr<Ui::IconButton>(this, st::ivEditorToolbarButton);
-	const auto raw = button.data();
-	raw->setAccessibleName(label);
-	raw->setIconOverride(icon, icon);
-	raw->setClickedCallback([=, callback = std::move(callback)] {
-		hideTooltip();
-		callback();
+	data.iconButton = button.data();
+	data.button = button.data();
+	data.iconButton->setIconOverride(icon, iconOver ? iconOver : icon);
+	if (wrapped) {
+		data.wrap = object_ptr<Ui::FadeWrapScaled<Ui::IconButton>>(
+			this,
+			std::move(button));
+		data.wrap->toggle(false, anim::type::instant);
+	} else {
+		data.widget = std::move(button);
+	}
+	const auto raw = not_null<Ui::RippleButton*>(data.button);
+	raw->setAccessibleName(data.label);
+	raw->setClickedCallback([=] {
+		if (const auto stored = buttonData(raw)) {
+			if (stored->callback) {
+				stored->callback();
+			}
+		}
 	});
 	raw->installEventFilter(this);
-	_buttons.push_back({
-		std::move(button),
-		std::move(tooltipFactory),
-	});
+	_buttons.push_back(std::move(data));
+	refreshButtonText(_buttons.back());
 	return raw;
 }
 
-void Toolbar::addInsertButtons() {
+void Toolbar::addButtons() {
 	const auto insert = [=](State::InsertAction action) {
 		if (_editor) {
 			_editor->insertBlock(action);
@@ -308,69 +554,176 @@ void Toolbar::addInsertButtons() {
 	const auto insertType = [=](State::InsertBlockType type) {
 		insert({ .type = type });
 	};
-
-	const auto heading = addButton(
-		tr::lng_article_insert_heading(tr::now),
-		[] { return tr::lng_article_insert_heading(tr::marked); },
-		&st::ivEditorToolbarHeadingIcon,
-		[] {});
-	heading->setClickedCallback([=] {
-		hideTooltip();
-		showHeadingMenu(heading);
-	});
-	_emojiButton = addButton(
-		tr::lng_article_insert_emoji(tr::now),
-		[] { return tr::lng_article_insert_emoji(tr::marked); },
-		&st::ivEditorToolbarEmojiIcon,
+	const auto addEditorAction = [=](
+			ToolbarActionId action,
+			ToolbarGroupId group,
+			const style::icon *icon = nullptr,
+			const style::icon *iconOver = nullptr,
+			bool wrapped = false) {
+		return addAction(
+			action,
+			group,
+			icon,
+			iconOver,
+			[=] {
+				if (_editor) {
+					if (const auto mapped = ToolbarFormatAction(action)) {
+						_editor->applyToolbarFormatAction(*mapped);
+					}
+				}
+			},
+			wrapped);
+	};
+	const auto undo = addAction(
+		ToolbarActionId::Undo,
+		ToolbarGroupId::UndoRedo,
+		&st::ivEditorToolbarUndoIcon,
+		&st::ivEditorToolbarUndoIconOver,
 		[=] {
-			if (_toggleEmoji && _emojiButton) {
-				_toggleEmoji(not_null<Ui::IconButton*>(_emojiButton));
+			if (_editor) {
+				_editor->performToolbarUndoRedo(false);
 			}
 		});
-	addButton(
-		tr::lng_article_insert_blockquote(tr::now),
-		[] { return tr::lng_article_insert_blockquote(tr::marked); },
+	undo->setAccessibleName(ToolbarActionLabel(ToolbarActionId::Undo));
+	addAction(
+		ToolbarActionId::Redo,
+		ToolbarGroupId::UndoRedo,
+		&st::ivEditorToolbarRedoIcon,
+		&st::ivEditorToolbarRedoIconOver,
+		[=] {
+			if (_editor) {
+				_editor->performToolbarUndoRedo(true);
+			}
+		},
+		true);
+	addEditorAction(
+		ToolbarActionId::Bold,
+		ToolbarGroupId::TextModifiers,
+		&st::ivEditorToolbarBoldIcon,
+		&st::ivEditorToolbarBoldIcon);
+	addEditorAction(
+		ToolbarActionId::Italic,
+		ToolbarGroupId::TextModifiers,
+		&st::ivEditorToolbarItalicIcon,
+		&st::ivEditorToolbarItalicIcon);
+	addEditorAction(
+		ToolbarActionId::Underline,
+		ToolbarGroupId::TextModifiers,
+		&st::ivEditorToolbarUnderlineIcon,
+		&st::ivEditorToolbarUnderlineIcon);
+	addEditorAction(
+		ToolbarActionId::StrikeOut,
+		ToolbarGroupId::TextModifiers,
+		&st::ivEditorToolbarStrikeOutIcon,
+		&st::ivEditorToolbarStrikeOutIcon);
+	addEditorAction(
+		ToolbarActionId::Spoiler,
+		ToolbarGroupId::TextModifiers,
+		&st::ivEditorToolbarSpoilerIcon,
+		&st::ivEditorToolbarSpoilerIcon);
+	addEditorAction(
+		ToolbarActionId::Subscript,
+		ToolbarGroupId::TextModifiers,
+		&st::ivEditorToolbarSubscriptIcon,
+		&st::ivEditorToolbarSubscriptIcon);
+	addEditorAction(
+		ToolbarActionId::Superscript,
+		ToolbarGroupId::TextModifiers,
+		&st::ivEditorToolbarSuperscriptIcon,
+		&st::ivEditorToolbarSuperscriptIcon);
+	addEditorAction(
+		ToolbarActionId::Marked,
+		ToolbarGroupId::TextModifiers,
+		&st::ivEditorToolbarMarkedIcon,
+		&st::ivEditorToolbarMarkedIcon);
+	addEditorAction(
+		ToolbarActionId::PlainText,
+		ToolbarGroupId::TextModifiers,
+		&st::ivEditorToolbarPlainTextIcon,
+		&st::ivEditorToolbarPlainTextIcon);
+	const auto heading = addAction(
+		ToolbarActionId::Heading,
+		ToolbarGroupId::HeadingLinkMath,
+		&st::ivEditorToolbarHeadingIcon,
+		&st::ivEditorToolbarHeadingIcon,
+		[] {});
+	if (const auto data = buttonData(heading)) {
+		data->callback = [=] {
+			showHeadingMenu(not_null<Ui::IconButton*>(
+				static_cast<Ui::IconButton*>(heading.get())));
+		};
+	}
+	static_cast<Ui::IconButton*>(heading.get())->setIsMenuButton(true);
+	heading->setClickedCallback([=] {
+		hideTooltip();
+		if (const auto data = buttonData(heading)) {
+			if (data->callback) {
+				data->callback();
+			}
+		}
+	});
+	addAction(
+		ToolbarActionId::Link,
+		ToolbarGroupId::HeadingLinkMath,
+		&st::ivEditorToolbarLinkIcon,
+		&st::ivEditorToolbarLinkIcon,
+		[=] {
+			if (_editor) {
+				_editor->editLinkFromToolbar();
+			}
+		});
+	addEditorAction(
+		ToolbarActionId::Math,
+		ToolbarGroupId::HeadingLinkMath,
+		&st::ivEditorToolbarMathIcon,
+		&st::ivEditorToolbarMathIcon);
+	addAction(
+		ToolbarActionId::Blockquote,
+		ToolbarGroupId::BlockInsertion,
+		&st::ivEditorToolbarBlockquoteIcon,
 		&st::ivEditorToolbarBlockquoteIcon,
 		[=] { insertType(State::InsertBlockType::Blockquote); });
-	addButton(
-		tr::lng_article_insert_code(tr::now),
-		[] { return tr::lng_article_insert_code(tr::marked); },
-		&st::ivEditorToolbarCodeIcon,
-		[=] { insertType(State::InsertBlockType::Code); });
-	addButton(
-		tr::lng_article_insert_math(tr::now),
-		[] { return tr::lng_article_insert_math(tr::marked); },
-		&st::ivEditorToolbarMathIcon,
-		[=] { insertType(State::InsertBlockType::Math); });
-	addButton(
-		tr::lng_article_insert_divider(tr::now),
-		[] { return tr::lng_article_insert_divider(tr::marked); },
-		&st::ivEditorToolbarDividerIcon,
-		[=] { insertType(State::InsertBlockType::Divider); });
-	addButton(
-		tr::lng_article_insert_ordered_list(tr::now),
-		[] { return tr::lng_article_insert_ordered_list(tr::marked); },
-		&st::ivEditorToolbarOrderedListIcon,
-		[=] { insertType(State::InsertBlockType::OrderedList); });
-	addButton(
-		tr::lng_article_insert_bullet_list(tr::now),
-		[] { return tr::lng_article_insert_bullet_list(tr::marked); },
-		&st::ivEditorToolbarBulletListIcon,
-		[=] { insertType(State::InsertBlockType::BulletList); });
-	addButton(
-		tr::lng_article_insert_task_list(tr::now),
-		[] { return tr::lng_article_insert_task_list(tr::marked); },
-		&st::ivEditorToolbarTaskListIcon,
-		[=] { insertType(State::InsertBlockType::TaskList); });
-	addButton(
-		tr::lng_article_insert_pullquote(tr::now),
-		[] { return tr::lng_article_insert_pullquote(tr::marked); },
+	addAction(
+		ToolbarActionId::Pullquote,
+		ToolbarGroupId::BlockInsertion,
+		&st::ivEditorToolbarPullquoteIcon,
 		&st::ivEditorToolbarPullquoteIcon,
 		[=] { insertType(State::InsertBlockType::Pullquote); });
+	addAction(
+		ToolbarActionId::CodeBlock,
+		ToolbarGroupId::BlockInsertion,
+		&st::ivEditorToolbarCodeIcon,
+		&st::ivEditorToolbarCodeIcon,
+		[=] { insertType(State::InsertBlockType::Code); });
+	addAction(
+		ToolbarActionId::Details,
+		ToolbarGroupId::BlockInsertion,
+		&st::ivEditorToolbarDetailsIcon,
+		&st::ivEditorToolbarDetailsIcon,
+		[=] { insertType(State::InsertBlockType::Details); });
+	addAction(
+		ToolbarActionId::OrderedList,
+		ToolbarGroupId::Lists,
+		&st::ivEditorToolbarOrderedListIcon,
+		&st::ivEditorToolbarOrderedListIcon,
+		[=] { insertType(State::InsertBlockType::OrderedList); });
+	addAction(
+		ToolbarActionId::BulletList,
+		ToolbarGroupId::Lists,
+		&st::ivEditorToolbarBulletListIcon,
+		&st::ivEditorToolbarBulletListIcon,
+		[=] { insertType(State::InsertBlockType::BulletList); });
+	addAction(
+		ToolbarActionId::TaskList,
+		ToolbarGroupId::Lists,
+		&st::ivEditorToolbarTaskListIcon,
+		&st::ivEditorToolbarTaskListIcon,
+		[=] { insertType(State::InsertBlockType::TaskList); });
 	if (_requestMedia) {
-		addButton(
-			tr::lng_article_insert_media(tr::now),
-			[] { return tr::lng_article_insert_media(tr::marked); },
+		addAction(
+			ToolbarActionId::Attach,
+			ToolbarGroupId::Insertions,
+			&st::ivEditorToolbarAttachIcon,
 			&st::ivEditorToolbarAttachIcon,
 			[=] {
 				if (_editor) {
@@ -380,22 +733,18 @@ void Toolbar::addInsertButtons() {
 				}
 			});
 	}
-	addButton(
-		tr::lng_article_insert_details(tr::now),
-		[] { return tr::lng_article_insert_details(tr::marked); },
-		&st::ivEditorToolbarDetailsIcon,
-		[=] { insertType(State::InsertBlockType::Details); });
-	addButton(
-		tr::lng_article_insert_table(tr::now),
-		[] { return tr::lng_article_insert_table(tr::marked); },
+	addAction(
+		ToolbarActionId::Table,
+		ToolbarGroupId::Insertions,
+		&st::ivEditorToolbarTableIcon,
 		&st::ivEditorToolbarTableIcon,
 		[=] { insertType(State::InsertBlockType::Table); });
-
 	if (_requestMap) {
-		addButton(
-			tr::lng_article_insert_map(tr::now),
-			[] { return tr::lng_article_insert_map(tr::marked); },
-			&st::menuIconAddress,
+		addAction(
+			ToolbarActionId::Location,
+			ToolbarGroupId::Insertions,
+			&st::ivEditorToolbarLocationIcon,
+			&st::ivEditorToolbarLocationIcon,
 			[=] {
 				if (_editor) {
 					const auto parent = _tooltipParent;
@@ -409,12 +758,48 @@ void Toolbar::addInsertButtons() {
 				}
 			});
 	}
+	addAction(
+		ToolbarActionId::Divider,
+		ToolbarGroupId::Insertions,
+		&st::ivEditorToolbarDividerIcon,
+		&st::ivEditorToolbarDividerIcon,
+		[=] { insertType(State::InsertBlockType::Divider); });
 }
 
-void Toolbar::showHeadingMenu(not_null<Ui::IconButton*> button) {
-	_menu = base::make_unique_q<Ui::PopupMenu>(this);
+void Toolbar::addEmojiButton() {
+	auto data = ToolbarButton{
+		.action = ToolbarActionId::Attach,
+		.group = ToolbarGroupId::Insertions,
+		.label = tr::lng_article_insert_emoji(tr::now),
+		.tooltipFactory = SimpleTooltipFactory(tr::lng_article_insert_emoji(tr::now)),
+		.icon = &st::ivEditorToolbarEmojiIcon,
+		.iconOver = &st::ivEditorToolbarEmojiIcon,
+		.callback = [=] {
+			if (_toggleEmoji && _emojiButton) {
+				_toggleEmoji(not_null<Ui::IconButton*>(_emojiButton));
+			}
+		},
+	};
+	auto button = object_ptr<Ui::IconButton>(this, st::ivEditorToolbarButton);
+	data.iconButton = button.data();
+	data.button = button.data();
+	data.widget = std::move(button);
+	data.iconButton->setIconOverride(data.icon, data.iconOver);
+	data.button->setAccessibleName(data.label);
+	data.button->setClickedCallback([=] {
+		if (_emoji.callback) {
+			_emoji.callback();
+		}
+	});
+	data.button->installEventFilter(this);
+	_emojiButton = data.iconButton;
+	_emoji = std::move(data);
+}
+
+void Toolbar::fillHeadingMenu(not_null<Ui::PopupMenu*> menu) {
 	for (const auto level : std::array{ 1, 2, 3, 4, 5, 6 }) {
-		_menu->addAction(
+		const auto icon = HeadingIcon(level);
+		menu->addAction(
 			HeadingLabel(level),
 			[=] {
 				if (_editor) {
@@ -423,28 +808,306 @@ void Toolbar::showHeadingMenu(not_null<Ui::IconButton*> button) {
 						.headingLevel = level,
 					});
 				}
-			});
+			},
+			icon,
+			icon);
 	}
+}
+
+void Toolbar::showHeadingMenu(not_null<Ui::IconButton*> button) {
+	if (_menu) {
+		return;
+	}
+	_menu = base::make_unique_q<Ui::PopupMenu>(this, st::popupMenuWithIcons);
+	fillHeadingMenu(not_null<Ui::PopupMenu*>(_menu.get()));
 	_menu->popup(button->mapToGlobal(QPoint(0, button->height())));
+}
+
+void Toolbar::showOverflowMenu(not_null<Ui::IconButton*> button) {
+	if (_menu || _overflowActions.empty()) {
+		return;
+	}
+	_menu = base::make_unique_q<Ui::PopupMenu>(this, st::popupMenuWithIcons);
+	updateOverflowButtonState();
+	const auto self = QPointer<Toolbar>(this);
+	_menu->setDestroyedCallback([=] {
+		if (!self) {
+			return;
+		}
+		self->updateOverflowButtonState();
+	});
+	auto previousGroup = std::optional<ToolbarGroupId>();
+	for (const auto index : _overflowActions) {
+		const auto &data = _buttons[index];
+		if (previousGroup && (*previousGroup != data.group)) {
+			_menu->addSeparator();
+		}
+		if (data.action == ToolbarActionId::Heading) {
+			auto submenu = std::make_unique<Ui::PopupMenu>(
+				this,
+				st::popupMenuWithIcons);
+			fillHeadingMenu(not_null<Ui::PopupMenu*>(submenu.get()));
+			_menu->addAction(
+				data.label,
+				std::move(submenu),
+				data.icon,
+				data.iconOver);
+		} else {
+			const auto callback = data.callback;
+			const auto action = _menu->addAction(
+				data.label,
+				[callback] {
+					if (callback) {
+						callback();
+					}
+				},
+				data.icon,
+				data.iconOver);
+			const auto state = actionState(data);
+			action->setEnabled(state.enabled);
+			action->setCheckable(state.active);
+			action->setChecked(state.active);
+		}
+		previousGroup = data.group;
+	}
+	_menu->setForcedOrigin(Ui::PanelAnimation::Origin::TopRight);
+	_menu->popup(button->mapToGlobal(QPoint(0, button->height())));
+}
+
+Widget::ToolbarActionState Toolbar::actionState(
+		const ToolbarButton &button) const {
+	if (const auto mapped = ToolbarFormatAction(button.action)) {
+		return _toolbarState[*mapped];
+	}
+	return {
+		.shown = true,
+		.enabled = true,
+		.active = false,
+	};
+}
+
+void Toolbar::refreshButtonText(ToolbarButton &button) {
+	const auto label = ToolbarActionLabel(button.action, _toolbarState.linkMode);
+	if (button.label == label) {
+		return;
+	}
+	if (_hovered == button.button) {
+		hideTooltip();
+	}
+	button.label = label;
+	button.tooltipFactory = SimpleTooltipFactory(label);
+	if (button.button) {
+		button.button->setAccessibleName(label);
+	}
+}
+
+void Toolbar::updateFromEditorState() {
+	auto shownChanged = false;
+	for (auto &button : _buttons) {
+		refreshButtonText(button);
+		const auto state = actionState(button);
+		const auto initialized = button.stateInitialized;
+		if (!initialized || button.shown != state.shown) {
+			if (button.wrap) {
+				button.wrap->toggle(
+					state.shown,
+					initialized ? anim::type::normal : anim::type::instant);
+			}
+			button.shown = state.shown;
+			shownChanged = true;
+		}
+		if (!initialized || button.enabled != state.enabled) {
+			button.button->setPointerCursor(state.enabled);
+			button.button->setAttribute(
+				Qt::WA_TransparentForMouseEvents,
+				!state.enabled);
+			if (state.enabled) {
+				button.button->setDisabled(false);
+			} else {
+				button.button->clearState();
+				button.button->setDisabled(true);
+			}
+			if (button.iconButton) {
+				button.iconButton->setIconColorOverride(
+					state.enabled
+						? std::nullopt
+						: std::make_optional(st::windowSubTextFg->c));
+			}
+			button.enabled = state.enabled;
+		}
+		button.stateInitialized = true;
+	}
+	if (shownChanged && width() > 0) {
+		resizeGetHeight(width());
+	} else {
+		updateOverflowButtonState();
+	}
 }
 
 int Toolbar::resizeGetHeight(int width) {
 	const auto padding = st::ivEditorToolbarPadding;
-	const auto buttonWidth = st::ivEditorToolbarButton.width;
+	const auto buttonSkip = st::ivEditorToolbarButtonSkip;
+	const auto dividerWidth = st::lineWidth;
+	const auto dividerSkip = st::ivEditorToolbarDividerSkip;
+	const auto emojiSkip = st::ivEditorToolbarEmojiSkip;
+	const auto separatorWidth = dividerSkip + dividerWidth + dividerSkip;
+	const auto top = padding.top();
 	const auto buttonHeight = st::ivEditorToolbarButton.height;
-	const auto right = width - padding.right();
-	auto left = padding.left();
-	auto top = padding.top();
-	for (const auto &button : _buttons) {
-		if (left > padding.left() && left + buttonWidth > right) {
-			left = padding.left();
-			top += buttonHeight + st::ivEditorToolbarRowSkip;
+	for (auto &button : _buttons) {
+		if (const auto host = button.host()) {
+			host->hide();
 		}
-		button.widget->moveToLeft(left, top, width);
-		left += buttonWidth + st::ivEditorToolbarButtonSkip;
+	}
+	if (_overflow) {
+		_overflow->hide();
+	}
+	_dividerXs.clear();
+	_overflowActions.clear();
+	const auto emojiHost = _emoji.host();
+	const auto emojiWidth = emojiHost ? emojiHost->width() : 0;
+	const auto emojiLeft = emojiHost
+		? std::max(width - padding.right() - emojiWidth, padding.left())
+		: width - padding.right();
+	if (emojiHost) {
+		emojiHost->moveToLeft(emojiLeft, top, width);
+		emojiHost->show();
+	}
+	const auto available = std::max(
+		emojiLeft - padding.left() - (emojiHost ? emojiSkip : 0),
+		0);
+	auto groups = std::vector<std::vector<int>>();
+	for (auto i = 0, count = int(_buttons.size()); i != count; ++i) {
+		const auto state = actionState(_buttons[i]);
+		if (!state.shown) {
+			continue;
+		}
+		if (groups.empty()
+			|| (_buttons[groups.back().back()].group != _buttons[i].group)) {
+			groups.push_back({ i });
+		} else {
+			groups.back().push_back(i);
+		}
+	}
+	const auto widthForAction = [&](int index) {
+		const auto host = _buttons[index].host();
+		return host ? host->width() : st::ivEditorToolbarButton.width;
+	};
+	const auto widthWithOverflow = [&](
+			const std::vector<int> &visible,
+			int overflowStart) {
+		auto result = 0;
+		auto previous = std::optional<ToolbarGroupId>();
+		const auto addWidth = [&](ToolbarGroupId group, int itemWidth) {
+			if (previous) {
+				result += (*previous == group) ? buttonSkip : separatorWidth;
+			}
+			result += itemWidth;
+			previous = group;
+		};
+		for (const auto index : visible) {
+			addWidth(_buttons[index].group, widthForAction(index));
+		}
+		if (overflowStart >= 0 && _overflow) {
+			addWidth(_buttons[overflowStart].group, _overflow->width());
+		}
+		return result;
+	};
+	auto visible = std::vector<int>();
+	auto overflowStart = -1;
+	auto used = 0;
+	auto previous = std::optional<ToolbarGroupId>();
+	auto done = false;
+	for (const auto &group : groups) {
+		for (const auto index : group) {
+			const auto extra = previous
+				? (*previous == _buttons[index].group)
+					? buttonSkip
+					: separatorWidth
+				: 0;
+			const auto needed = extra + widthForAction(index);
+			if (used + needed > available) {
+				done = true;
+				break;
+			}
+			used += needed;
+			visible.push_back(index);
+			previous = _buttons[index].group;
+		}
+		if (done) {
+			break;
+		}
+	}
+	if (done) {
+		if (!visible.empty()) {
+			overflowStart = visible.back();
+			visible.pop_back();
+		} else if (!groups.empty() && !groups.front().empty()) {
+			overflowStart = groups.front().front();
+		}
+		while ((overflowStart >= 0)
+			&& (widthWithOverflow(visible, overflowStart) > available)
+			&& !visible.empty()) {
+			overflowStart = visible.back();
+			visible.pop_back();
+		}
+		if ((overflowStart >= 0) && (widthWithOverflow({}, overflowStart) > available)) {
+			overflowStart = -1;
+		}
+	}
+	if (overflowStart >= 0) {
+		auto append = false;
+		for (const auto &group : groups) {
+			for (const auto index : group) {
+				if (index == overflowStart) {
+					append = true;
+				}
+				if (append) {
+					_overflowActions.push_back(index);
+				}
+			}
+		}
+	}
+	auto left = padding.left();
+	previous = std::nullopt;
+	for (const auto index : visible) {
+		const auto group = _buttons[index].group;
+		if (previous) {
+			if (*previous == group) {
+				left += buttonSkip;
+			} else {
+				left += dividerSkip;
+				_dividerXs.push_back(left);
+				left += dividerWidth + dividerSkip;
+			}
+		}
+		if (const auto host = _buttons[index].host()) {
+			host->moveToLeft(left, top, width);
+			host->show();
+			left += host->width();
+		}
+		previous = group;
+	}
+	if (!_overflowActions.empty() && _overflow) {
+		const auto overflowGroup = _buttons[_overflowActions.front()].group;
+		if (previous) {
+			if (*previous == overflowGroup) {
+				left += buttonSkip;
+			} else {
+				left += dividerSkip;
+				_dividerXs.push_back(left);
+				left += dividerWidth + dividerSkip;
+			}
+		}
+		_overflow->moveToLeft(left, top, width);
+		_overflow->show();
+	}
+	updateOverflowButtonState();
+	if (_hovered && !_hovered->isVisible()) {
+		hideTooltip();
 	}
 	updateTooltipGeometry();
-	return top + buttonHeight + padding.bottom();
+	update();
+	return padding.top() + buttonHeight + padding.bottom();
 }
 
 Ui::IconButton *Toolbar::emojiButton() const {
@@ -456,22 +1119,41 @@ void Toolbar::hideShownTooltip() {
 }
 
 bool Toolbar::eventFilter(QObject *object, QEvent *event) {
-	for (const auto &data : _buttons) {
-		if (data.widget.data() != object) {
+	for (auto &data : _buttons) {
+		if (data.button != object) {
 			continue;
 		}
-		const auto button = data.widget.data();
 		if (event->type() == QEvent::Enter) {
-			showTooltip(not_null<Ui::IconButton*>(button));
-		} else if (event->type() == QEvent::Leave && _hovered == button) {
+			showTooltip(not_null<Ui::RippleButton*>(data.button));
+		} else if (event->type() == QEvent::Leave && _hovered == data.button) {
 			hideTooltip();
 		}
-		break;
+		return Ui::RpWidget::eventFilter(object, event);
+	}
+	if ((_emoji.button == object) && _emoji.button) {
+		if (event->type() == QEvent::Enter) {
+			showTooltip(not_null<Ui::RippleButton*>(_emoji.button));
+		} else if (event->type() == QEvent::Leave && _hovered == _emoji.button) {
+			hideTooltip();
+		}
 	}
 	return Ui::RpWidget::eventFilter(object, event);
 }
 
-void Toolbar::showTooltip(not_null<Ui::IconButton*> button) {
+void Toolbar::paintEvent(QPaintEvent *e) {
+	Painter p(this);
+	const auto lineTop = st::ivEditorToolbarPadding.top()
+		+ ((st::ivEditorToolbarButton.height
+			- st::ivEditorToolbarDividerHeight) / 2);
+	const auto lineHeight = st::ivEditorToolbarDividerHeight;
+	for (const auto x : _dividerXs) {
+		p.fillRect(
+			QRect(x, lineTop, st::lineWidth, lineHeight),
+			st::defaultMarkdown.rule.fg);
+	}
+}
+
+void Toolbar::showTooltip(not_null<Ui::RippleButton*> button) {
 	hideTooltip();
 	const auto data = buttonData(button);
 	if (!data) {
@@ -516,13 +1198,32 @@ void Toolbar::updateTooltipGeometry() {
 	_tooltip->pointAt(geometry, RectPart::Top | RectPart::Center);
 }
 
-ToolbarButton *Toolbar::buttonData(not_null<Ui::IconButton*> button) {
+void Toolbar::updateOverflowButtonState() {
+	if (!_overflow) {
+		return;
+	}
+	const auto enabled = !_overflowActions.empty();
+	if (!_overflowStateInitialized || _overflowEnabled != enabled) {
+		_overflow->setPointerCursor(enabled);
+		_overflow->setAttribute(Qt::WA_TransparentForMouseEvents, !enabled);
+		if (enabled) {
+			_overflow->setDisabled(false);
+		} else {
+			_overflow->clearState();
+			_overflow->setDisabled(true);
+		}
+		_overflowEnabled = enabled;
+	}
+	_overflowStateInitialized = true;
+}
+
+ToolbarButton *Toolbar::buttonData(not_null<Ui::RippleButton*> button) {
 	for (auto &data : _buttons) {
-		if (data.widget.data() == button.get()) {
+		if (data.button == button.get()) {
 			return &data;
 		}
 	}
-	return nullptr;
+	return (_emoji.button == button.get()) ? &_emoji : nullptr;
 }
 
 } // namespace
@@ -551,6 +1252,7 @@ private:
 	std::shared_ptr<State> _state;
 	RichPage _initialPage;
 	object_ptr<Ui::RpWidget> _top = { nullptr };
+	object_ptr<Ui::RpWidget> _bottom = { nullptr };
 	object_ptr<Ui::ScrollArea> _scroll = { nullptr };
 	QPointer<Widget> _editor;
 	object_ptr<Toolbar> _toolbar = { nullptr };
@@ -604,6 +1306,10 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 	_top->paintRequest() | rpl::on_next([=](QRect clip) {
 		QPainter(_top.data()).fillRect(clip, st::windowBg);
 	}, _top->lifetime());
+	_bottom = object_ptr<Ui::RpWidget>(window->body().get());
+	_bottom->paintRequest() | rpl::on_next([=](QRect clip) {
+		QPainter(_bottom.data()).fillRect(clip, st::windowBg);
+	}, _bottom->lifetime());
 
 	_scroll = object_ptr<Ui::ScrollArea>(window->body().get(), st::boxScroll);
 	_editor = _scroll->setOwnedWidget(object_ptr<Widget>(
@@ -636,7 +1342,7 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 			_emojiPanel->toggleAnimated();
 		});
 	_cancel = object_ptr<Ui::RoundButton>(
-		_top.data(),
+		_bottom.data(),
 		tr::lng_cancel(),
 		st::ivEditorCancelButton);
 	_cancel->setClickedCallback([=] {
@@ -645,7 +1351,7 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 		}
 	});
 	_submit = object_ptr<Ui::RoundButton>(
-		_top.data(),
+		_bottom.data(),
 		rpl::single(SubmitText(descriptor)),
 		st::ivEditorSubmitButton);
 	_submit->setClickedCallback([=] { submit(); });
@@ -694,6 +1400,7 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 
 	layout();
 	_top->show();
+	_bottom->show();
 	_scroll->show();
 	window->show();
 	editor->activateInitialNode();
@@ -775,38 +1482,35 @@ void WindowHost::Impl::setupEmojiPanel(const ShowWindowDescriptor &descriptor) {
 }
 
 void WindowHost::Impl::layout() {
-	if (!_window || !_top || !_toolbar || !_editor) {
+	if (!_window || !_top || !_bottom || !_toolbar || !_editor) {
 		return;
 	}
 	const auto width = _window->body()->width();
 	const auto height = _window->body()->height();
-	const auto padding = st::ivEditorTopControlsPadding;
-	const auto buttonsWidth = _cancel->width()
-		+ st::ivEditorTopControlsButtonSkip
-		+ _submit->width();
-	const auto toolbarWidth = std::max(
-		width
-			- padding.right()
-			- buttonsWidth
-			- st::ivEditorTopControlsContentSkip,
-		0);
-	const auto toolbarHeight = _toolbar->resizeGetHeight(toolbarWidth);
+	const auto padding = st::ivEditorBottomControlsPadding;
+	const auto toolbarHeight = _toolbar->resizeGetHeight(width);
 	const auto buttonsHeight = std::max(_cancel->height(), _submit->height());
-	const auto topHeight = std::max(
-		toolbarHeight,
-		padding.top() + buttonsHeight + padding.bottom());
-	const auto buttonsTop = padding.top()
-		+ (topHeight - padding.top() - padding.bottom() - buttonsHeight) / 2;
-	_top->setGeometry(0, 0, width, topHeight);
-	_toolbar->setGeometry(0, 0, toolbarWidth, toolbarHeight);
+	const auto bottomHeight = padding.top() + buttonsHeight + padding.bottom();
+	const auto buttonsTop = padding.top();
+	_top->setGeometry(0, 0, width, toolbarHeight);
+	_toolbar->setGeometry(0, 0, width, toolbarHeight);
+	_bottom->setGeometry(
+		0,
+		std::max(height - bottomHeight, toolbarHeight),
+		width,
+		bottomHeight);
 	_submit->moveToRight(padding.right(), buttonsTop, width);
 	_cancel->moveToRight(
 		padding.right()
 			+ _submit->width()
-			+ st::ivEditorTopControlsButtonSkip,
+			+ st::ivEditorBottomControlsButtonSkip,
 		buttonsTop,
 		width);
-	_scroll->setGeometry(0, topHeight, width, std::max(height - topHeight, 0));
+	_scroll->setGeometry(
+		0,
+		toolbarHeight,
+		width,
+		std::max(height - toolbarHeight - bottomHeight, 0));
 	_editor->resizeToWidth(std::max(_scroll->width(), 1));
 	updateEditorVisibleTopBottom();
 	updateEmojiPanelGeometry();

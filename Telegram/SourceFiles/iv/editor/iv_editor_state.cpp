@@ -6,6 +6,8 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "iv/editor/iv_editor_state.h"
+#include "iv/editor/iv_editor_text_entities.h"
+#include "ui/widgets/fields/input_field.h"
 
 #include <algorithm>
 #include <limits>
@@ -46,6 +48,13 @@ using TableCell = RichPage::TableCell;
 using TableRow = RichPage::TableRow;
 using TaskState = RichPage::TaskState;
 using TextNodeDescriptor = State::TextNodeDescriptor;
+using TextFormattingAction = State::TextFormattingAction;
+using TextNodeSpan = State::TextNodeSpan;
+
+struct TextRange {
+	int offset = 0;
+	int length = 0;
+};
 
 constexpr auto kMaxRichTextNodeLength = 16000;
 constexpr auto kMaxCommittedFieldLength = 256 * 1024;
@@ -83,6 +92,302 @@ constexpr auto kMaxCommittedFieldLength = 256 * 1024;
 	before.append(std::move(selected));
 	before.append(std::move(after));
 	return before;
+}
+
+[[nodiscard]] bool RangeInsideText(
+		const QString &text,
+		int offset,
+		int length) {
+	return (offset >= 0)
+		&& (length >= 0)
+		&& (offset <= text.size())
+		&& ((offset + length) <= text.size());
+}
+
+[[nodiscard]] const QString *FormattingActionTag(
+		TextFormattingAction action) {
+	switch (action) {
+	case TextFormattingAction::Bold:
+		return &Ui::InputField::kTagBold;
+	case TextFormattingAction::Italic:
+		return &Ui::InputField::kTagItalic;
+	case TextFormattingAction::Underline:
+		return &Ui::InputField::kTagUnderline;
+	case TextFormattingAction::StrikeOut:
+		return &Ui::InputField::kTagStrikeOut;
+	case TextFormattingAction::Spoiler:
+		return &Ui::InputField::kTagSpoiler;
+	case TextFormattingAction::PlainText:
+		return nullptr;
+	}
+	return nullptr;
+}
+
+[[nodiscard]] QString TagWithoutInstantViewMath(QStringView tag) {
+	return TextUtilities::TagWithRemoved(
+		tag.toString(),
+		Ui::InputField::kTagIvMath);
+}
+
+[[nodiscard]] QString TagWithAddedDroppingMath(
+		const QString &tag,
+		const QString &added) {
+	if (added == Ui::InputField::kTagIvMath) {
+		return Ui::InputField::kTagIvMath;
+	}
+	return TextUtilities::TagWithAdded(
+		TagWithoutInstantViewMath(tag),
+		added);
+}
+
+void SortTags(TextWithTags::Tags *tags) {
+	std::sort(tags->begin(), tags->end(), [](const auto &a, const auto &b) {
+		if (a.offset != b.offset) {
+			return a.offset < b.offset;
+		} else if (a.length != b.length) {
+			return a.length < b.length;
+		}
+		return a.id < b.id;
+	});
+}
+
+[[nodiscard]] bool TagContains(QStringView tags, QStringView tagId) {
+	return TextUtilities::SplitTags(tags).contains(tagId);
+}
+
+[[nodiscard]] bool HasFullTextTag(
+		const TextWithTags &textWithTags,
+		const QString &tag) {
+	if (tag.isEmpty() || textWithTags.text.isEmpty()) {
+		return false;
+	}
+	auto ranges = std::vector<TextRange>();
+	ranges.reserve(textWithTags.tags.size());
+	for (const auto &existing : textWithTags.tags) {
+		if (existing.length <= 0
+			|| !RangeInsideText(
+				textWithTags.text,
+				existing.offset,
+				existing.length)
+			|| !TagContains(existing.id, tag)) {
+			continue;
+		}
+		ranges.push_back({
+			.offset = existing.offset,
+			.length = existing.length,
+		});
+	}
+	if (ranges.empty()) {
+		return false;
+	}
+	std::sort(ranges.begin(), ranges.end(), [](const auto &a, const auto &b) {
+		if (a.offset != b.offset) {
+			return a.offset < b.offset;
+		}
+		return a.length < b.length;
+	});
+	auto coveredTill = 0;
+	for (const auto &range : ranges) {
+		if (range.offset > coveredTill) {
+			return false;
+		}
+		coveredTill = std::max(coveredTill, range.offset + range.length);
+		if (coveredTill >= textWithTags.text.size()) {
+			return true;
+		}
+	}
+	return (coveredTill >= textWithTags.text.size());
+}
+
+void OverlayTag(
+		TextWithTags::Tags *tags,
+		const TextWithTags::Tag &overlay,
+		const QString &text) {
+	if (overlay.id.isEmpty()
+		|| overlay.length <= 0
+		|| !RangeInsideText(text, overlay.offset, overlay.length)) {
+		return;
+	}
+	const auto from = overlay.offset;
+	const auto till = from + overlay.length;
+	auto coveredTill = from;
+	auto result = TextWithTags::Tags();
+	result.reserve(tags->size() + 3);
+
+	for (const auto &tag : *tags) {
+		const auto tagFrom = tag.offset;
+		const auto tagTill = tag.offset + tag.length;
+		if (tagTill <= from) {
+			result.push_back(tag);
+			continue;
+		} else if (tagFrom >= till) {
+			if (coveredTill < till) {
+				result.push_back({
+					.offset = coveredTill,
+					.length = till - coveredTill,
+					.id = overlay.id,
+				});
+				coveredTill = till;
+			}
+			result.push_back(tag);
+			continue;
+		}
+		if (tagFrom > coveredTill) {
+			result.push_back({
+				.offset = coveredTill,
+				.length = tagFrom - coveredTill,
+				.id = overlay.id,
+			});
+			coveredTill = tagFrom;
+		}
+		if (tagFrom < from) {
+			result.push_back({
+				.offset = tagFrom,
+				.length = from - tagFrom,
+				.id = tag.id,
+			});
+		}
+		const auto middleFrom = std::max(tagFrom, from);
+		const auto middleTill = std::min(tagTill, till);
+		if (middleFrom < middleTill) {
+			result.push_back({
+				.offset = middleFrom,
+				.length = middleTill - middleFrom,
+				.id = TagWithAddedDroppingMath(tag.id, overlay.id),
+			});
+			coveredTill = middleTill;
+		}
+		if (tagTill > till) {
+			result.push_back({
+				.offset = till,
+				.length = tagTill - till,
+				.id = tag.id,
+			});
+		}
+	}
+	if (coveredTill < till) {
+		result.push_back({
+			.offset = coveredTill,
+			.length = till - coveredTill,
+			.id = overlay.id,
+		});
+	}
+	SortTags(&result);
+	*tags = TextUtilities::SimplifyTags(std::move(result));
+}
+
+void RemoveTagFromSelection(
+		TextWithTags::Tags *tags,
+		const QString &tag) {
+	auto result = TextWithTags::Tags();
+	result.reserve(tags->size());
+	for (const auto &existing : *tags) {
+		const auto updated = TextUtilities::TagWithRemoved(existing.id, tag);
+		if (!updated.isEmpty()) {
+			result.push_back({
+				.offset = existing.offset,
+				.length = existing.length,
+				.id = updated,
+			});
+		}
+	}
+	*tags = std::move(result);
+}
+
+[[nodiscard]] bool SplitTextSpan(
+		const TextWithEntities &text,
+		int from,
+		int till,
+		TextWithEntities *before,
+		TextWithEntities *selected,
+		TextWithEntities *after) {
+	if (!before || !selected || !after) {
+		return false;
+	}
+	const auto textSize = int(text.text.size());
+	from = std::clamp(from, 0, textSize);
+	till = std::clamp(till, from, textSize);
+	if (from >= till) {
+		return false;
+	}
+	auto left = text;
+	*before = TextWithEntities();
+	if (from > 0
+		&& !TextUtilities::CutPart(*before, left, from)) {
+		return false;
+	}
+	if (!TextUtilities::CutPart(*selected, left, till - from)
+		|| selected->text.isEmpty()) {
+		return false;
+	}
+	*after = std::move(left);
+	return true;
+}
+
+[[nodiscard]] bool MediaBlockSupportsSpoiler(const Block &block) {
+	switch (block.kind) {
+	case BlockKind::Photo:
+	case BlockKind::Video:
+	case BlockKind::Audio:
+	case BlockKind::Map:
+		return true;
+	case BlockKind::GroupedMedia:
+		return ranges::any_of(
+			block.mediaItems,
+			[](const RichPage::GroupedMediaItem &item) {
+				return (item.kind == BlockKind::Photo)
+					|| (item.kind == BlockKind::Video)
+					|| (item.kind == BlockKind::Audio)
+					|| (item.kind == BlockKind::Map);
+			});
+	default:
+		return false;
+	}
+}
+
+[[nodiscard]] bool MediaBlockHasSpoiler(const Block &block) {
+	if (block.kind == BlockKind::GroupedMedia) {
+		auto any = false;
+		for (const auto &item : block.mediaItems) {
+			if ((item.kind != BlockKind::Photo)
+				&& (item.kind != BlockKind::Video)
+				&& (item.kind != BlockKind::Audio)
+				&& (item.kind != BlockKind::Map)) {
+				continue;
+			}
+			any = true;
+			if (!item.spoiler) {
+				return false;
+			}
+		}
+		return any;
+	}
+	return block.spoiler;
+}
+
+bool SetMediaBlockSpoiler(Block *block, bool enabled) {
+	if (!block || !MediaBlockSupportsSpoiler(*block)) {
+		return false;
+	} else if (block->kind == BlockKind::GroupedMedia) {
+		auto changed = false;
+		for (auto &item : block->mediaItems) {
+			if ((item.kind != BlockKind::Photo)
+				&& (item.kind != BlockKind::Video)
+				&& (item.kind != BlockKind::Audio)
+				&& (item.kind != BlockKind::Map)) {
+				continue;
+			}
+			if (item.spoiler != enabled) {
+				item.spoiler = enabled;
+				changed = true;
+			}
+		}
+		return changed;
+	} else if (block->spoiler != enabled) {
+		block->spoiler = enabled;
+		return true;
+	}
+	return false;
 }
 
 [[nodiscard]] BlockContainerPath BlockChildrenContainer(BlockPath path) {
@@ -1102,6 +1407,144 @@ ApplyResult State::applyActiveRawTextWithLocalLimit(QString text) {
 	return applyActiveRawTextUnchecked(chunks.empty()
 		? QString()
 		: std::move(chunks.front().text));
+}
+
+State::ApplyResult State::applyFormattingToTextSpans(
+		const std::vector<TextNodeSpan> &spans,
+		TextFormattingAction action,
+		std::optional<bool> enabled) {
+	if (spans.empty()) {
+		return ApplyResult::Unchanged;
+	}
+	return applyCheckedMutation(ApplyResult::Failed, [
+		spans,
+		action,
+		enabled
+	](State &candidate) {
+		const auto tag = FormattingActionTag(action);
+		const auto shouldEnable = enabled.value_or([&] {
+			if (!tag) {
+				return false;
+			}
+			auto any = false;
+			for (const auto &span : spans) {
+				const auto current = candidate.richText(span.leaf);
+				if (!current) {
+					continue;
+				}
+				auto before = TextWithEntities();
+				auto selected = TextWithEntities();
+				auto after = TextWithEntities();
+				if (!SplitTextSpan(
+						current->text,
+						span.from,
+						span.till,
+						&before,
+						&selected,
+						&after)) {
+					continue;
+				}
+				any = true;
+				if (!HasFullTextTag(
+						ConvertRichTextToEditorTags(std::move(selected)).text,
+						*tag)) {
+					return true;
+				}
+			}
+			return any ? false : true;
+		}());
+		auto changed = false;
+		for (const auto &span : spans) {
+			const auto current = candidate.richText(span.leaf);
+			if (!current) {
+				continue;
+			}
+			auto before = TextWithEntities();
+			auto selected = TextWithEntities();
+			auto after = TextWithEntities();
+			if (!SplitTextSpan(
+					current->text,
+					span.from,
+					span.till,
+					&before,
+					&selected,
+					&after)) {
+				continue;
+			}
+			auto converted = ConvertRichTextToEditorTags(std::move(selected));
+			if (action == TextFormattingAction::PlainText) {
+				converted.text.tags.clear();
+			} else if (tag) {
+				if (shouldEnable) {
+					OverlayTag(
+						&converted.text.tags,
+						{
+							.offset = 0,
+							.length = int(converted.text.text.size()),
+							.id = *tag,
+						},
+						converted.text.text);
+				} else {
+					RemoveTagFromSelection(&converted.text.tags, *tag);
+				}
+			}
+			auto updated = JoinText(
+				std::move(before),
+				ConvertEditorTagsToRichText(std::move(converted.text)),
+				std::move(after));
+			if (current->text != updated) {
+				current->text = std::move(updated);
+				changed = true;
+			}
+		}
+		if (!changed) {
+			return CheckedMutationResult<ApplyResult>{
+				.result = ApplyResult::Unchanged,
+			};
+		}
+		candidate.rebuild();
+		return CheckedMutationResult<ApplyResult>{
+			.apply = true,
+			.result = ApplyResult::Changed,
+		};
+	});
+}
+
+bool State::toggleSpoilerOnBlocks(
+		const std::vector<BlockPath> &blocks,
+		std::optional<bool> enabled) {
+	if (blocks.empty()) {
+		return false;
+	}
+	return applyCheckedMutation(false, [blocks, enabled](State &candidate) {
+		const auto shouldEnable = enabled.value_or([&] {
+			auto any = false;
+			for (const auto &path : blocks) {
+				const auto current = candidate.block(path);
+				if (!current || !MediaBlockSupportsSpoiler(*current)) {
+					continue;
+				}
+				any = true;
+				if (!MediaBlockHasSpoiler(*current)) {
+					return true;
+				}
+			}
+			return any ? false : true;
+		}());
+		auto changed = false;
+		for (const auto &path : blocks) {
+			const auto current = candidate.block(path);
+			changed |= SetMediaBlockSpoiler(current, shouldEnable);
+		}
+		if (!changed) {
+			return CheckedMutationResult<bool>{ .result = false };
+		}
+		candidate.rebuild();
+		return CheckedMutationResult<bool>{
+			.apply = true,
+			.result = true,
+		};
+	});
 }
 
 ApplyResult State::applySplitParagraphText(

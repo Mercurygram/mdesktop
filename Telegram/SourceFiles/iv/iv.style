@@ -83,16 +83,37 @@ ivEditorWindowMinSize: size(384px, 480px);
 ivEditorWindowDefaultSize: size(800px, 600px);
 ivEditorBodyPadding: margins(0px, 8px, 0px, 8px);
 ivEditorToolbarButtonSize: 36px;
-ivEditorTopControlsPadding: margins(8px, defaultVerticalListSkip, 8px, defaultVerticalListSkip);
-ivEditorTopControlsButtonSkip: 6px;
-ivEditorTopControlsContentSkip: 8px;
+ivEditorToolbarPadding: margins(8px, defaultVerticalListSkip, 8px, defaultVerticalListSkip);
+ivEditorToolbarButtonSkip: 6px;
+ivEditorToolbarDividerSkip: 6px;
+ivEditorToolbarDividerHeight: 18px;
+ivEditorToolbarEmojiSkip: 8px;
+ivEditorBottomControlsPadding: margins(8px, defaultVerticalListSkip, 8px, defaultVerticalListSkip);
+ivEditorBottomControlsButtonSkip: 6px;
 ivEditorSubmitButton: RoundButton(defaultActiveButton) {
 	height: ivEditorToolbarButtonSize;
 }
 ivEditorCancelButton: RoundButton(defaultLightButton) {
 	height: ivEditorToolbarButtonSize;
 }
-ivEditorToolbarPadding: margins(8px, defaultVerticalListSkip, 8px, defaultVerticalListSkip);
+ivEditorToolbarUndoIcon: icon {{ "photo_editor/undo", menuIconColor }};
+ivEditorToolbarUndoIconOver: icon {{ "photo_editor/undo", menuIconColor }};
+ivEditorToolbarUndoIconDisabled: icon {{ "photo_editor/undo", windowSubTextFg }};
+ivEditorToolbarRedoIcon: icon {{ "photo_editor/undo-flip_horizontal", menuIconColor }};
+ivEditorToolbarRedoIconOver: icon {{ "photo_editor/undo-flip_horizontal", menuIconColor }};
+ivEditorToolbarRedoIconDisabled: icon {{ "photo_editor/undo-flip_horizontal", windowSubTextFg }};
+ivEditorToolbarOverflowIcon: icon {{ "title_menu_dots", menuIconColor, point(0px, -2px) }};
+ivEditorToolbarOverflowIconOver: icon {{ "title_menu_dots", menuIconColor, point(0px, -2px) }};
+ivEditorToolbarBoldIcon: icon {{ "menu/rich/bold-24x24", menuIconColor }};
+ivEditorToolbarItalicIcon: icon {{ "menu/rich/italic-24x24", menuIconColor }};
+ivEditorToolbarUnderlineIcon: icon {{ "menu/rich/underline-24x24", menuIconColor }};
+ivEditorToolbarStrikeOutIcon: icon {{ "menu/rich/strikeout-24x24", menuIconColor }};
+ivEditorToolbarSpoilerIcon: icon {{ "menu/rich/spoiler-24x24", menuIconColor }};
+ivEditorToolbarSubscriptIcon: icon {{ "menu/rich/subscript-24x24", menuIconColor }};
+ivEditorToolbarSuperscriptIcon: icon {{ "menu/rich/superscript-24x24", menuIconColor }};
+ivEditorToolbarMarkedIcon: icon {{ "menu/rich/marked-24x24", menuIconColor }};
+ivEditorToolbarPlainTextIcon: icon {{ "menu/rich/plain_text-24x24", menuIconColor }};
+ivEditorToolbarLinkIcon: icon {{ "menu/rich/link-24x24", menuIconColor }};
 ivEditorToolbarButton: IconButton(defaultIconButton) {
 	width: ivEditorToolbarButtonSize;
 	height: ivEditorToolbarButtonSize;
@@ -101,21 +122,30 @@ ivEditorToolbarButton: IconButton(defaultIconButton) {
 	rippleAreaSize: ivEditorToolbarButtonSize;
 	ripple: defaultRippleAnimationBgOver;
 }
-ivEditorToolbarButtonSkip: 6px;
-ivEditorToolbarRowSkip: 0px;
+ivEditorToolbarOverflowButton: IconButton(ivEditorToolbarButton) {
+	icon: ivEditorToolbarOverflowIcon;
+	iconOver: ivEditorToolbarOverflowIconOver;
+}
 ivEditorToolbarHeadingIcon: icon {{ "menu/rich/heading-24x24", menuIconColor }};
-ivEditorToolbarEmojiIcon: icon {{ "chat/input_smile_face", menuIconColor }};
+ivEditorToolbarHeading1Icon: icon {{ "menu/rich/heading1-24x24", menuIconColor }};
+ivEditorToolbarHeading2Icon: icon {{ "menu/rich/heading2-24x24", menuIconColor }};
+ivEditorToolbarHeading3Icon: icon {{ "menu/rich/heading3-24x24", menuIconColor }};
+ivEditorToolbarHeading4Icon: icon {{ "menu/rich/heading4-24x24", menuIconColor }};
+ivEditorToolbarHeading5Icon: icon {{ "menu/rich/heading5-24x24", menuIconColor }};
+ivEditorToolbarHeading6Icon: icon {{ "menu/rich/heading6-24x24", menuIconColor }};
+ivEditorToolbarEmojiIcon: icon {{ "menu/rich/emoji-24x24", menuIconColor }};
 ivEditorToolbarBlockquoteIcon: icon {{ "menu/rich/blockquote-24x24", menuIconColor }};
-ivEditorToolbarCodeIcon: icon {{ "chat/code_tags", menuIconColor }};
+ivEditorToolbarCodeIcon: icon {{ "menu/rich/code-24x24", menuIconColor }};
 ivEditorToolbarMathIcon: icon {{ "menu/rich/math-24x24", menuIconColor }};
 ivEditorToolbarDividerIcon: icon {{ "menu/rich/divider-24x24", menuIconColor }};
 ivEditorToolbarOrderedListIcon: icon {{ "menu/rich/ordered_list-24x24", menuIconColor }};
 ivEditorToolbarBulletListIcon: icon {{ "menu/rich/bullet_list-24x24", menuIconColor }};
 ivEditorToolbarTaskListIcon: icon {{ "menu/rich/task_list-24x24", menuIconColor }};
 ivEditorToolbarPullquoteIcon: icon {{ "menu/rich/pullquote-24x24", menuIconColor }};
-ivEditorToolbarAttachIcon: icon {{ "chat/input_attach", menuIconColor }};
+ivEditorToolbarAttachIcon: icon {{ "menu/rich/attach-24x24", menuIconColor }};
 ivEditorToolbarDetailsIcon: icon {{ "menu/rich/details-24x24", menuIconColor }};
 ivEditorToolbarTableIcon: icon {{ "menu/rich/table-24x24", menuIconColor }};
+ivEditorToolbarLocationIcon: icon {{ "menu/rich/location-24x24", menuIconColor }};
 ivEditorInlineFieldMargins: margins(4px, 0px, 6px, 0px);
 ivEditorMinHeight: boxWidth;
 ivEditorInputField: InputField(defaultInputField) {

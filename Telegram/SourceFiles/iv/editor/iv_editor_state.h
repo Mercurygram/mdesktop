@@ -328,6 +328,26 @@ public:
 		const Markdown::PreparedEditSelection &selection,
 		const ClipboardListItemsData &data,
 		std::optional<ActiveTextInsertContext> context = std::nullopt);
+	enum class TextFormattingAction : uchar {
+		Bold,
+		Italic,
+		Underline,
+		StrikeOut,
+		Spoiler,
+		PlainText,
+	};
+	struct TextNodeSpan {
+		LeafPath leaf;
+		int from = 0;
+		int till = 0;
+	};
+	[[nodiscard]] ApplyResult applyFormattingToTextSpans(
+		const std::vector<TextNodeSpan> &spans,
+		TextFormattingAction action,
+		std::optional<bool> enabled = std::nullopt);
+	[[nodiscard]] bool toggleSpoilerOnBlocks(
+		const std::vector<BlockPath> &blocks,
+		std::optional<bool> enabled = std::nullopt);
 
 private:
 	struct StructuralBlockRange {

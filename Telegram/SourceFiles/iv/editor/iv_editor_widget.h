@@ -17,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <rpl/event_stream.h>
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -85,6 +86,50 @@ public:
 	void insertBlockquote();
 	void insertEmoji(EmojiPtr emoji);
 	void insertCustomEmoji(not_null<DocumentData*> document);
+	enum class ToolbarFormatAction {
+		Undo,
+		Redo,
+		Bold,
+		Italic,
+		Underline,
+		StrikeOut,
+		Spoiler,
+		Subscript,
+		Superscript,
+		Marked,
+		PlainText,
+		Link,
+		Math,
+		Count,
+	};
+	enum class ToolbarLinkMode {
+		Create,
+		Edit,
+	};
+	struct ToolbarActionState {
+		bool shown = false;
+		bool enabled = false;
+		bool active = false;
+	};
+	struct ToolbarState {
+		[[nodiscard]] const ToolbarActionState &operator[](
+				ToolbarFormatAction action) const {
+			return actions[int(action)];
+		}
+		[[nodiscard]] ToolbarActionState &operator[](
+				ToolbarFormatAction action) {
+			return actions[int(action)];
+		}
+
+		ToolbarLinkMode linkMode = ToolbarLinkMode::Create;
+		std::array<ToolbarActionState, int(ToolbarFormatAction::Count)>
+			actions = {};
+	};
+	[[nodiscard]] ToolbarState toolbarStateValue() const;
+	[[nodiscard]] rpl::producer<ToolbarState> toolbarStateChanges() const;
+	void performToolbarUndoRedo(bool redo);
+	void applyToolbarFormatAction(ToolbarFormatAction action);
+	void editLinkFromToolbar();
 	void setInlineFieldExternalInteractionActive(bool active);
 
 	int resizeGetHeight(int newWidth) override;
@@ -331,6 +376,11 @@ private:
 	[[nodiscard]] bool handleSelectAllShortcut(QKeyEvent *e);
 	[[nodiscard]] bool performFieldUndoRedo(bool redo);
 	void performUndoRedo(bool redo, bool allowFieldLocal = true);
+	void notifyToolbarStateChanged();
+	[[nodiscard]] bool inlineToolbarModeActive() const;
+	[[nodiscard]] ToolbarLinkMode toolbarLinkMode() const;
+	[[nodiscard]] ToolbarActionState toolbarActionState(
+		ToolbarFormatAction action) const;
 	void clearFieldUndoRedoNoopState();
 	void retainActiveLeafField();
 	[[nodiscard]] base::unique_qptr<Ui::InputField> reviveRetainedLeafField(
@@ -360,6 +410,11 @@ private:
 	void setStructuralSelection(
 		Markdown::PreparedEditSelection selection,
 		std::optional<BoundarySelectionOrigin> origin = std::nullopt);
+	[[nodiscard]] bool broaderSelectionHasSelectedText() const;
+	[[nodiscard]] std::vector<State::TextNodeSpan>
+	broaderSelectionTextSpans() const;
+	[[nodiscard]] std::vector<State::BlockPath>
+	broaderSelectionMediaBlocks() const;
 	[[nodiscard]] bool hasStructuralSelection() const;
 	void startArticleSelection(
 		QPoint pressPoint,
@@ -416,6 +471,7 @@ private:
 	std::shared_ptr<style::Markdown> _articleStyle;
 	std::shared_ptr<Markdown::MarkdownArticle> _article;
 	base::unique_qptr<Ui::InputField> _field;
+	rpl::event_stream<ToolbarState> _toolbarStateChanges;
 	std::unique_ptr<Ui::ChatTheme> _theme;
 	std::unique_ptr<Ui::ChatStyle> _style;
 	std::vector<Ui::Text::SpecialColor> _highlightColors;
