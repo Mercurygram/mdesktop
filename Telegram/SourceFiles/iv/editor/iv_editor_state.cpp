@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "iv/editor/iv_editor_state.h"
 #include "iv/editor/iv_editor_text_entities.h"
+#include "ui/text/text_utilities.h"
 #include "ui/widgets/fields/input_field.h"
 
 #include <algorithm>
@@ -322,17 +323,12 @@ void RemoveTagFromSelection(
 	if (from >= till) {
 		return false;
 	}
-	auto left = text;
-	*before = TextWithEntities();
-	if (from > 0
-		&& !TextUtilities::CutPart(*before, left, from)) {
+	*before = Ui::Text::Mid(text, 0, from);
+	*selected = Ui::Text::Mid(text, from, till - from);
+	if (selected->text.isEmpty()) {
 		return false;
 	}
-	if (!TextUtilities::CutPart(*selected, left, till - from)
-		|| selected->text.isEmpty()) {
-		return false;
-	}
-	*after = std::move(left);
+	*after = Ui::Text::Mid(text, till);
 	return true;
 }
 
@@ -1522,12 +1518,27 @@ State::ApplyResult State::applyFormattingToTextSpans(
 					RemoveTagFromSelection(&converted.text.tags, *tag);
 				}
 			}
+			auto demotedHeading = false;
+			if (action == TextFormattingAction::PlainText
+				&& span.leaf.kind == LeafKind::BlockText
+				&& before.text.isEmpty()
+				&& after.text.isEmpty()) {
+				if (const auto owner = candidate.block(span.leaf.block);
+					owner && owner->kind == BlockKind::Heading) {
+					owner->kind = BlockKind::Paragraph;
+					owner->headingLevel = 0;
+					demotedHeading = true;
+				}
+			}
 			auto updated = JoinText(
 				std::move(before),
 				ConvertEditorTagsToRichText(std::move(converted.text)),
 				std::move(after));
 			if (current->text != updated) {
 				current->text = std::move(updated);
+				changed = true;
+			}
+			if (demotedHeading) {
 				changed = true;
 			}
 		}
@@ -4676,6 +4687,62 @@ bool State::replaceStructuralSelectionWithBlock(
 	candidate._activeTextOrdinal = _activeTextOrdinal;
 	candidate._lastLimitError = std::nullopt;
 	candidate._temporaryDownParagraph = _temporaryDownParagraph;
+	const auto structuralTextBlockConversion = [&]()
+	-> std::optional<LeafPath> {
+		const auto allowed = [](InsertBlockType type) {
+			switch (type) {
+			case InsertBlockType::Heading:
+			case InsertBlockType::Blockquote:
+			case InsertBlockType::Code:
+			case InsertBlockType::Pullquote:
+			case InsertBlockType::Details:
+				return true;
+			default:
+				return false;
+			}
+		};
+		if (selection.kind != PreparedEditSelectionKind::Blocks
+			|| !allowed(action.type)) {
+			return std::nullopt;
+		}
+		const auto range = candidate.validateBlockRange(selection.blocks);
+		if (!range || (range->from + 1 != range->till)) {
+			return std::nullopt;
+		}
+		const auto leaf = LeafPath{
+			.kind = LeafKind::BlockText,
+			.block = {
+				.container = range->container,
+				.index = range->from,
+			},
+		};
+		const auto owner = candidate.block(leaf.block);
+		if (!owner
+			|| ((owner->kind != BlockKind::Paragraph)
+				&& (owner->kind != BlockKind::Heading))
+			|| (candidate.textNodeOrdinal(leaf) < 0)) {
+			return std::nullopt;
+		}
+		return leaf;
+	};
+	if (const auto leaf = structuralTextBlockConversion()) {
+		const auto ordinal = candidate.textNodeOrdinal(*leaf);
+		const auto owner = candidate.block(leaf->block);
+		if (!owner || !candidate.setActiveTextByOrdinal(ordinal)) {
+			_lastLimitError = candidate._lastLimitError;
+			return false;
+		}
+		if (!candidate.insertBlockAfterActive(action, ActiveTextInsertContext{
+				.before = {},
+				.selected = owner->text.text,
+				.after = {},
+			})) {
+			_lastLimitError = candidate._lastLimitError;
+			return false;
+		}
+		commitCheckedMutation(std::move(candidate));
+		return true;
+	}
 	if (!candidate.removeStructuralSelection(selection, true)) {
 		_lastLimitError = candidate._lastLimitError;
 		return false;

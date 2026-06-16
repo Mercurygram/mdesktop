@@ -311,6 +311,8 @@ private:
 	};
 	[[nodiscard]] std::optional<State::ActiveTextInsertContext>
 	activeTextInsertContext() const;
+	[[nodiscard]] std::optional<State::TextNodeSpan>
+	visibleFullHeadingFieldTextSpan() const;
 	[[nodiscard]] std::optional<MathEditRequest> activeMathEditRequest() const;
 	[[nodiscard]] int richOffsetForFieldOffset(
 		const TextWithEntities &text,
@@ -357,7 +359,8 @@ private:
 	void updateInlineFieldHeightOverride();
 	void showMathEditBox(MathEditRequest request);
 	void clearDisplayMathEditSession();
-	void clearInlineFieldEditSession();
+	void clearInlineFieldEditSession(
+		bool keepRetainedFieldOnCurrentHistoryEntry = false);
 	[[nodiscard]] HistoryViewState captureHistoryViewState() const;
 	[[nodiscard]] HistoryEntry captureHistoryEntry() const;
 	void restoreHistoryEntry(const HistoryEntry &entry);
@@ -400,7 +403,8 @@ private:
 	[[nodiscard]] ToolbarActionState toolbarActionState(
 		ToolbarFormatAction action) const;
 	void clearFieldUndoRedoNoopState();
-	void retainActiveLeafField();
+	void retainActiveLeafField(
+		bool keepRetainedFieldOnCurrentHistoryEntry = false);
 	[[nodiscard]] base::unique_qptr<Ui::InputField> reviveRetainedLeafField(
 		int historyIndex,
 		const State::LeafPath &leaf,

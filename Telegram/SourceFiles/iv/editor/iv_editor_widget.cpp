@@ -28,6 +28,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/layers/generic_box.h"
 #include "ui/painter.h"
 #include "ui/text/text_entity.h"
+#include "ui/text/text_utilities.h"
 #include "ui/ui_utility.h"
 #include "ui/widgets/elastic_scroll.h"
 #include "ui/widgets/checkbox.h"
@@ -257,17 +258,12 @@ struct TextRange {
 	if (from >= till) {
 		return false;
 	}
-	auto left = text;
-	*before = TextWithEntities();
-	if (from > 0
-		&& !TextUtilities::CutPart(*before, left, from)) {
+	*before = Ui::Text::Mid(text, 0, from);
+	*selected = Ui::Text::Mid(text, from, till - from);
+	if (selected->text.isEmpty()) {
 		return false;
 	}
-	if (!TextUtilities::CutPart(*selected, left, till - from)
-		|| selected->text.isEmpty()) {
-		return false;
-	}
-	*after = std::move(left);
+	*after = Ui::Text::Mid(text, till);
 	return true;
 }
 
@@ -1184,6 +1180,27 @@ struct NormalizedIntegerRange {
 	};
 }
 
+[[nodiscard]] bool SingleRootPlainTextFieldSelectAllPassthrough(
+		const RichPage &page,
+		const std::optional<StateLeafPath> &leaf,
+		bool fieldHidden) {
+	if (fieldHidden
+		|| !leaf
+		|| (page.blocks.size() != 1)
+		|| (leaf->kind != StateLeafKind::BlockText)
+		|| !leaf->block.container.steps.empty()
+		|| (leaf->block.index != 0)) {
+		return false;
+	}
+	switch (page.blocks[0].kind) {
+	case RichPage::BlockKind::Paragraph:
+	case RichPage::BlockKind::Heading:
+		return true;
+	default:
+		return false;
+	}
+}
+
 [[nodiscard]] int CompareIntegers(int a, int b) {
 	return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
@@ -1888,6 +1905,17 @@ void Widget::syncInlineFieldGeometry() {
 void Widget::insertBlock(State::InsertAction action) {
 	recordMutationTransaction([&] {
 		const auto context = activeTextInsertContext();
+		const auto restoreField = context.has_value();
+		const auto restoreLeaf = restoreField
+			? _fieldLeaf
+			: std::optional<State::LeafPath>();
+		const auto restoreStyleKey = restoreField
+			? _activeFieldStyleKey
+			: std::optional<InlineFieldStyleKey>();
+		const auto restoreMode = _fieldMode;
+		const auto restoreSelection = restoreField
+			? captureHistoryViewState().leafSelection
+			: std::optional<HistoryLeafSelection>();
 		auto committed = ApplyResult::Unchanged;
 		if (!context && !_field->isHidden()) {
 			committed = commitInlineField();
@@ -1899,17 +1927,43 @@ void Widget::insertBlock(State::InsertAction action) {
 			}
 		}
 		const auto hadStructuralSelection = hasStructuralSelection();
-		const auto restoreField = context.has_value();
 		if (hadStructuralSelection || restoreField) {
 			_pendingOrdinal = -1;
 			_pendingCursorOffset = 0;
 			hideInlineField();
-			clearInlineFieldEditSession();
+			clearInlineFieldEditSession(restoreField);
 		}
 		auto restore = restoreField;
 		const auto restoreInlineField = gsl::finally([&] {
 			if (!restore) {
 				return;
+			}
+			if (restoreLeaf && restoreStyleKey) {
+				if (auto revived = reviveRetainedLeafField(
+						_historyIndex,
+						*restoreLeaf,
+						restoreMode,
+						*restoreStyleKey)) {
+					_field = std::move(revived);
+					_activeFieldStyleKey = restoreStyleKey;
+					_fieldMode = restoreMode;
+					_fieldLeaf = *restoreLeaf;
+					refreshInlineFieldPlaceholder();
+					_fieldUndoAvailable = _field->isUndoAvailable();
+					_fieldRedoAvailable = _field->isRedoAvailable();
+					clearFieldUndoRedoNoopState();
+				}
+			}
+			if (!_fieldLeaf && restoreSelection) {
+				const auto ordinal = _state->textOrdinalForLeafPath(
+					restoreSelection->leaf);
+				if (ordinal >= 0) {
+					activateTextOrdinal(
+						ordinal,
+						restoreSelection->anchorOffset,
+						restoreSelection->cursorOffset);
+					return;
+				}
 			}
 			_field->show();
 			syncInlineFieldGeometry();
@@ -1918,6 +1972,7 @@ void Widget::insertBlock(State::InsertAction action) {
 			revealActiveInlineField();
 			_field->raise();
 			_field->setFocusFast();
+			notifyToolbarStateChanged();
 		});
 		const auto applied = hadStructuralSelection
 			? _state->replaceStructuralSelectionWithBlock(
@@ -1957,6 +2012,17 @@ void Widget::insertPreparedBlocks(std::vector<RichPage::Block> blocks) {
 	}
 	recordMutationTransaction([&] {
 		const auto context = activeTextInsertContext();
+		const auto restoreField = context.has_value();
+		const auto restoreLeaf = restoreField
+			? _fieldLeaf
+			: std::optional<State::LeafPath>();
+		const auto restoreStyleKey = restoreField
+			? _activeFieldStyleKey
+			: std::optional<InlineFieldStyleKey>();
+		const auto restoreMode = _fieldMode;
+		const auto restoreSelection = restoreField
+			? captureHistoryViewState().leafSelection
+			: std::optional<HistoryLeafSelection>();
 		auto committed = ApplyResult::Unchanged;
 		if (!context && !_field->isHidden()) {
 			committed = commitInlineField();
@@ -1968,17 +2034,43 @@ void Widget::insertPreparedBlocks(std::vector<RichPage::Block> blocks) {
 			}
 		}
 		const auto hadStructuralSelection = hasStructuralSelection();
-		const auto restoreField = context.has_value();
 		if (hadStructuralSelection || restoreField) {
 			_pendingOrdinal = -1;
 			_pendingCursorOffset = 0;
 			hideInlineField();
-			clearInlineFieldEditSession();
+			clearInlineFieldEditSession(restoreField);
 		}
 		auto restore = restoreField;
 		const auto restoreInlineField = gsl::finally([&] {
 			if (!restore) {
 				return;
+			}
+			if (restoreLeaf && restoreStyleKey) {
+				if (auto revived = reviveRetainedLeafField(
+						_historyIndex,
+						*restoreLeaf,
+						restoreMode,
+						*restoreStyleKey)) {
+					_field = std::move(revived);
+					_activeFieldStyleKey = restoreStyleKey;
+					_fieldMode = restoreMode;
+					_fieldLeaf = *restoreLeaf;
+					refreshInlineFieldPlaceholder();
+					_fieldUndoAvailable = _field->isUndoAvailable();
+					_fieldRedoAvailable = _field->isRedoAvailable();
+					clearFieldUndoRedoNoopState();
+				}
+			}
+			if (!_fieldLeaf && restoreSelection) {
+				const auto ordinal = _state->textOrdinalForLeafPath(
+					restoreSelection->leaf);
+				if (ordinal >= 0) {
+					activateTextOrdinal(
+						ordinal,
+						restoreSelection->anchorOffset,
+						restoreSelection->cursorOffset);
+					return;
+				}
 			}
 			_field->show();
 			syncInlineFieldGeometry();
@@ -1987,6 +2079,7 @@ void Widget::insertPreparedBlocks(std::vector<RichPage::Block> blocks) {
 			revealActiveInlineField();
 			_field->raise();
 			_field->setFocusFast();
+			notifyToolbarStateChanged();
 		});
 		const auto applied = hadStructuralSelection
 			? _state->replaceStructuralSelectionWithPreparedBlocks(
@@ -2061,6 +2154,17 @@ void Widget::pasteStructuredClipboardData(const ClipboardData &data) {
 	recordMutationTransaction([&] {
 		const auto context = ClipboardPasteInsertContext(
 			activeTextInsertContext());
+		const auto restoreField = context.has_value();
+		const auto restoreLeaf = restoreField
+			? _fieldLeaf
+			: std::optional<State::LeafPath>();
+		const auto restoreStyleKey = restoreField
+			? _activeFieldStyleKey
+			: std::optional<InlineFieldStyleKey>();
+		const auto restoreMode = _fieldMode;
+		const auto restoreSelection = restoreField
+			? captureHistoryViewState().leafSelection
+			: std::optional<HistoryLeafSelection>();
 		auto committed = ApplyResult::Unchanged;
 		if (!context && !_field->isHidden()) {
 			committed = commitInlineField();
@@ -2072,17 +2176,43 @@ void Widget::pasteStructuredClipboardData(const ClipboardData &data) {
 			}
 		}
 		const auto hadStructuralSelection = hasStructuralSelection();
-		const auto restoreField = context.has_value();
 		if (hadStructuralSelection || restoreField) {
 			_pendingOrdinal = -1;
 			_pendingCursorOffset = 0;
 			hideInlineField();
-			clearInlineFieldEditSession();
+			clearInlineFieldEditSession(restoreField);
 		}
 		auto restore = restoreField;
 		const auto restoreInlineField = gsl::finally([&] {
 			if (!restore) {
 				return;
+			}
+			if (restoreLeaf && restoreStyleKey) {
+				if (auto revived = reviveRetainedLeafField(
+						_historyIndex,
+						*restoreLeaf,
+						restoreMode,
+						*restoreStyleKey)) {
+					_field = std::move(revived);
+					_activeFieldStyleKey = restoreStyleKey;
+					_fieldMode = restoreMode;
+					_fieldLeaf = *restoreLeaf;
+					refreshInlineFieldPlaceholder();
+					_fieldUndoAvailable = _field->isUndoAvailable();
+					_fieldRedoAvailable = _field->isRedoAvailable();
+					clearFieldUndoRedoNoopState();
+				}
+			}
+			if (!_fieldLeaf && restoreSelection) {
+				const auto ordinal = _state->textOrdinalForLeafPath(
+					restoreSelection->leaf);
+				if (ordinal >= 0) {
+					activateTextOrdinal(
+						ordinal,
+						restoreSelection->anchorOffset,
+						restoreSelection->cursorOffset);
+					return;
+				}
 			}
 			_field->show();
 			syncInlineFieldGeometry();
@@ -2091,6 +2221,7 @@ void Widget::pasteStructuredClipboardData(const ClipboardData &data) {
 			revealActiveInlineField();
 			_field->raise();
 			_field->setFocusFast();
+			notifyToolbarStateChanged();
 		});
 		const auto applied = hadStructuralSelection
 			? (blocks
@@ -2265,6 +2396,12 @@ bool Widget::handleUndoRedoShortcut(QKeyEvent *e) {
 
 bool Widget::handleSelectAllShortcut(QKeyEvent *e) {
 	if (e != QKeySequence::SelectAll) {
+		return false;
+	}
+	if (SingleRootPlainTextFieldSelectAllPassthrough(
+			_state->richPage(),
+			_state->activeLeafPath(),
+			_field->isHidden())) {
 		return false;
 	}
 	if (!_field->isHidden()) {
@@ -2552,6 +2689,62 @@ void Widget::applyToolbarFormatAction(ToolbarFormatAction action) {
 	case ToolbarFormatAction::Marked:
 	case ToolbarFormatAction::PlainText:
 		break;
+	}
+	if (action == ToolbarFormatAction::PlainText) {
+		if (const auto fullHeadingSpan = visibleFullHeadingFieldTextSpan()) {
+			const auto full = ConvertEditorTagsToRichText(
+				_field->getTextWithAppliedMarkdown());
+			const auto cursor = _field->textCursor();
+			const auto length = int(full.text.size());
+			const auto restoreLeaf = fullHeadingSpan->leaf;
+			const auto restoreAnchorOffset = std::clamp(
+				richOffsetForFieldOffset(full, cursor.anchor()),
+				0,
+				length);
+			const auto restoreCursorOffset = std::clamp(
+				richOffsetForFieldOffset(full, cursor.position()),
+				0,
+				length);
+			recordMutationTransaction([&] {
+				const auto committed = commitInlineField();
+				if (committed == ApplyResult::Failed) {
+					return MutationTransactionResult{
+						.committed = committed,
+						.failed = true,
+					};
+				}
+				_pendingOrdinal = -1;
+				_pendingCursorOffset = 0;
+				hideInlineField();
+				clearInlineFieldEditSession();
+				const auto result = _state->applyFormattingToTextSpans(
+					{ *fullHeadingSpan },
+					TextFormattingAction::PlainText);
+				if (result == ApplyResult::Failed) {
+					return MutationTransactionResult{
+						.committed = committed,
+						.failed = true,
+					};
+				}
+				refreshPreparedContent();
+				const auto ordinal = _state->textOrdinalForLeafPath(restoreLeaf);
+				if (ordinal >= 0) {
+					activateTextOrdinal(
+						ordinal,
+						restoreAnchorOffset,
+						restoreCursorOffset);
+				} else {
+					setFocus();
+					notifyToolbarStateChanged();
+				}
+				return MutationTransactionResult{
+					.committed = committed,
+					.changed = (result == ApplyResult::Changed)
+						|| (committed == ApplyResult::Changed),
+				};
+			});
+			return;
+		}
 	}
 	if (inlineToolbarModeActive()) {
 		if (action == ToolbarFormatAction::PlainText) {
@@ -4418,28 +4611,59 @@ Widget::activeTextInsertContext() const {
 	const auto cursor = _field->textCursor();
 	auto from = richOffsetForFieldOffset(full, cursor.selectionStart());
 	auto till = richOffsetForFieldOffset(full, cursor.selectionEnd());
-	from = std::clamp(from, 0, int(full.text.size()));
-	till = std::clamp(till, from, int(full.text.size()));
-	auto before = TextWithEntities();
-	auto selected = TextWithEntities();
-	auto after = std::move(full);
-	if (from > 0) {
-		[[maybe_unused]] const auto cut = TextUtilities::CutPart(
-			before,
-			after,
-			from);
-	}
-	if (till > from) {
-		[[maybe_unused]] const auto cut = TextUtilities::CutPart(
-			selected,
-			after,
-			till - from);
-	}
+	const auto textSize = int(full.text.size());
+	from = std::clamp(from, 0, textSize);
+	till = std::clamp(till, from, textSize);
+	auto before = (from > 0)
+		? Ui::Text::Mid(full, 0, from)
+		: TextWithEntities();
+	auto selected = (till > from)
+		? Ui::Text::Mid(full, from, till - from)
+		: TextWithEntities();
+	auto after = (till < textSize)
+		? Ui::Text::Mid(full, till)
+		: TextWithEntities();
 	return State::ActiveTextInsertContext{
 		.before = std::move(before),
 		.selected = std::move(selected),
 		.after = std::move(after),
 	};
+}
+
+std::optional<State::TextNodeSpan>
+Widget::visibleFullHeadingFieldTextSpan() const {
+	if (_settingField
+		|| _field->isHidden()
+		|| (_activeSegmentIndex < 0)
+		|| (_state->activeFieldMode() == State::FieldMode::Raw)) {
+		return std::nullopt;
+	}
+	const auto leaf = _state->activeLeafPath();
+	if (!leaf || (leaf->kind != StateLeafKind::BlockText)) {
+		return std::nullopt;
+	}
+	const auto owner = BlockFromPath(_state->richPage(), leaf->block);
+	if (!owner || (owner->kind != RichPage::BlockKind::Heading)) {
+		return std::nullopt;
+	}
+	const auto full = ConvertEditorTagsToRichText(
+		_field->getTextWithAppliedMarkdown());
+	const auto cursor = _field->textCursor();
+	if (!cursor.hasSelection()) {
+		return std::nullopt;
+	}
+	const auto length = int(full.text.size());
+	auto from = richOffsetForFieldOffset(full, cursor.selectionStart());
+	auto till = richOffsetForFieldOffset(full, cursor.selectionEnd());
+	from = std::clamp(from, 0, length);
+	till = std::clamp(till, from, length);
+	return (from == 0) && (till == length)
+		? std::make_optional(TextNodeSpan{
+			.leaf = *leaf,
+			.from = 0,
+			.till = length,
+		})
+		: std::nullopt;
 }
 
 std::optional<Widget::MathEditRequest> Widget::activeMathEditRequest() const {
@@ -5144,7 +5368,8 @@ void Widget::clearDisplayMathEditSession() {
 	_activeDisplayMathBaselineHeight = 0;
 }
 
-void Widget::clearInlineFieldEditSession() {
+void Widget::clearInlineFieldEditSession(
+		bool keepRetainedFieldOnCurrentHistoryEntry) {
 	clearDisplayMathEditSession();
 	if (_article) {
 		_article->clearEditableHeightOverride();
@@ -5162,7 +5387,7 @@ void Widget::clearInlineFieldEditSession() {
 		recreateInlineField(*fieldStyle.style);
 		return;
 	}
-	retainActiveLeafField();
+	retainActiveLeafField(keepRetainedFieldOnCurrentHistoryEntry);
 	const auto &fieldStyle = inlineFieldStyleFor(
 		Markdown::MarkdownArticleTextLeafStyle());
 	_activeFieldStyleKey = fieldStyle.key;
@@ -5323,7 +5548,8 @@ void Widget::finishMutationTransaction(
 	notifyToolbarStateChanged();
 }
 
-void Widget::retainActiveLeafField() {
+void Widget::retainActiveLeafField(
+		bool keepRetainedFieldOnCurrentHistoryEntry) {
 	if (!_field) {
 		ensureInlineFieldCreated();
 		return;
@@ -5350,7 +5576,9 @@ void Widget::retainActiveLeafField() {
 		rpl::single(QString()));
 	auto retained = RetainedLeafField{
 		.historyIndex = historyIndex,
-		.retainToken = ++_retainedLeafFieldToken,
+		.retainToken = keepRetainedFieldOnCurrentHistoryEntry
+			? _retainedLeafFieldToken
+			: ++_retainedLeafFieldToken,
 		.leaf = leaf,
 		.mode = _fieldMode,
 		.styleKey = _activeFieldStyleKey,
