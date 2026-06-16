@@ -1774,8 +1774,10 @@ State::TableSelectionInfo State::tableSelectionInfo(
 	auto result = TableSelectionInfo{
 		.valid = true,
 		.allHeader = true,
+		.allAlignLeft = true,
 		.allAlignCenter = true,
 		.allAlignRight = true,
+		.allAlignTop = true,
 		.allAlignMiddle = true,
 		.allAlignBottom = true,
 		.singleCell = (selected.size() == 1),
@@ -1793,11 +1795,17 @@ State::TableSelectionInfo State::tableSelectionInfo(
 		if (!cell.header) {
 			result.allHeader = false;
 		}
+		if (cell.alignment != RichPage::TableAlignment::Left) {
+			result.allAlignLeft = false;
+		}
 		if (cell.alignment != RichPage::TableAlignment::Center) {
 			result.allAlignCenter = false;
 		}
 		if (cell.alignment != RichPage::TableAlignment::Right) {
 			result.allAlignRight = false;
+		}
+		if (cell.verticalAlignment != RichPage::TableVerticalAlignment::Top) {
+			result.allAlignTop = false;
 		}
 		if (cell.verticalAlignment
 			!= RichPage::TableVerticalAlignment::Middle) {

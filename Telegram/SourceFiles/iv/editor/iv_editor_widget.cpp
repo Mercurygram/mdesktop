@@ -3184,7 +3184,7 @@ void Widget::fillTableChangeMenu(
 				return _state->addTableRow(range, false);
 			});
 		},
-		&st::menuIconTableSubmenuRowAbove);
+		&st::ivEditorTableAddRowAboveIcon);
 	menu->addAction(
 		tr::lng_article_table_add_row(tr::now),
 		[=] {
@@ -3192,7 +3192,7 @@ void Widget::fillTableChangeMenu(
 				return _state->addTableRow(range, true);
 			});
 		},
-		&st::menuIconTableSubmenuRowBelow);
+		&st::ivEditorTableAddRowBelowIcon);
 	menu->addAction(
 		tr::lng_article_table_add_column(tr::now),
 		[=] {
@@ -3200,7 +3200,7 @@ void Widget::fillTableChangeMenu(
 				return _state->addTableColumn(range, false);
 			});
 		},
-		&st::menuIconTableSubmenuColumnLeft);
+		&st::ivEditorTableAddColumnLeftIcon);
 	menu->addAction(
 		tr::lng_article_table_add_column(tr::now),
 		[=] {
@@ -3208,7 +3208,7 @@ void Widget::fillTableChangeMenu(
 				return _state->addTableColumn(range, true);
 			});
 		},
-		&st::menuIconTableSubmenuColumnRight);
+		&st::ivEditorTableAddColumnRightIcon);
 	menu->addSeparator();
 	Menu::AddCheckedAction(
 		menu,
@@ -3218,9 +3218,23 @@ void Widget::fillTableChangeMenu(
 				return _state->setTableHeader(range, !info.allHeader);
 			});
 		},
-		nullptr,
+		info.allHeader
+			? &st::ivEditorTableHeaderOffIcon
+			: &st::ivEditorTableHeaderIcon,
 		info.allHeader);
 	menu->addSeparator();
+	Menu::AddCheckedAction(
+		menu,
+		tr::lng_article_table_align_left(tr::now),
+		[=] {
+			applyTableChange([=] {
+				return _state->setTableAlignment(
+					range,
+					RichPage::TableAlignment::Left);
+			});
+		},
+		&st::ivEditorTableAlignLeftIcon,
+		info.allAlignLeft);
 	Menu::AddCheckedAction(
 		menu,
 		tr::lng_article_table_align_center(tr::now),
@@ -3228,12 +3242,10 @@ void Widget::fillTableChangeMenu(
 			applyTableChange([=] {
 				return _state->setTableAlignment(
 					range,
-					info.allAlignCenter
-						? RichPage::TableAlignment::Left
-						: RichPage::TableAlignment::Center);
+					RichPage::TableAlignment::Center);
 			});
 		},
-		nullptr,
+		&st::ivEditorTableAlignCenterIcon,
 		info.allAlignCenter);
 	Menu::AddCheckedAction(
 		menu,
@@ -3242,14 +3254,24 @@ void Widget::fillTableChangeMenu(
 			applyTableChange([=] {
 				return _state->setTableAlignment(
 					range,
-					info.allAlignRight
-						? RichPage::TableAlignment::Left
-						: RichPage::TableAlignment::Right);
+					RichPage::TableAlignment::Right);
 			});
 		},
-		nullptr,
+		&st::ivEditorTableAlignRightIcon,
 		info.allAlignRight);
 	menu->addSeparator();
+	Menu::AddCheckedAction(
+		menu,
+		tr::lng_article_table_align_top(tr::now),
+		[=] {
+			applyTableChange([=] {
+				return _state->setTableVerticalAlignment(
+					range,
+					RichPage::TableVerticalAlignment::Top);
+			});
+		},
+		&st::ivEditorTableAlignTopIcon,
+		info.allAlignTop);
 	Menu::AddCheckedAction(
 		menu,
 		tr::lng_article_table_align_middle(tr::now),
@@ -3257,12 +3279,10 @@ void Widget::fillTableChangeMenu(
 			applyTableChange([=] {
 				return _state->setTableVerticalAlignment(
 					range,
-					info.allAlignMiddle
-						? RichPage::TableVerticalAlignment::Top
-						: RichPage::TableVerticalAlignment::Middle);
+					RichPage::TableVerticalAlignment::Middle);
 			});
 		},
-		nullptr,
+		&st::ivEditorTableAlignMiddleIcon,
 		info.allAlignMiddle);
 	Menu::AddCheckedAction(
 		menu,
@@ -3271,12 +3291,10 @@ void Widget::fillTableChangeMenu(
 			applyTableChange([=] {
 				return _state->setTableVerticalAlignment(
 					range,
-					info.allAlignBottom
-						? RichPage::TableVerticalAlignment::Top
-						: RichPage::TableVerticalAlignment::Bottom);
+					RichPage::TableVerticalAlignment::Bottom);
 			});
 		},
-		nullptr,
+		&st::ivEditorTableAlignBottomIcon,
 		info.allAlignBottom);
 	if (info.canSplitCell) {
 		menu->addSeparator();
@@ -3286,7 +3304,8 @@ void Widget::fillTableChangeMenu(
 				applyTableChange([=] {
 					return _state->splitTableCell(range);
 				});
-			});
+			},
+			&st::ivEditorTableSplitIcon);
 	} else if (info.canUniteCells) {
 		menu->addSeparator();
 		menu->addAction(
@@ -3295,7 +3314,8 @@ void Widget::fillTableChangeMenu(
 				applyTableChange([=] {
 					return _state->uniteTableCells(range);
 				});
-			});
+			},
+			&st::ivEditorTableMergeIcon);
 	}
 	const auto hasDeleteAction = info.canDeleteTable
 		|| info.canDeleteRows

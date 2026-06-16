@@ -189,8 +189,10 @@ public:
 	struct TableSelectionInfo {
 		bool valid = false;
 		bool allHeader = false;
+		bool allAlignLeft = false;
 		bool allAlignCenter = false;
 		bool allAlignRight = false;
+		bool allAlignTop = false;
 		bool allAlignMiddle = false;
 		bool allAlignBottom = false;
 		bool singleCell = false;
