@@ -130,6 +130,7 @@ public:
 	void performToolbarUndoRedo(bool redo);
 	void applyToolbarFormatAction(ToolbarFormatAction action);
 	void editLinkFromToolbar();
+	void editMathFromToolbar();
 	void setInlineFieldExternalInteractionActive(bool active);
 
 	int resizeGetHeight(int newWidth) override;
@@ -300,12 +301,28 @@ private:
 	void activateTrailingParagraph();
 	void setInlineFieldFromActiveState(int selectionFrom, int selectionTo);
 	void revertInlineFieldToState();
+	struct MathEditRequest {
+		Ui::InputFieldTextRange range;
+		QString source;
+		int displayMathOrdinal = -1;
+		bool editingExisting = false;
+		bool allowSeparateLine = false;
+		bool separateLine = false;
+	};
 	[[nodiscard]] std::optional<State::ActiveTextInsertContext>
 	activeTextInsertContext() const;
+	[[nodiscard]] std::optional<MathEditRequest> activeMathEditRequest() const;
 	[[nodiscard]] int richOffsetForFieldOffset(
 		const TextWithEntities &text,
 		int offset) const;
+	struct MathEditResult {
+		QString source;
+		bool separateLine = false;
+	};
 	[[nodiscard]] State::ApplyResult applyFieldTextToState();
+	[[nodiscard]] State::ApplyResult applyMathEditResult(
+		const MathEditRequest &request,
+		MathEditResult result);
 	bool showLastLimitToast();
 	void hideInlineField();
 	void acceptInlineField();
@@ -338,6 +355,7 @@ private:
 	[[nodiscard]] bool removeBoundaryOwner(bool forward);
 	void ensurePendingActivation();
 	void updateInlineFieldHeightOverride();
+	void showMathEditBox(MathEditRequest request);
 	void clearDisplayMathEditSession();
 	void clearInlineFieldEditSession();
 	[[nodiscard]] HistoryViewState captureHistoryViewState() const;

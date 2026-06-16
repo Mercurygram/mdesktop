@@ -672,11 +672,16 @@ void Toolbar::addButtons() {
 				_editor->editLinkFromToolbar();
 			}
 		});
-	addEditorAction(
+	addAction(
 		ToolbarActionId::Math,
 		ToolbarGroupId::HeadingLinkMath,
 		&st::ivEditorToolbarMathIcon,
-		&st::ivEditorToolbarMathIcon);
+		&st::ivEditorToolbarMathIcon,
+		[=] {
+			if (_editor) {
+				_editor->editMathFromToolbar();
+			}
+		});
 	addAction(
 		ToolbarActionId::Blockquote,
 		ToolbarGroupId::BlockInsertion,

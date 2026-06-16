@@ -25,10 +25,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/chat_style.h"
 #include "ui/chat/chat_theme.h"
 #include "ui/image/image_location.h"
+#include "ui/layers/generic_box.h"
 #include "ui/painter.h"
 #include "ui/text/text_entity.h"
 #include "ui/ui_utility.h"
 #include "ui/widgets/elastic_scroll.h"
+#include "ui/widgets/checkbox.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/menu/menu_action.h"
 #include "ui/widgets/menu/menu_separator.h"
@@ -36,8 +38,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/scroll_area.h"
 
 #include "styles/palette.h"
+#include "styles/style_boxes.h"
 #include "styles/style_chat.h"
 #include "styles/style_iv.h"
+#include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 
 #include <QtCore/QCoreApplication>
@@ -141,7 +145,6 @@ struct TextRange {
 	case ToolbarFormatAction::Marked:
 		return &Ui::InputField::kTagIvMarked;
 	case ToolbarFormatAction::Math:
-		return &Ui::InputField::kTagIvMath;
 	case ToolbarFormatAction::Undo:
 	case ToolbarFormatAction::Redo:
 	case ToolbarFormatAction::PlainText:
@@ -1007,6 +1010,104 @@ struct InlineFieldTrimResult {
 		return link;
 	}
 	return QString();
+}
+
+void EditMathBox(
+		not_null<Ui::GenericBox*> box,
+		QString startSource,
+		bool editingExisting,
+		std::optional<bool> separateLine,
+		Fn<void(QString, bool)> callback,
+		Fn<void(bool)> setExternalInteractionActive,
+		Fn<void()> restoreFocus) {
+	Expects(callback != nullptr);
+	Expects(setExternalInteractionActive != nullptr);
+
+	setExternalInteractionActive(true);
+	box->boxClosing() | rpl::on_next([=] {
+		setExternalInteractionActive(false);
+		if (restoreFocus) {
+			restoreFocus();
+		}
+	}, box->lifetime());
+
+	const auto source = box->addRow(
+		object_ptr<Ui::InputField>(
+			box,
+			st::defaultInputField,
+			Ui::InputField::Mode::MultiLine,
+			tr::lng_formatting_math_source_placeholder(),
+			startSource),
+		st::markdownLinkFieldPadding);
+	source->setSubmitSettings(Ui::InputField::SubmitSettings::Enter);
+	source->setMinHeight(source->st().heightMin);
+	const auto separateLineField = separateLine
+		? box->addRow(
+			object_ptr<Ui::Checkbox>(
+				box,
+				tr::lng_formatting_math_separate_line(tr::now),
+				*separateLine,
+				st::defaultBoxCheckbox),
+			st::markdownMathCheckboxMargin)
+		: nullptr;
+	auto checkboxHeight = separateLineField
+		? separateLineField->heightValue()
+		: rpl::single(0);
+	rpl::combine(
+		source->topValue(),
+		box->getDelegate()->contentHeightMaxValue(),
+		std::move(checkboxHeight)
+	) | rpl::on_next([=](int top, int contentHeight, int checkboxHeight) {
+		const auto checkboxBlock = separateLineField
+			? (checkboxHeight
+				+ st::markdownMathCheckboxMargin.top()
+				+ st::markdownMathCheckboxMargin.bottom())
+			: 0;
+		source->setMaxHeight(std::max(
+			source->st().heightMin,
+			std::min(
+				st::markdownMathFieldMaxHeight,
+				contentHeight
+					- top
+					- st::markdownLinkFieldPadding.bottom()
+					- checkboxBlock)));
+	}, source->lifetime());
+
+	const auto submit = [=] {
+		auto sourceText = source->getLastText().trimmed();
+		sourceText.replace('\r', ' ');
+		sourceText.replace('\n', ' ');
+		if (sourceText.isEmpty()) {
+			source->showError();
+			return;
+		}
+		const auto weak = base::make_weak(box);
+		callback(
+			sourceText,
+			separateLineField && separateLineField->checked());
+		if (weak) {
+			box->closeBox();
+		}
+	};
+	source->submits(
+	) | rpl::on_next(submit, source->lifetime());
+
+	box->setTitle(editingExisting
+		? tr::lng_formatting_math_edit_title()
+		: tr::lng_formatting_math_create_title());
+	box->addButton(tr::lng_settings_save(), submit);
+	box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
+
+	box->verticalLayout()->resizeToWidth(st::boxWidth);
+	box->verticalLayout()->moveToLeft(0, 0);
+	box->setWidth(st::boxWidth);
+
+	box->setFocusCallback([=] {
+		if (!startSource.isEmpty()) {
+			source->selectAll();
+		}
+		source->setFocusFast();
+	});
 }
 
 [[nodiscard]] bool ImeEventProducesInput(
@@ -2297,6 +2398,11 @@ Widget::ToolbarLinkMode Widget::toolbarLinkMode() const {
 Widget::ToolbarActionState Widget::toolbarActionState(
 		ToolbarFormatAction action) const {
 	const auto inlineActive = inlineToolbarModeActive();
+	const auto activeDisplayMath = !inlineActive
+		&& [&] {
+			const auto leaf = _state->activeLeafPath();
+			return leaf && (leaf->kind == StateLeafKind::MathFormula);
+		}();
 	const auto broaderTextSelected = !inlineActive
 		&& broaderSelectionHasSelectedText();
 	const auto broaderMediaSelected = !inlineActive
@@ -2359,9 +2465,9 @@ Widget::ToolbarActionState Widget::toolbarActionState(
 	case ToolbarFormatAction::Math:
 		return {
 			.shown = true,
-			.enabled = inlineActive,
-			.active = inlineActive
-				&& _field->isMarkdownTagActive(Ui::InputField::kTagIvMath),
+			.enabled = inlineActive || activeDisplayMath,
+			.active = activeDisplayMath || (inlineActive
+				&& _field->isMarkdownTagActive(Ui::InputField::kTagIvMath)),
 		};
 	}
 	return {};
@@ -2431,6 +2537,9 @@ void Widget::applyToolbarFormatAction(ToolbarFormatAction action) {
 	case ToolbarFormatAction::Link:
 		editLinkFromToolbar();
 		return;
+	case ToolbarFormatAction::Math:
+		editMathFromToolbar();
+		return;
 	case ToolbarFormatAction::Count:
 		return;
 	case ToolbarFormatAction::Bold:
@@ -2442,7 +2551,6 @@ void Widget::applyToolbarFormatAction(ToolbarFormatAction action) {
 	case ToolbarFormatAction::Superscript:
 	case ToolbarFormatAction::Marked:
 	case ToolbarFormatAction::PlainText:
-	case ToolbarFormatAction::Math:
 		break;
 	}
 	if (inlineToolbarModeActive()) {
@@ -2459,8 +2567,7 @@ void Widget::applyToolbarFormatAction(ToolbarFormatAction action) {
 	}
 	if (action == ToolbarFormatAction::Marked
 		|| action == ToolbarFormatAction::Subscript
-		|| action == ToolbarFormatAction::Superscript
-		|| action == ToolbarFormatAction::Math) {
+		|| action == ToolbarFormatAction::Superscript) {
 		return;
 	}
 	const auto textSpans = broaderSelectionTextSpans();
@@ -2569,6 +2676,17 @@ void Widget::editLinkFromToolbar() {
 		return;
 	}
 	_field->editCurrentMarkdownLink();
+}
+
+void Widget::editMathFromToolbar() {
+	if (!_field->isHidden()
+		&& _state->activeFieldMode() == State::FieldMode::Raw) {
+		hideInlineField();
+		clearInlineFieldEditSession();
+	}
+	if (const auto request = activeMathEditRequest()) {
+		showMathEditBox(*request);
+	}
 }
 
 void Widget::setInlineFieldExternalInteractionActive(bool active) {
@@ -3545,6 +3663,21 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 	}
 	if (directEditableHit()) {
 		const auto formulaOrdinal = formulaOrdinalFromEditHit();
+		if (formulaOrdinal >= 0) {
+			const auto activeDisplayMath = !_field->isHidden()
+				&& (_state->activeTextOrdinal() == formulaOrdinal)
+				&& (_state->activeFieldMode() == State::FieldMode::Raw);
+			if (!activeDisplayMath) {
+				if (!_field->isHidden() && !commitVisibleInlineField()) {
+					e->accept();
+					return;
+				}
+				activateTextOrdinal(formulaOrdinal, 0);
+			}
+			editMathFromToolbar();
+			e->accept();
+			return;
+		}
 		const auto segmentHit = hit.valid()
 			&& hit.direct
 			&& _article->segmentIsEditable(hit.segmentIndex);
@@ -4151,12 +4284,15 @@ void Widget::activateTextOrdinal(
 	}
 	_activeSegmentIndex = segmentIndex;
 	if (_article->segmentIsDisplayMath(_activeSegmentIndex)) {
-		if (!_activeSegmentIsDisplayMath) {
-			const auto blockRect = _article->displayMathBlockRect(
-				_activeSegmentIndex);
-			_activeSegmentIsDisplayMath = true;
-			_activeDisplayMathBaselineHeight = std::max(blockRect.height(), 1);
-		}
+		clearDisplayMathEditSession();
+		_article->clearEditableHeightOverride();
+		hideInlineField();
+		_selection = {};
+		_selectionEndpoints = {};
+		setStructuralSelection({});
+		update();
+		notifyToolbarStateChanged();
+		return;
 	} else {
 		clearDisplayMathEditSession();
 	}
@@ -4301,6 +4437,57 @@ Widget::activeTextInsertContext() const {
 	};
 }
 
+std::optional<Widget::MathEditRequest> Widget::activeMathEditRequest() const {
+	if (_settingField
+		|| (_activeSegmentIndex < 0)) {
+		return std::nullopt;
+	}
+	if (_state->activeFieldMode() == State::FieldMode::Raw) {
+		const auto leaf = _state->activeLeafPath();
+		if (!leaf || leaf->kind != StateLeafKind::MathFormula) {
+			return std::nullopt;
+		}
+		return MathEditRequest{
+			.source = _state->activeRawText(),
+			.displayMathOrdinal = _state->activeTextOrdinal(),
+			.editingExisting = true,
+			.allowSeparateLine = true,
+			.separateLine = true,
+		};
+	}
+	if (_field->isHidden()) {
+		return std::nullopt;
+	}
+	if (_state->activeFieldMode() != State::FieldMode::Rich) {
+		return std::nullopt;
+	}
+	const auto cursor = _field->textCursor();
+	const auto selection = Ui::InputFieldTextRange{
+		.from = cursor.selectionStart(),
+		.till = cursor.selectionEnd(),
+	};
+	auto request = MathEditRequest{
+		.range = selection,
+		.allowSeparateLine = _state->activeSurfaceAllowsSeparateLineFormula(),
+	};
+	if (!selection.empty()) {
+		request.source = _field->getTextWithTagsPart(
+			selection.from,
+			selection.till).text;
+		return request;
+	}
+	request.range = _field->selectionEditMarkdownTagRange(
+		selection,
+		Ui::InputField::kTagIvMath);
+	if (!request.range.empty()) {
+		request.source = _field->getTextWithTagsPart(
+			request.range.from,
+			request.range.till).text;
+		request.editingExisting = true;
+	}
+	return request;
+}
+
 bool Widget::handleIvClipboardMime(
 		not_null<const QMimeData*> data,
 		Ui::InputField::MimeAction action) {
@@ -4345,6 +4532,90 @@ ApplyResult Widget::applyFieldTextToState() {
 	return _state->applyActiveText(ConvertEditorTagsToRichText(text));
 }
 
+ApplyResult Widget::applyMathEditResult(
+		const MathEditRequest &request,
+		MathEditResult result) {
+	const auto source = result.source.trimmed();
+	if (source.isEmpty()) {
+		return ApplyResult::Unchanged;
+	}
+	if (_settingField) {
+		return ApplyResult::Unchanged;
+	}
+	if (request.displayMathOrdinal >= 0) {
+		if (!_state->setActiveTextByOrdinal(request.displayMathOrdinal)) {
+			return ApplyResult::Failed;
+		}
+		_activeOrdinal = request.displayMathOrdinal;
+		_activeSegmentIndex = segmentIndexForEditableOrdinal(_activeOrdinal);
+	}
+	const auto displayMathEdit
+		= (_state->activeFieldMode() == State::FieldMode::Raw);
+	if (!displayMathEdit && _field->isHidden()) {
+		return ApplyResult::Unchanged;
+	}
+	if (displayMathEdit) {
+		auto displayMathResult = State::DisplayMathEditResult();
+		const auto committed = recordMutationTransaction([&] {
+			displayMathResult = _state->editActiveDisplayMath(
+				source,
+				result.separateLine);
+			return displayMathResult.result;
+		});
+		if (committed == ApplyResult::Failed) {
+			showLastLimitToast();
+			return committed;
+		}
+		if (committed != ApplyResult::Changed) {
+			return committed;
+		}
+		refreshPreparedContent();
+		if (displayMathResult.inlineLeaf) {
+			const auto ordinal = _state->textOrdinalForLeafPath(
+				*displayMathResult.inlineLeaf);
+			activateTextOrdinal(
+				(ordinal >= 0) ? ordinal : _state->activeTextOrdinal(),
+				displayMathResult.selectionFrom,
+				displayMathResult.selectionTo);
+		} else {
+			activateTextOrdinal(_state->activeTextOrdinal(), 0);
+		}
+		return committed;
+	}
+	if (_state->activeFieldMode() != State::FieldMode::Rich) {
+		return ApplyResult::Unchanged;
+	}
+	if (result.separateLine) {
+		auto cursor = _field->textCursor();
+		cursor.setPosition(request.range.from);
+		cursor.setPosition(request.range.till, QTextCursor::KeepAnchor);
+		_field->setTextCursor(cursor);
+		auto block = RichPage::Block();
+		block.kind = RichPage::BlockKind::Math;
+		block.formula = source;
+		insertPreparedBlock(std::move(block));
+		return ApplyResult::Changed;
+	}
+	const auto committed = recordMutationTransaction([&] {
+		_field->commitMarkdownTagEdit(
+			request.range,
+			Ui::InputField::kTagIvMath,
+			source);
+		const auto committed = commitInlineField();
+		if (committed != ApplyResult::Failed) {
+			_pendingOrdinal = -1;
+			_pendingCursorOffset = 0;
+			hideInlineField();
+			clearInlineFieldEditSession();
+		}
+		return committed;
+	});
+	if (committed != ApplyResult::Failed) {
+		refreshAfterInlineFieldCommit(committed);
+	}
+	return committed;
+}
+
 bool Widget::showLastLimitToast() {
 	if (_showLimitToast) {
 		if (const auto error = _state->lastLimitError()) {
@@ -4353,6 +4624,48 @@ bool Widget::showLastLimitToast() {
 		}
 	}
 	return false;
+}
+
+void Widget::showMathEditBox(MathEditRequest request) {
+	if (!_show) {
+		return;
+	}
+	const auto weak = QPointer<Widget>(this);
+	_show->showBox(Box(
+		EditMathBox,
+		request.source,
+		request.editingExisting,
+		request.allowSeparateLine
+			? std::make_optional(request.separateLine)
+			: std::nullopt,
+		[=](QString source, bool separateLine) {
+			if (!weak) {
+				return;
+			}
+			const auto result = weak->applyMathEditResult(request, {
+				.source = std::move(source),
+				.separateLine = separateLine,
+			});
+			if (result != ApplyResult::Changed) {
+				return;
+			}
+			weak->syncInlineFieldGeometry();
+			weak->updateInlineFieldHeightOverride();
+			weak->revealActiveInlineField();
+			weak->notifyToolbarStateChanged();
+		},
+		[=](bool active) {
+			if (weak) {
+				weak->setInlineFieldExternalInteractionActive(active);
+				weak->notifyToolbarStateChanged();
+			}
+		},
+		[=] {
+			if (weak && !weak->_field->isHidden()) {
+				weak->_field->setFocusFast();
+				weak->notifyToolbarStateChanged();
+			}
+		}));
 }
 
 void Widget::hideInlineField() {
@@ -5393,24 +5706,6 @@ void Widget::startArticleSelection(
 		&& !hit.codeHeaderCopy
 		&& hit.direct
 		&& _article->segmentIsText(hit.segmentIndex);
-	const auto isDisplayMathHit = hit.valid()
-		&& !hit.codeHeaderCopy
-		&& hit.direct
-		&& _article->segmentIsDisplayMath(hit.segmentIndex);
-	const auto displayMathSegment = [&] {
-		if (isDisplayMathHit) {
-			return hit.segmentIndex;
-		}
-		if (editHit.leaf
-			&& (editHit.leaf->kind
-				== Markdown::PreparedEditLeafKind::MathFormula)) {
-			const auto ordinal = _state->textOrdinalForLeaf(*editHit.leaf);
-			return (ordinal >= 0)
-				? segmentIndexForEditableOrdinal(ordinal)
-				: -1;
-		}
-		return -1;
-	}();
 	if (isTextHit) {
 		clearStructuralSelection();
 	} else {
@@ -5429,11 +5724,12 @@ void Widget::startArticleSelection(
 		.mode = DragSelectionMode::None,
 	};
 	if (!isTextHit) {
-		if (displayMathSegment >= 0) {
-			_articleSelectionDrag.textSegment = displayMathSegment;
-			return;
-		}
-		if (editHit.valid() && !hit.codeHeaderCopy && !startedBelow) {
+		const auto mathFormulaHit = editHit.leaf
+			&& (editHit.leaf->kind == PreparedEditLeafKind::MathFormula);
+		if (editHit.valid()
+			&& !mathFormulaHit
+			&& !hit.codeHeaderCopy
+			&& !startedBelow) {
 			_articleSelectionDrag.mode = DragSelectionMode::Structural;
 		}
 		return;

@@ -240,6 +240,7 @@ public:
 	[[nodiscard]] std::optional<int> nextEditableOrdinal() const;
 	[[nodiscard]] BoundaryTarget activeBoundaryTarget(bool forward) const;
 	[[nodiscard]] bool isActiveTopLevelParagraph() const;
+	[[nodiscard]] bool activeSurfaceAllowsSeparateLineFormula() const;
 	[[nodiscard]] bool activeLeafUsesQuoteCaptionColor() const;
 	[[nodiscard]] bool activeLeafUsesQuotePlaceholderColor() const;
 	[[nodiscard]] std::optional<int> moveActiveSpecialBlockDown();
@@ -306,6 +307,15 @@ public:
 		TextWithEntities selected;
 		TextWithEntities after;
 	};
+	struct DisplayMathEditResult {
+		ApplyResult result = ApplyResult::Failed;
+		std::optional<LeafPath> inlineLeaf;
+		int selectionFrom = 0;
+		int selectionTo = 0;
+	};
+	[[nodiscard]] DisplayMathEditResult editActiveDisplayMath(
+		QString source,
+		bool separateLine);
 	[[nodiscard]] bool insertBlockAfterActive(
 		InsertAction action,
 		std::optional<ActiveTextInsertContext> context = std::nullopt);

@@ -94,6 +94,18 @@ constexpr auto kMaxCommittedFieldLength = 256 * 1024;
 	return before;
 }
 
+[[nodiscard]] TextWithEntities MakeInlineMathText(QString source) {
+	const auto length = source.size();
+	return ConvertEditorTagsToRichText(TextWithTags{
+		.text = std::move(source),
+		.tags = { TextWithTags::Tag{
+			.offset = 0,
+			.length = length,
+			.id = Ui::InputField::kTagIvMath,
+		} },
+	});
+}
+
 [[nodiscard]] bool RangeInsideText(
 		const QString &text,
 		int offset,
@@ -1001,6 +1013,28 @@ void InsertTableCellBeforeVisualColumn(
 
 [[nodiscard]] bool StringIsEmpty(const QString &text) {
 	return text.trimmed().isEmpty();
+}
+
+[[nodiscard]] bool RichTextHasVisibleText(const RichText &text) {
+	return !StringIsEmpty(text.text.text);
+}
+
+void MergeRichTextAnchors(RichText *target, RichText source) {
+	if (!target) {
+		return;
+	}
+	if (!source.anchorId.isEmpty()) {
+		if (target->anchorId.isEmpty()) {
+			target->anchorId = std::move(source.anchorId);
+		} else {
+			target->anchorIds.push_back(std::move(source.anchorId));
+		}
+	}
+	for (auto &anchorId : source.anchorIds) {
+		if (!anchorId.isEmpty()) {
+			target->anchorIds.push_back(std::move(anchorId));
+		}
+	}
 }
 
 [[nodiscard]] bool CanEditBlocks(const std::vector<Block> &blocks);
@@ -2473,6 +2507,46 @@ bool State::isActiveTopLevelParagraph() const {
 	}
 	const auto owner = block(descriptor->leaf.block);
 	return owner && owner->kind == BlockKind::Paragraph;
+}
+
+bool State::activeSurfaceAllowsSeparateLineFormula() const {
+	const auto descriptor = textNode(_activeTextOrdinal);
+	if (!descriptor || descriptor->leaf.kind == LeafKind::MathFormula) {
+		return false;
+	}
+	if (isActiveTopLevelParagraph() || activeListItemSurface().has_value()) {
+		return true;
+	}
+	if (descriptor->leaf.kind != LeafKind::BlockText) {
+		return false;
+	}
+	const auto owner = block(descriptor->leaf.block);
+	if (!owner) {
+		return false;
+	}
+	if (owner->kind == BlockKind::Quote) {
+		return !owner->pullquote;
+	}
+	if (owner->kind != BlockKind::Paragraph) {
+		return false;
+	}
+	const auto &container = descriptor->leaf.block.container;
+	if (container.steps.empty()) {
+		return false;
+	}
+	const auto &step = container.steps.back();
+	if (step.kind != BlockContainerKind::BlockChildren) {
+		return false;
+	}
+	auto parent = container;
+	parent.steps.pop_back();
+	const auto quote = block({
+		.container = parent,
+		.index = step.blockIndex,
+	});
+	return quote
+		&& (quote->kind == BlockKind::Quote)
+		&& !quote->pullquote;
 }
 
 bool State::activeLeafUsesQuoteCaptionColor() const {
@@ -4778,6 +4852,185 @@ bool State::insertPreparedBlocksAfterActive(
 		return CheckedMutationResult<bool>{
 			.apply = applied,
 			.result = applied,
+		};
+	});
+}
+
+State::DisplayMathEditResult State::editActiveDisplayMath(
+		QString source,
+		bool separateLine) {
+	auto failure = DisplayMathEditResult{
+		.result = ApplyResult::Failed,
+	};
+	return applyCheckedMutation(failure, [
+			source = std::move(source),
+			separateLine](State &candidate) mutable {
+		const auto descriptor = candidate.textNode(candidate._activeTextOrdinal);
+		if (!descriptor || descriptor->leaf.kind != LeafKind::MathFormula) {
+			return CheckedMutationResult<DisplayMathEditResult>{
+				.result = {
+					.result = ApplyResult::Failed,
+				},
+			};
+		}
+		const auto leaf = descriptor->leaf;
+		auto *blocks = candidate.blockContainer(leaf.block.container);
+		if (!blocks
+			|| leaf.block.index < 0
+			|| leaf.block.index >= int(blocks->size())) {
+			return CheckedMutationResult<DisplayMathEditResult>{
+				.result = {
+					.result = ApplyResult::Failed,
+				},
+			};
+		}
+		auto &math = (*blocks)[leaf.block.index];
+		if (math.kind != BlockKind::Math) {
+			return CheckedMutationResult<DisplayMathEditResult>{
+				.result = {
+					.result = ApplyResult::Failed,
+				},
+			};
+		}
+		if (separateLine) {
+			if (math.formula == source) {
+				return CheckedMutationResult<DisplayMathEditResult>{
+					.result = {
+						.result = ApplyResult::Unchanged,
+					},
+				};
+			}
+			math.formula = std::move(source);
+			candidate.rebuild();
+			if (!candidate.activateRebuiltLeaf(leaf)) {
+				return CheckedMutationResult<DisplayMathEditResult>{
+					.result = {
+						.result = ApplyResult::Failed,
+					},
+				};
+			}
+			return CheckedMutationResult<DisplayMathEditResult>{
+				.apply = true,
+				.result = {
+					.result = ApplyResult::Changed,
+				},
+			};
+		}
+		auto inlineMath = MakeInlineMathText(std::move(source));
+		const auto mathIndex = leaf.block.index;
+		const auto previousIndex = mathIndex - 1;
+		const auto nextIndex = mathIndex + 1;
+		const auto paragraphAt = [&](int index) -> Block* {
+			return (index >= 0
+				&& index < int(blocks->size())
+				&& (*blocks)[index].kind == BlockKind::Paragraph)
+				? &(*blocks)[index]
+				: nullptr;
+		};
+		auto *previous = paragraphAt(previousIndex);
+		auto *next = paragraphAt(nextIndex);
+		const auto previousHasText = previous
+			&& RichTextHasVisibleText(previous->text);
+		const auto nextHasText = next
+			&& RichTextHasVisibleText(next->text);
+		enum class Target {
+			Previous,
+			Next,
+			Replace,
+		};
+		auto target = Target::Replace;
+		auto removePrevious = false;
+		auto removeNext = false;
+		if (previousHasText) {
+			target = Target::Previous;
+			removeNext = (next != nullptr);
+		} else if (nextHasText) {
+			target = Target::Next;
+			removePrevious = (previous != nullptr);
+		} else if (previous) {
+			target = Target::Previous;
+			removeNext = (next != nullptr);
+		} else if (next) {
+			target = Target::Next;
+		}
+		auto inlineLeaf = LeafPath{
+			.kind = LeafKind::BlockText,
+			.block = {
+				.container = leaf.block.container,
+				.index = mathIndex,
+			},
+		};
+		auto selectionFrom = 0;
+		auto selectionTo = 0;
+		switch (target) {
+		case Target::Previous: {
+			auto updated = std::move(previous->text.text);
+			if (previousHasText) {
+				updated.append(' ');
+			}
+			selectionFrom = updated.text.size();
+			updated.append(std::move(inlineMath));
+			selectionTo = updated.text.size();
+			if (next) {
+				if (nextHasText) {
+					updated.append(' ');
+				}
+				updated.append(next->text.text);
+			}
+			previous->text.text = std::move(updated);
+			if (next) {
+				MergeRichTextAnchors(&previous->text, std::move(next->text));
+			}
+			if (removeNext) {
+				blocks->erase(blocks->begin() + nextIndex);
+			}
+			blocks->erase(blocks->begin() + mathIndex);
+			inlineLeaf.block.index = previousIndex;
+		} break;
+		case Target::Next: {
+			auto updated = TextWithEntities();
+			auto nextText = std::move(next->text.text);
+			updated.append(std::move(inlineMath));
+			selectionFrom = 0;
+			selectionTo = updated.text.size();
+			if (nextHasText) {
+				updated.append(' ');
+			}
+			updated.append(std::move(nextText));
+			next->text.text = std::move(updated);
+			if (previous && removePrevious) {
+				MergeRichTextAnchors(&next->text, std::move(previous->text));
+			}
+			blocks->erase(blocks->begin() + mathIndex);
+			inlineLeaf.block.index = mathIndex;
+			if (removePrevious) {
+				blocks->erase(blocks->begin() + previousIndex);
+				inlineLeaf.block.index = previousIndex;
+			}
+		} break;
+		case Target::Replace: {
+			auto paragraph = MakeParagraphBlock();
+			paragraph.text.text = std::move(inlineMath);
+			selectionTo = paragraph.text.text.text.size();
+			(*blocks)[mathIndex] = std::move(paragraph);
+		} break;
+		}
+		candidate.rebuild();
+		if (!candidate.activateRebuiltLeaf(inlineLeaf)) {
+			return CheckedMutationResult<DisplayMathEditResult>{
+				.result = {
+					.result = ApplyResult::Failed,
+				},
+			};
+		}
+		return CheckedMutationResult<DisplayMathEditResult>{
+			.apply = true,
+			.result = {
+				.result = ApplyResult::Changed,
+				.inlineLeaf = inlineLeaf,
+				.selectionFrom = selectionFrom,
+				.selectionTo = selectionTo,
+			},
 		};
 	});
 }
