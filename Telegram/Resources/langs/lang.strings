@@ -1666,6 +1666,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_profile_direct_messages" = "Direct messages";
 "lng_profile_join_channel" = "Join Channel";
 "lng_profile_join_group" = "Join Group";
+
+"lng_pull_next_channel" = "Pull up to go to the next unread channel";
+"lng_release_next_channel" = "Release to go to the next unread channel";
+"lng_pull_no_unread_channels" = "You have no unread channels";
+
 "lng_profile_apply_to_join_group" = "Apply to Join Group";
 "lng_profile_kick" = "Remove";
 "lng_profile_delete_removed" = "Delete";

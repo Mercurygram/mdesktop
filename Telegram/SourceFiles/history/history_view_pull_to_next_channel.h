@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "base/unique_qptr.h"
+#include "ui/effects/animations.h"
 
 class History;
 class QEvent;
@@ -39,22 +40,33 @@ public:
 	void updateGeometry();
 
 private:
+	class Indicator;
+	class HintOverlay;
+
 	[[nodiscard]] bool active() const;
 	[[nodiscard]] bool atBottom() const;
 	[[nodiscard]] bool processWheel(not_null<QWheelEvent*> e);
 	[[nodiscard]] bool applyDelta(float64 deltaX, float64 deltaY);
 	[[nodiscard]] bool release();
+	void push(float64 offset, bool ready, bool visible, History *next);
+	void applyShift(int shift);
+	void startRetract(float64 from, History *next);
+	void clearState();
 	void reset();
 	void jumpTo(not_null<History*> history);
 
 	const not_null<Ui::RpWidget*> _parent;
 	const not_null<Ui::ContinuousScroll*> _scroll;
 	const not_null<Window::SessionController*> _controller;
+	const base::unique_qptr<Indicator> _indicator;
+	const base::unique_qptr<HintOverlay> _hint;
 
+	QPointer<Ui::RpWidget> _inner;
 	History *_history = nullptr;
 	History *_next = nullptr;
 
 	base::unique_qptr<QObject> _filter;
+	Ui::Animations::Simple _retract;
 
 	float64 _accumulated = 0.;
 	float64 _offset = 0.;
