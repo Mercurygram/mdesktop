@@ -3977,9 +3977,17 @@ void Widget::setupInlineField() {
 		handleFieldContextMenuRequest(std::move(request));
 	});
 
+	const auto field = QPointer<Ui::InputField>(_field.get());
+	const auto revealActiveField = [=] {
+		if (!field || (_field.get() != field.data())) {
+			return;
+		}
+		revealActiveInlineField();
+	};
 	_field->heightChanges(
 	) | rpl::on_next([=] {
 		updateInlineFieldHeightOverride();
+		revealActiveField();
 	}, _field->lifetime());
 	_field->focusedChanges(
 	) | rpl::on_next([=](bool focused) {
@@ -3995,7 +4003,6 @@ void Widget::setupInlineField() {
 			}
 		}
 	}, _field->lifetime());
-	const auto field = QPointer<Ui::InputField>(_field.get());
 	QObject::connect(
 		raw->document(),
 		&QTextDocument::contentsChange,
@@ -4030,10 +4037,8 @@ void Widget::setupInlineField() {
 		raw,
 		&QTextEdit::cursorPositionChanged,
 		_field.get(),
-		[this, field] {
-			if (!field || (_field.get() != field.data())) {
-				return;
-			}
+		[this, revealActiveField] {
+			revealActiveField();
 			notifyToolbarStateChanged();
 		});
 	_fieldUndoAvailable = _field->isUndoAvailable();

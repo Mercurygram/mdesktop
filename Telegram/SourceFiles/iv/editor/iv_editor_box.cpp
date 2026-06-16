@@ -26,7 +26,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_document.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "data/stickers/data_stickers.h"
-#include "chat_helpers/tabbed_panel.h"
 #include "chat_helpers/tabbed_selector.h"
 #include "iv/editor/iv_editor_state.h"
 #include "iv/editor/iv_editor_widget.h"
@@ -269,10 +268,9 @@ public:
 		QPointer<QWidget> tooltipParent,
 		Fn<void(not_null<Widget*>, QPointer<QWidget>)> requestMedia,
 		Fn<void(not_null<Widget*>, QPointer<QWidget>, rpl::producer<>)> requestMap,
-		Fn<void(not_null<Ui::IconButton*>)> toggleEmoji);
+		Fn<void()> toggleEmoji);
 
 	int resizeGetHeight(int width) override;
-	[[nodiscard]] Ui::IconButton *emojiButton() const;
 	void hideShownTooltip();
 
 protected:
@@ -306,7 +304,7 @@ private:
 	const QPointer<QWidget> _tooltipParent;
 	const Fn<void(not_null<Widget*>, QPointer<QWidget>)> _requestMedia;
 	const Fn<void(not_null<Widget*>, QPointer<QWidget>, rpl::producer<>)> _requestMap;
-	const Fn<void(not_null<Ui::IconButton*>)> _toggleEmoji;
+	const Fn<void()> _toggleEmoji;
 	Widget::ToolbarState _toolbarState = {};
 	std::vector<ToolbarButton> _buttons;
 	ToolbarButton _emoji;
@@ -315,7 +313,6 @@ private:
 	std::vector<int> _dividerXs;
 	base::unique_qptr<Ui::ImportantTooltip> _tooltip;
 	base::unique_qptr<Ui::PopupMenu> _menu;
-	Ui::IconButton *_emojiButton = nullptr;
 	Ui::RippleButton *_hovered = nullptr;
 	bool _overflowStateInitialized = false;
 	bool _overflowEnabled = false;
@@ -329,6 +326,53 @@ private:
 		result.moveCenter(screen->availableGeometry().center());
 	}
 	return result;
+}
+
+[[nodiscard]] int MaximalExtendBy(not_null<Window*> window) {
+	const auto screen = window->screen()
+		? window->screen()
+		: QGuiApplication::primaryScreen();
+	if (!screen) {
+		return 0;
+	}
+	const auto desktop = screen->availableGeometry();
+	return std::max(desktop.width() - window->body()->width(), 0);
+}
+
+[[nodiscard]] bool CanExtendNoMove(
+		not_null<Window*> window,
+		int extendBy) {
+	const auto screen = window->screen()
+		? window->screen()
+		: QGuiApplication::primaryScreen();
+	if (!screen) {
+		return false;
+	}
+	const auto desktop = screen->availableGeometry();
+	const auto inner = window->body()->mapToGlobal(window->body()->rect());
+	const auto innerRight = inner.x() + inner.width() + extendBy;
+	const auto desktopRight = desktop.x() + desktop.width();
+	return innerRight <= desktopRight;
+}
+
+int TryToExtendWidthBy(not_null<Window*> window, int addToWidth) {
+	const auto screen = window->screen()
+		? window->screen()
+		: QGuiApplication::primaryScreen();
+	if (!screen) {
+		return 0;
+	}
+	const auto desktop = screen->availableGeometry();
+	const auto inner = window->body()->mapToGlobal(window->body()->rect());
+	accumulate_min(addToWidth, MaximalExtendBy(window));
+	const auto newWidth = inner.width() + addToWidth;
+	const auto newLeft = std::min(
+		inner.x(),
+		desktop.x() + desktop.width() - newWidth);
+	if (inner.x() != newLeft || inner.width() != newWidth) {
+		window->setGeometry(QRect(newLeft, inner.y(), newWidth, inner.height()));
+	}
+	return addToWidth;
 }
 
 [[nodiscard]] QString HeadingLabel(int level) {
@@ -472,7 +516,7 @@ Toolbar::Toolbar(
 	QPointer<QWidget> tooltipParent,
 	Fn<void(not_null<Widget*>, QPointer<QWidget>)> requestMedia,
 	Fn<void(not_null<Widget*>, QPointer<QWidget>, rpl::producer<>)> requestMap,
-	Fn<void(not_null<Ui::IconButton*>)> toggleEmoji)
+	Fn<void()> toggleEmoji)
 : Ui::RpWidget(parent)
 , _editor(editor.get())
 , _tooltipParent(std::move(tooltipParent))
@@ -780,8 +824,8 @@ void Toolbar::addEmojiButton() {
 		.icon = &st::ivEditorToolbarEmojiIcon,
 		.iconOver = &st::ivEditorToolbarEmojiIcon,
 		.callback = [=] {
-			if (_toggleEmoji && _emojiButton) {
-				_toggleEmoji(not_null<Ui::IconButton*>(_emojiButton));
+			if (_toggleEmoji) {
+				_toggleEmoji();
 			}
 		},
 	};
@@ -797,7 +841,6 @@ void Toolbar::addEmojiButton() {
 		}
 	});
 	data.button->installEventFilter(this);
-	_emojiButton = data.iconButton;
 	_emoji = std::move(data);
 }
 
@@ -1115,10 +1158,6 @@ int Toolbar::resizeGetHeight(int width) {
 	return padding.top() + buttonHeight + padding.bottom();
 }
 
-Ui::IconButton *Toolbar::emojiButton() const {
-	return _emojiButton;
-}
-
 void Toolbar::hideShownTooltip() {
 	hideTooltip();
 }
@@ -1240,11 +1279,15 @@ public:
 
 private:
 	void setupWindow(ShowWindowDescriptor &&descriptor);
-	void setupEmojiPanel(const ShowWindowDescriptor &descriptor);
+	void setupEmojiColumn(const ShowWindowDescriptor &descriptor);
 	void layout();
-	void updateEmojiPanelGeometry();
+	void toggleEmojiColumn();
+	void showEmojiColumn();
+	void hideEmojiColumn(bool skipResize = false);
 	void updateEditorVisibleTopBottom();
-	void setEmojiPanelInteractionActive(bool active);
+	void setEmojiColumnInteractionActive(bool active);
+	[[nodiscard]] int emojiColumnWidth() const;
+	[[nodiscard]] int minimalWindowWidthWithEmojiColumn() const;
 	void finishCloseFromAcceptedEvent();
 	void finishClose();
 	[[nodiscard]] bool articleChanged();
@@ -1263,13 +1306,15 @@ private:
 	object_ptr<Toolbar> _toolbar = { nullptr };
 	object_ptr<Ui::RoundButton> _cancel = { nullptr };
 	object_ptr<Ui::RoundButton> _submit = { nullptr };
-	base::unique_qptr<ChatHelpers::TabbedPanel> _emojiPanel;
+	object_ptr<ChatHelpers::TabbedSelector> _emojiColumn = { nullptr };
 	Fn<bool()> _cancelled;
 	Fn<bool()> _confirmed;
 	Fn<void()> _closed;
 	base::weak_qptr<Ui::GenericBox> _closeConfirmation;
 	rpl::lifetime _lifetime;
-	bool _emojiPanelInteractionActive = false;
+	int _emojiColumnExtendedBy = 0;
+	bool _emojiColumnShown = false;
+	bool _emojiColumnInteractionActive = false;
 	bool _closingApproved = false;
 	bool _closedNotified = false;
 
@@ -1280,7 +1325,7 @@ WindowHost::Impl::Impl(ShowWindowDescriptor descriptor) {
 }
 
 WindowHost::Impl::~Impl() {
-	setEmojiPanelInteractionActive(false);
+	hideEmojiColumn(true);
 }
 
 void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
@@ -1333,6 +1378,7 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 		std::move(descriptor.showLimitToast)));
 	const auto editor = not_null<Widget*>(_editor.data());
 	const auto body = QPointer<QWidget>(window->body().get());
+	setupEmojiColumn(descriptor);
 
 	_toolbar = object_ptr<Toolbar>(
 		_top.data(),
@@ -1340,11 +1386,9 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 		body,
 		std::move(descriptor.requestMedia),
 		std::move(descriptor.requestMap),
-		[=](not_null<Ui::IconButton*>) {
+		[=] {
 			_toolbar->hideShownTooltip();
-			setEmojiPanelInteractionActive(true);
-			updateEmojiPanelGeometry();
-			_emojiPanel->toggleAnimated();
+			toggleEmojiColumn();
 		});
 	_cancel = object_ptr<Ui::RoundButton>(
 		_bottom.data(),
@@ -1367,8 +1411,6 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 	_cancelled = std::move(descriptor.cancelled);
 	_confirmed = std::move(descriptor.confirmed);
 	_closed = std::move(descriptor.closed);
-
-	setupEmojiPanel(descriptor);
 
 	window->body()->sizeValue() | rpl::on_next([=](QSize) {
 		layout();
@@ -1411,40 +1453,29 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 	editor->activateInitialNode();
 }
 
-void WindowHost::Impl::setupEmojiPanel(const ShowWindowDescriptor &descriptor) {
+void WindowHost::Impl::setupEmojiColumn(const ShowWindowDescriptor &descriptor) {
 	using Selector = ChatHelpers::TabbedSelector;
-	_emojiPanel = base::make_unique_q<ChatHelpers::TabbedPanel>(
+	_emojiColumn = object_ptr<Selector>(
 		_window->body().get(),
-		ChatHelpers::TabbedPanelDescriptor{
-			.ownedSelector = object_ptr<Selector>(
-				nullptr,
-				ChatHelpers::TabbedSelectorDescriptor{
-					.show = _show,
-					.st = st::defaultEmojiPan,
-					.level = ChatHelpers::PauseReason::Layer,
-					.mode = Selector::Mode::EmojiOnly,
-					.features = {
-						.stickersSettings = false,
-						.openStickerSets = false,
-					},
-				}),
+		ChatHelpers::TabbedSelectorDescriptor{
+			.show = _show,
+			.st = st::defaultEmojiPan,
+			.level = ChatHelpers::PauseReason::Layer,
+			.mode = Selector::Mode::EmojiOnly,
+			.features = {
+				.stickersSettings = false,
+				.openStickerSets = false,
+			},
 		});
-	const auto panel = _emojiPanel.get();
-	panel->setDesiredHeightValues(
-		1.,
-		st::emojiPanMinHeight / 2,
-		st::emojiPanMinHeight);
-	panel->setDropDown(true);
-	panel->hide();
-	panel->selector()->setCurrentPeer(descriptor.peer);
-	panel->selector()->emojiChosen(
+	_emojiColumn->hide();
+	_emojiColumn->setCurrentPeer(descriptor.peer);
+	_emojiColumn->emojiChosen(
 	) | rpl::on_next([=](ChatHelpers::EmojiChosen data) {
-		setEmojiPanelInteractionActive(true);
 		if (_editor) {
 			_editor->insertEmoji(data.emoji);
 		}
 	}, _lifetime);
-	panel->selector()->customEmojiChosen(
+	_emojiColumn->customEmojiChosen(
 	) | rpl::on_next([=](ChatHelpers::FileChosen data) {
 		const auto document = data.document;
 		if (!IsEmojiDocument(document)) {
@@ -1457,84 +1488,115 @@ void WindowHost::Impl::setupEmojiPanel(const ShowWindowDescriptor &descriptor) {
 				_show,
 				PremiumFeature::AnimatedEmoji);
 		} else if (_editor) {
-			setEmojiPanelInteractionActive(true);
 			_editor->insertCustomEmoji(document);
 		}
 	}, _lifetime);
-
-	if (const auto button = _toolbar->emojiButton()) {
-		button->installEventFilter(panel);
-		base::install_event_filter(panel, button, [=](not_null<QEvent*> event) {
-			const auto type = event->type();
-			if (type == QEvent::Enter || type == QEvent::MouseButtonPress) {
-				setEmojiPanelInteractionActive(true);
-				updateEmojiPanelGeometry();
-			} else if (type == QEvent::Leave && panel->isHidden()) {
-				setEmojiPanelInteractionActive(false);
-			}
-			return base::EventFilterResult::Continue;
-		});
-	}
-	base::install_event_filter(panel, [=](not_null<QEvent*> event) {
-		const auto type = event->type();
-		if (type == QEvent::Hide || type == QEvent::Close) {
-			setEmojiPanelInteractionActive(false);
-		} else if (type == QEvent::Show) {
-			setEmojiPanelInteractionActive(true);
-		}
-		return base::EventFilterResult::Continue;
-	});
 }
 
 void WindowHost::Impl::layout() {
-	if (!_window || !_top || !_bottom || !_toolbar || !_editor) {
+	if (!_window || !_top || !_bottom || !_toolbar || !_editor || !_emojiColumn) {
 		return;
 	}
 	const auto width = _window->body()->width();
 	const auto height = _window->body()->height();
 	const auto padding = st::ivEditorBottomControlsPadding;
-	const auto toolbarHeight = _toolbar->resizeGetHeight(width);
+	const auto emojiWidth = _emojiColumnShown ? emojiColumnWidth() : 0;
+	const auto editorWidth = std::max(width - emojiWidth, 0);
+	const auto toolbarHeight = _toolbar->resizeGetHeight(editorWidth);
 	const auto buttonsHeight = std::max(_cancel->height(), _submit->height());
 	const auto bottomHeight = padding.top() + buttonsHeight + padding.bottom();
+	const auto contentHeight = std::max(height - toolbarHeight - bottomHeight, 0);
 	const auto buttonsTop = padding.top();
-	_top->setGeometry(0, 0, width, toolbarHeight);
-	_toolbar->setGeometry(0, 0, width, toolbarHeight);
+	_top->setGeometry(0, 0, editorWidth, toolbarHeight);
+	_toolbar->setGeometry(0, 0, editorWidth, toolbarHeight);
 	_bottom->setGeometry(
 		0,
 		std::max(height - bottomHeight, toolbarHeight),
-		width,
+		editorWidth,
 		bottomHeight);
-	_submit->moveToRight(padding.right(), buttonsTop, width);
+	_submit->moveToRight(padding.right(), buttonsTop, editorWidth);
 	_cancel->moveToRight(
 		padding.right()
 			+ _submit->width()
 			+ st::ivEditorBottomControlsButtonSkip,
 		buttonsTop,
-		width);
+		editorWidth);
 	_scroll->setGeometry(
 		0,
 		toolbarHeight,
-		width,
-		std::max(height - toolbarHeight - bottomHeight, 0));
+		editorWidth,
+		contentHeight);
+	if (_emojiColumnShown) {
+		_emojiColumn->setGeometry(
+			editorWidth,
+			0,
+			emojiWidth,
+			height);
+	} else {
+		_emojiColumn->hide();
+	}
 	_editor->resizeToWidth(std::max(_scroll->width(), 1));
 	updateEditorVisibleTopBottom();
-	updateEmojiPanelGeometry();
 }
 
-void WindowHost::Impl::updateEmojiPanelGeometry() {
-	if (!_emojiPanel || !_toolbar) {
+void WindowHost::Impl::toggleEmojiColumn() {
+	if (_emojiColumnShown) {
+		hideEmojiColumn();
+	} else {
+		showEmojiColumn();
+	}
+}
+
+void WindowHost::Impl::showEmojiColumn() {
+	if (_emojiColumnShown || !_window || !_emojiColumn) {
 		return;
 	}
-	const auto button = _toolbar->emojiButton();
-	if (!button) {
+	const auto window = not_null<Window*>(_window.get());
+	const auto wanted = emojiColumnWidth();
+	const auto minimal = std::max(
+		minimalWindowWidthWithEmojiColumn() - window->width(),
+		0);
+	_emojiColumnExtendedBy = 0;
+	if (!window->isMaximized() && !window->isFullScreen()) {
+		if (CanExtendNoMove(window, wanted)) {
+			_emojiColumnExtendedBy = TryToExtendWidthBy(window, wanted);
+		} else if (minimal > 0 && CanExtendNoMove(window, minimal)) {
+			_emojiColumnExtendedBy = TryToExtendWidthBy(window, minimal);
+		} else if (window->width() < minimalWindowWidthWithEmojiColumn()) {
+			_emojiColumnExtendedBy = TryToExtendWidthBy(window, minimal);
+		}
+	}
+	window->setMinimumWidth(minimalWindowWidthWithEmojiColumn());
+	_emojiColumnShown = true;
+	_emojiColumn->setRoundRadius(0);
+	setEmojiColumnInteractionActive(true);
+	_emojiColumn->showStarted();
+	_emojiColumn->show();
+	layout();
+	_emojiColumn->afterShown();
+}
+
+void WindowHost::Impl::hideEmojiColumn(bool skipResize) {
+	if (!_emojiColumnShown || !_window || !_emojiColumn) {
 		return;
 	}
-	const auto local = _emojiPanel->parentWidget()->mapFromGlobal(
-		button->mapToGlobal(QPoint()));
-	_emojiPanel->setDropDown(true);
-	_emojiPanel->moveTopRight(
-		local.y() + button->height(),
-		local.x() + button->width());
+	const auto window = not_null<Window*>(_window.get());
+	_emojiColumn->beforeHiding();
+	_emojiColumn->hide();
+	_emojiColumn->hideFinished();
+	_emojiColumnShown = false;
+	window->setMinimumWidth(st::ivEditorWindowMinSize.width());
+	setEmojiColumnInteractionActive(false);
+	if (!skipResize
+		&& _emojiColumnExtendedBy > 0
+		&& !window->isMaximized()
+		&& !window->isFullScreen()) {
+		window->resize(
+			window->width() - _emojiColumnExtendedBy,
+			window->height());
+	}
+	_emojiColumnExtendedBy = 0;
+	layout();
 }
 
 void WindowHost::Impl::updateEditorVisibleTopBottom() {
@@ -1545,13 +1607,21 @@ void WindowHost::Impl::updateEditorVisibleTopBottom() {
 	_editor->setVisibleTopBottom(scrollTop, scrollTop + _scroll->height());
 }
 
-void WindowHost::Impl::setEmojiPanelInteractionActive(bool active) {
-	if (_emojiPanelInteractionActive == active || !_editor) {
-		_emojiPanelInteractionActive = active;
+void WindowHost::Impl::setEmojiColumnInteractionActive(bool active) {
+	if (_emojiColumnInteractionActive == active || !_editor) {
+		_emojiColumnInteractionActive = active;
 		return;
 	}
-	_emojiPanelInteractionActive = active;
+	_emojiColumnInteractionActive = active;
 	_editor->setInlineFieldExternalInteractionActive(active);
+}
+
+int WindowHost::Impl::emojiColumnWidth() const {
+	return st::emojiPanWidth;
+}
+
+int WindowHost::Impl::minimalWindowWidthWithEmojiColumn() const {
+	return st::ivEditorWindowMinSize.width() + emojiColumnWidth();
 }
 
 void WindowHost::Impl::finishCloseFromAcceptedEvent() {
@@ -1560,10 +1630,7 @@ void WindowHost::Impl::finishCloseFromAcceptedEvent() {
 		return;
 	}
 	_closedNotified = true;
-	setEmojiPanelInteractionActive(false);
-	if (_emojiPanel) {
-		_emojiPanel->hideFast();
-	}
+	hideEmojiColumn(true);
 	if (const auto closed = base::take(_closed)) {
 		crl::on_main(closed);
 	}
