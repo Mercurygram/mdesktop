@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/chat_style.h"
 #include "ui/chat/chat_theme.h"
 #include "ui/painter.h"
+#include "ui/paint/blobs.h"
 #include "ui/rect.h"
 #include "ui/power_saving.h"
 #include "history/history.h"
@@ -1571,6 +1572,8 @@ HistoryDocumentVoicePlayback::HistoryDocumentVoicePlayback(
 	return nonconst->voiceProgressAnimationCallback(now);
 }) {
 }
+
+HistoryDocumentVoicePlayback::~HistoryDocumentVoicePlayback() = default;
 
 void HistoryDocumentVoice::ensurePlayback(
 		const HistoryView::Document *that) const {
