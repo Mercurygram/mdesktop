@@ -1886,6 +1886,10 @@ void Widget::hideInlineFieldAndRefresh() {
 	if (_field->isHidden()) {
 		return;
 	}
+	beginArticleRelayoutDeferral();
+	const auto relayoutGuard = gsl::finally([&] {
+		endArticleRelayoutDeferral();
+	});
 	const auto committed = recordMutationTransaction([&] {
 		const auto committed = commitInlineField();
 		_pendingOrdinal = -1;
@@ -1909,11 +1913,16 @@ void Widget::refreshPreparedContent() {
 
 void Widget::refreshPreparedLeafAtActiveSource() {
 	if (const auto source = _state->activePreparedLeafSource()) {
-		_article->updatePreparedLeaf(*source, _state->prepared());
-		relayoutCurrentContent();
+		refreshPreparedLeafAtSource(*source);
 	} else {
 		refreshPreparedContent();
 	}
+}
+
+void Widget::refreshPreparedLeafAtSource(
+		const Markdown::PreparedEditLeafSource &source) {
+	_article->updatePreparedLeaf(source, _state->prepared());
+	relayoutCurrentContent();
 }
 
 void Widget::applyExternalRichPageMutation(Fn<bool(RichPage&)> mutation) {
@@ -1944,15 +1953,110 @@ void Widget::applyExternalRichPageMutation(Fn<bool(RichPage&)> mutation) {
 		: false;
 }
 
-void Widget::relayoutCurrentContent() {
-	const auto width = std::max(
-		widthNoMargins(),
-		parentWidget() ? parentWidget()->width() : 0);
+void Widget::beginArticleRelayoutDeferral() {
+	++_articleRelayoutDeferralDepth;
+}
+
+void Widget::endArticleRelayoutDeferral() {
+	if (_articleRelayoutDeferralDepth <= 0) {
+		return;
+	}
+	--_articleRelayoutDeferralDepth;
+	if (_articleRelayoutDeferralDepth > 0) {
+		return;
+	}
+	flushArticleRelayoutDeferral();
+}
+
+bool Widget::articleRelayoutDeferralActive() const {
+	return (_articleRelayoutDeferralDepth > 0);
+}
+
+void Widget::requestDeferredArticleRelayout() {
+	_articleRelayoutDeferred = true;
+}
+
+void Widget::requestDeferredInlineFieldGeometry() {
+	_inlineFieldGeometryDeferred = true;
+}
+
+void Widget::requestDeferredInlineFieldHeightOverride() {
+	_inlineFieldHeightOverrideDeferred = true;
+}
+
+void Widget::clearArticleEditableHeightOverride() {
+	if (!_article) {
+		return;
+	} else if (articleRelayoutDeferralActive()) {
+		_articleEditableHeightOverrideClearDeferred = true;
+		requestDeferredArticleRelayout();
+		return;
+	}
+	_article->clearEditableHeightOverride();
+}
+
+void Widget::flushArticleRelayoutDeferral() {
+	if (articleRelayoutDeferralActive()) {
+		return;
+	}
+	const auto clearHeightOverride
+		= _articleEditableHeightOverrideClearDeferred;
+	const auto relayout = _articleRelayoutDeferred || clearHeightOverride;
+	const auto geometry = _inlineFieldGeometryDeferred;
+	const auto heightOverride = _inlineFieldHeightOverrideDeferred;
+	_articleEditableHeightOverrideClearDeferred = false;
+	_articleRelayoutDeferred = false;
+	_inlineFieldGeometryDeferred = false;
+	_inlineFieldHeightOverrideDeferred = false;
+	if (!relayout && !geometry && !heightOverride) {
+		return;
+	}
+	if (clearHeightOverride && _article) {
+		_article->clearEditableHeightOverride();
+	}
+	if (relayout) {
+		relayoutCurrentContent();
+	}
+	if (geometry) {
+		syncInlineFieldGeometry();
+	}
+	if (heightOverride) {
+		updateInlineFieldHeightOverride();
+	}
+	syncArticleVisibleTopBottom();
+}
+
+void Widget::beginInlineFieldRevealSuppression() {
+	++_inlineFieldRevealSuppressionDepth;
+}
+
+void Widget::endInlineFieldRevealSuppression() {
+	if (_inlineFieldRevealSuppressionDepth > 0) {
+		--_inlineFieldRevealSuppressionDepth;
+	}
+}
+
+bool Widget::inlineFieldRevealSuppressed() const {
+	return (_inlineFieldRevealSuppressionDepth > 0);
+}
+
+void Widget::resizeCurrentContentToWidth(int width) {
+	if (articleRelayoutDeferralActive()) {
+		requestDeferredArticleRelayout();
+		return;
+	}
 	if (width > 0) {
 		resizeToWidth(width);
 	} else {
 		update();
 	}
+}
+
+void Widget::relayoutCurrentContent() {
+	const auto width = std::max(
+		widthNoMargins(),
+		parentWidget() ? parentWidget()->width() : 0);
+	resizeCurrentContentToWidth(width);
 }
 
 void Widget::syncInlineFieldGeometry() {
@@ -2776,6 +2880,30 @@ bool Widget::escapeActiveBlockBodyFromToolbar() {
 	return handled;
 }
 
+Fn<void()> Widget::captureScrollTopRestorer() const {
+	for (auto parent = parentWidget(); parent; parent = parent->parentWidget()) {
+		if (const auto scroll = dynamic_cast<Ui::ScrollArea*>(parent)) {
+			const auto weak = QPointer<Ui::ScrollArea>(scroll);
+			const auto top = scroll->scrollTop();
+			return [=] {
+				if (weak) {
+					weak->scrollToY(top);
+				}
+			};
+		}
+		if (const auto scroll = dynamic_cast<Ui::ElasticScroll*>(parent)) {
+			const auto weak = QPointer<Ui::ElasticScroll>(scroll);
+			const auto top = scroll->scrollTop();
+			return [=] {
+				if (weak) {
+					weak->scrollToY(top);
+				}
+			};
+		}
+	}
+	return nullptr;
+}
+
 void Widget::insertHeading1() {
 	insertBlock({
 		.type = State::InsertBlockType::Heading,
@@ -3060,6 +3188,21 @@ int Widget::resizeGetHeight(int newWidth) {
 	}
 	const auto width = std::max(newWidth, 1);
 	const auto padding = EditorBodyPadding();
+	if (articleRelayoutDeferralActive()) {
+		requestDeferredArticleRelayout();
+		if (!_field->isHidden()) {
+			requestDeferredInlineFieldGeometry();
+			requestDeferredInlineFieldHeightOverride();
+		}
+		const auto fieldBottom = !_field->isHidden()
+			? (_field->y() + _field->height())
+			: 0;
+		return std::max(
+			std::max(
+				_articleHeight + padding.top() + padding.bottom(),
+				fieldBottom),
+			st::ivEditorMinHeight);
+	}
 	_articleHeight = _article->resizeGetHeight(articleWidth(width));
 	syncArticleVisibleTopBottom();
 	ensurePendingActivation();
@@ -3805,6 +3948,16 @@ void Widget::mouseMoveEvent(QMouseEvent *e) {
 		articlePoint,
 		Ui::Text::StateRequest::Flag::LookupSymbol);
 	const auto editHit = _article->editHitTest(articlePoint);
+	const auto movedFarEnough = (e->globalPos()
+		- _articleSelectionDrag.globalPressPoint).manhattanLength()
+		>= QApplication::startDragDistance();
+	if (!_articleSelectionDrag.dragStarted) {
+		if (!movedFarEnough) {
+			e->accept();
+			return;
+		}
+		_articleSelectionDrag.dragStarted = true;
+	}
 	updateArticleSelection(articlePoint, hit, editHit);
 	e->accept();
 }
@@ -3840,12 +3993,12 @@ void Widget::mousePressEvent(QMouseEvent *e) {
 	const auto editHit = _article->editHitTest(articlePoint);
 	const auto startedBelow = (articlePoint.y() >= _articleHeight);
 	if (hit.codeHeaderCopy) {
-		startArticleSelection(articlePoint, hit, editHit);
+		startArticleSelection(articlePoint, e->globalPos(), hit, editHit);
 		e->accept();
 		return;
 	}
 	if (hit.valid() && hit.direct && _article->segmentIsText(hit.segmentIndex)) {
-		startArticleSelection(articlePoint, hit, editHit);
+		startArticleSelection(articlePoint, e->globalPos(), hit, editHit);
 		e->accept();
 		return;
 	}
@@ -3853,6 +4006,7 @@ void Widget::mousePressEvent(QMouseEvent *e) {
 		if (editHit.valid()) {
 			startArticleSelection(
 				articlePoint,
+				e->globalPos(),
 				hit,
 				editHit,
 				false,
@@ -3864,7 +4018,7 @@ void Widget::mousePressEvent(QMouseEvent *e) {
 		return;
 	}
 	if (editHit.valid()) {
-		startArticleSelection(articlePoint, hit, editHit);
+		startArticleSelection(articlePoint, e->globalPos(), hit, editHit);
 		e->accept();
 		return;
 	}
@@ -3987,6 +4141,11 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 		if (_field->isHidden()) {
 			return false;
 		}
+		beginArticleRelayoutDeferral();
+		const auto relayoutGuard = gsl::finally([&] {
+			endArticleRelayoutDeferral();
+		});
+		const auto source = _state->activePreparedLeafSource();
 		const auto committed = recordMutationTransaction([&] {
 			const auto committed = commitInlineField();
 			if (committed != ApplyResult::Failed) {
@@ -4000,7 +4159,49 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 		if (committed == ApplyResult::Failed) {
 			return false;
 		}
-		refreshAfterInlineFieldCommit(committed);
+		refreshAfterInlineFieldCommit(committed, source);
+		return true;
+	};
+	const auto commitAndActivateTextOrdinal = [&](
+			int ordinal,
+			int selectionFrom,
+			int selectionTo) {
+		const auto restoreScroll = captureScrollTopRestorer();
+		auto source = std::optional<Markdown::PreparedEditLeafSource>();
+		auto committed = ApplyResult::Unchanged;
+		beginArticleRelayoutDeferral();
+		if (!_field->isHidden()) {
+			source = _state->activePreparedLeafSource();
+			committed = recordMutationTransaction([&] {
+				const auto committed = commitInlineField();
+				if (committed != ApplyResult::Failed) {
+					_pendingOrdinal = -1;
+					_pendingCursorOffset = 0;
+					hideInlineField();
+					clearInlineFieldEditSession();
+				}
+				return committed;
+			});
+			if (committed == ApplyResult::Failed) {
+				endArticleRelayoutDeferral();
+				return false;
+			}
+		}
+		finishArticleSelection();
+		beginInlineFieldRevealSuppression();
+		const auto revealGuard = gsl::finally([&] {
+			endInlineFieldRevealSuppression();
+		});
+		activateTextOrdinal(
+			ordinal,
+			selectionFrom,
+			selectionTo,
+			ActivateReveal::Skip);
+		refreshAfterInlineFieldCommit(committed, std::move(source));
+		endArticleRelayoutDeferral();
+		if (restoreScroll) {
+			restoreScroll();
+		}
 		return true;
 	};
 	const auto focusOrActivateInitial = [&] {
@@ -4052,14 +4253,31 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 		const auto fromField = _articleSelectionDrag.fromField;
 		const auto pendingCodeHeader = _articleSelectionDrag.codeHeader;
 		const auto startedBelow = _articleSelectionDrag.startedBelow;
+		const auto clickLike = !_articleSelectionDrag.dragStarted
+			&& ((e->globalPos()
+				- _articleSelectionDrag.globalPressPoint).manhattanLength()
+				< QApplication::startDragDistance());
 		const auto updateOnRelease
-			= (_articleSelectionDrag.mode != DragSelectionMode::None)
-			|| (!pendingCodeHeader
-				&& (!startedBelow || articlePoint.y() < _articleHeight));
+			= !clickLike
+			&& ((_articleSelectionDrag.mode != DragSelectionMode::None)
+				|| (!pendingCodeHeader
+					&& (!startedBelow || articlePoint.y() < _articleHeight)));
 		if (updateOnRelease) {
 			updateArticleSelection(articlePoint, hit, editHit);
 		}
-		if (hasStructuralSelection()) {
+		if (clickLike) {
+			const auto changed = !_selection.empty()
+				|| _selectionEndpoints.from.valid()
+				|| _selectionEndpoints.to.valid()
+				|| hasStructuralSelection();
+			_selection = {};
+			_selectionEndpoints = {};
+			setStructuralSelection({});
+			if (changed) {
+				update();
+			}
+		}
+		if (!clickLike && hasStructuralSelection()) {
 			commitVisibleInlineField();
 			e->accept();
 			return;
@@ -4076,12 +4294,10 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 				const auto selectionFrom = selection.from.offset;
 				const auto selectionTo = selection.to.offset;
 				clearTextSelection();
-				if (_field->isHidden() || commitVisibleInlineField()) {
-					activateTextOrdinal(
-						selectionOrdinal,
-						selectionFrom,
-						selectionTo);
-				}
+				commitAndActivateTextOrdinal(
+					selectionOrdinal,
+					selectionFrom,
+					selectionTo);
 				e->accept();
 				return;
 			} else if (fromField) {
@@ -4148,9 +4364,7 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 			_field->setTextCursor(cursor);
 			_field->setFocusFast();
 		} else if (targetOrdinal >= 0) {
-			if (_field->isHidden() || commitVisibleInlineField()) {
-				activateTextOrdinal(targetOrdinal, offset);
-			}
+			commitAndActivateTextOrdinal(targetOrdinal, offset, offset);
 		}
 	} else if (articlePoint.y() >= _articleHeight) {
 		activateTrailingParagraph();
@@ -4675,7 +4889,7 @@ void Widget::setInlineFieldFromActiveState(int selectionFrom, int selectionTo) {
 			{ _state->activeRawText(), {} },
 			trimLeft);
 		if (preserveRestoredRetainedField(trimmed.text)) {
-			_article->clearEditableHeightOverride();
+			clearArticleEditableHeightOverride();
 			finishWithRetainedField();
 			notifyToolbarStateChanged();
 			return;
@@ -4686,7 +4900,7 @@ void Widget::setInlineFieldFromActiveState(int selectionFrom, int selectionTo) {
 				Ui::InputField::HistoryAction::Clear);
 		}
 		trimmedLeft = trimmed.left;
-		_article->clearEditableHeightOverride();
+		clearArticleEditableHeightOverride();
 	} else {
 		const auto activeText = ConvertRichTextToEditorTags(
 			_state->activeText());
@@ -4728,14 +4942,18 @@ void Widget::setInlineFieldFromActiveState(int selectionFrom, int selectionTo) {
 	notifyToolbarStateChanged();
 }
 
-void Widget::activateTextOrdinal(int ordinal, int cursorOffset) {
-	activateTextOrdinal(ordinal, cursorOffset, cursorOffset);
+void Widget::activateTextOrdinal(
+		int ordinal,
+		int cursorOffset,
+		ActivateReveal reveal) {
+	activateTextOrdinal(ordinal, cursorOffset, cursorOffset, reveal);
 }
 
 void Widget::activateTextOrdinal(
 		int ordinal,
 		int selectionFrom,
-		int selectionTo) {
+		int selectionTo,
+		ActivateReveal reveal) {
 	const auto targetLeaf = [&]() -> std::optional<State::LeafPath> {
 		const auto &nodes = _state->textNodes();
 		return (ordinal >= 0 && ordinal < int(nodes.size()))
@@ -4767,7 +4985,7 @@ void Widget::activateTextOrdinal(
 	}
 
 	if (_article && previousSegmentIndex != segmentIndex) {
-		_article->clearEditableHeightOverride();
+		clearArticleEditableHeightOverride();
 	}
 	if (previousSegmentIndex != segmentIndex) {
 		clearDisplayMathEditSession();
@@ -4775,7 +4993,7 @@ void Widget::activateTextOrdinal(
 	_activeSegmentIndex = segmentIndex;
 	if (_article->segmentIsDisplayMath(_activeSegmentIndex)) {
 		clearDisplayMathEditSession();
-		_article->clearEditableHeightOverride();
+		clearArticleEditableHeightOverride();
 		hideInlineField();
 		_selection = {};
 		_selectionEndpoints = {};
@@ -4786,12 +5004,24 @@ void Widget::activateTextOrdinal(
 	} else {
 		clearDisplayMathEditSession();
 	}
+	const auto hadArticleSelection = !_selection.empty()
+		|| _selectionEndpoints.from.valid()
+		|| _selectionEndpoints.to.valid()
+		|| hasStructuralSelection();
+	_selection = {};
+	_selectionEndpoints = {};
+	setStructuralSelection({});
+	if (hadArticleSelection) {
+		update();
+	}
 	setInlineFieldFromActiveState(selectionFrom, selectionTo);
 	_field->show();
 	syncInlineFieldGeometry();
 	updateInlineFieldHeightOverride();
 	syncArticleVisibleTopBottom();
-	revealActiveInlineField();
+	if (reveal == ActivateReveal::Reveal) {
+		revealActiveInlineField();
+	}
 	_field->raise();
 	_field->setFocusFast();
 	notifyToolbarStateChanged();
@@ -4824,7 +5054,9 @@ QRect Widget::mapFieldLocalRectToScrollContent(
 }
 
 void Widget::revealActiveInlineField() {
-	if (_field->isHidden() || _activeSegmentIndex < 0) {
+	if (inlineFieldRevealSuppressed()
+		|| _field->isHidden()
+		|| _activeSegmentIndex < 0) {
 		return;
 	}
 	if (_article->revealSegment(_activeSegmentIndex)) {
@@ -5297,6 +5529,19 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 	const auto atStart = cursor.atStart();
 	const auto atEnd = cursor.atEnd();
 	auto handled = false;
+	const auto refreshPreparedContentAndActivate = [&](
+			int ordinal,
+			int cursorOffset) {
+		beginInlineFieldRevealSuppression();
+		{
+			const auto revealGuard = gsl::finally([&] {
+				endInlineFieldRevealSuppression();
+			});
+			refreshPreparedContent();
+			activateTextOrdinal(ordinal, cursorOffset, ActivateReveal::Skip);
+		}
+		revealActiveInlineField();
+	};
 	if (atStart
 		&& (key == Qt::Key_Left
 			|| key == Qt::Key_Up
@@ -5314,12 +5559,18 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 			} else if (const auto target
 				= _state->removeTemporaryDownParagraphAndMove();
 				target.action != State::BoundaryTarget::Action::None) {
-				refreshPreparedContent();
 				switch (target.action) {
 				case State::BoundaryTarget::Action::Text:
-					activateTextOrdinal(target.textOrdinal, 0);
+					refreshPreparedContentAndActivate(target.textOrdinal, 0);
 					break;
 				case State::BoundaryTarget::Action::StructuralSelection:
+					beginInlineFieldRevealSuppression();
+					{
+						const auto revealGuard = gsl::finally([&] {
+							endInlineFieldRevealSuppression();
+						});
+						refreshPreparedContent();
+					}
 					_boundarySelectionOrigin = std::nullopt;
 					_selection = {};
 					_selectionEndpoints = {};
@@ -5341,8 +5592,7 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 					.changed = true,
 				};
 			} else if (const auto target = _state->moveActiveSpecialBlockDown()) {
-				refreshPreparedContent();
-				activateTextOrdinal(*target, 0);
+				refreshPreparedContentAndActivate(*target, 0);
 				handled = true;
 				return MutationTransactionResult{
 					.committed = committed,
@@ -5385,16 +5635,14 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 					.failed = true,
 				};
 			} else if (const auto target = _state->handleActiveListEnter()) {
-				refreshPreparedContent();
-				activateTextOrdinal(*target, 0);
+				refreshPreparedContentAndActivate(*target, 0);
 				handled = true;
 				return MutationTransactionResult{
 					.committed = committed,
 					.changed = true,
 				};
 			} else if (const auto target = _state->handleActiveHeadingEnter()) {
-				refreshPreparedContent();
-				activateTextOrdinal(*target, 0);
+				refreshPreparedContentAndActivate(*target, 0);
 				handled = true;
 				return MutationTransactionResult{
 					.committed = committed,
@@ -5402,8 +5650,7 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 				};
 			} else if (const auto target
 				= _state->submitActiveSingleLineField()) {
-				refreshPreparedContent();
-				activateTextOrdinal(*target, 0);
+				refreshPreparedContentAndActivate(*target, 0);
 				handled = true;
 				return MutationTransactionResult{
 					.committed = committed,
@@ -5707,9 +5954,13 @@ void Widget::updateInlineFieldHeightOverride() {
 	} else if (_syncingInlineFieldGeometry) {
 		_pendingHeightOverrideUpdate = true;
 		return;
+	} else if (articleRelayoutDeferralActive()) {
+		requestDeferredInlineFieldGeometry();
+		requestDeferredInlineFieldHeightOverride();
+		return;
 	}
 	if (_article->editableIndexForSegment(_activeSegmentIndex) < 0) {
-		_article->clearEditableHeightOverride();
+		clearArticleEditableHeightOverride();
 		return;
 	}
 	const auto segmentRect = fieldOuterRectForSegment(_activeSegmentIndex);
@@ -5727,7 +5978,7 @@ void Widget::updateInlineFieldHeightOverride() {
 		height = std::max(height, _activeDisplayMathBaselineHeight);
 	}
 	_article->setEditableHeightOverrideForSegment(_activeSegmentIndex, height);
-	resizeToWidth(std::max(widthNoMargins(), 1));
+	relayoutCurrentContent();
 	update();
 }
 
@@ -5740,7 +5991,7 @@ void Widget::clearInlineFieldEditSession(
 		bool keepRetainedFieldOnCurrentHistoryEntry) {
 	clearDisplayMathEditSession();
 	if (_article) {
-		_article->clearEditableHeightOverride();
+		clearArticleEditableHeightOverride();
 	}
 	if (!_field->isHidden()
 		|| !_fieldLeaf) {
@@ -6030,11 +6281,23 @@ void Widget::moveRetainedLeafFields(
 }
 
 void Widget::refreshAfterInlineFieldCommit(ApplyResult committed) {
+	refreshAfterInlineFieldCommit(
+		committed,
+		_state->activePreparedLeafSource());
+}
+
+void Widget::refreshAfterInlineFieldCommit(
+		ApplyResult committed,
+		std::optional<Markdown::PreparedEditLeafSource> source) {
 	switch ((committed == ApplyResult::Changed)
 		? _state->lastPreparedMutationKind()
 		: PreparedMutationKind::None) {
 	case PreparedMutationKind::LeafOnly:
-		refreshPreparedLeafAtActiveSource();
+		if (source) {
+			refreshPreparedLeafAtSource(*source);
+		} else {
+			refreshPreparedContent();
+		}
 		break;
 	case PreparedMutationKind::FullRebuild:
 		refreshPreparedContent();
@@ -6048,6 +6311,10 @@ void Widget::refreshAfterInlineFieldCommit(ApplyResult committed) {
 
 void Widget::ensureArticleLayoutForInlineField(int width) {
 	if (!_article || width <= 0) {
+		return;
+	} else if (articleRelayoutDeferralActive()) {
+		requestDeferredArticleRelayout();
+		requestDeferredInlineFieldGeometry();
 		return;
 	}
 	_articleHeight = _article->resizeGetHeight(articleWidth(width));
@@ -6066,6 +6333,9 @@ void Widget::syncArticleVisibleTopBottom() {
 void Widget::syncInlineFieldGeometry(int width) {
 	if (_field->isHidden() || width <= 0) {
 		return;
+	} else if (articleRelayoutDeferralActive()) {
+		requestDeferredInlineFieldGeometry();
+		return;
 	}
 	ensureArticleLayoutForInlineField(width);
 	if (_activeSegmentIndex >= 0) {
@@ -6076,7 +6346,7 @@ void Widget::syncInlineFieldGeometry(int width) {
 		_pendingOrdinal = _activeOrdinal;
 		_pendingCursorOffset = _field->textCursor().position();
 		hideInlineField();
-		_article->clearEditableHeightOverride();
+		clearArticleEditableHeightOverride();
 		return;
 	}
 	const auto margins = _field->fullTextMargins();
@@ -6299,6 +6569,7 @@ bool Widget::hasStructuralSelection() const {
 
 void Widget::startArticleSelection(
 		QPoint pressPoint,
+		QPoint globalPressPoint,
 		const Markdown::MarkdownArticleHitTestResult &hit,
 		const PreparedEditHit &editHit,
 		bool fromField,
@@ -6319,6 +6590,7 @@ void Widget::startArticleSelection(
 		.startedBelow = startedBelow,
 		.codeHeader = hit.codeHeaderCopy,
 		.pressPoint = pressPoint,
+		.globalPressPoint = globalPressPoint,
 		.anchorHit = editHit,
 		.textSegment = -1,
 		.textOffset = 0,
@@ -6629,6 +6901,7 @@ bool Widget::handleFieldMouseEvent(QEvent *event) {
 			.startedBelow = false,
 			.codeHeader = false,
 			.pressPoint = articlePoint,
+			.globalPressPoint = globalPoint,
 			.anchorHit = anchorHit,
 			.textSegment = _activeSegmentIndex,
 			.textOffset = std::clamp(
@@ -6653,6 +6926,18 @@ bool Widget::handleFieldMouseEvent(QEvent *event) {
 
 	const auto globalPoint = mouse->globalPos();
 	const auto articlePoint = mapFromGlobal(globalPoint) - articleTopLeft();
+	const auto movedFarEnough = (globalPoint
+		- _articleSelectionDrag.globalPressPoint).manhattanLength()
+		>= QApplication::startDragDistance();
+	if (type == QEvent::MouseMove && !_articleSelectionDrag.dragStarted) {
+		if (!movedFarEnough) {
+			return false;
+		}
+		_articleSelectionDrag.dragStarted = true;
+	}
+	const auto clickLike = (type == QEvent::MouseButtonRelease)
+		&& !_articleSelectionDrag.dragStarted
+		&& !movedFarEnough;
 	const auto hit = _article->hitTest(
 		articlePoint,
 		Ui::Text::StateRequest::Flag::LookupSymbol);
@@ -6692,6 +6977,11 @@ bool Widget::handleFieldMouseEvent(QEvent *event) {
 		return false;
 	}
 
+	if (clickLike) {
+		finishArticleSelection();
+		_trackingPointerPress = false;
+		return false;
+	}
 	updateArticleSelection(articlePoint, hit, editHit);
 	if (type == QEvent::MouseButtonRelease) {
 		if (hasStructuralSelection()) {

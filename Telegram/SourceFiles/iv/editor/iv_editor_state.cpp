@@ -96,7 +96,7 @@ constexpr auto kMaxCommittedFieldLength = 256 * 1024;
 }
 
 [[nodiscard]] TextWithEntities MakeInlineMathText(QString source) {
-	const auto length = source.size();
+	const auto length = int(source.size());
 	return ConvertEditorTagsToRichText(TextWithTags{
 		.text = std::move(source),
 		.tags = { TextWithTags::Tag{

@@ -224,7 +224,9 @@ private:
 		bool fromField = false;
 		bool startedBelow = false;
 		bool codeHeader = false;
+		bool dragStarted = false;
 		QPoint pressPoint;
+		QPoint globalPressPoint;
 		Markdown::PreparedEditHit anchorHit;
 		int textSegment = -1;
 		int textOffset = 0;
@@ -298,9 +300,21 @@ private:
 		base::unique_qptr<Ui::InputField> field;
 	};
 
+	enum class ActivateReveal {
+		Reveal,
+		Skip,
+	};
+
 	void setDocument(const Markdown::MarkdownArticleContent &prepared);
-	void activateTextOrdinal(int ordinal, int cursorOffset);
-	void activateTextOrdinal(int ordinal, int selectionFrom, int selectionTo);
+	void activateTextOrdinal(
+		int ordinal,
+		int cursorOffset,
+		ActivateReveal reveal = ActivateReveal::Reveal);
+	void activateTextOrdinal(
+		int ordinal,
+		int selectionFrom,
+		int selectionTo,
+		ActivateReveal reveal = ActivateReveal::Reveal);
 	[[nodiscard]] Markdown::MarkdownArticleTextLeafStyle
 	inlineFieldStyleForSegment(int segmentIndex) const;
 	[[nodiscard]] const CachedInlineFieldStyle &inlineFieldStyleFor(
@@ -362,6 +376,8 @@ private:
 	void hideInlineField();
 	void acceptInlineField();
 	void hideInlineFieldAndRefresh();
+	void refreshPreparedLeafAtSource(
+		const Markdown::PreparedEditLeafSource &source);
 	void activateTextOrdinalAtEnd(int ordinal);
 	[[nodiscard]] bool redirectKeyToField(QKeyEvent *e) const;
 	[[nodiscard]] bool redirectImeToField() const;
@@ -439,6 +455,7 @@ private:
 		ToolbarFormatAction action) const;
 	void clearFieldUndoRedoNoopState();
 	[[nodiscard]] bool escapeActiveBlockBodyFromToolbar();
+	[[nodiscard]] Fn<void()> captureScrollTopRestorer() const;
 	void retainActiveLeafField(
 		bool keepRetainedFieldOnCurrentHistoryEntry = false);
 	[[nodiscard]] base::unique_qptr<Ui::InputField> reviveRetainedLeafField(
@@ -452,8 +469,23 @@ private:
 		int fromHistoryIndex,
 		int toHistoryIndex,
 		uint64 afterRetainToken);
+	void beginArticleRelayoutDeferral();
+	void endArticleRelayoutDeferral();
+	[[nodiscard]] bool articleRelayoutDeferralActive() const;
+	void requestDeferredArticleRelayout();
+	void requestDeferredInlineFieldGeometry();
+	void requestDeferredInlineFieldHeightOverride();
+	void clearArticleEditableHeightOverride();
+	void flushArticleRelayoutDeferral();
+	void beginInlineFieldRevealSuppression();
+	void endInlineFieldRevealSuppression();
+	[[nodiscard]] bool inlineFieldRevealSuppressed() const;
+	void resizeCurrentContentToWidth(int width);
 	void relayoutCurrentContent();
 	void refreshAfterInlineFieldCommit(State::ApplyResult committed);
+	void refreshAfterInlineFieldCommit(
+		State::ApplyResult committed,
+		std::optional<Markdown::PreparedEditLeafSource> source);
 	void ensureArticleLayoutForInlineField(int width);
 	void syncArticleVisibleTopBottom();
 	void syncInlineFieldGeometry(int width);
@@ -476,6 +508,7 @@ private:
 	[[nodiscard]] bool hasStructuralSelection() const;
 	void startArticleSelection(
 		QPoint pressPoint,
+		QPoint globalPressPoint,
 		const Markdown::MarkdownArticleHitTestResult &hit,
 		const Markdown::PreparedEditHit &editHit,
 		bool fromField = false,
@@ -580,6 +613,12 @@ private:
 	std::optional<QPoint> _pendingTouchHorizontalScrollPoint;
 	bool _syncingInlineFieldGeometry = false;
 	bool _pendingHeightOverrideUpdate = false;
+	int _articleRelayoutDeferralDepth = 0;
+	bool _articleRelayoutDeferred = false;
+	bool _inlineFieldGeometryDeferred = false;
+	bool _inlineFieldHeightOverrideDeferred = false;
+	bool _articleEditableHeightOverrideClearDeferred = false;
+	int _inlineFieldRevealSuppressionDepth = 0;
 };
 
 } // namespace Iv::Editor
