@@ -1946,6 +1946,55 @@ void Widget::hideInlineFieldAndRefresh() {
 	refreshAfterInlineFieldCommit(committed);
 }
 
+bool Widget::commitAndActivateTextOrdinal(
+		int ordinal,
+		int selectionFrom,
+		int selectionTo,
+		ActivateReveal revealAfterRestore) {
+	const auto restoreScroll = captureScrollTopRestorer();
+	auto source = std::optional<Markdown::PreparedEditLeafSource>();
+	auto committed = ApplyResult::Unchanged;
+	beginArticleRelayoutDeferral();
+	if (!_field->isHidden()) {
+		source = _state->activePreparedLeafSource();
+		committed = recordMutationTransaction([&] {
+			const auto committed = commitInlineField();
+			if (committed != ApplyResult::Failed) {
+				_pendingOrdinal = -1;
+				_pendingCursorOffset = 0;
+				hideInlineField();
+				clearInlineFieldEditSession();
+			}
+			return committed;
+		});
+		if (committed == ApplyResult::Failed) {
+			endArticleRelayoutDeferral();
+			return false;
+		}
+	}
+	finishArticleSelection();
+	beginInlineFieldRevealSuppression();
+	{
+		const auto revealGuard = gsl::finally([&] {
+			endInlineFieldRevealSuppression();
+		});
+		activateTextOrdinal(
+			ordinal,
+			selectionFrom,
+			selectionTo,
+			ActivateReveal::Skip);
+		refreshAfterInlineFieldCommit(committed, std::move(source));
+	}
+	endArticleRelayoutDeferral();
+	if (restoreScroll) {
+		restoreScroll();
+	}
+	if (revealAfterRestore == ActivateReveal::Reveal) {
+		revealActiveInlineField();
+	}
+	return true;
+}
+
 void Widget::acceptInlineField() {
 	hideInlineFieldAndRefresh();
 }
@@ -4651,48 +4700,6 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 		refreshAfterInlineFieldCommit(committed, source);
 		return true;
 	};
-	const auto commitAndActivateTextOrdinal = [&](
-			int ordinal,
-			int selectionFrom,
-			int selectionTo) {
-		const auto restoreScroll = captureScrollTopRestorer();
-		auto source = std::optional<Markdown::PreparedEditLeafSource>();
-		auto committed = ApplyResult::Unchanged;
-		beginArticleRelayoutDeferral();
-		if (!_field->isHidden()) {
-			source = _state->activePreparedLeafSource();
-			committed = recordMutationTransaction([&] {
-				const auto committed = commitInlineField();
-				if (committed != ApplyResult::Failed) {
-					_pendingOrdinal = -1;
-					_pendingCursorOffset = 0;
-					hideInlineField();
-					clearInlineFieldEditSession();
-				}
-				return committed;
-			});
-			if (committed == ApplyResult::Failed) {
-				endArticleRelayoutDeferral();
-				return false;
-			}
-		}
-		finishArticleSelection();
-		beginInlineFieldRevealSuppression();
-		const auto revealGuard = gsl::finally([&] {
-			endInlineFieldRevealSuppression();
-		});
-		activateTextOrdinal(
-			ordinal,
-			selectionFrom,
-			selectionTo,
-			ActivateReveal::Skip);
-		refreshAfterInlineFieldCommit(committed, std::move(source));
-		endArticleRelayoutDeferral();
-		if (restoreScroll) {
-			restoreScroll();
-		}
-		return true;
-	};
 	const auto focusOrActivateInitial = [&] {
 		if (_field->isHidden()) {
 			activateInitialNode();
@@ -4791,10 +4798,10 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 				const auto selectionFrom = selection.from.offset;
 				const auto selectionTo = selection.to.offset;
 				clearTextSelection();
-				commitAndActivateTextOrdinal(
+				static_cast<void>(commitAndActivateTextOrdinal(
 					selectionOrdinal,
 					selectionFrom,
-					selectionTo);
+					selectionTo));
 				e->accept();
 				return;
 			} else if (fromField) {
@@ -4861,7 +4868,10 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 			_field->setTextCursor(cursor);
 			_field->setFocusFast();
 		} else if (targetOrdinal >= 0) {
-			commitAndActivateTextOrdinal(targetOrdinal, offset, offset);
+			static_cast<void>(commitAndActivateTextOrdinal(
+				targetOrdinal,
+				offset,
+				offset));
 		}
 	} else if (articlePoint.y() >= _articleHeight) {
 		activateTrailingParagraph();
@@ -6009,6 +6019,227 @@ void Widget::activateTextOrdinalAtEnd(int ordinal) {
 	activateTextOrdinal(ordinal, _state->activeTextLength());
 }
 
+void Widget::setActiveFieldCursorOffset(int offset) {
+	auto cursor = _field->textCursor();
+	cursor.setPosition(std::clamp(
+		offset,
+		0,
+		int(_field->getLastText().size())));
+	_field->setTextCursor(cursor);
+	_field->setFocusFast();
+	revealActiveInlineField();
+}
+
+std::optional<int> Widget::activeFieldPageCursorOffset(bool down) const {
+	if (_field->isHidden()) {
+		return std::nullopt;
+	}
+	const auto pageHeight = _visibleRange.bottom - _visibleRange.top;
+	if (pageHeight <= 0) {
+		return std::nullopt;
+	}
+	const auto raw = _field->rawTextEdit();
+	const auto cursor = _field->textCursor();
+	const auto rect = raw->cursorRect(cursor);
+	if (!rect.isValid() || rect.isEmpty()) {
+		return std::nullopt;
+	}
+	const auto point = rect.center()
+		+ QPoint(0, down ? pageHeight : -pageHeight);
+	if (!raw->viewport()->rect().contains(point)) {
+		return std::nullopt;
+	}
+	return std::clamp(
+		raw->cursorForPosition(point).position(),
+		0,
+		int(_field->getLastText().size()));
+}
+
+std::optional<QPoint> Widget::activeFieldCursorArticlePoint() const {
+	if (_field->isHidden()) {
+		return std::nullopt;
+	}
+	const auto raw = _field->rawTextEdit();
+	auto cursor = _field->textCursor();
+	cursor.setPosition(cursor.position());
+	const auto rect = raw->cursorRect(cursor);
+	return (!rect.isValid() || rect.isEmpty())
+		? std::nullopt
+		: std::make_optional(
+			raw->viewport()->mapTo(this, rect.center()) - articleTopLeft());
+}
+
+bool Widget::fieldCursorLeavesVisibleRow(bool down) const {
+	if (_field->isHidden()) {
+		return false;
+	}
+	const auto raw = _field->rawTextEdit();
+	const auto viewport = raw->viewport()->rect();
+	const auto cursor = _field->textCursor();
+	auto next = cursor;
+	const auto moved = next.movePosition(
+		down ? QTextCursor::Down : QTextCursor::Up,
+		QTextCursor::MoveAnchor);
+	if (!moved || (next.position() == cursor.position())) {
+		return true;
+	}
+	const auto nextRect = raw->cursorRect(next);
+	return !nextRect.isValid()
+		|| nextRect.isEmpty()
+		|| (nextRect.top() < viewport.top())
+		|| (nextRect.bottom() > viewport.bottom());
+}
+
+int Widget::textEditableSegmentIndex(int ordinal) const {
+	if (!_article) {
+		return -1;
+	}
+	const auto &nodes = _state->textNodes();
+	if (ordinal < 0 || ordinal >= int(nodes.size())) {
+		return -1;
+	}
+	const auto segmentIndex = segmentIndexForEditableOrdinal(ordinal);
+	return (segmentIndex >= 0)
+		&& _article->segmentIsText(segmentIndex)
+		&& _article->segmentIsEditable(segmentIndex)
+		&& (editableOrdinalForSegment(segmentIndex) == ordinal)
+		? segmentIndex
+		: -1;
+}
+
+std::optional<int> Widget::adjacentTextEditableOrdinal(bool down) const {
+	const auto &nodes = _state->textNodes();
+	const auto count = int(nodes.size());
+	if (_activeOrdinal < 0 || _activeOrdinal >= count) {
+		return std::nullopt;
+	}
+	for (auto ordinal = _activeOrdinal + (down ? 1 : -1);
+		ordinal >= 0 && ordinal < count;
+		ordinal += down ? 1 : -1) {
+		if (textEditableSegmentIndex(ordinal) >= 0) {
+			return ordinal;
+		}
+	}
+	return std::nullopt;
+}
+
+std::optional<int> Widget::textEditableOrdinalFromSegment(
+		int segmentIndex,
+		bool down) const {
+	if (segmentIndex < 0) {
+		return std::nullopt;
+	}
+	const auto &nodes = _state->textNodes();
+	const auto count = int(nodes.size());
+	if (down) {
+		for (auto ordinal = 0; ordinal != count; ++ordinal) {
+			const auto candidateSegmentIndex = textEditableSegmentIndex(ordinal);
+			if (candidateSegmentIndex >= segmentIndex) {
+				return ordinal;
+			}
+		}
+	} else {
+		for (auto ordinal = count - 1; ordinal >= 0; --ordinal) {
+			const auto candidateSegmentIndex = textEditableSegmentIndex(ordinal);
+			if (candidateSegmentIndex >= 0
+				&& candidateSegmentIndex <= segmentIndex) {
+				return ordinal;
+			}
+		}
+	}
+	return std::nullopt;
+}
+
+std::optional<Widget::VerticalNavigationTarget> Widget::adjacentRowTarget(
+		int ordinal,
+		QPoint articlePoint,
+		bool down) {
+	if (!_article) {
+		return std::nullopt;
+	}
+	const auto segmentIndex = textEditableSegmentIndex(ordinal);
+	if (segmentIndex < 0) {
+		return std::nullopt;
+	}
+	const auto segmentRect = _article->segmentRect(segmentIndex);
+	if (!segmentRect.isValid() || segmentRect.isEmpty()) {
+		return std::nullopt;
+	}
+	const auto clampedY = down
+		? std::max(articlePoint.y(), segmentRect.top())
+		: std::min(articlePoint.y(), segmentRect.bottom());
+	articlePoint.setY(std::clamp(
+		clampedY,
+		segmentRect.top(),
+		segmentRect.bottom()));
+	syncArticleVisibleTopBottom();
+	const auto hit = _article->hitTest(
+		articlePoint,
+		Ui::Text::StateRequest::Flag::LookupSymbol);
+	if (!hit.valid()
+		|| !_article->segmentIsText(hit.segmentIndex)
+		|| !_article->segmentIsEditable(hit.segmentIndex)
+		|| (editableOrdinalForSegment(hit.segmentIndex) != ordinal)) {
+		return std::nullopt;
+	}
+	return VerticalNavigationTarget{
+		.ordinal = ordinal,
+		.offset = _article->selectionOffsetFromHit(
+			hit,
+			TextSelectType::Letters),
+	};
+}
+
+std::optional<Widget::VerticalNavigationTarget> Widget::pageNavigationTarget(
+		bool down) {
+	if (_field->isHidden()
+		|| !_article
+		|| (_activeOrdinal < 0)
+		|| (_activeSegmentIndex < 0)) {
+		return std::nullopt;
+	}
+	const auto activeSegmentIndex = textEditableSegmentIndex(_activeOrdinal);
+	if (activeSegmentIndex < 0 || activeSegmentIndex != _activeSegmentIndex) {
+		return std::nullopt;
+	}
+	const auto pageHeight = _visibleRange.bottom - _visibleRange.top;
+	if (pageHeight <= 0) {
+		return std::nullopt;
+	}
+	const auto articlePoint = activeFieldCursorArticlePoint();
+	if (!articlePoint) {
+		return std::nullopt;
+	}
+	const auto shiftedPoint = *articlePoint
+		+ QPoint(0, down ? pageHeight : -pageHeight);
+	syncArticleVisibleTopBottom();
+	const auto hit = _article->hitTest(
+		shiftedPoint,
+		Ui::Text::StateRequest::Flag::LookupSymbol);
+	if (!hit.valid()) {
+		return std::nullopt;
+	}
+	if (_article->segmentIsText(hit.segmentIndex)
+		&& _article->segmentIsEditable(hit.segmentIndex)) {
+		const auto ordinal = editableOrdinalForSegment(hit.segmentIndex);
+		if (ordinal < 0
+			|| ordinal == _activeOrdinal
+			|| (segmentIndexForEditableOrdinal(ordinal) != hit.segmentIndex)) {
+			return std::nullopt;
+		}
+		return VerticalNavigationTarget{
+			.ordinal = ordinal,
+			.offset = _article->selectionOffsetFromHit(
+				hit,
+				TextSelectType::Letters),
+		};
+	}
+	const auto ordinal = textEditableOrdinalFromSegment(hit.segmentIndex, down);
+	return (ordinal && *ordinal != _activeOrdinal)
+		? adjacentRowTarget(*ordinal, shiftedPoint, down)
+		: std::nullopt;
+}
+
 bool Widget::handleFieldKey(QKeyEvent *e) {
 	if (_field->isHidden()) {
 		return false;
@@ -6031,6 +6262,19 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 	const auto atStart = cursor.atStart();
 	const auto atEnd = cursor.atEnd();
 	auto handled = false;
+	const auto activateVerticalTarget = [&](
+			const VerticalNavigationTarget &target) {
+		if (target.ordinal == _activeOrdinal) {
+			setActiveFieldCursorOffset(target.offset);
+		} else {
+			static_cast<void>(commitAndActivateTextOrdinal(
+				target.ordinal,
+				target.offset,
+				target.offset,
+				ActivateReveal::Reveal));
+		}
+		handled = true;
+	};
 	const auto refreshPreparedContentAndActivate = [&](
 			int ordinal,
 			int cursorOffset) {
@@ -6044,88 +6288,55 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 		}
 		revealActiveInlineField();
 	};
-	if (atStart
-		&& (key == Qt::Key_Left
-			|| key == Qt::Key_Up
-			|| key == Qt::Key_PageUp)) {
+	if (key == Qt::Key_PageUp || key == Qt::Key_PageDown) {
+		const auto down = (key == Qt::Key_PageDown);
+		if (const auto offset = activeFieldPageCursorOffset(down)) {
+			setActiveFieldCursorOffset(*offset);
+			handled = true;
+		} else if (const auto target = pageNavigationTarget(down)) {
+			activateVerticalTarget(*target);
+		} else if (down) {
+			handled = moveVerticalDownBoundary();
+		} else {
+			handled = moveBoundary(false, false);
+		}
+	} else if (key == Qt::Key_Up && fieldCursorLeavesVisibleRow(false)) {
+		const auto articlePoint = activeFieldCursorArticlePoint();
+		if (articlePoint) {
+			if (const auto ordinal = adjacentTextEditableOrdinal(false)) {
+				if (const auto target = adjacentRowTarget(
+						*ordinal,
+						*articlePoint,
+						false)) {
+					activateVerticalTarget(*target);
+				}
+			}
+		}
+		if (!handled) {
+			handled = moveBoundary(false, false);
+		}
+	} else if (key == Qt::Key_Down && fieldCursorLeavesVisibleRow(true)) {
+		const auto articlePoint = activeFieldCursorArticlePoint();
+		if (articlePoint) {
+			if (const auto ordinal = adjacentTextEditableOrdinal(true)) {
+				if (const auto target = adjacentRowTarget(
+						*ordinal,
+						*articlePoint,
+						true)) {
+					activateVerticalTarget(*target);
+				}
+			}
+		}
+		if (!handled) {
+			handled = moveVerticalDownBoundary();
+		}
+	} else if (atStart
+		&& (key == Qt::Key_Left || key == Qt::Key_Up)) {
 		handled = moveBoundary(false, false);
 	} else if (atEnd && key == Qt::Key_Down) {
-		recordMutationTransaction([&] {
-			const auto committed = commitInlineField();
-			if (committed == ApplyResult::Failed) {
-				handled = true;
-				return MutationTransactionResult{
-					.committed = committed,
-					.failed = true,
-				};
-			} else if (const auto target
-				= _state->removeTemporaryDownParagraphAndMove();
-				target.action != State::BoundaryTarget::Action::None) {
-				switch (target.action) {
-				case State::BoundaryTarget::Action::Text:
-					refreshPreparedContentAndActivate(target.textOrdinal, 0);
-					break;
-				case State::BoundaryTarget::Action::StructuralSelection:
-					beginInlineFieldRevealSuppression();
-					{
-						const auto revealGuard = gsl::finally([&] {
-							endInlineFieldRevealSuppression();
-						});
-						refreshPreparedContent();
-					}
-					_boundarySelectionOrigin = std::nullopt;
-					_selection = {};
-					_selectionEndpoints = {};
-					_articleSelectionDrag = {};
-					setStructuralSelection(target.structuralSelection);
-					_pendingOrdinal = -1;
-					_pendingCursorOffset = 0;
-					hideInlineField();
-					clearInlineFieldEditSession();
-					update();
-					break;
-				case State::BoundaryTarget::Action::None:
-				case State::BoundaryTarget::Action::RemoveActiveOwner:
-					break;
-				}
-				handled = true;
-				return MutationTransactionResult{
-					.committed = committed,
-					.changed = true,
-				};
-			} else if (const auto target = _state->moveActiveSpecialBlockDown()) {
-				refreshPreparedContentAndActivate(*target, 0);
-				handled = true;
-				return MutationTransactionResult{
-					.committed = committed,
-					.changed = true,
-				};
-			}
-			auto mutated = false;
-			if (_state->lastLimitError()) {
-				handled = moveBoundaryAfterCommit(
-					committed,
-					true,
-					false,
-					&mutated);
-				if (!handled) {
-					handled = true;
-				}
-			} else {
-				handled = moveBoundaryAfterCommit(
-					committed,
-					true,
-					true,
-					&mutated);
-			}
-			return MutationTransactionResult{
-				.committed = committed,
-				.changed = mutated || (committed == ApplyResult::Changed),
-			};
-		});
+		handled = moveVerticalDownBoundary();
 	} else if (atEnd
-		&& (key == Qt::Key_Right
-			|| key == Qt::Key_PageDown)) {
+		&& key == Qt::Key_Right) {
 		handled = moveBoundary(true, true);
 	} else if (key == Qt::Key_Return || key == Qt::Key_Enter) {
 		recordMutationTransaction([&] {
@@ -6289,6 +6500,97 @@ bool Widget::moveBoundaryAfterCommit(
 		return true;
 	}
 	return false;
+}
+
+bool Widget::moveVerticalDownBoundary() {
+	auto handled = false;
+	const auto refreshPreparedContentAndActivate = [&](
+			int ordinal,
+			int cursorOffset) {
+		beginInlineFieldRevealSuppression();
+		{
+			const auto revealGuard = gsl::finally([&] {
+				endInlineFieldRevealSuppression();
+			});
+			refreshPreparedContent();
+			activateTextOrdinal(ordinal, cursorOffset, ActivateReveal::Skip);
+		}
+		revealActiveInlineField();
+	};
+	recordMutationTransaction([&] {
+		const auto committed = commitInlineField();
+		if (committed == ApplyResult::Failed) {
+			handled = true;
+			return MutationTransactionResult{
+				.committed = committed,
+				.failed = true,
+			};
+		} else if (const auto target
+			= _state->removeTemporaryDownParagraphAndMove();
+			target.action != State::BoundaryTarget::Action::None) {
+			switch (target.action) {
+			case State::BoundaryTarget::Action::Text:
+				refreshPreparedContentAndActivate(target.textOrdinal, 0);
+				break;
+			case State::BoundaryTarget::Action::StructuralSelection:
+				beginInlineFieldRevealSuppression();
+				{
+					const auto revealGuard = gsl::finally([&] {
+						endInlineFieldRevealSuppression();
+					});
+					refreshPreparedContent();
+				}
+				_boundarySelectionOrigin = std::nullopt;
+				_selection = {};
+				_selectionEndpoints = {};
+				_articleSelectionDrag = {};
+				setStructuralSelection(target.structuralSelection);
+				_pendingOrdinal = -1;
+				_pendingCursorOffset = 0;
+				hideInlineField();
+				clearInlineFieldEditSession();
+				update();
+				break;
+			case State::BoundaryTarget::Action::None:
+			case State::BoundaryTarget::Action::RemoveActiveOwner:
+				break;
+			}
+			handled = true;
+			return MutationTransactionResult{
+				.committed = committed,
+				.changed = true,
+			};
+		} else if (const auto target = _state->moveActiveSpecialBlockDown()) {
+			refreshPreparedContentAndActivate(*target, 0);
+			handled = true;
+			return MutationTransactionResult{
+				.committed = committed,
+				.changed = true,
+			};
+		}
+		auto mutated = false;
+		if (_state->lastLimitError()) {
+			handled = moveBoundaryAfterCommit(
+				committed,
+				true,
+				false,
+				&mutated);
+			if (!handled) {
+				handled = true;
+			}
+		} else {
+			handled = moveBoundaryAfterCommit(
+				committed,
+				true,
+				true,
+				&mutated);
+		}
+		return MutationTransactionResult{
+			.committed = committed,
+			.changed = mutated || (committed == ApplyResult::Changed),
+		};
+	});
+	return handled;
 }
 
 bool Widget::moveTabBoundary(bool forward) {

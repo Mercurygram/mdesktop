@@ -402,6 +402,33 @@ private:
 	void applyFieldMonospaceAction();
 	void insertCodeBlock();
 	[[nodiscard]] bool handleFieldKey(QKeyEvent *e);
+	struct VerticalNavigationTarget {
+		int ordinal = -1;
+		int offset = 0;
+	};
+	[[nodiscard]] bool commitAndActivateTextOrdinal(
+		int ordinal,
+		int selectionFrom,
+		int selectionTo,
+		ActivateReveal revealAfterRestore = ActivateReveal::Skip);
+	void setActiveFieldCursorOffset(int offset);
+	[[nodiscard]] std::optional<int> activeFieldPageCursorOffset(
+		bool down) const;
+	[[nodiscard]] std::optional<QPoint> activeFieldCursorArticlePoint() const;
+	[[nodiscard]] bool fieldCursorLeavesVisibleRow(bool down) const;
+	[[nodiscard]] int textEditableSegmentIndex(int ordinal) const;
+	[[nodiscard]] std::optional<int> adjacentTextEditableOrdinal(
+		bool down) const;
+	[[nodiscard]] std::optional<int> textEditableOrdinalFromSegment(
+		int segmentIndex,
+		bool down) const;
+	[[nodiscard]] std::optional<VerticalNavigationTarget> adjacentRowTarget(
+		int ordinal,
+		QPoint articlePoint,
+		bool down);
+	[[nodiscard]] std::optional<VerticalNavigationTarget> pageNavigationTarget(
+		bool down);
+	[[nodiscard]] bool moveVerticalDownBoundary();
 	void copyCurrentSelectionToClipboard();
 	[[nodiscard]] TextForMimeData currentSelectionTextForClipboard() const;
 	void pasteStructuredClipboardData(const ClipboardData &data);
