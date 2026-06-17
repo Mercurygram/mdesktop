@@ -1371,6 +1371,7 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 			.customEmojiPaused = [show = _show] {
 				return show->paused(ChatHelpers::PauseReason::Layer);
 			},
+			.applyPreparedMedia = std::move(descriptor.applyPreparedMedia),
 			.imeCompositionStarts = window->imeCompositionStarts(),
 		},
 		descriptor.peer,

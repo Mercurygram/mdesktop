@@ -37,6 +37,7 @@ class ChatStyle;
 class ChatTheme;
 class InputField;
 class PopupMenu;
+struct PreparedList;
 } // namespace Ui
 
 namespace style {
@@ -54,15 +55,27 @@ class SessionShow;
 
 namespace Iv::Editor {
 
+class Widget;
+
+struct PreparedMediaPasteTarget {
+	std::optional<State::LeafPath> leaf;
+	std::optional<State::InsertionAnchor> anchor;
+	std::optional<State::ActiveTextInsertContext> context;
+};
+
 struct WidgetServices {
 	not_null<Main::Session*> session;
 	std::shared_ptr<Main::SessionShow> show;
 	not_null<QWidget*> outer;
 	Fn<bool()> customEmojiPaused;
+	Fn<void(not_null<Widget*>, Ui::PreparedList, PreparedMediaPasteTarget)>
+		applyPreparedMedia;
 	rpl::producer<> imeCompositionStarts;
 };
 
-class Widget final : public Ui::RpWidget {
+class Widget final
+	: public Ui::RpWidget
+	, public Markdown::MediaBlockHost {
 public:
 	Widget(
 		QWidget *parent,
@@ -70,6 +83,7 @@ public:
 		not_null<PeerData*> peer,
 		std::shared_ptr<State> state,
 		Fn<void(RichMessageLimitError)> showLimitToast = {});
+	~Widget() override;
 
 	void activateInitialNode();
 	void activateSegment(int segmentIndex, int cursorOffset);
@@ -82,6 +96,12 @@ public:
 	void insertBlock(State::InsertAction action);
 	void insertPreparedBlock(RichPage::Block block);
 	void insertPreparedBlocks(std::vector<RichPage::Block> blocks);
+	void pastePreparedBlock(
+		RichPage::Block block,
+		PreparedMediaPasteTarget target);
+	void pastePreparedBlocks(
+		std::vector<RichPage::Block> blocks,
+		PreparedMediaPasteTarget target);
 	void insertHeading1();
 	void insertBlockquote();
 	void insertEmoji(EmojiPtr emoji);
@@ -151,6 +171,8 @@ protected:
 	void resizeEvent(QResizeEvent *e) override;
 	void visibleTopBottomUpdated(int visibleTop, int visibleBottom) override;
 	void wheelEvent(QWheelEvent *e) override;
+	void requestRepaint(QRect articleRect) override;
+	void requestRelayout(QRect articleRect) override;
 
 private:
 	struct InlineFieldStyleData {
@@ -311,6 +333,17 @@ private:
 	};
 	[[nodiscard]] std::optional<State::ActiveTextInsertContext>
 	activeTextInsertContext() const;
+	[[nodiscard]] PreparedMediaPasteTarget preparedMediaPasteTarget() const;
+	struct PreparedMediaPasteActivation {
+		bool resolved = false;
+		std::optional<State::ActiveTextInsertContext> context;
+	};
+	[[nodiscard]] PreparedMediaPasteActivation activatePreparedMediaPasteTarget(
+		PreparedMediaPasteTarget target);
+	void insertPreparedBlocks(
+		std::vector<RichPage::Block> blocks,
+		std::optional<State::ActiveTextInsertContext> context,
+		bool useStructuralSelection = true);
 	[[nodiscard]] std::optional<State::TextNodeSpan>
 	visibleFullHeadingFieldTextSpan() const;
 	[[nodiscard]] std::optional<MathEditRequest> activeMathEditRequest() const;
@@ -340,6 +373,8 @@ private:
 	[[nodiscard]] bool replayImeIntoField(QInputMethodEvent *e);
 	[[nodiscard]] bool handleTabNavigation(QKeyEvent *e);
 	[[nodiscard]] bool handleClipboardKey(QKeyEvent *e);
+	[[nodiscard]] bool handleFieldBlockInsertShortcut(QKeyEvent *e);
+	void insertCodeBlock();
 	[[nodiscard]] bool handleFieldKey(QKeyEvent *e);
 	void copyCurrentSelectionToClipboard();
 	[[nodiscard]] TextForMimeData currentSelectionTextForClipboard() const;
@@ -403,6 +438,7 @@ private:
 	[[nodiscard]] ToolbarActionState toolbarActionState(
 		ToolbarFormatAction action) const;
 	void clearFieldUndoRedoNoopState();
+	[[nodiscard]] bool escapeActiveBlockBodyFromToolbar();
 	void retainActiveLeafField(
 		bool keepRetainedFieldOnCurrentHistoryEntry = false);
 	[[nodiscard]] base::unique_qptr<Ui::InputField> reviveRetainedLeafField(
@@ -450,6 +486,7 @@ private:
 		const Markdown::PreparedEditHit &editHit);
 	void finishArticleSelection();
 	[[nodiscard]] bool handleStructuralSelectionKey(QKeyEvent *e);
+	void addFieldBlockFormatActions(not_null<QMenu*> menu);
 	void handleFieldContextMenuRequest(
 		Ui::InputField::ContextMenuRequest request);
 	[[nodiscard]] bool handleFieldMouseEvent(QEvent *event);
@@ -487,6 +524,8 @@ private:
 	const std::shared_ptr<Main::SessionShow> _show;
 	const not_null<QWidget*> _outer;
 	const Fn<bool()> _customEmojiPaused;
+	const Fn<void(not_null<Widget*>, Ui::PreparedList, PreparedMediaPasteTarget)>
+		_applyPreparedMedia;
 	const not_null<PeerData*> _peer;
 	const std::shared_ptr<State> _state;
 	const Fn<void(RichMessageLimitError)> _showLimitToast;

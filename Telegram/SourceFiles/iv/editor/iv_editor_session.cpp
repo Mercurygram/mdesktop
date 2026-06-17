@@ -74,6 +74,11 @@ enum class AttachmentState : uchar {
 	Failed,
 };
 
+enum class AttachmentInsertMode : uchar {
+	Normal,
+	ClipboardPaste,
+};
+
 struct PreparedDocumentInfo {
 	QSize dimensions;
 	QString title;
@@ -110,7 +115,7 @@ public:
 	}
 
 	void process() override {
-		_task.process({ .generateGoodThumbnail = false });
+		_task.process({});
 	}
 
 	void finish() override {
@@ -527,6 +532,8 @@ private:
 		QPointer<Widget> editor;
 		PreparedFile file;
 		uint64 batchId = 0;
+		AttachmentInsertMode insertMode = AttachmentInsertMode::Normal;
+		std::optional<PreparedMediaPasteTarget> insertTarget;
 	};
 
 	struct EditedItemSnapshot {
@@ -555,7 +562,7 @@ private:
 	, _page(page ? std::move(page) : std::make_shared<RichPage>())
 	, _runtime(CreateMessageMediaRuntime(
 		_session,
-		_articleId,
+		(_mode == Mode::Compose) ? FullMsgId() : _articleId,
 		[](QString) {
 		},
 		[](QString) {
@@ -1010,6 +1017,15 @@ private:
 					QPointer<QWidget> parent) {
 				session->requestMedia(editor, std::move(parent));
 			},
+			.applyPreparedMedia = [session = shared_from_this()](
+					not_null<Widget*> editor,
+					PreparedList list,
+					PreparedMediaPasteTarget target) {
+				session->applyPreparedMedia(
+					QPointer<Widget>(editor.get()),
+					std::move(list),
+					std::move(target));
+			},
 			.requestMap = [session = shared_from_this()](
 					not_null<Widget*> editor,
 					QPointer<QWidget> parent,
@@ -1117,23 +1133,51 @@ private:
 		applyPreparedList(editor, std::move(*list), ++_prepareBatchId);
 	}
 
+	void applyPreparedMedia(
+			QPointer<Widget> editor,
+			PreparedList list,
+			PreparedMediaPasteTarget target) {
+		if (!editor) {
+			return;
+		}
+		if (list.error != PreparedList::Error::None) {
+			showToast(tr::lng_send_media_invalid_files(tr::now));
+			return;
+		}
+		applyPreparedList(
+			editor,
+			std::move(list),
+			++_prepareBatchId,
+			AttachmentInsertMode::ClipboardPaste,
+			std::move(target));
+	}
+
 	void applyPreparedList(
 		QPointer<Widget> editor,
 		PreparedList list,
-		uint64 batchId) {
+		uint64 batchId,
+		AttachmentInsertMode insertMode = AttachmentInsertMode::Normal,
+		std::optional<PreparedMediaPasteTarget> insertTarget = std::nullopt) {
 		if (const auto accepted = CountAcceptedPreparedFiles(list);
 			accepted && exceedsMediaLimitWith(accepted)) {
 			showRichMessageLimitToast(RichMessageLimitError::Media);
 			return;
 		}
 		for (auto &file : list.files) {
-			applyPreparedFile(editor, std::move(file), batchId);
+			applyPreparedFile(
+				editor,
+				std::move(file),
+				batchId,
+				insertMode,
+				insertTarget);
 		}
 		for (auto &file : list.filesToProcess) {
 			_prepareQueue.push_back({
 				.editor = editor,
 				.file = std::move(file),
 				.batchId = batchId,
+				.insertMode = insertMode,
+				.insertTarget = insertTarget,
 			});
 		}
 		enqueueNextPrepare();
@@ -1150,7 +1194,9 @@ private:
 			applyPreparedFile(
 				queued.editor,
 				std::move(queued.file),
-				queued.batchId);
+				queued.batchId,
+				queued.insertMode,
+				std::move(queued.insertTarget));
 		}
 		if (_prepareQueue.empty()) {
 			maybeContinueDeferredSubmit();
@@ -1181,14 +1227,18 @@ private:
 		applyPreparedFile(
 			queued.editor,
 			std::move(queued.file),
-			queued.batchId);
+			queued.batchId,
+			queued.insertMode,
+			std::move(queued.insertTarget));
 		enqueueNextPrepare();
 	}
 
 	void applyPreparedFile(
 		QPointer<Widget> editor,
 		PreparedFile file,
-		uint64 batchId) {
+		uint64 batchId,
+		AttachmentInsertMode insertMode,
+		std::optional<PreparedMediaPasteTarget> insertTarget) {
 		if (!AcceptedPreparedFileType(file.type)) {
 			showUnsupportedMediaToast(batchId);
 			return;
@@ -1197,27 +1247,36 @@ private:
 			showRichMessageLimitToast(RichMessageLimitError::Media);
 			return;
 		}
-		prepareAttachment(editor, std::move(file), batchId);
+		prepareAttachment(
+			editor,
+			std::move(file),
+			batchId,
+			insertMode,
+			std::move(insertTarget));
 	}
 
 	void prepareAttachment(
 		QPointer<Widget> editor,
 		PreparedFile file,
-		uint64 batchId) {
+		uint64 batchId,
+		AttachmentInsertMode insertMode,
+		std::optional<PreparedMediaPasteTarget> insertTarget) {
 		const auto meta = BuildAttachmentMeta(file);
 		const auto weak = base::make_weak(this);
 		++_pendingAttachmentPrepareCount;
 		_attachmentPrepareQueue.addTask(
 			std::make_unique<PrepareAttachmentTask>(
 				BuildPrepareTaskArgs(_session, _peer->id, std::move(file)),
-				[weak, editor, meta, batchId](
+				[weak, editor, meta, batchId, insertMode, insertTarget](
 						std::shared_ptr<FilePrepareResult> prepared) mutable {
 					if (const auto session = weak.get()) {
 						session->attachmentPrepared(
 							editor,
 							std::move(meta),
 							std::move(prepared),
-							batchId);
+							batchId,
+							insertMode,
+							std::move(insertTarget));
 					}
 				}));
 	}
@@ -1226,7 +1285,9 @@ private:
 		QPointer<Widget> editor,
 		AttachmentMeta meta,
 		std::shared_ptr<FilePrepareResult> prepared,
-		uint64 batchId) {
+		uint64 batchId,
+		AttachmentInsertMode insertMode,
+		std::optional<PreparedMediaPasteTarget> insertTarget) {
 		_pendingAttachmentPrepareCount = std::max(
 			_pendingAttachmentPrepareCount - 1,
 			0);
@@ -1244,14 +1305,21 @@ private:
 			maybeContinueDeferredSubmit();
 			return;
 		}
-		startAttachmentUpload(editor, std::move(meta), std::move(prepared));
+		startAttachmentUpload(
+			editor,
+			std::move(meta),
+			std::move(prepared),
+			insertMode,
+			std::move(insertTarget));
 		maybeContinueDeferredSubmit();
 	}
 
 	void startAttachmentUpload(
 		QPointer<Widget> editor,
 		AttachmentMeta meta,
-		std::shared_ptr<FilePrepareResult> prepared) {
+		std::shared_ptr<FilePrepareResult> prepared,
+		AttachmentInsertMode insertMode,
+		std::optional<PreparedMediaPasteTarget> insertTarget) {
 		if (!editor || !prepared) {
 			return;
 		}
@@ -1318,13 +1386,22 @@ private:
 
 		_attachments.push_back(std::move(record));
 		auto &stored = _attachments.back();
-		editor->insertPreparedBlock(makeAttachmentBlock(stored));
+		_session->uploader().upload(uploadId, prepared);
+		auto block = makeAttachmentBlock(stored);
+		if (insertMode == AttachmentInsertMode::ClipboardPaste
+			&& insertTarget) {
+			editor->pastePreparedBlock(
+				std::move(block),
+				std::move(*insertTarget));
+		} else {
+			editor->insertPreparedBlock(std::move(block));
+		}
 		refreshAttachmentLocators(_state->richPage(), stored);
 		if (stored.blockLocators.empty()) {
+			_session->uploader().cancel(uploadId);
 			_attachments.pop_back();
 			return;
 		}
-		_session->uploader().upload(uploadId, prepared);
 		updateAttachmentProgress(stored);
 		requestEditorUpdate();
 	}
@@ -1523,24 +1600,41 @@ private:
 			return;
 		}
 		auto ok = false;
+		auto failed = false;
+		const auto fail = [&] {
+			failed = true;
+			markAttachmentFailed(uploadId);
+		};
 		result.match([&](const MTPDmessageMediaPhoto &media) {
 			const auto photo = media.vphoto();
 			if (!photo || photo->type() != mtpc_photo) {
+				fail();
+				return;
+			}
+			const auto localPhoto = _session->data().photo(
+				PhotoId(attachment->localMediaId));
+			if (!localPhoto.get()) {
+				fail();
 				return;
 			}
 			const auto &fields = photo->c_photo();
+			_session->data().photoConvert(localPhoto, *photo);
 			attachment->state = AttachmentState::Ready;
 			attachment->serverMediaId = fields.vid().v;
+			attachment->serverPhoto = localPhoto.get();
 			attachment->accessHash = fields.vaccess_hash().v;
 			attachment->fileReference = fields.vfile_reference().v;
-			attachment->serverPhoto = _session->data().processPhoto(*photo);
 			attachment->inputPhoto = MTP_inputPhoto(
 				fields.vid(),
 				fields.vaccess_hash(),
 				fields.vfile_reference());
 			ok = true;
 		}, [&](const auto &) {
+			fail();
 		});
+		if (failed) {
+			return;
+		}
 		if (!ok) {
 			markAttachmentFailed(uploadId);
 			return;
@@ -1577,24 +1671,41 @@ private:
 			return;
 		}
 		auto ok = false;
+		auto failed = false;
+		const auto fail = [&] {
+			failed = true;
+			markAttachmentFailed(uploadId);
+		};
 		result.match([&](const MTPDmessageMediaDocument &media) {
 			const auto document = media.vdocument();
 			if (!document || document->type() != mtpc_document) {
+				fail();
+				return;
+			}
+			const auto localDocument = _session->data().document(
+				DocumentId(attachment->localMediaId));
+			if (!localDocument.get()) {
+				fail();
 				return;
 			}
 			const auto &fields = document->c_document();
+			_session->data().documentConvert(localDocument, *document);
 			attachment->state = AttachmentState::Ready;
 			attachment->serverMediaId = fields.vid().v;
+			attachment->serverDocument = localDocument.get();
 			attachment->accessHash = fields.vaccess_hash().v;
 			attachment->fileReference = fields.vfile_reference().v;
-			attachment->serverDocument = _session->data().processDocument(*document);
 			attachment->inputDocument = MTP_inputDocument(
 				fields.vid(),
 				fields.vaccess_hash(),
 				fields.vfile_reference());
 			ok = true;
 		}, [&](const auto &) {
+			fail();
 		});
+		if (failed) {
+			return;
+		}
 		if (!ok) {
 			markAttachmentFailed(uploadId);
 			return;

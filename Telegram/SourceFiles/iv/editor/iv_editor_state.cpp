@@ -419,6 +419,24 @@ bool SetMediaBlockSpoiler(Block *block, bool enabled) {
 	return result;
 }
 
+[[nodiscard]] bool ContainerStartsWith(
+		const BlockContainerPath &container,
+		const BlockContainerPath &prefix) {
+	if (container.steps.size() < prefix.steps.size()) {
+		return false;
+	}
+	for (auto i = 0, count = int(prefix.steps.size()); i != count; ++i) {
+		const auto &a = container.steps[i];
+		const auto &b = prefix.steps[i];
+		if (a.kind != b.kind
+			|| a.blockIndex != b.blockIndex
+			|| a.listItemIndex != b.listItemIndex) {
+			return false;
+		}
+	}
+	return true;
+}
+
 [[nodiscard]] PreparedBlockContainerPath ToPreparedBlockContainerPath(
 		const BlockContainerPath &path) {
 	auto result = PreparedBlockContainerPath();
@@ -2611,6 +2629,10 @@ bool State::activeLeafUsesQuotePlaceholderColor() const {
 	return false;
 }
 
+bool State::activeBlockBodyCanEscape() const {
+	return activeBlockBodyEscapeBlock().has_value();
+}
+
 bool State::shouldRemoveActiveOwnerDirectly(
 		const TextNodeDescriptor &descriptor) const {
 	switch (descriptor.removalTarget.kind) {
@@ -4126,6 +4148,26 @@ std::optional<int> State::moveActiveSpecialBlockDown() {
 	});
 }
 
+std::optional<int> State::submitActiveSingleLineField() {
+	return applyCheckedMutation(std::optional<int>(), [](State &candidate) {
+		const auto result = candidate.submitActiveSingleLineFieldUnchecked();
+		return CheckedMutationResult<std::optional<int>>{
+			.apply = result.has_value(),
+			.result = result,
+		};
+	});
+}
+
+std::optional<int> State::escapeActiveBlockBody() {
+	return applyCheckedMutation(std::optional<int>(), [](State &candidate) {
+		const auto result = candidate.escapeActiveBlockBodyUnchecked();
+		return CheckedMutationResult<std::optional<int>>{
+			.apply = result.has_value(),
+			.result = result,
+		};
+	});
+}
+
 State::BoundaryTarget State::removeTemporaryDownParagraphAndMove() {
 	return applyCheckedMutation(BoundaryTarget(), [](State &candidate) {
 		const auto result
@@ -4189,6 +4231,143 @@ std::optional<int> State::moveActiveSpecialBlockDownUnchecked() {
 		: std::nullopt;
 	rebuild();
 	return activateRebuiltLeaf(*target);
+}
+
+std::optional<int> State::submitActiveSingleLineFieldUnchecked() {
+	const auto descriptor = textNode(_activeTextOrdinal);
+	if (!descriptor) {
+		return std::nullopt;
+	}
+	const auto leaf = descriptor->leaf;
+	const auto owner = block(leaf.block);
+	if (!owner) {
+		return std::nullopt;
+	}
+	const auto activate = [&](const LeafPath &target) -> std::optional<int> {
+		const auto ordinal = textNodeOrdinal(target);
+		return setActiveTextByOrdinal(ordinal)
+			? std::make_optional(_activeTextOrdinal)
+			: std::nullopt;
+	};
+	const auto paragraphAfterBlock = [&]() -> std::optional<int> {
+		if (const auto paragraph = reuseOrInsertParagraph(
+				leaf.block.container,
+				leaf.block.index + 1)) {
+			rebuild();
+			return activateRebuiltLeaf(paragraph->leaf);
+		}
+		return std::nullopt;
+	};
+	if (leaf.kind == LeafKind::BlockCaption) {
+		switch (owner->kind) {
+		case BlockKind::Quote:
+		case BlockKind::Photo:
+		case BlockKind::Video:
+		case BlockKind::Audio:
+		case BlockKind::Map:
+			return paragraphAfterBlock();
+		default:
+			return std::nullopt;
+		}
+	}
+	if (leaf.kind == LeafKind::BlockText) {
+		if (owner->kind == BlockKind::Details) {
+			const auto bodyContainer = BlockChildrenContainer(leaf.block);
+			auto target = std::optional<LeafPath>();
+			for (const auto &candidate : _textNodes) {
+				if (ContainerStartsWith(
+						candidate.leaf.block.container,
+						bodyContainer)) {
+					target = candidate.leaf;
+					break;
+				}
+			}
+			if (!target) {
+				owner->blocks.push_back(MakeParagraphBlock());
+				target = LeafPath{
+					.kind = LeafKind::BlockText,
+					.block = {
+						.container = bodyContainer,
+						.index = 0,
+					},
+				};
+				rebuild();
+				return activateRebuiltLeaf(*target);
+			}
+			return activate(*target);
+		} else if (owner->kind == BlockKind::Table) {
+			for (const auto &candidate : _textNodes) {
+				if (candidate.leaf.block == leaf.block
+					&& candidate.leaf.kind == LeafKind::TableCellText) {
+					return activate(candidate.leaf);
+				}
+			}
+			return paragraphAfterBlock();
+		}
+		return std::nullopt;
+	} else if (leaf.kind == LeafKind::TableCellText) {
+		const auto ordinal = textNodeOrdinal(leaf);
+		for (auto i = ordinal + 1, count = textNodeCount(); i != count; ++i) {
+			const auto &candidate = _textNodes[i].leaf;
+			if (candidate.block == leaf.block
+				&& candidate.kind == LeafKind::TableCellText) {
+				return activate(candidate);
+			}
+		}
+		return paragraphAfterBlock();
+	}
+	return std::nullopt;
+}
+
+std::optional<int> State::escapeActiveBlockBodyUnchecked() {
+	const auto targetBlock = activeBlockBodyEscapeBlock();
+	if (!targetBlock) {
+		return std::nullopt;
+	}
+	if (const auto paragraph = reuseOrInsertParagraph(
+			targetBlock->container,
+			targetBlock->index + 1)) {
+		rebuild();
+		return activateRebuiltLeaf(paragraph->leaf);
+	}
+	return std::nullopt;
+}
+
+std::optional<State::BlockPath> State::activeBlockBodyEscapeBlock() const {
+	const auto descriptor = textNode(_activeTextOrdinal);
+	if (!descriptor) {
+		return std::nullopt;
+	}
+	const auto leaf = descriptor->leaf;
+	auto targetBlock = std::optional<BlockPath>();
+	if (const auto owner = block(leaf.block);
+		owner
+		&& leaf.kind == LeafKind::BlockText
+		&& (owner->kind == BlockKind::Quote
+			|| owner->kind == BlockKind::Code)) {
+		targetBlock = leaf.block;
+	} else {
+		auto container = leaf.block.container;
+		while (!container.steps.empty()) {
+			const auto step = container.steps.back();
+			container.steps.pop_back();
+			if (step.kind != BlockContainerKind::BlockChildren) {
+				continue;
+			}
+			const auto candidate = BlockPath{
+				.container = container,
+				.index = step.blockIndex,
+			};
+			const auto owner = block(candidate);
+			if (owner
+				&& (owner->kind == BlockKind::Quote
+					|| owner->kind == BlockKind::Details)) {
+				targetBlock = candidate;
+				break;
+			}
+		}
+	}
+	return targetBlock;
 }
 
 auto State::captureRebuiltBoundaryTarget(

@@ -28,6 +28,7 @@ class Session;
 } // namespace Main
 
 namespace Ui {
+struct PreparedList;
 class RpWidget;
 } // namespace Ui
 
@@ -39,6 +40,7 @@ namespace Iv::Editor {
 
 class State;
 class Widget;
+struct PreparedMediaPasteTarget;
 
 struct ShowWindowDescriptor {
 	enum class SubmitType {
@@ -56,6 +58,8 @@ struct ShowWindowDescriptor {
 	Fn<bool()> confirmed;
 	Fn<void(not_null<Ui::RpWidget*>)> setupSubmitButton;
 	Fn<void(not_null<Widget*>, QPointer<QWidget>)> requestMedia;
+	Fn<void(not_null<Widget*>, Ui::PreparedList, PreparedMediaPasteTarget)>
+		applyPreparedMedia;
 	Fn<void(not_null<Widget*>, QPointer<QWidget>, rpl::producer<>)> requestMap;
 	Fn<void()> closed;
 	Fn<void(RichMessageLimitError)> showLimitToast;

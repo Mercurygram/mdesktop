@@ -245,7 +245,10 @@ public:
 	[[nodiscard]] bool activeSurfaceAllowsSeparateLineFormula() const;
 	[[nodiscard]] bool activeLeafUsesQuoteCaptionColor() const;
 	[[nodiscard]] bool activeLeafUsesQuotePlaceholderColor() const;
+	[[nodiscard]] bool activeBlockBodyCanEscape() const;
 	[[nodiscard]] std::optional<int> moveActiveSpecialBlockDown();
+	[[nodiscard]] std::optional<int> submitActiveSingleLineField();
+	[[nodiscard]] std::optional<int> escapeActiveBlockBody();
 	[[nodiscard]] BoundaryTarget removeTemporaryDownParagraphAndMove();
 	[[nodiscard]] std::optional<int> handleActiveHeadingEnter();
 	[[nodiscard]] std::optional<int> handleActiveListEnter();
@@ -572,6 +575,9 @@ private:
 		bool after);
 	[[nodiscard]] std::optional<int> ensureTrailingParagraphActiveUnchecked();
 	[[nodiscard]] std::optional<int> moveActiveSpecialBlockDownUnchecked();
+	[[nodiscard]] std::optional<int> submitActiveSingleLineFieldUnchecked();
+	[[nodiscard]] std::optional<int> escapeActiveBlockBodyUnchecked();
+	[[nodiscard]] std::optional<BlockPath> activeBlockBodyEscapeBlock() const;
 	[[nodiscard]] BoundaryTarget boundaryTargetForLeaf(
 		const LeafPath &leaf,
 		const TextNodeDescriptor *descriptor,
