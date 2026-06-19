@@ -1297,6 +1297,7 @@ private:
 	void finishCloseFromAcceptedEvent();
 	void finishClose();
 	[[nodiscard]] bool articleChanged();
+	[[nodiscard]] bool articleEmptyForDiscard();
 	[[nodiscard]] bool showCloseConfirmation();
 	[[nodiscard]] bool showDiscardConfirmation();
 	[[nodiscard]] bool confirmCancel();
@@ -1424,15 +1425,17 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 			discard();
 		});
 	}
-	_cancel = object_ptr<Ui::RoundButton>(
-		_bottom.data(),
-		tr::lng_cancel(),
-		st::ivEditorCancelButton);
-	_cancel->setClickedCallback([=] {
-		if (confirmCancel()) {
-			finishClose();
-		}
-	});
+	if (descriptor.submitType == ShowWindowDescriptor::SubmitType::Save) {
+		_cancel = object_ptr<Ui::RoundButton>(
+			_bottom.data(),
+			tr::lng_cancel(),
+			st::ivEditorCancelButton);
+		_cancel->setClickedCallback([=] {
+			if (confirmCancel()) {
+				finishClose();
+			}
+		});
+	}
 	_submit = object_ptr<Ui::RoundButton>(
 		_bottom.data(),
 		rpl::single(SubmitText(descriptor)),
@@ -1527,7 +1530,10 @@ void WindowHost::Impl::layout() {
 	const auto emojiWidth = _emojiColumnShown ? emojiColumnWidth() : 0;
 	const auto editorWidth = std::max(width - emojiWidth, 0);
 	const auto toolbarHeight = _toolbar->resizeGetHeight(editorWidth);
-	auto buttonsHeight = std::max(_cancel->height(), _submit->height());
+	auto buttonsHeight = _submit->height();
+	if (_cancel) {
+		buttonsHeight = std::max(buttonsHeight, _cancel->height());
+	}
 	if (_discard) {
 		buttonsHeight = std::max(buttonsHeight, _discard->height());
 	}
@@ -1545,12 +1551,14 @@ void WindowHost::Impl::layout() {
 		_discard->moveToLeft(padding.left(), buttonsTop);
 	}
 	_submit->moveToRight(padding.right(), buttonsTop, editorWidth);
-	_cancel->moveToRight(
-		padding.right()
-			+ _submit->width()
-			+ st::ivEditorBottomControlsButtonSkip,
-		buttonsTop,
-		editorWidth);
+	if (_cancel) {
+		_cancel->moveToRight(
+			padding.right()
+				+ _submit->width()
+				+ st::ivEditorBottomControlsButtonSkip,
+			buttonsTop,
+			editorWidth);
+	}
 	_scroll->setGeometry(
 		0,
 		toolbarHeight,
@@ -1696,6 +1704,17 @@ bool WindowHost::Impl::articleChanged() {
 	return !RichPagesEqual(_initialPage, _state->richPage());
 }
 
+bool WindowHost::Impl::articleEmptyForDiscard() {
+	if (!_state) {
+		return true;
+	} else if (_editor
+		&& (_editor->commitInlineFieldForClose()
+			== State::ApplyResult::Failed)) {
+		return false;
+	}
+	return _state->articleEmpty();
+}
+
 bool WindowHost::Impl::showCloseConfirmation() {
 	if (_closeConfirmation) {
 		return true;
@@ -1755,7 +1774,13 @@ bool WindowHost::Impl::confirmCancel() {
 }
 
 void WindowHost::Impl::discard() {
-	if (_discard) {
+	if (!_discard) {
+		return;
+	} else if (articleEmptyForDiscard()) {
+		if (!_discarded || _discarded()) {
+			finishClose();
+		}
+	} else {
 		[[maybe_unused]] const auto shown = showDiscardConfirmation();
 	}
 }

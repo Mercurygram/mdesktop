@@ -69,6 +69,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/controls/history_view_compose_ai_tooltip.h"
 #include "history/view/controls/history_view_compose_media_edit_manager.h"
 #include "history/view/controls/history_view_forward_panel.h"
+#include "history/view/controls/history_view_rich_draft_preview.h"
 #include "history/view/controls/history_view_draft_options.h"
 #include "history/view/controls/history_view_suggest_options.h"
 #include "history/view/controls/history_view_ttl_button.h"
@@ -168,33 +169,6 @@ const char kOptionMacCmdReplyImmediately[] = "mac-cmd-reply-immediately";
 
 const ChatHelpers::PauseReason kDefaultPanelsLevel
 	= ChatHelpers::PauseReason::TabbedPanel;
-
-class RichDraftPreview final : public Ui::RpWidget {
-public:
-	RichDraftPreview(
-		QWidget *parent,
-		not_null<Main::Session*> session,
-		std::shared_ptr<ChatHelpers::Show> show,
-		Fn<void()> activate);
-
-	void setDraft(const Data::Draft &draft);
-	[[nodiscard]] int resizeGetHeight(
-		int width,
-		int minHeight,
-		int maxHeight);
-
-private:
-	void paint(QRect clip);
-	[[nodiscard]] int contentHeightForWidth(int width) const;
-	void mouseReleaseEvent(QMouseEvent *e) override;
-
-	const not_null<Main::Session*> _session;
-	const std::shared_ptr<ChatHelpers::Show> _show;
-	const Fn<void()> _activate;
-	Ui::Text::String _title;
-	Ui::Text::String _summary;
-
-};
 
 class FieldHeader final : public Ui::RpWidget {
 public:
@@ -323,109 +297,6 @@ private:
 	rpl::event_stream<> _editPhotoRequests;
 
 };
-
-RichDraftPreview::RichDraftPreview(
-	QWidget *parent,
-	not_null<Main::Session*> session,
-	std::shared_ptr<ChatHelpers::Show> show,
-	Fn<void()> activate)
-: RpWidget(parent)
-, _session(session)
-, _show(std::move(show))
-, _activate(std::move(activate)) {
-	setCursor(style::cur_pointer);
-
-	paintRequest(
-	) | rpl::on_next([=](QRect clip) {
-		paint(clip);
-	}, lifetime());
-}
-
-void RichDraftPreview::setDraft(const Data::Draft &draft) {
-	const auto context = Core::TextContext({
-		.session = _session,
-		.repaint = [=] { update(); },
-		.customEmojiLoopLimit = 1,
-	});
-	_title.setText(
-		st::msgNameStyle,
-		tr::lng_article_editor_title(tr::now),
-		Ui::NameTextOptions());
-	_summary.setMarkedText(
-		st::messageTextStyle,
-		draft.richMessageSummary,
-		Ui::DialogTextOptions(),
-		context);
-	update();
-}
-
-int RichDraftPreview::resizeGetHeight(
-		int width,
-		int minHeight,
-		int maxHeight) {
-	const auto height = std::min(
-		std::max(contentHeightForWidth(width), minHeight),
-		maxHeight);
-	resize(width, height);
-	return height;
-}
-
-void RichDraftPreview::paint(QRect clip) {
-	Q_UNUSED(clip);
-
-	Painter p(this);
-	p.setInactive(_show->paused(Window::GifPauseReason::Any));
-	p.fillRect(rect(), st::historyComposeAreaBg);
-
-	const auto left = st::msgReplyPadding.left();
-	const auto top = st::msgReplyPadding.top();
-	const auto right = st::msgReplyPadding.right();
-	const auto width = std::max(0, this->width() - left - right);
-
-	p.setPen(st::historyReplyNameFg);
-	_title.drawElided(p, left, top, width);
-
-	if (_summary.isEmpty()) {
-		return;
-	}
-
-	const auto bodyTop = top + st::msgServiceNameFont->height;
-	const auto bodyHeight = height() - bodyTop - st::msgReplyPadding.top();
-	const auto lines = std::max(1, bodyHeight / _summary.minHeight());
-	p.setPen(st::historyComposeAreaFg);
-	_summary.draw(p, {
-		.position = QPoint(left, bodyTop),
-		.availableWidth = width,
-		.palette = &st::historyComposeAreaPalette,
-		.spoiler = Ui::Text::DefaultSpoilerCache(),
-		.now = crl::now(),
-		.pausedEmoji = p.inactive() || On(PowerSaving::kEmojiChat),
-		.pausedSpoiler = p.inactive() || On(PowerSaving::kChatSpoiler),
-		.elisionLines = lines,
-	});
-}
-
-int RichDraftPreview::contentHeightForWidth(int width) const {
-	const auto left = st::msgReplyPadding.left();
-	const auto right = st::msgReplyPadding.right();
-	const auto available = std::max(0, width - left - right);
-	const auto summaryHeight = _summary.isEmpty()
-		? 0
-		: std::min(
-			_summary.countHeight(available),
-			_summary.minHeight() * 2);
-	return st::msgReplyPadding.top()
-		+ st::msgServiceNameFont->height
-		+ summaryHeight
-		+ st::msgReplyPadding.top();
-}
-
-void RichDraftPreview::mouseReleaseEvent(QMouseEvent *e) {
-	if ((e->button() == Qt::LeftButton) && _activate) {
-		_activate();
-	}
-	RpWidget::mouseReleaseEvent(e);
-}
 
 FieldHeader::FieldHeader(
 	QWidget *parent,
@@ -1214,10 +1085,10 @@ ComposeControls::ComposeControls(
 		(_fieldCustomPlaceholder
 			? rpl::duplicate(_fieldCustomPlaceholder)
 			: tr::lng_message_ph())))
-, _richDraftPreview(std::make_unique<RichDraftPreview>(
+, _richDraftPreview(std::make_unique<Controls::RichDraftPreview>(
 	_wrap.get(),
 	_session,
-	_show,
+	[=] { return _show->paused(Window::GifPauseReason::Any); },
 	[=] {
 		if (_regularWindow && _history && _sendActionFactory) {
 			Iv::Editor::ShowComposeBox(

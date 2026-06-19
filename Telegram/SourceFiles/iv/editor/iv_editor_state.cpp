@@ -1451,6 +1451,12 @@ const RichPage &State::richPage() const {
 	return *_richPage;
 }
 
+bool State::articleEmpty() const {
+	return ranges::all_of(_richPage->blocks, [](const auto &block) {
+		return BlockIsEmpty(block);
+	});
+}
+
 const Markdown::MarkdownArticleContent &State::prepared() const {
 	return _prepared;
 }

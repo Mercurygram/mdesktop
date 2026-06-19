@@ -829,21 +829,17 @@ private:
 		const auto topicRootId = _composeThreadKey->draftKey.topicRootId();
 		const auto monoforumPeerId = _composeThreadKey->draftKey.monoforumPeerId();
 		const auto history = _composeAction->history;
-		const auto entry = composeThreadEntry();
-		const auto plainDraft = (entry && entry->readDraft)
-			? entry->readDraft()
-			: nullptr;
-		if (entry && entry->saveDraft) {
-			entry->saveDraft(plainDraft
-				? std::make_unique<::Data::Draft>(*plainDraft)
-				: nullptr);
+		if (const auto entry = composeThreadEntry()) {
+			if (entry->saveDraft) {
+				entry->saveDraft(nullptr);
+			}
 		}
 		history->clearCloudDraft(topicRootId, monoforumPeerId);
 		if (const auto thread = history->threadFor(topicRootId, monoforumPeerId)) {
 			const auto cloudDraft = history->createCloudDraft(
 				topicRootId,
 				monoforumPeerId,
-				plainDraft.get());
+				nullptr);
 			if (cloudDraft) {
 				_session->api().saveDraftToCloud(not_null{ thread }, *cloudDraft);
 			}

@@ -98,6 +98,7 @@ enum class SendProgressType;
 } // namespace Api
 
 namespace HistoryView::Controls {
+class RichDraftPreview;
 class VoiceRecordBar;
 class TTLButton;
 class WebpageProcessor;
@@ -110,7 +111,6 @@ using AiTooltipManager = ComposeTooltipManager;
 namespace HistoryView {
 
 class FieldHeader;
-class RichDraftPreview;
 
 enum class ComposeControlsMode {
 	Normal,
@@ -489,7 +489,7 @@ private:
 	const not_null<Ui::EmojiButton*> _tabbedSelectorToggle;
 	rpl::producer<QString> _fieldCustomPlaceholder;
 	const not_null<Ui::InputField*> _field;
-	std::unique_ptr<RichDraftPreview> _richDraftPreview;
+	std::unique_ptr<Controls::RichDraftPreview> _richDraftPreview;
 	Ui::IconButton * const _botCommandStart = nullptr;
 	std::unique_ptr<Ui::SendAsButton> _sendAs;
 	rpl::variable<bool> _videoStreamAdmin;

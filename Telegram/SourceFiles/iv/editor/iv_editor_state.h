@@ -241,6 +241,7 @@ public:
 		RichMessageLimits limits = {});
 
 	[[nodiscard]] const RichPage &richPage() const;
+	[[nodiscard]] bool articleEmpty() const;
 	[[nodiscard]] const Markdown::MarkdownArticleContent &prepared() const;
 	[[nodiscard]] const std::vector<TextNodeDescriptor> &textNodes() const;
 	[[nodiscard]] Snapshot snapshot() const;

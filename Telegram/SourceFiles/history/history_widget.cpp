@@ -35,6 +35,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/file_utilities.h"
 #include "core/mime_type.h"
 #include "history/view/history_view_draw_to_reply.h"
+#include "history/view/controls/history_view_rich_draft_preview.h"
 #include "ui/emoji_config.h"
 #include "ui/chat/attach/attach_prepare.h"
 #include "ui/chat/choose_theme_controller.h"
@@ -251,139 +252,6 @@ const auto kPsaAboutPrefix = "cloud_lng_about_psa_";
 
 } // namespace
 
-class HistoryWidgetRichDraftPreview final : public Ui::RpWidget {
-public:
-	HistoryWidgetRichDraftPreview(
-		QWidget *parent,
-		not_null<Main::Session*> session,
-		not_null<Window::SessionController*> controller,
-		Fn<void()> activate);
-
-	void setDraft(const Data::Draft &draft);
-	[[nodiscard]] int resizeGetHeight(
-		int width,
-		int minHeight,
-		int maxHeight);
-
-protected:
-	void mouseReleaseEvent(QMouseEvent *e) override;
-
-private:
-	void paint(QRect clip);
-	[[nodiscard]] int contentHeightForWidth(int width) const;
-
-	const not_null<Main::Session*> _session;
-	const not_null<Window::SessionController*> _controller;
-	const Fn<void()> _activate;
-	Ui::Text::String _title;
-	Ui::Text::String _summary;
-
-};
-
-HistoryWidgetRichDraftPreview::HistoryWidgetRichDraftPreview(
-	QWidget *parent,
-	not_null<Main::Session*> session,
-	not_null<Window::SessionController*> controller,
-	Fn<void()> activate)
-: RpWidget(parent)
-, _session(session)
-, _controller(controller)
-, _activate(std::move(activate)) {
-	setCursor(style::cur_pointer);
-
-	paintRequest(
-	) | rpl::on_next([=](QRect clip) {
-		paint(clip);
-	}, lifetime());
-}
-
-void HistoryWidgetRichDraftPreview::setDraft(const Data::Draft &draft) {
-	const auto context = Core::TextContext({
-		.session = _session,
-		.repaint = [=] { update(); },
-		.customEmojiLoopLimit = 1,
-	});
-	_title.setText(
-		st::msgNameStyle,
-		tr::lng_article_editor_title(tr::now),
-		Ui::NameTextOptions());
-	_summary.setMarkedText(
-		st::messageTextStyle,
-		draft.richMessageSummary,
-		Ui::DialogTextOptions(),
-		context);
-	update();
-}
-
-int HistoryWidgetRichDraftPreview::resizeGetHeight(
-		int width,
-		int minHeight,
-		int maxHeight) {
-	const auto height = std::min(
-		std::max(contentHeightForWidth(width), minHeight),
-		maxHeight);
-	resize(width, height);
-	return height;
-}
-
-void HistoryWidgetRichDraftPreview::paint(QRect clip) {
-	Q_UNUSED(clip);
-
-	Painter p(this);
-	p.setInactive(
-		_controller->isGifPausedAtLeastFor(Window::GifPauseReason::Any));
-	p.fillRect(rect(), st::historyComposeAreaBg);
-
-	const auto left = st::msgReplyPadding.left();
-	const auto top = st::msgReplyPadding.top();
-	const auto right = st::msgReplyPadding.right();
-	const auto width = std::max(0, this->width() - left - right);
-
-	p.setPen(st::historyReplyNameFg);
-	_title.drawElided(p, left, top, width);
-
-	if (_summary.isEmpty()) {
-		return;
-	}
-
-	const auto bodyTop = top + st::msgServiceNameFont->height;
-	const auto bodyHeight = height() - bodyTop - st::msgReplyPadding.top();
-	const auto lines = std::max(1, bodyHeight / _summary.minHeight());
-	p.setPen(st::historyComposeAreaFg);
-	_summary.draw(p, {
-		.position = QPoint(left, bodyTop),
-		.availableWidth = width,
-		.palette = &st::historyComposeAreaPalette,
-		.spoiler = Ui::Text::DefaultSpoilerCache(),
-		.now = crl::now(),
-		.pausedEmoji = p.inactive() || On(PowerSaving::kEmojiChat),
-		.pausedSpoiler = p.inactive() || On(PowerSaving::kChatSpoiler),
-		.elisionLines = lines,
-	});
-}
-
-int HistoryWidgetRichDraftPreview::contentHeightForWidth(int width) const {
-	const auto left = st::msgReplyPadding.left();
-	const auto right = st::msgReplyPadding.right();
-	const auto available = std::max(0, width - left - right);
-	const auto summaryHeight = _summary.isEmpty()
-		? 0
-		: std::min(
-			_summary.countHeight(available),
-			_summary.minHeight() * 2);
-	return st::msgReplyPadding.top()
-		+ st::msgServiceNameFont->height
-		+ summaryHeight
-		+ st::msgReplyPadding.top();
-}
-
-void HistoryWidgetRichDraftPreview::mouseReleaseEvent(QMouseEvent *e) {
-	if ((e->button() == Qt::LeftButton) && _activate) {
-		_activate();
-	}
-	RpWidget::mouseReleaseEvent(e);
-}
-
 HistoryWidget::HistoryWidget(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
@@ -452,10 +320,13 @@ HistoryWidget::HistoryWidget(
 	st::historyComposeField,
 	Ui::InputField::Mode::MultiLine,
 	tr::lng_message_ph())
-, _richDraftPreview(std::make_unique<HistoryWidgetRichDraftPreview>(
+, _richDraftPreview(std::make_unique<HistoryView::Controls::RichDraftPreview>(
 	this,
 	&session(),
-	controller,
+	[=] {
+		return controller->isGifPausedAtLeastFor(
+			Window::GifPauseReason::Any);
+	},
 	[=] {
 		if (_history) {
 			Iv::Editor::ShowComposeBox(
