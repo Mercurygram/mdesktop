@@ -591,6 +591,9 @@ private:
 	: _session(session)
 	, _peer(peer)
 	, _mode(mode)
+	, _submitType((mode == Mode::Compose)
+		? ShowWindowDescriptor::SubmitType::Send
+		: ShowWindowDescriptor::SubmitType::Save)
 	, _articleId(articleId)
 	, _composeAction(std::move(action))
 	, _sendMenuDetails(std::move(sendMenuDetails))
@@ -770,6 +773,19 @@ private:
 		finishSubmittedWork();
 	}
 
+	[[nodiscard]] SerializeInputRichMessageMode submittedSerializeMode() const {
+		switch (_submitType) {
+		case ShowWindowDescriptor::SubmitType::Send:
+		case ShowWindowDescriptor::SubmitType::Save:
+			return SerializeInputRichMessageMode::FinalSubmit;
+		}
+		return SerializeInputRichMessageMode::Draft;
+	}
+
+	void showEmptySubmittedPageToast() const {
+		showToast(tr::lng_article_submit_empty(tr::now));
+	}
+
 	[[nodiscard]] bool pageContainsAttachment(
 			const std::vector<RichPage::Block> &blocks,
 			const AttachmentRecord &attachment) const {
@@ -902,14 +918,17 @@ private:
 		return true;
 	}
 
-	[[nodiscard]] std::optional<MTPInputRichMessage> serializeSubmittedPage() const {
+	[[nodiscard]] SerializeInputRichMessageResult serializeSubmittedPage() const {
 		if (!_submittedPage) {
-			return std::nullopt;
+			return {};
 		}
 		auto page = RichPage(*_submittedPage);
 		return patchSubmittedBlocks(page.blocks)
-			? SerializeInputRichMessage(_session, page)
-			: std::optional<MTPInputRichMessage>();
+			? SerializeInputRichMessage(
+				_session,
+				page,
+				submittedSerializeMode())
+			: SerializeInputRichMessageResult();
 	}
 
 	void maybeContinueSubmittedRequest() {
@@ -924,7 +943,12 @@ private:
 			return;
 		}
 		const auto richMessage = serializeSubmittedPage();
-		if (!richMessage) {
+		if (richMessage.status == SerializeInputRichMessageStatus::EmptyContent) {
+			showEmptySubmittedPageToast();
+			failSubmittedWork(false);
+			return;
+		} else if (richMessage.status != SerializeInputRichMessageStatus::Success
+			|| !richMessage.value) {
 			failSubmittedWork(true);
 			return;
 		}
@@ -937,7 +961,10 @@ private:
 		if (_mode == Mode::Compose) {
 			auto action = *_composeAction;
 			action.options = _submitOptions;
-			_session->api().sendRichMessage(item, *richMessage, std::move(action));
+			_session->api().sendRichMessage(
+				item,
+				*richMessage.value,
+				std::move(action));
 			finishSubmittedWork();
 			return;
 		}
@@ -945,7 +972,11 @@ private:
 			not_null{ item },
 			[weak = base::make_weak(this)] {
 				if (const auto session = weak.get()) {
-					return session->serializeSubmittedPage();
+					auto richMessage = session->serializeSubmittedPage();
+					return (richMessage.status
+						== SerializeInputRichMessageStatus::Success)
+						? std::move(richMessage.value)
+						: std::optional<MTPInputRichMessage>();
 				}
 				return std::optional<MTPInputRichMessage>();
 			},
@@ -1083,9 +1114,7 @@ private:
 			.session = _session,
 			.peer = _peer,
 			.state = _state,
-			.submitType = (_mode == Mode::Compose)
-				? ShowWindowDescriptor::SubmitType::Send
-				: ShowWindowDescriptor::SubmitType::Save,
+			.submitType = _submitType,
 			.showCreated = [session = shared_from_this()](
 					std::shared_ptr<ChatHelpers::Show> show) {
 				session->setEditorShow(std::move(show));
@@ -2663,6 +2692,7 @@ private:
 	const not_null<Main::Session*> _session;
 	const not_null<PeerData*> _peer;
 	const Mode _mode;
+	const ShowWindowDescriptor::SubmitType _submitType;
 	const FullMsgId _articleId;
 	std::optional<Api::SendAction> _composeAction;
 	const Fn<SendMenu::Details()> _sendMenuDetails;

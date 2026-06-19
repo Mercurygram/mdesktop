@@ -50,12 +50,57 @@ constexpr auto kNoEntityIndex = -1;
 	return source;
 }
 
+[[nodiscard]] bool StringIsEmpty(const QString &text) {
+	return text.trimmed().isEmpty();
+}
+
 struct SerializeContext {
 	not_null<Main::Session*> session;
+	SerializeInputRichMessageMode mode = SerializeInputRichMessageMode::Draft;
 	base::flat_map<uint64, MTPInputPhoto> photos;
 	base::flat_map<uint64, MTPInputDocument> documents;
 	base::flat_map<uint64, MTPInputUser> users;
 };
+
+enum class SerializeBlockState : uchar {
+	Success,
+	Skipped,
+	Failed,
+};
+
+struct SerializeBlockResult {
+	SerializeBlockState state = SerializeBlockState::Failed;
+	std::optional<MTPPageBlock> block;
+};
+
+[[nodiscard]] bool IsFinalSerializeMode(const SerializeContext *context) {
+	return context->mode == SerializeInputRichMessageMode::FinalSubmit;
+}
+
+[[nodiscard]] SerializeBlockResult SuccessfulSerializeBlock(
+		MTPPageBlock block) {
+	auto result = SerializeBlockResult();
+	result.state = SerializeBlockState::Success;
+	result.block = std::move(block);
+	return result;
+}
+
+[[nodiscard]] SerializeBlockResult SkippedSerializeBlock() {
+	auto result = SerializeBlockResult();
+	result.state = SerializeBlockState::Skipped;
+	return result;
+}
+
+[[nodiscard]] SerializeBlockResult FailedSerializeBlock() {
+	return {};
+}
+
+[[nodiscard]] SerializeBlockResult FinishSerializeBlock(
+		std::optional<MTPPageBlock> block) {
+	return block
+		? SuccessfulSerializeBlock(std::move(*block))
+		: FailedSerializeBlock();
+}
 
 [[nodiscard]] int EntitySerializationOrder(EntityType type) {
 	switch (type) {
@@ -116,6 +161,16 @@ struct SerializeContext {
 
 [[nodiscard]] bool HasRichTextContent(const RichText &text) {
 	return !text.text.empty() || !text.anchorId.isEmpty();
+}
+
+[[nodiscard]] bool HasVisibleRichTextContent(const RichText &text) {
+	return !StringIsEmpty(text.text.text);
+}
+
+[[nodiscard]] bool ShouldSkipFinalRichTextContent(
+		const RichText &text,
+		const SerializeContext *context) {
+	return IsFinalSerializeMode(context) && !HasVisibleRichTextContent(text);
 }
 
 [[nodiscard]] PhotoData *ResolvePhotoData(
@@ -377,10 +432,10 @@ struct SerializeContext {
 	case EntityType::MentionName: {
 		const auto userId = CollectMentionUser(context, entity.data());
 		return userId
-			? std::make_optional(MTP_textMentionName(
+			? std::optional<MTPRichText>(MTP_textMentionName(
 				*inner,
 				MTP_long(*userId)))
-			: std::nullopt;
+			: std::optional<MTPRichText>(*inner);
 	}
 	case EntityType::CustomEmoji: {
 		if (const auto parsed = Markdown::ParseInlineTextObjectEntity(
@@ -634,6 +689,9 @@ struct SerializeContext {
 		const RichText &text,
 		const QString &anchorId,
 		SerializeContext *context) {
+	if (IsFinalSerializeMode(context) && !HasVisibleRichTextContent(text)) {
+		return true;
+	}
 	const auto paragraph = SerializeParagraphBlock(text, anchorId, context);
 	if (!paragraph) {
 		return false;
@@ -698,168 +756,248 @@ struct SerializeContext {
 		(rowspan != 1 ? MTP_int(rowspan) : MTPint()));
 }
 
-[[nodiscard]] std::optional<MTPPageBlock> SerializeBlock(
+[[nodiscard]] SerializeBlockResult SerializeBlock(
 		const Block &block,
 		SerializeContext *context) {
 	switch (block.kind) {
 	case BlockKind::Heading: {
+		if (ShouldSkipFinalRichTextContent(block.text, context)) {
+			return SkippedSerializeBlock();
+		}
 		const auto text = SerializeRichTextWithAnchor(
 			block.text,
 			block.anchorId,
 			context);
 		if (!text) {
-			return std::nullopt;
+			return FailedSerializeBlock();
 		}
 		switch (std::clamp(block.headingLevel, 1, 6)) {
-		case 1: return MTP_pageBlockHeading1(*text);
-		case 2: return MTP_pageBlockHeading2(*text);
-		case 3: return MTP_pageBlockHeading3(*text);
-		case 4: return MTP_pageBlockHeading4(*text);
-		case 5: return MTP_pageBlockHeading5(*text);
-		case 6: return MTP_pageBlockHeading6(*text);
+		case 1: return SuccessfulSerializeBlock(MTP_pageBlockHeading1(*text));
+		case 2: return SuccessfulSerializeBlock(MTP_pageBlockHeading2(*text));
+		case 3: return SuccessfulSerializeBlock(MTP_pageBlockHeading3(*text));
+		case 4: return SuccessfulSerializeBlock(MTP_pageBlockHeading4(*text));
+		case 5: return SuccessfulSerializeBlock(MTP_pageBlockHeading5(*text));
+		case 6: return SuccessfulSerializeBlock(MTP_pageBlockHeading6(*text));
 		}
-		return std::nullopt;
+		return FailedSerializeBlock();
 	}
-	case BlockKind::Paragraph: {
-		return SerializeParagraphBlock(block.text, block.anchorId, context);
-	}
+	case BlockKind::Paragraph:
+		if (IsFinalSerializeMode(context)
+			&& !HasVisibleRichTextContent(block.text)) {
+			return SkippedSerializeBlock();
+		}
+		return FinishSerializeBlock(SerializeParagraphBlock(
+			block.text,
+			block.anchorId,
+			context));
 	case BlockKind::Footer: {
+		if (ShouldSkipFinalRichTextContent(block.text, context)) {
+			return SkippedSerializeBlock();
+		}
 		const auto text = SerializeRichTextWithAnchor(
 			block.text,
 			block.anchorId,
 			context);
 		return text
-			? std::make_optional(MTP_pageBlockFooter(*text))
-			: std::nullopt;
+			? SuccessfulSerializeBlock(MTP_pageBlockFooter(*text))
+			: FailedSerializeBlock();
 	}
 	case BlockKind::Divider:
-		return MTP_pageBlockDivider();
+		return SuccessfulSerializeBlock(MTP_pageBlockDivider());
 	case BlockKind::Anchor:
 		return block.anchorId.isEmpty()
-			? std::nullopt
-			: std::make_optional(MTP_pageBlockAnchor(
+			? FailedSerializeBlock()
+			: SuccessfulSerializeBlock(MTP_pageBlockAnchor(
 				MTP_string(block.anchorId)));
 	case BlockKind::Quote: {
-		const auto caption = SerializeRichTextWithAnchor(
-			block.caption,
-			block.blocks.empty() ? QString() : block.anchorId,
-			context);
-		if (!caption) {
-			return std::nullopt;
-		}
 		if (block.pullquote) {
 			if (!block.blocks.empty()) {
-				return std::nullopt;
+				return FailedSerializeBlock();
 			}
+			if (IsFinalSerializeMode(context)
+				&& !HasVisibleRichTextContent(block.text)) {
+				return SkippedSerializeBlock();
+			}
+			const auto caption = SerializeRichTextWithAnchor(
+				block.caption,
+				QString(),
+				context);
 			const auto text = SerializeRichTextWithAnchor(
 				block.text,
 				block.anchorId,
 				context);
-			return text
-				? std::make_optional(MTP_pageBlockPullquote(
+			return (text && caption)
+				? SuccessfulSerializeBlock(MTP_pageBlockPullquote(
 					*text,
 					*caption))
-				: std::nullopt;
+				: FailedSerializeBlock();
 		}
 		if (block.blocks.empty()) {
+			if (IsFinalSerializeMode(context)
+				&& !HasVisibleRichTextContent(block.text)) {
+				return SkippedSerializeBlock();
+			}
+			const auto caption = SerializeRichTextWithAnchor(
+				block.caption,
+				QString(),
+				context);
 			const auto text = SerializeRichTextWithAnchor(
 				block.text,
 				block.anchorId,
 				context);
-			return text
-				? std::make_optional(MTP_pageBlockBlockquote(
+			return (text && caption)
+				? SuccessfulSerializeBlock(MTP_pageBlockBlockquote(
 					*text,
 					*caption))
-				: std::nullopt;
+				: FailedSerializeBlock();
 		}
 		auto blocks = QVector<MTPPageBlock>();
-		if (HasRichTextContent(block.text)
+		if ((HasRichTextContent(block.text) || IsFinalSerializeMode(context))
 			&& !AppendSerializedParagraphBlock(
 				&blocks,
 				block.text,
 				QString(),
 				context)) {
-			return std::nullopt;
+			return FailedSerializeBlock();
 		}
 		const auto nested = SerializeBlocks(block.blocks, context);
 		if (!nested) {
-			return std::nullopt;
+			return FailedSerializeBlock();
 		}
 		blocks += *nested;
-		return MTP_pageBlockBlockquoteBlocks(
-			MTP_vector<MTPPageBlock>(std::move(blocks)),
-			*caption);
+		if (IsFinalSerializeMode(context) && blocks.isEmpty()) {
+			return SkippedSerializeBlock();
+		}
+		const auto caption = SerializeRichTextWithAnchor(
+			block.caption,
+			block.anchorId,
+			context);
+		return caption
+			? SuccessfulSerializeBlock(MTP_pageBlockBlockquoteBlocks(
+				MTP_vector<MTPPageBlock>(std::move(blocks)),
+				*caption))
+			: FailedSerializeBlock();
 	}
 	case BlockKind::List: {
 		if (block.listKind == ListKind::Ordered) {
+			using Flag = MTPDpageBlockOrderedList::Flag;
+			auto flags = MTPDpageBlockOrderedList::Flags();
+			if (block.orderedList.reversed) {
+				flags |= Flag::f_reversed;
+			}
+			if (block.orderedList.start.has_value()) {
+				flags |= Flag::f_start;
+			}
+			if (block.orderedList.type.has_value()) {
+				flags |= Flag::f_type;
+			}
 			auto items = QVector<MTPPageListOrderedItem>();
 			items.reserve(block.listItems.size());
-			for (auto i = 0, count = int(block.listItems.size()); i != count; ++i) {
-				const auto &item = block.listItems[i];
-				const auto number = !item.number.isEmpty()
-					? item.number
-					: QString::number(i + 1);
+			for (const auto &item : block.listItems) {
 				if (!item.blocks.empty()) {
-					using Flag = MTPDpageListOrderedItemBlocks::Flag;
-					auto flags = MTPDpageListOrderedItemBlocks::Flags();
+					using ItemFlag = MTPDpageListOrderedItemBlocks::Flag;
+					auto itemFlags = MTPDpageListOrderedItemBlocks::Flags();
 					if (item.taskState != TaskState::None) {
-						flags |= Flag::f_checkbox;
+						itemFlags |= ItemFlag::f_checkbox;
 					}
 					if (item.taskState == TaskState::Checked) {
-						flags |= Flag::f_checked;
+						itemFlags |= ItemFlag::f_checked;
 					}
-					flags |= Flag::f_num;
+					if (item.number.num.has_value()) {
+						itemFlags |= ItemFlag::f_num;
+					}
+					if (item.number.value.has_value()) {
+						itemFlags |= ItemFlag::f_value;
+					}
+					if (item.number.type.has_value()) {
+						itemFlags |= ItemFlag::f_type;
+					}
 					auto blocks = QVector<MTPPageBlock>();
-					if (HasRichTextContent(item.text) || !item.anchorId.isEmpty()) {
-						if (!AppendSerializedParagraphBlock(
-								&blocks,
-								item.text,
-								item.anchorId,
-								context)) {
-							return std::nullopt;
-						}
+					if ((HasRichTextContent(item.text)
+							|| !item.anchorId.isEmpty()
+							|| IsFinalSerializeMode(context))
+						&& !AppendSerializedParagraphBlock(
+							&blocks,
+							item.text,
+							item.anchorId,
+							context)) {
+						return FailedSerializeBlock();
 					}
 					const auto nested = SerializeBlocks(item.blocks, context);
 					if (!nested) {
-						return std::nullopt;
+						return FailedSerializeBlock();
 					}
 					blocks += *nested;
+					if (IsFinalSerializeMode(context) && blocks.isEmpty()) {
+						continue;
+					}
 					items.push_back(MTP_pageListOrderedItemBlocks(
-						MTP_flags(flags),
-						MTP_string(number),
+						MTP_flags(itemFlags),
+						item.number.num.has_value()
+							? MTP_string(*item.number.num)
+							: MTPstring(),
 						MTP_vector<MTPPageBlock>(std::move(blocks)),
-						MTPint(),
-						MTPstring()));
+						item.number.value.has_value()
+							? MTP_int(*item.number.value)
+							: MTPint(),
+						item.number.type.has_value()
+							? MTP_string(*item.number.type)
+							: MTPstring()));
 				} else {
-					using Flag = MTPDpageListOrderedItemText::Flag;
-					auto flags = MTPDpageListOrderedItemText::Flags();
+					using ItemFlag = MTPDpageListOrderedItemText::Flag;
+					auto itemFlags = MTPDpageListOrderedItemText::Flags();
 					if (item.taskState != TaskState::None) {
-						flags |= Flag::f_checkbox;
+						itemFlags |= ItemFlag::f_checkbox;
 					}
 					if (item.taskState == TaskState::Checked) {
-						flags |= Flag::f_checked;
+						itemFlags |= ItemFlag::f_checked;
 					}
-					flags |= Flag::f_num;
+					if (item.number.num.has_value()) {
+						itemFlags |= ItemFlag::f_num;
+					}
+					if (item.number.value.has_value()) {
+						itemFlags |= ItemFlag::f_value;
+					}
+					if (item.number.type.has_value()) {
+						itemFlags |= ItemFlag::f_type;
+					}
+					if (IsFinalSerializeMode(context)
+						&& !HasVisibleRichTextContent(item.text)) {
+						continue;
+					}
 					const auto text = SerializeRichTextWithAnchor(
 						item.text,
 						item.anchorId,
 						context);
 					if (!text) {
-						return std::nullopt;
+						return FailedSerializeBlock();
 					}
 					items.push_back(MTP_pageListOrderedItemText(
-						MTP_flags(flags),
-						MTP_string(number),
+						MTP_flags(itemFlags),
+						item.number.num.has_value()
+							? MTP_string(*item.number.num)
+							: MTPstring(),
 						*text,
-						MTPint(),
-						MTPstring()));
+						item.number.value.has_value()
+							? MTP_int(*item.number.value)
+							: MTPint(),
+						item.number.type.has_value()
+							? MTP_string(*item.number.type)
+							: MTPstring()));
 				}
 			}
-			return MTP_pageBlockOrderedList(
-				MTP_flags(0),
+			if (IsFinalSerializeMode(context) && items.isEmpty()) {
+				return SkippedSerializeBlock();
+			}
+			return SuccessfulSerializeBlock(MTP_pageBlockOrderedList(
+				MTP_flags(flags),
 				MTP_vector<MTPPageListOrderedItem>(std::move(items)),
-				MTPint(),
-				MTPstring());
+				block.orderedList.start.has_value()
+					? MTP_int(*block.orderedList.start)
+					: MTPint(),
+				block.orderedList.type.has_value()
+					? MTP_string(*block.orderedList.type)
+					: MTPstring()));
 		}
 		auto items = QVector<MTPPageListItem>();
 		items.reserve(block.listItems.size());
@@ -874,20 +1012,24 @@ struct SerializeContext {
 					flags |= Flag::f_checked;
 				}
 				auto blocks = QVector<MTPPageBlock>();
-				if (HasRichTextContent(item.text) || !item.anchorId.isEmpty()) {
-					if (!AppendSerializedParagraphBlock(
-							&blocks,
-							item.text,
-							item.anchorId,
-							context)) {
-						return std::nullopt;
-					}
+				if ((HasRichTextContent(item.text)
+						|| !item.anchorId.isEmpty()
+						|| IsFinalSerializeMode(context))
+					&& !AppendSerializedParagraphBlock(
+						&blocks,
+						item.text,
+						item.anchorId,
+						context)) {
+					return FailedSerializeBlock();
 				}
 				const auto nested = SerializeBlocks(item.blocks, context);
 				if (!nested) {
-					return std::nullopt;
+					return FailedSerializeBlock();
 				}
 				blocks += *nested;
+				if (IsFinalSerializeMode(context) && blocks.isEmpty()) {
+					continue;
+				}
 				items.push_back(MTP_pageListItemBlocks(
 					MTP_flags(flags),
 					MTP_vector<MTPPageBlock>(std::move(blocks))));
@@ -900,35 +1042,43 @@ struct SerializeContext {
 				if (item.taskState == TaskState::Checked) {
 					flags |= Flag::f_checked;
 				}
+				if (IsFinalSerializeMode(context)
+					&& !HasVisibleRichTextContent(item.text)) {
+					continue;
+				}
 				const auto text = SerializeRichTextWithAnchor(
 					item.text,
 					item.anchorId,
 					context);
 				if (!text) {
-					return std::nullopt;
+					return FailedSerializeBlock();
 				}
 				items.push_back(MTP_pageListItemText(MTP_flags(flags), *text));
 			}
 		}
-		return MTP_pageBlockList(MTP_vector<MTPPageListItem>(std::move(items)));
+		if (IsFinalSerializeMode(context) && items.isEmpty()) {
+			return SkippedSerializeBlock();
+		}
+		return SuccessfulSerializeBlock(MTP_pageBlockList(
+			MTP_vector<MTPPageListItem>(std::move(items))));
 	}
 	case BlockKind::Photo: {
 		const auto photoId = CollectPhoto(context, block.photoId, block.photo);
 		const auto caption = SerializeCaption(block.caption, block.anchorId, context);
 		if (!photoId || !caption) {
-			return std::nullopt;
+			return FailedSerializeBlock();
 		}
 		using Flag = MTPDpageBlockPhoto::Flag;
 		auto flags = MTPDpageBlockPhoto::Flags();
 		if (block.spoiler) {
 			flags |= Flag::f_spoiler;
 		}
-		return MTP_pageBlockPhoto(
+		return SuccessfulSerializeBlock(MTP_pageBlockPhoto(
 			MTP_flags(flags),
 			MTP_long(*photoId),
 			*caption,
 			MTPstring(),
-			MTPlong());
+			MTPlong()));
 	}
 	case BlockKind::Video: {
 		const auto documentId = CollectDocument(
@@ -937,7 +1087,7 @@ struct SerializeContext {
 			block.document);
 		const auto caption = SerializeCaption(block.caption, block.anchorId, context);
 		if (!documentId || !caption) {
-			return std::nullopt;
+			return FailedSerializeBlock();
 		}
 		using Flag = MTPDpageBlockVideo::Flag;
 		auto flags = MTPDpageBlockVideo::Flags();
@@ -950,10 +1100,10 @@ struct SerializeContext {
 		if (block.spoiler) {
 			flags |= Flag::f_spoiler;
 		}
-		return MTP_pageBlockVideo(
+		return SuccessfulSerializeBlock(MTP_pageBlockVideo(
 			MTP_flags(flags),
 			MTP_long(*documentId),
-			*caption);
+			*caption));
 	}
 	case BlockKind::Audio: {
 		const auto documentId = CollectDocument(
@@ -962,13 +1112,17 @@ struct SerializeContext {
 			block.document);
 		const auto caption = SerializeCaption(block.caption, block.anchorId, context);
 		return (documentId && caption)
-			? std::make_optional(MTP_pageBlockAudio(
+			? SuccessfulSerializeBlock(MTP_pageBlockAudio(
 				MTP_long(*documentId),
 				*caption))
-			: std::nullopt;
+			: FailedSerializeBlock();
 	}
 	case BlockKind::Math:
-		return MTP_pageBlockMath(MTP_string(block.formula));
+		if (IsFinalSerializeMode(context) && StringIsEmpty(block.formula)) {
+			return SkippedSerializeBlock();
+		}
+		return SuccessfulSerializeBlock(MTP_pageBlockMath(
+			MTP_string(block.formula)));
 	case BlockKind::Table: {
 		using Flag = MTPDpageBlockTable::Flag;
 		auto flags = MTPDpageBlockTable::Flags();
@@ -978,13 +1132,6 @@ struct SerializeContext {
 		if (block.striped) {
 			flags |= Flag::f_striped;
 		}
-		const auto title = SerializeRichTextWithAnchor(
-			block.text,
-			block.anchorId,
-			context);
-		if (!title) {
-			return std::nullopt;
-		}
 		auto rows = QVector<MTPPageTableRow>();
 		rows.reserve(block.tableRows.size());
 		for (const auto &row : block.tableRows) {
@@ -993,32 +1140,48 @@ struct SerializeContext {
 			for (const auto &cell : row.cells) {
 				const auto serialized = SerializeTableCell(cell, context);
 				if (!serialized) {
-					return std::nullopt;
+					return FailedSerializeBlock();
 				}
 				cells.push_back(*serialized);
+			}
+			if (IsFinalSerializeMode(context) && cells.isEmpty()) {
+				continue;
 			}
 			rows.push_back(MTP_pageTableRow(
 				MTP_vector<MTPPageTableCell>(std::move(cells))));
 		}
-		return MTP_pageBlockTable(
-			MTP_flags(flags),
-			*title,
-			MTP_vector<MTPPageTableRow>(std::move(rows)));
-	}
-	case BlockKind::Details: {
-		using Flag = MTPDpageBlockDetails::Flag;
-		auto flags = block.open ? Flag::f_open : Flag();
+		if (IsFinalSerializeMode(context) && rows.isEmpty()) {
+			return SkippedSerializeBlock();
+		}
 		const auto title = SerializeRichTextWithAnchor(
 			block.text,
 			block.anchorId,
 			context);
+		if (!title) {
+			return FailedSerializeBlock();
+		}
+		return SuccessfulSerializeBlock(MTP_pageBlockTable(
+			MTP_flags(flags),
+			*title,
+			MTP_vector<MTPPageTableRow>(std::move(rows))));
+	}
+	case BlockKind::Details: {
+		using Flag = MTPDpageBlockDetails::Flag;
+		auto flags = block.open ? Flag::f_open : Flag();
 		const auto blocks = SerializeBlocks(block.blocks, context);
+		if (IsFinalSerializeMode(context) && blocks && blocks->isEmpty()) {
+			return SkippedSerializeBlock();
+		}
+		const auto title = SerializeRichTextWithAnchor(
+			block.text,
+			block.anchorId,
+			context);
 		return (title && blocks)
-			? std::make_optional(MTP_pageBlockDetails(
+			? SuccessfulSerializeBlock(MTP_pageBlockDetails(
 				MTP_flags(flags),
 				MTP_vector<MTPPageBlock>(*blocks),
 				*title))
-			: std::nullopt;
+			: FailedSerializeBlock();
 	}
 	case BlockKind::Map: {
 		const auto width = (block.width > 0)
@@ -1028,11 +1191,11 @@ struct SerializeContext {
 			? block.height
 			: kDefaultMapHeight;
 		if (block.zoom <= 0) {
-			return std::nullopt;
+			return FailedSerializeBlock();
 		}
 		const auto caption = SerializeCaption(block.caption, block.anchorId, context);
 		return caption
-			? std::make_optional(MTP_inputPageBlockMap(
+			? SuccessfulSerializeBlock(MTP_inputPageBlockMap(
 				MTP_inputGeoPoint(
 					MTP_flags(0),
 					MTP_double(block.latitude),
@@ -1042,21 +1205,24 @@ struct SerializeContext {
 				MTP_int(width),
 				MTP_int(height),
 				*caption))
-			: std::nullopt;
+			: FailedSerializeBlock();
 	}
 	case BlockKind::Code: {
 		if (!block.blocks.empty()) {
-			return std::nullopt;
+			return FailedSerializeBlock();
+		}
+		if (ShouldSkipFinalRichTextContent(block.text, context)) {
+			return SkippedSerializeBlock();
 		}
 		const auto text = SerializeRichTextWithAnchor(
 			block.text,
 			block.anchorId,
 			context);
 		return text
-			? std::make_optional(MTP_pageBlockPreformatted(
+			? SuccessfulSerializeBlock(MTP_pageBlockPreformatted(
 				*text,
 				MTP_string(block.language)))
-			: std::nullopt;
+			: FailedSerializeBlock();
 	}
 	case BlockKind::GroupedMedia: {
 		const auto items = SerializeGroupedMediaItems(
@@ -1067,16 +1233,16 @@ struct SerializeContext {
 			block.anchorId,
 			context);
 		if (!items || items->isEmpty() || !caption) {
-			return std::nullopt;
+			return FailedSerializeBlock();
 		}
 		if (block.mediaIntent == RichPage::GroupedMediaIntent::Slideshow) {
-			return MTP_pageBlockSlideshow(
+			return SuccessfulSerializeBlock(MTP_pageBlockSlideshow(
 				MTP_vector<MTPPageBlock>(std::move(*items)),
-				*caption);
+				*caption));
 		}
-		return MTP_pageBlockCollage(
+		return SuccessfulSerializeBlock(MTP_pageBlockCollage(
 			MTP_vector<MTPPageBlock>(std::move(*items)),
-			*caption);
+			*caption));
 	}
 	case BlockKind::Unsupported:
 	case BlockKind::Thinking:
@@ -1087,7 +1253,7 @@ struct SerializeContext {
 	case BlockKind::RelatedArticles:
 		break;
 	}
-	return std::nullopt;
+	return FailedSerializeBlock();
 }
 
 [[nodiscard]] std::optional<QVector<MTPPageBlock>> SerializeBlocks(
@@ -1097,23 +1263,52 @@ struct SerializeContext {
 	result.reserve(blocks.size());
 	for (const auto &block : blocks) {
 		const auto serialized = SerializeBlock(block, context);
-		if (!serialized) {
+		switch (serialized.state) {
+		case SerializeBlockState::Success:
+			result.push_back(*serialized.block);
+			break;
+		case SerializeBlockState::Skipped:
+			break;
+		case SerializeBlockState::Failed:
 			return std::nullopt;
 		}
-		result.push_back(*serialized);
 	}
+	return result;
+}
+
+[[nodiscard]] SerializeInputRichMessageResult FailedSerializeInputRichMessage() {
+	return {};
+}
+
+[[nodiscard]] SerializeInputRichMessageResult EmptySerializeInputRichMessage() {
+	auto result = SerializeInputRichMessageResult();
+	result.status = SerializeInputRichMessageStatus::EmptyContent;
+	return result;
+}
+
+[[nodiscard]] SerializeInputRichMessageResult SuccessfulSerializeInputRichMessage(
+		MTPInputRichMessage value) {
+	auto result = SerializeInputRichMessageResult();
+	result.status = SerializeInputRichMessageStatus::Success;
+	result.value = std::move(value);
 	return result;
 }
 
 } // namespace
 
-std::optional<MTPInputRichMessage> SerializeInputRichMessage(
+SerializeInputRichMessageResult SerializeInputRichMessage(
 		not_null<Main::Session*> session,
-		const RichPage &page) {
+		const RichPage &page,
+		SerializeInputRichMessageMode mode) {
 	auto context = SerializeContext{ session };
+	context.mode = mode;
 	auto blocks = SerializeBlocks(page.blocks, &context);
 	if (!blocks) {
-		return std::nullopt;
+		return FailedSerializeInputRichMessage();
+	}
+	if (mode == SerializeInputRichMessageMode::FinalSubmit
+		&& blocks->isEmpty()) {
+		return EmptySerializeInputRichMessage();
 	}
 	auto photos = QVector<MTPInputPhoto>();
 	photos.reserve(context.photos.size());
@@ -1144,12 +1339,12 @@ std::optional<MTPInputRichMessage> SerializeInputRichMessage(
 	if (!users.isEmpty()) {
 		flags |= Flag::f_users;
 	}
-	return MTP_inputRichMessage(
+	return SuccessfulSerializeInputRichMessage(MTP_inputRichMessage(
 		MTP_flags(flags),
 		MTP_vector<MTPPageBlock>(std::move(*blocks)),
 		MTP_vector<MTPInputPhoto>(std::move(photos)),
 		MTP_vector<MTPInputDocument>(std::move(documents)),
-		MTP_vector<MTPInputUser>(std::move(users)));
+		MTP_vector<MTPInputUser>(std::move(users))));
 }
 
 } // namespace Iv

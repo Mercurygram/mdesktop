@@ -196,6 +196,7 @@ private:
 		style::font font;
 		int lineHeight = 0;
 		style::color textFg;
+		QColor textMarkBg;
 		style::align align = style::al_left;
 
 		friend inline bool operator==(
@@ -204,6 +205,7 @@ private:
 			return (a.font == b.font)
 				&& (a.lineHeight == b.lineHeight)
 				&& (a.textFg == b.textFg)
+				&& (a.textMarkBg == b.textMarkBg)
 				&& (a.align == b.align);
 		}
 
@@ -592,9 +594,26 @@ private:
 	activeTableCellSourceAt(
 		QObject *object,
 		const QContextMenuEvent &e) const;
+	[[nodiscard]] std::optional<Markdown::PreparedEditListItemRange>
+	effectiveListRangeForSource(
+		const std::optional<Markdown::PreparedEditListItemSource> &source,
+		const std::optional<Markdown::PreparedEditBlockPath> &block);
+	[[nodiscard]] std::optional<Markdown::PreparedEditListItemRange>
+	fullListRangeForSource(
+		const Markdown::PreparedEditListItemSource &source) const;
 	[[nodiscard]] Markdown::PreparedEditTableCellRange
 	effectiveTableRangeForCell(
 		const Markdown::PreparedEditTableCellSource &source);
+	void showListContextMenu(
+		const Markdown::PreparedEditListItemRange &range,
+		QPoint globalPos);
+	void fillListChangeMenu(
+		not_null<Ui::PopupMenu*> menu,
+		const Markdown::PreparedEditListItemRange &range);
+	void fillListItemChangeMenu(
+		not_null<Ui::PopupMenu*> menu,
+		const Markdown::PreparedEditListItemRange &range);
+	void applyListChange(Fn<bool()> change);
 	void showTableContextMenu(
 		const Markdown::PreparedEditTableCellRange &range,
 		QPoint globalPos);

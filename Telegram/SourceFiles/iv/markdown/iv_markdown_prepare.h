@@ -104,6 +104,14 @@ enum class PreparedTableCellVerticalAlignment {
 	Bottom,
 };
 
+enum class PreparedOrderedListType {
+	Decimal,
+	LowerAlpha,
+	UpperAlpha,
+	LowerRoman,
+	UpperRoman,
+};
+
 enum class PreparedEditBlockContainerKind {
 	Root,
 	BlockChildren,
@@ -681,6 +689,7 @@ struct PreparedBlock {
 	ListDelimiter listDelimiter = ListDelimiter::None;
 	MathKind mathKind = MathKind::Display;
 	TaskState taskState = TaskState::None;
+	PreparedOrderedListType orderedType = PreparedOrderedListType::Decimal;
 	int headingLevel = 0;
 	int formulaIndex = -1;
 	int orderedNumber = 0;
@@ -697,9 +706,12 @@ struct PreparedBlock {
 	bool supplementary = false;
 	bool pullquote = false;
 	bool forceTextSegment = false;
+	bool orderedReversed = false;
 	std::optional<PreparedEditBlockSource> editBlock;
 	std::optional<PreparedEditListItemSource> editListItem;
 	std::optional<PreparedEditLeafSource> editLeaf;
+	QString articleOrderedMarkerText;
+	QString orderedMarkerText;
 	QString editPlaceholderText;
 };
 

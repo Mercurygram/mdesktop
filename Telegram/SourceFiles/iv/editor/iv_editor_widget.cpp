@@ -135,6 +135,7 @@ using PreparedBlockContainerStep = Markdown::PreparedEditBlockContainerStep;
 using PreparedBlockPath = Markdown::PreparedEditBlockPath;
 using PreparedBlockRange = Markdown::PreparedEditBlockRange;
 using PreparedListItemRange = Markdown::PreparedEditListItemRange;
+using PreparedOrderedListType = Markdown::PreparedOrderedListType;
 using PreparedSelection = Markdown::PreparedEditSelection;
 using PreparedSelectionKind = Markdown::PreparedEditSelectionKind;
 
@@ -1604,6 +1605,31 @@ struct StructuralOwner {
 	return owner.listItem;
 }
 
+[[nodiscard]] std::optional<PreparedEditListItemSource> ListItemSourceFromLeaf(
+		const PreparedEditLeafSource &source) {
+	if (source.kind != PreparedEditLeafKind::ListItemText
+		|| !ValidPreparedEditBlockPath(source.block)
+		|| source.listItemIndex < 0) {
+		return std::nullopt;
+	}
+	return PreparedEditListItemSource{
+		.block = source.block,
+		.listItemIndex = source.listItemIndex,
+	};
+}
+
+[[nodiscard]] PreparedListItemRange ListRangeFromItem(
+		const PreparedEditListItemSource &source) {
+	if (!ValidPreparedEditBlockPath(source.block) || source.listItemIndex < 0) {
+		return {};
+	}
+	return {
+		.block = source.block,
+		.from = source.listItemIndex,
+		.till = source.listItemIndex + 1,
+	};
+}
+
 [[nodiscard]] bool IsBlockOwner(const StructuralOwner &owner) {
 	return (owner.kind == StructuralOwnerKind::Block);
 }
@@ -1745,6 +1771,76 @@ LiftPreparedEditBlocksToCommonContainer(
 		}
 	}
 	return result;
+}
+
+[[nodiscard]] auto ListContextSources(
+		const std::optional<PreparedEditListItemSource> &source,
+		const std::optional<PreparedEditBlockPath> &block)
+-> std::vector<PreparedEditListItemSource> {
+	auto result = std::vector<PreparedEditListItemSource>();
+	if (source) {
+		result.push_back(*source);
+	}
+	if (!block) {
+		return result;
+	}
+	for (const auto &candidate : ListItemSourcesFromBlockPath(*block)) {
+		if (std::find(result.begin(), result.end(), candidate) == result.end()) {
+			result.push_back(candidate);
+		}
+	}
+	return result;
+}
+
+[[nodiscard]] QString OrderedListTypeText(PreparedOrderedListType type) {
+	switch (type) {
+	case PreparedOrderedListType::LowerAlpha:
+		return tr::lng_article_list_lowercase_letters(tr::now);
+	case PreparedOrderedListType::UpperAlpha:
+		return tr::lng_article_list_uppercase_letters(tr::now);
+	case PreparedOrderedListType::LowerRoman:
+		return tr::lng_article_list_lowercase_roman(tr::now);
+	case PreparedOrderedListType::UpperRoman:
+		return tr::lng_article_list_uppercase_roman(tr::now);
+	case PreparedOrderedListType::Decimal:
+		return tr::lng_article_list_numbers(tr::now);
+	}
+	return QString();
+}
+
+[[nodiscard]] const style::icon *OrderedListTypeIcon(
+		PreparedOrderedListType type) {
+	switch (type) {
+	case PreparedOrderedListType::LowerAlpha:
+		return &st::menuIconListLowercaseLetters;
+	case PreparedOrderedListType::UpperAlpha:
+		return &st::menuIconListUppercaseLetters;
+	case PreparedOrderedListType::LowerRoman:
+		return &st::menuIconListLowercaseRoman;
+	case PreparedOrderedListType::UpperRoman:
+		return &st::menuIconListUppercaseRoman;
+	case PreparedOrderedListType::Decimal:
+		return &st::menuIconListNumbers;
+	}
+	return nullptr;
+}
+
+[[nodiscard]] bool OrderedListTypeChecked(
+		const State::ListSelectionInfo &info,
+		PreparedOrderedListType type) {
+	switch (type) {
+	case PreparedOrderedListType::LowerAlpha:
+		return info.allOrderedLowerAlpha;
+	case PreparedOrderedListType::UpperAlpha:
+		return info.allOrderedUpperAlpha;
+	case PreparedOrderedListType::LowerRoman:
+		return info.allOrderedLowerRoman;
+	case PreparedOrderedListType::UpperRoman:
+		return info.allOrderedUpperRoman;
+	case PreparedOrderedListType::Decimal:
+		return info.allOrderedDecimal;
+	}
+	return false;
 }
 
 [[nodiscard]] PreparedEditSelection ListItemSelectionFromSources(
@@ -3520,17 +3616,29 @@ void Widget::contextMenuEvent(QContextMenuEvent *e) {
 	}
 	const auto owner = StructuralOwnerFromHit(editHit);
 	const auto cell = TableCellFromOwner(owner);
-	if (!cell) {
-		Ui::RpWidget::contextMenuEvent(e);
+	if (cell) {
+		const auto range = effectiveTableRangeForCell(*cell);
+		if (range.empty()) {
+			Ui::RpWidget::contextMenuEvent(e);
+			return;
+		}
+		showTableContextMenu(range, e->globalPos());
+		e->accept();
 		return;
 	}
-	const auto range = effectiveTableRangeForCell(*cell);
-	if (range.empty()) {
-		Ui::RpWidget::contextMenuEvent(e);
-		return;
+	const auto listSources = ListContextSources(
+		ListItemFromOwner(owner),
+		BlockPathFromOwner(owner));
+	if (!listSources.empty()) {
+		if (const auto range = fullListRangeForSource(listSources.front())) {
+			if (_state->listSelectionInfo(*range).valid) {
+				showListContextMenu(*range, e->globalPos());
+				e->accept();
+				return;
+			}
+		}
 	}
-	showTableContextMenu(range, e->globalPos());
-	e->accept();
+	Ui::RpWidget::contextMenuEvent(e);
 }
 
 void Widget::focusInEvent(QFocusEvent *e) {
@@ -3708,44 +3816,249 @@ void Widget::addFieldBlockFormatActions(not_null<QMenu*> menu) {
 void Widget::handleFieldContextMenuRequest(
 		Ui::InputField::ContextMenuRequest request) {
 	addFieldBlockFormatActions(request.menu);
+	const auto activeLeaf = _state->activePreparedLeafSource();
+	const auto listSource = activeLeaf
+		? ListItemSourceFromLeaf(*activeLeaf)
+		: std::optional<PreparedEditListItemSource>();
+	const auto listBlock = activeLeaf
+		? std::make_optional(activeLeaf->block)
+		: std::optional<PreparedEditBlockPath>();
+	const auto listRange = effectiveListRangeForSource(listSource, listBlock);
+	const auto listSources = ListContextSources(listSource, listBlock);
+	const auto listMenuRange = !listSources.empty()
+		? fullListRangeForSource(listSources.front())
+		: std::optional<PreparedListItemRange>();
 	const auto cell = activeTableCellSourceAt(
 		_field->rawTextEdit().get(),
 		*request.event);
-	if (!cell) {
-		return;
-	}
-	const auto range = effectiveTableRangeForCell(*cell);
-	if (range.empty() || !_state->tableSelectionInfo(range).valid) {
+	const auto tableRange = cell
+		? effectiveTableRangeForCell(*cell)
+		: PreparedEditTableCellRange();
+	const auto listInfo = listMenuRange
+		? _state->listSelectionInfo(*listMenuRange)
+		: State::ListSelectionInfo();
+	const auto listItemInfo = listRange
+		? _state->listSelectionInfo(*listRange)
+		: State::ListSelectionInfo();
+	const auto tableInfo = !tableRange.empty()
+		? _state->tableSelectionInfo(tableRange)
+		: State::TableSelectionInfo();
+	const auto hasListMenu = listMenuRange && listInfo.valid;
+	const auto hasListItemMenu = listRange
+		&& listItemInfo.valid
+		&& (listItemInfo.listKind == RichPage::ListKind::Ordered)
+		&& !listItemInfo.taskList;
+	const auto hasTableMenu = !tableRange.empty() && tableInfo.valid;
+	if (!hasListMenu && !hasListItemMenu && !hasTableMenu) {
 		return;
 	}
 	request.customizePopupMenu([=](not_null<Ui::PopupMenu*> popup) {
 		const auto popupMenu = popup->menu();
-		const auto action = new QAction(
-			tr::lng_article_table_change(tr::now),
-			popupMenu.get());
-		action->setMenu(new QMenu(popupMenu.get()));
-		popup->insertAction(
-			0,
-			base::make_unique_q<Ui::Menu::Action>(
-				popupMenu,
-				popupMenu->st(),
+		auto position = 0;
+		const auto addSubmenu = [&](const QString &text, const auto &fill) {
+			const auto action = new QAction(text, popupMenu.get());
+			action->setMenu(new QMenu(popupMenu.get()));
+			popup->insertAction(
+				position++,
+				base::make_unique_q<Ui::Menu::Action>(
+					popupMenu,
+					popupMenu->st(),
+					action,
+					nullptr,
+					nullptr));
+			const auto submenu = popup->ensureSubmenu(
 				action,
-				nullptr,
-				nullptr));
-		const auto separator = new QAction(popupMenu.get());
-		separator->setSeparator(true);
-		popup->insertAction(
-			1,
-			base::make_unique_q<Ui::Menu::Separator>(
-				popupMenu,
-				popupMenu->st(),
-				popupMenu->st().separator,
-				separator));
-		const auto submenu = popup->ensureSubmenu(
-			action,
-			st::popupMenuWithIcons);
-		fillTableChangeMenu(submenu, range);
+				st::popupMenuWithIcons);
+			fill(submenu);
+		};
+		if (hasListMenu) {
+			addSubmenu(
+				tr::lng_article_list_change(tr::now),
+				[=](not_null<Ui::PopupMenu*> submenu) {
+					fillListChangeMenu(submenu, *listMenuRange);
+				});
+		}
+		if (hasListItemMenu) {
+			addSubmenu(
+				tr::lng_article_list_item_change(tr::now),
+				[=](not_null<Ui::PopupMenu*> submenu) {
+					fillListItemChangeMenu(submenu, *listRange);
+				});
+		}
+		if (hasTableMenu) {
+			addSubmenu(
+				tr::lng_article_table_change(tr::now),
+				[=](not_null<Ui::PopupMenu*> submenu) {
+					fillTableChangeMenu(submenu, tableRange);
+				});
+		}
+		if (position > 0) {
+			const auto separator = new QAction(popupMenu.get());
+			separator->setSeparator(true);
+			popup->insertAction(
+				position,
+				base::make_unique_q<Ui::Menu::Separator>(
+					popupMenu,
+					popupMenu->st(),
+					popupMenu->st().separator,
+					separator));
+		}
 	});
+}
+
+std::optional<PreparedListItemRange> Widget::effectiveListRangeForSource(
+		const std::optional<PreparedEditListItemSource> &source,
+		const std::optional<PreparedEditBlockPath> &block) {
+	auto fallback = std::optional<PreparedListItemRange>();
+	for (const auto &candidate : ListContextSources(source, block)) {
+		const auto single = ListRangeFromItem(candidate);
+		if (single.empty()) {
+			continue;
+		}
+		if (!fallback) {
+			fallback = single;
+		}
+		if (const auto selected = _state->listContextRangeForSelection(
+				_structuralSelection,
+				candidate)) {
+			return *selected;
+		}
+	}
+	return fallback;
+}
+
+std::optional<PreparedListItemRange> Widget::fullListRangeForSource(
+		const PreparedEditListItemSource &source) const {
+	const auto path = _state->convertBlockPath(source.block);
+	const auto block = path ? BlockFromPath(_state->richPage(), *path) : nullptr;
+	if (!path
+		|| !block
+		|| block->kind != RichPage::BlockKind::List
+		|| source.listItemIndex < 0
+		|| source.listItemIndex >= int(block->listItems.size())) {
+		return std::nullopt;
+	}
+	return PreparedListItemRange{
+		.block = source.block,
+		.from = 0,
+		.till = int(block->listItems.size()),
+	};
+}
+
+void Widget::showListContextMenu(
+		const PreparedListItemRange &range,
+		QPoint globalPos) {
+	const auto menu = Ui::CreateChild<Ui::PopupMenu>(
+		this,
+		st::popupMenuWithIcons);
+	fillListChangeMenu(menu, range);
+	if (menu->empty()) {
+		menu->deleteLater();
+		return;
+	}
+	menu->popup(globalPos);
+}
+
+void Widget::fillListChangeMenu(
+		not_null<Ui::PopupMenu*> menu,
+		const PreparedListItemRange &range) {
+	const auto info = _state->listSelectionInfo(range);
+	if (!info.valid) {
+		return;
+	}
+	const auto ordered = (info.listKind == RichPage::ListKind::Ordered);
+	const auto task = !ordered && info.taskList;
+	const auto bullet = !ordered && !task;
+	Menu::AddCheckedAction(
+		menu,
+		tr::lng_article_insert_ordered_list(tr::now),
+		[=] {
+			applyListChange([=] {
+				return _state->setListStyle(range, State::ListStyle::Ordered);
+			});
+		},
+		&st::ivEditorToolbarOrderedListIcon,
+		ordered);
+	Menu::AddCheckedAction(
+		menu,
+		tr::lng_article_insert_bullet_list(tr::now),
+		[=] {
+			applyListChange([=] {
+				return _state->setListStyle(range, State::ListStyle::Bullet);
+			});
+		},
+		&st::ivEditorToolbarBulletListIcon,
+		bullet);
+	Menu::AddCheckedAction(
+		menu,
+		tr::lng_article_insert_task_list(tr::now),
+		[=] {
+			applyListChange([=] {
+				return _state->setListStyle(range, State::ListStyle::Task);
+			});
+		},
+		&st::ivEditorToolbarTaskListIcon,
+		task);
+	if (!ordered) {
+		return;
+	}
+	const auto addOrderedTypeAction = [&](PreparedOrderedListType type) {
+		Menu::AddCheckedAction(
+			menu,
+			OrderedListTypeText(type),
+			[=] {
+				applyListChange([=] {
+					return _state->setListOrderedType(range, type);
+				});
+			},
+			OrderedListTypeIcon(type),
+			OrderedListTypeChecked(info, type));
+	};
+	menu->addSeparator();
+	addOrderedTypeAction(PreparedOrderedListType::Decimal);
+	addOrderedTypeAction(PreparedOrderedListType::LowerAlpha);
+	addOrderedTypeAction(PreparedOrderedListType::UpperAlpha);
+	addOrderedTypeAction(PreparedOrderedListType::LowerRoman);
+	addOrderedTypeAction(PreparedOrderedListType::UpperRoman);
+	menu->addSeparator();
+	Menu::AddCheckedAction(
+		menu,
+		tr::lng_article_list_reversed(tr::now),
+		[=] {
+			applyListChange([=] {
+				return _state->setListOrderedReversed(range, !info.reversed);
+			});
+		},
+		&st::menuIconChangeOrder,
+		info.reversed);
+}
+
+void Widget::fillListItemChangeMenu(
+		not_null<Ui::PopupMenu*> menu,
+		const PreparedListItemRange &range) {
+	const auto info = _state->listSelectionInfo(range);
+	if (!info.valid
+		|| info.taskList
+		|| info.listKind != RichPage::ListKind::Ordered) {
+		return;
+	}
+	const auto addOrderedTypeAction = [&](PreparedOrderedListType type) {
+		Menu::AddCheckedAction(
+			menu,
+			OrderedListTypeText(type),
+			[=] {
+				applyListChange([=] {
+					return _state->setListItemOrderedType(range, type);
+				});
+			},
+			OrderedListTypeIcon(type),
+			OrderedListTypeChecked(info, type));
+	};
+	addOrderedTypeAction(PreparedOrderedListType::Decimal);
+	addOrderedTypeAction(PreparedOrderedListType::LowerAlpha);
+	addOrderedTypeAction(PreparedOrderedListType::UpperAlpha);
+	addOrderedTypeAction(PreparedOrderedListType::LowerRoman);
+	addOrderedTypeAction(PreparedOrderedListType::UpperRoman);
 }
 
 PreparedEditTableCellRange Widget::effectiveTableRangeForCell(
@@ -3761,6 +4074,39 @@ PreparedEditTableCellRange Widget::effectiveTableRangeForCell(
 	}
 	clearSelection();
 	return single;
+}
+
+void Widget::applyListChange(Fn<bool()> change) {
+	recordMutationTransaction([&] {
+		const auto committed = commitInlineField();
+		if (committed == ApplyResult::Failed) {
+			return MutationTransactionResult{
+				.committed = committed,
+				.failed = true,
+			};
+		}
+		_pendingOrdinal = -1;
+		_pendingCursorOffset = 0;
+		hideInlineField();
+		if (_article) {
+			_article->clearTextLeafHeightOverride();
+		}
+		clearSelection();
+		setFocus();
+		if (!change()) {
+			refreshAfterInlineFieldCommit(committed);
+			showLastLimitToast();
+			return MutationTransactionResult{
+				.committed = committed,
+				.changed = (committed == ApplyResult::Changed),
+			};
+		}
+		refreshPreparedContent();
+		return MutationTransactionResult{
+			.committed = committed,
+			.changed = true,
+		};
+	});
 }
 
 void Widget::showTableContextMenu(
@@ -5180,6 +5526,7 @@ Widget::InlineFieldStyleKey Widget::inlineFieldStyleKey(
 			: textStyle->font,
 		.lineHeight = data.lineHeight,
 		.textFg = data.textFg,
+		.textMarkBg = data.textMarkBg,
 		.align = data.align,
 	};
 }

@@ -70,6 +70,37 @@ struct RichPage {
 		Unchecked,
 		Checked,
 	};
+	struct OrderedListData {
+		bool reversed = false;
+		std::optional<int> start;
+		std::optional<QString> type;
+
+		friend inline bool operator==(
+			const OrderedListData &,
+			const OrderedListData &) = default;
+	};
+	struct OrderedListItemData {
+		std::optional<QString> num;
+		std::optional<int> value;
+		std::optional<QString> type;
+
+		[[nodiscard]] bool isEmpty() const {
+			return !num.has_value() || num->isEmpty();
+		}
+		[[nodiscard]] bool hasRawText() const {
+			return num.has_value() && !num->isEmpty();
+		}
+		[[nodiscard]] QString rawText() const {
+			return num.value_or(QString());
+		}
+		operator QString() const {
+			return rawText();
+		}
+
+		friend inline bool operator==(
+			const OrderedListItemData &,
+			const OrderedListItemData &) = default;
+	};
 	enum class GroupedMediaIntent : uchar {
 		Collage,
 		Slideshow,
@@ -87,7 +118,7 @@ struct RichPage {
 	struct Block;
 	struct ListItem {
 		TaskState taskState = TaskState::None;
-		QString number;
+		OrderedListItemData number;
 		QString anchorId;
 		RichText text;
 		std::vector<Block> blocks;
@@ -181,6 +212,7 @@ struct RichPage {
 		bool striped = false;
 		bool pullquote = false;
 		ListKind listKind = ListKind::Bullet;
+		OrderedListData orderedList;
 		GroupedMediaIntent mediaIntent = GroupedMediaIntent::Collage;
 		PhotoData *photo = nullptr;
 		DocumentData *document = nullptr;

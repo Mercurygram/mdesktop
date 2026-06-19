@@ -7225,6 +7225,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_article_insert_ordered_list" = "Ordered List";
 "lng_article_insert_bullet_list" = "Bullet List";
 "lng_article_insert_task_list" = "Task List";
+"lng_article_list_change" = "Change List";
+"lng_article_list_item_change" = "Change List Item";
+"lng_article_list_numbers" = "Numbers";
+"lng_article_list_lowercase_letters" = "Lowercase Letters";
+"lng_article_list_uppercase_letters" = "Uppercase Letters";
+"lng_article_list_lowercase_roman" = "Lowercase Roman";
+"lng_article_list_uppercase_roman" = "Uppercase Roman";
+"lng_article_list_reversed" = "Reversed";
 "lng_article_insert_pullquote" = "Pullquote";
 "lng_article_insert_media" = "Attach Media";
 "lng_article_media_ungroup" = "Ungroup";
@@ -7238,6 +7246,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_article_limit_blocks" = "The article has too many blocks.";
 "lng_article_limit_columns" = "The article table has too many columns.";
 "lng_article_limit_media" = "The article has too many media files.";
+"lng_article_submit_empty" = "The article can't be empty.";
 "lng_article_premium_required" = "Subscribe to {link} to be able to send rich articles.";
 "lng_article_premium_required_link" = "Telegram Premium";
 "lng_article_table_change" = "Change Table";

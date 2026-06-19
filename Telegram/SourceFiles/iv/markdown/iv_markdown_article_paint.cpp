@@ -835,7 +835,7 @@ void PaintThinkingTextLeafDirect(
 		block.textWidth,
 		block.segmentIndex,
 		style::al_left,
-		TextSelectionForSegmentIndex(
+		PaintTextSelectionForSegmentIndex(
 			context.selectionState,
 			block.segmentIndex));
 }
@@ -1309,7 +1309,7 @@ void PaintTableCaption(
 		const style::Markdown &st,
 		const MarkdownArticlePaintContext &context) {
 	if (!block.textRect.isEmpty()) {
-		const auto selection = TextSelectionForSegmentIndex(
+		const auto selection = PaintTextSelectionForSegmentIndex(
 			context.selectionState,
 			block.secondarySegmentIndex);
 		if (!PaintEditPlaceholderLeaf(
@@ -1554,7 +1554,7 @@ void PaintWholeTable(
 			if (!cell.textRect.intersects(tableClip)) {
 				continue;
 			}
-			const auto selection = TextSelectionForSegmentIndex(
+			const auto selection = PaintTextSelectionForSegmentIndex(
 				context.selectionState,
 				cell.segmentIndex);
 			if (!PaintEditPlaceholderLeaf(
@@ -1665,7 +1665,7 @@ void PaintTableRowBand(
 		if (!cell || !cell->textRect.intersects(rowClip)) {
 			continue;
 		}
-		const auto selection = TextSelectionForSegmentIndex(
+		const auto selection = PaintTextSelectionForSegmentIndex(
 			context.selectionState,
 			cell->segmentIndex);
 		if (!PaintEditPlaceholderLeaf(
@@ -1941,7 +1941,7 @@ void PaintCodeBlock(
 	const auto textClip = context.clip.intersected(block.contentRect);
 	const auto textContext = ClippedContext(context, textClip);
 	p.save();
-	const auto selection = TextSelectionForSegmentIndex(
+	const auto selection = PaintTextSelectionForSegmentIndex(
 		textContext.selectionState,
 		block.segmentIndex);
 	if (!PaintEditPlaceholderLeaf(
@@ -2080,7 +2080,7 @@ void PaintPlaceholderBlock(
 			}
 		});
 	if (!block.textRect.isEmpty()) {
-		const auto selection = TextSelectionForSegmentIndex(
+		const auto selection = PaintTextSelectionForSegmentIndex(
 			context.selectionState,
 			block.secondarySegmentIndex);
 		if (!PaintEditPlaceholderLeaf(
@@ -2164,7 +2164,7 @@ void PaintEmbedPostBlock(
 				block.labelWidth,
 				block.segmentIndex,
 				style::al_left,
-				TextSelectionForSegmentIndex(
+				PaintTextSelectionForSegmentIndex(
 					headerContext.selectionState,
 					block.segmentIndex));
 		}
@@ -2178,7 +2178,7 @@ void PaintEmbedPostBlock(
 				block.subtitleWidth,
 				block.secondarySegmentIndex,
 				style::al_left,
-				TextSelectionForSegmentIndex(
+				PaintTextSelectionForSegmentIndex(
 					headerContext.selectionState,
 					block.secondarySegmentIndex));
 		}
@@ -2264,7 +2264,7 @@ void PaintEmbedPostBlock(
 			block.textWidth,
 			block.tertiarySegmentIndex,
 			style::al_left,
-			TextSelectionForSegmentIndex(
+			PaintTextSelectionForSegmentIndex(
 				context.selectionState,
 				block.tertiarySegmentIndex));
 	}
@@ -2278,7 +2278,7 @@ void PaintMediaCaption(
 	if (block.textRect.isEmpty()) {
 		return;
 	}
-	const auto selection = TextSelectionForSegmentIndex(
+	const auto selection = PaintTextSelectionForSegmentIndex(
 		context.selectionState,
 		block.secondarySegmentIndex);
 	if (!PaintEditPlaceholderLeaf(
@@ -2583,7 +2583,7 @@ void PaintDetailsBlock(
 			paintSt.supplementaryTextColor->c,
 			collapsed);
 	}
-	const auto selection = TextSelectionForSegmentIndex(
+	const auto selection = PaintTextSelectionForSegmentIndex(
 		context.selectionState,
 		block.segmentIndex);
 	if (!PaintEditPlaceholderLeaf(
@@ -2654,7 +2654,7 @@ void PaintThinkingBlock(
 	const auto contentClip = context.clip.intersected(viewport);
 	const auto &paintSt = PaintStyle(context, st);
 	const auto baseColor = paintSt.supplementaryTextColor;
-	const auto selection = TextSelectionForSegmentIndex(
+	const auto selection = PaintTextSelectionForSegmentIndex(
 		context.selectionState,
 		block.segmentIndex);
 	const auto logicalRect = viewport;
@@ -2857,7 +2857,7 @@ void PaintBlock(
 			const auto flowContext = ClippedContext(
 				context,
 				context.clip.intersected(FlowTextViewportRect(block)));
-			const auto selection = TextSelectionForSegmentIndex(
+			const auto selection = PaintTextSelectionForSegmentIndex(
 				flowContext.selectionState,
 				block.segmentIndex);
 			if (!PaintEditPlaceholderLeaf(

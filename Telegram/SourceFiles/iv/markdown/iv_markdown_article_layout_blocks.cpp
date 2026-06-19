@@ -1578,6 +1578,12 @@ bool IsAnchorOnlyBlock(const PreparedBlock &block) {
 
 QString ListMarkerText(const PreparedBlock &block) {
 	if (block.listKind == ListKind::Ordered) {
+		if (!block.orderedMarkerText.isEmpty()) {
+			return block.orderedMarkerText;
+		}
+		if (!block.articleOrderedMarkerText.isEmpty()) {
+			return block.articleOrderedMarkerText;
+		}
 		const auto delimiter = (block.listDelimiter == ListDelimiter::Parenthesis)
 			? u")"_q
 			: u"."_q;

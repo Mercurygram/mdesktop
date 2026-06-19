@@ -39,6 +39,8 @@ using BlockKind = RichPage::BlockKind;
 using GroupedMediaIntent = RichPage::GroupedMediaIntent;
 using ListItem = RichPage::ListItem;
 using ListKind = RichPage::ListKind;
+using OrderedListData = RichPage::OrderedListData;
+using OrderedListItemData = RichPage::OrderedListItemData;
 using RelatedArticle = RichPage::RelatedArticle;
 using RichText = RichPage::RichText;
 using TableAlignment = RichPage::TableAlignment;
@@ -55,6 +57,123 @@ using TaskState = RichPage::TaskState;
 		source = source.mid(1, source.size() - 2).trimmed();
 	}
 	return source;
+}
+
+enum class OrderedMarkerType {
+	Decimal,
+	LowerAlpha,
+	UpperAlpha,
+	LowerRoman,
+	UpperRoman,
+};
+
+[[nodiscard]] OrderedMarkerType ResolveOrderedMarkerType(
+		const std::optional<QString> &type) {
+	if (!type.has_value()) {
+		return OrderedMarkerType::Decimal;
+	}
+	const auto &value = *type;
+	if (value.compare(u"a"_q, Qt::CaseInsensitive) == 0
+		|| value.compare(u"lower-alpha"_q, Qt::CaseInsensitive) == 0
+		|| value.compare(u"lower-latin"_q, Qt::CaseInsensitive) == 0) {
+		return OrderedMarkerType::LowerAlpha;
+	} else if (value == u"A"_q
+		|| value.compare(u"upper-alpha"_q, Qt::CaseInsensitive) == 0
+		|| value.compare(u"upper-latin"_q, Qt::CaseInsensitive) == 0) {
+		return OrderedMarkerType::UpperAlpha;
+	} else if (value == u"i"_q
+		|| value.compare(u"lower-roman"_q, Qt::CaseInsensitive) == 0) {
+		return OrderedMarkerType::LowerRoman;
+	} else if (value == u"I"_q
+		|| value.compare(u"upper-roman"_q, Qt::CaseInsensitive) == 0) {
+		return OrderedMarkerType::UpperRoman;
+	}
+	return OrderedMarkerType::Decimal;
+}
+
+[[nodiscard]] QString OrderedAlphaText(int value, bool upper) {
+	if (value <= 0) {
+		return QString::number(value);
+	}
+	auto result = QString();
+	while (value > 0) {
+		--value;
+		result.prepend(QChar((upper ? 'A' : 'a') + (value % 26)));
+		value /= 26;
+	}
+	return result;
+}
+
+[[nodiscard]] QString OrderedRomanText(int value, bool upper) {
+	if (value <= 0) {
+		return QString::number(value);
+	}
+	struct RomanPart {
+		int value = 0;
+		const char *text = nullptr;
+	};
+	static constexpr RomanPart kParts[] = {
+		RomanPart{ 1000, "M" },
+		RomanPart{ 900, "CM" },
+		RomanPart{ 500, "D" },
+		RomanPart{ 400, "CD" },
+		RomanPart{ 100, "C" },
+		RomanPart{ 90, "XC" },
+		RomanPart{ 50, "L" },
+		RomanPart{ 40, "XL" },
+		RomanPart{ 10, "X" },
+		RomanPart{ 9, "IX" },
+		RomanPart{ 5, "V" },
+		RomanPart{ 4, "IV" },
+		RomanPart{ 1, "I" },
+	};
+	auto result = QString();
+	for (const auto &part : kParts) {
+		while (value >= part.value) {
+			result += QString::fromLatin1(part.text);
+			value -= part.value;
+		}
+	}
+	return upper ? result : result.toLower();
+}
+
+[[nodiscard]] QString OrderedMarkerBody(
+		int value,
+		const std::optional<QString> &type) {
+	switch (ResolveOrderedMarkerType(type)) {
+	case OrderedMarkerType::LowerAlpha:
+		return OrderedAlphaText(value, false);
+	case OrderedMarkerType::UpperAlpha:
+		return OrderedAlphaText(value, true);
+	case OrderedMarkerType::LowerRoman:
+		return OrderedRomanText(value, false);
+	case OrderedMarkerType::UpperRoman:
+		return OrderedRomanText(value, true);
+	case OrderedMarkerType::Decimal:
+		return QString::number(value);
+	}
+	return QString::number(value);
+}
+
+[[nodiscard]] QString OrderedMarkerText(
+		const OrderedListData &list,
+		const OrderedListItemData &item,
+		int fallbackValue) {
+	if (item.hasRawText()) {
+		return item.rawText();
+	}
+	const auto type = item.type.has_value() ? item.type : list.type;
+	const auto value = item.value.value_or(fallbackValue);
+	return OrderedMarkerBody(value, type) + u"."_q;
+}
+
+[[nodiscard]] int OrderedListSequenceStart(const Block &block) {
+	if (block.orderedList.start.has_value()) {
+		return *block.orderedList.start;
+	}
+	return block.orderedList.reversed
+		? int(block.listItems.size())
+		: 1;
 }
 
 const auto PhotoLargeLevels = u"ydxcwmbsa"_q;
@@ -1349,38 +1468,43 @@ void AppendBlock(
 	}, [&](const MTPDpageBlockOrderedList &data) {
 		auto parsed = MakeBlock(BlockKind::List);
 		parsed.listKind = ListKind::Ordered;
+		parsed.orderedList.reversed = data.is_reversed();
+		if (const auto start = data.vstart()) {
+			parsed.orderedList.start = start->v;
+		}
+		if (const auto listType = data.vtype()) {
+			parsed.orderedList.type = qs(*listType);
+		}
 		parsed.listItems.reserve(data.vitems().v.size());
-		const auto step = data.is_reversed() ? -1 : 1;
-		auto nextNumber = data.vstart().value_or(
-			data.is_reversed() ? int(data.vitems().v.size()) : 1);
 		for (const auto &item : data.vitems().v) {
 			auto listItem = ListItem();
-			const auto fillNumber = [&](const auto &row) {
+			const auto fillOrderedData = [&](const auto &row) {
 				if (const auto num = row.vnum()) {
-					listItem.number = qs(*num);
-				} else if (const auto value = row.vvalue()) {
-					listItem.number = QString::number(value->v);
-				} else {
-					listItem.number = QString::number(nextNumber);
+					listItem.number.num = qs(*num);
+				}
+				if (const auto value = row.vvalue()) {
+					listItem.number.value = value->v;
+				}
+				if (const auto itemType = row.vtype()) {
+					listItem.number.type = qs(*itemType);
 				}
 			};
 			item.match([&](const MTPDpageListOrderedItemText &row) {
 				listItem.taskState = TaskStateFromFlags(
 					row.is_checkbox(),
 					row.is_checked());
-				fillNumber(row);
+				fillOrderedData(row);
 				listItem.text = ParseRichText(row.vtext(), context);
 				AdoptAnchor(&listItem.anchorId, &listItem.text);
 			}, [&](const MTPDpageListOrderedItemBlocks &row) {
 				listItem.taskState = TaskStateFromFlags(
 					row.is_checkbox(),
 					row.is_checked());
-				fillNumber(row);
+				fillOrderedData(row);
 				AppendBlocks(row.vblocks().v, &listItem.blocks, context);
 				AdoptLeadingParagraphListItemText(&listItem);
 			});
 			parsed.listItems.push_back(std::move(listItem));
-			nextNumber += step;
 		}
 		result->push_back(std::move(parsed));
 	}, [&](const MTPDpageBlockDetails &data) {
@@ -1588,18 +1712,21 @@ void AppendSummaryBlock(TextWithEntities *result, const Block &block) {
 		return;
 	}
 	case BlockKind::List: {
-		auto ordered = 1;
+		auto ordered = OrderedListSequenceStart(block);
+		const auto step = block.orderedList.reversed ? -1 : 1;
 		for (const auto &item : block.listItems) {
 			auto prefix = QString();
+			const auto orderedValue = item.number.value.value_or(ordered);
 			if (item.taskState == TaskState::Unchecked) {
 				prefix = u"[ ] "_q;
 			} else if (item.taskState == TaskState::Checked) {
 				prefix = u"[x] "_q;
 			} else if (block.listKind == ListKind::Ordered) {
-				const auto number = item.number.isEmpty()
-					? QString::number(ordered)
-					: item.number;
-				prefix = number + u". "_q;
+				const auto marker = OrderedMarkerText(
+					block.orderedList,
+					item.number,
+					ordered);
+				prefix = marker.isEmpty() ? QString() : (marker + u" "_q);
 			} else {
 				prefix = u"- "_q;
 			}
@@ -1609,7 +1736,9 @@ void AppendSummaryBlock(TextWithEntities *result, const Block &block) {
 				auto nested = FlattenSummaryBlocks(item.blocks);
 				AppendSummaryLine(result, std::move(nested), prefix);
 			}
-			++ordered;
+			if (block.listKind == ListKind::Ordered) {
+				ordered = orderedValue + step;
+			}
 		}
 		return;
 	}

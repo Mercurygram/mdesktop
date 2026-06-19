@@ -29,6 +29,7 @@ using InsertBlockType = State::InsertBlockType;
 using InsertionAnchor = State::InsertionAnchor;
 using LeafKind = State::LeafKind;
 using LeafPath = State::LeafPath;
+using ListStyle = State::ListStyle;
 using ListItem = RichPage::ListItem;
 using ListKind = RichPage::ListKind;
 using NativeInstantViewLeafUpdateResult
@@ -36,16 +37,20 @@ using NativeInstantViewLeafUpdateResult
 using PreparedBlockContainerKind = Markdown::PreparedEditBlockContainerKind;
 using PreparedEditLeafKind = Markdown::PreparedEditLeafKind;
 using PreparedEditLeafSource = Markdown::PreparedEditLeafSource;
+using PreparedEditListItemRange = Markdown::PreparedEditListItemRange;
+using PreparedEditListItemSource = Markdown::PreparedEditListItemSource;
 using PreparedEditSelectionKind = Markdown::PreparedEditSelectionKind;
 using PreparedBlockContainerPath = Markdown::PreparedEditBlockContainerPath;
 using PreparedBlockPath = Markdown::PreparedEditBlockPath;
 using PreparedBlockContainerStep = Markdown::PreparedEditBlockContainerStep;
 using PreparedEditSelection = Markdown::PreparedEditSelection;
 using PreparedMutationKind = State::PreparedMutationKind;
+using PreparedOrderedListType = Markdown::PreparedOrderedListType;
 using ReplaceTarget = State::ReplaceTarget;
 using RemovalKind = State::RemovalKind;
 using RemovalTarget = State::RemovalTarget;
 using RichText = RichPage::RichText;
+using OrderedListData = RichPage::OrderedListData;
 using TableCell = RichPage::TableCell;
 using TableRow = RichPage::TableRow;
 using TaskState = RichPage::TaskState;
@@ -95,18 +100,6 @@ constexpr auto kMaxCommittedFieldLength = 256 * 1024;
 	before.append(std::move(selected));
 	before.append(std::move(after));
 	return before;
-}
-
-[[nodiscard]] TextWithEntities MakeInlineMathText(QString source) {
-	const auto length = int(source.size());
-	return ConvertEditorTagsToRichText(TextWithTags{
-		.text = std::move(source),
-		.tags = { TextWithTags::Tag{
-			.offset = 0,
-			.length = length,
-			.id = Ui::InputField::kTagIvMath,
-		} },
-	});
 }
 
 [[nodiscard]] bool RangeInsideText(
@@ -406,6 +399,213 @@ bool SetMediaBlockSpoiler(Block *block, bool enabled) {
 
 [[nodiscard]] bool IsReplaceableMediaBlockKind(BlockKind kind) {
 	return IsPhotoVideoBlockKind(kind) || (kind == BlockKind::Audio);
+}
+
+[[nodiscard]] bool IsTaskList(const std::vector<ListItem> &items) {
+	return std::any_of(
+		items.begin(),
+		items.end(),
+		[](const ListItem &item) {
+			return item.taskState != TaskState::None;
+		});
+}
+
+[[nodiscard]] bool IsTaskList(const ClipboardListItemsData &data) {
+	return data.taskList || IsTaskList(data.items);
+}
+
+[[nodiscard]] PreparedOrderedListType ResolvePreparedOrderedListType(
+		const std::optional<QString> &type) {
+	if (!type.has_value()) {
+		return PreparedOrderedListType::Decimal;
+	}
+	const auto &value = *type;
+	if (value == u"a"_q
+		|| value.compare(u"lower-alpha"_q, Qt::CaseInsensitive) == 0
+		|| value.compare(u"lower-latin"_q, Qt::CaseInsensitive) == 0) {
+		return PreparedOrderedListType::LowerAlpha;
+	} else if (value == u"A"_q
+		|| value.compare(u"upper-alpha"_q, Qt::CaseInsensitive) == 0
+		|| value.compare(u"upper-latin"_q, Qt::CaseInsensitive) == 0) {
+		return PreparedOrderedListType::UpperAlpha;
+	} else if (value == u"i"_q
+		|| value.compare(u"lower-roman"_q, Qt::CaseInsensitive) == 0) {
+		return PreparedOrderedListType::LowerRoman;
+	} else if (value == u"I"_q
+		|| value.compare(u"upper-roman"_q, Qt::CaseInsensitive) == 0) {
+		return PreparedOrderedListType::UpperRoman;
+	}
+	return PreparedOrderedListType::Decimal;
+}
+
+[[nodiscard]] std::optional<QString> StoredOrderedListType(
+		PreparedOrderedListType type,
+		bool explicitDecimal = false) {
+	switch (type) {
+	case PreparedOrderedListType::LowerAlpha:
+		return u"a"_q;
+	case PreparedOrderedListType::UpperAlpha:
+		return u"A"_q;
+	case PreparedOrderedListType::LowerRoman:
+		return u"i"_q;
+	case PreparedOrderedListType::UpperRoman:
+		return u"I"_q;
+	case PreparedOrderedListType::Decimal:
+		return explicitDecimal ? std::make_optional(u"1"_q) : std::nullopt;
+	}
+	return explicitDecimal ? std::make_optional(u"1"_q) : std::nullopt;
+}
+
+[[nodiscard]] int OrderedListSequenceStart(const Block &block) {
+	return block.orderedList.start.value_or(
+		block.orderedList.reversed ? int(block.listItems.size()) : 1);
+}
+
+[[nodiscard]] int OrderedListSequenceStep(const Block &block) {
+	return block.orderedList.reversed ? -1 : 1;
+}
+
+[[nodiscard]] std::optional<int> EffectiveOrderedItemValue(
+		const Block &block,
+		int itemIndex) {
+	if (block.kind != BlockKind::List
+		|| block.listKind != ListKind::Ordered
+		|| itemIndex < 0
+		|| itemIndex >= int(block.listItems.size())) {
+		return std::nullopt;
+	}
+	auto next = OrderedListSequenceStart(block);
+	const auto step = OrderedListSequenceStep(block);
+	for (auto i = 0; i <= itemIndex; ++i) {
+		const auto value = block.listItems[i].number.value.value_or(next);
+		if (i == itemIndex) {
+			return value;
+		}
+		next = value + step;
+	}
+	return std::nullopt;
+}
+
+[[nodiscard]] bool ClearOrderedListRawMarkers(
+		Block *block,
+		int from,
+		int till) {
+	if (!block
+		|| block->kind != BlockKind::List
+		|| block->listKind != ListKind::Ordered) {
+		return false;
+	}
+	auto changed = false;
+	from = std::clamp(from, 0, int(block->listItems.size()));
+	till = std::clamp(till, from, int(block->listItems.size()));
+	for (auto i = from; i != till; ++i) {
+		auto &item = block->listItems[i];
+		if (item.number.num.has_value()) {
+			item.number.num = std::nullopt;
+			changed = true;
+		}
+	}
+	return changed;
+}
+
+[[nodiscard]] bool ClearOrderedListRawMarkers(Block *block) {
+	return block
+		? ClearOrderedListRawMarkers(block, 0, int(block->listItems.size()))
+		: false;
+}
+
+[[nodiscard]] bool ClearOrderedTaskStates(Block *block) {
+	if (!block || block->kind != BlockKind::List) {
+		return false;
+	}
+	auto changed = false;
+	for (auto &item : block->listItems) {
+		if (item.taskState != TaskState::None) {
+			item.taskState = TaskState::None;
+			changed = true;
+		}
+	}
+	return changed;
+}
+
+[[nodiscard]] bool ClearOrderedListData(ListItem *item) {
+	if (!item) {
+		return false;
+	}
+	const auto changed = item->number.num.has_value()
+		|| item->number.value.has_value()
+		|| item->number.type.has_value();
+	item->number = {};
+	return changed;
+}
+
+[[nodiscard]] bool ResetNonOrderedListMetadata(Block *block) {
+	if (!block || block->kind != BlockKind::List) {
+		return false;
+	}
+	auto changed = (block->orderedList != OrderedListData());
+	block->orderedList = {};
+	for (auto &item : block->listItems) {
+		changed = ClearOrderedListData(&item) || changed;
+	}
+	return changed;
+}
+
+void NormalizeInsertedOrderedListMetadata(Block *block) {
+	if (!block) {
+		return;
+	}
+	for (auto &child : block->blocks) {
+		NormalizeInsertedOrderedListMetadata(&child);
+	}
+	for (auto &item : block->listItems) {
+		for (auto &child : item.blocks) {
+			NormalizeInsertedOrderedListMetadata(&child);
+		}
+	}
+	if (block->kind != BlockKind::List) {
+		return;
+	}
+	if (block->listKind != ListKind::Ordered) {
+		(void)ResetNonOrderedListMetadata(block);
+	}
+}
+
+void NormalizeInsertedOrderedListMetadata(std::vector<Block> *blocks) {
+	if (!blocks) {
+		return;
+	}
+	for (auto &block : *blocks) {
+		NormalizeInsertedOrderedListMetadata(&block);
+	}
+}
+
+[[nodiscard]] ListStyle CurrentListStyle(const Block &block) {
+	return (block.listKind == ListKind::Ordered)
+		? ListStyle::Ordered
+		: IsTaskList(block.listItems)
+		? ListStyle::Task
+		: ListStyle::Bullet;
+}
+
+[[nodiscard]] PreparedOrderedListType EffectiveOrderedListType(
+		const Block &block,
+		const ListItem &item) {
+	return item.number.type.has_value()
+		? ResolvePreparedOrderedListType(item.number.type)
+		: ResolvePreparedOrderedListType(block.orderedList.type);
+}
+
+[[nodiscard]] bool ListBlockMatchesClipboardData(
+		const Block &block,
+		const ClipboardListItemsData &data) {
+	if (block.kind != BlockKind::List
+		|| block.listKind != data.listKind
+		|| IsTaskList(block.listItems) != IsTaskList(data)) {
+		return false;
+	}
+	return (block.listKind != ListKind::Ordered)
+		|| (block.orderedList == data.orderedList);
 }
 
 [[nodiscard]] std::optional<uint64> ReplaceTargetMediaId(const Block &block) {
@@ -2138,6 +2338,237 @@ bool State::toggleDetailsOpen(
 	return true;
 }
 
+State::ListSelectionInfo State::listSelectionInfo(
+		const PreparedEditListItemRange &range) const {
+	const auto validated = validateListItemRange(range);
+	const auto owner = validated ? block(validated->block) : nullptr;
+	if (!validated || !owner || owner->kind != BlockKind::List) {
+		return {};
+	}
+	auto result = ListSelectionInfo{
+		.valid = true,
+		.taskList = IsTaskList(owner->listItems),
+		.wholeList = (validated->from == 0)
+			&& (validated->till == int(owner->listItems.size())),
+		.singleItem = (validated->till == validated->from + 1),
+		.reversed = (owner->listKind == ListKind::Ordered)
+			&& owner->orderedList.reversed,
+		.selectedItems = validated->till - validated->from,
+		.listKind = owner->listKind,
+	};
+	if (owner->listKind != ListKind::Ordered) {
+		return result;
+	}
+	result.allOrderedDecimal = true;
+	result.allOrderedLowerAlpha = true;
+	result.allOrderedUpperAlpha = true;
+	result.allOrderedLowerRoman = true;
+	result.allOrderedUpperRoman = true;
+	for (auto i = validated->from; i != validated->till; ++i) {
+		const auto type = EffectiveOrderedListType(*owner, owner->listItems[i]);
+		result.allOrderedDecimal = result.allOrderedDecimal
+			&& (type == PreparedOrderedListType::Decimal);
+		result.allOrderedLowerAlpha = result.allOrderedLowerAlpha
+			&& (type == PreparedOrderedListType::LowerAlpha);
+		result.allOrderedUpperAlpha = result.allOrderedUpperAlpha
+			&& (type == PreparedOrderedListType::UpperAlpha);
+		result.allOrderedLowerRoman = result.allOrderedLowerRoman
+			&& (type == PreparedOrderedListType::LowerRoman);
+		result.allOrderedUpperRoman = result.allOrderedUpperRoman
+			&& (type == PreparedOrderedListType::UpperRoman);
+	}
+	return result;
+}
+
+std::optional<PreparedEditListItemRange> State::listContextRangeForSelection(
+		const PreparedEditSelection &selection,
+		const PreparedEditListItemSource &source) const {
+	if (source.listItemIndex < 0) {
+		return std::nullopt;
+	}
+	const auto sourceBlock = convertBlockPath(source.block);
+	const auto owner = sourceBlock ? block(*sourceBlock) : nullptr;
+	if (!sourceBlock
+		|| !owner
+		|| owner->kind != BlockKind::List
+		|| source.listItemIndex >= int(owner->listItems.size())) {
+		return std::nullopt;
+	}
+	switch (selection.kind) {
+	case PreparedEditSelectionKind::ListItems: {
+		const auto range = validateListItemRange(selection.listItems);
+		if (!range
+			|| range->block != *sourceBlock
+			|| source.listItemIndex < range->from
+			|| source.listItemIndex >= range->till) {
+			return std::nullopt;
+		}
+		return selection.listItems;
+	}
+	case PreparedEditSelectionKind::Blocks: {
+		const auto range = validateBlockRange(selection.blocks);
+		if (!range
+			|| sourceBlock->container != range->container
+			|| sourceBlock->index < range->from
+			|| sourceBlock->index >= range->till) {
+			return std::nullopt;
+		}
+		return PreparedEditListItemRange{
+			.block = source.block,
+			.from = 0,
+			.till = int(owner->listItems.size()),
+		};
+	}
+	case PreparedEditSelectionKind::TableRows:
+	case PreparedEditSelectionKind::TableCells:
+	case PreparedEditSelectionKind::None:
+		return std::nullopt;
+	}
+	return std::nullopt;
+}
+
+bool State::setListStyle(
+		const PreparedEditListItemRange &range,
+		ListStyle style) {
+	const auto validated = validateListItemRange(range);
+	auto owner = validated ? block(validated->block) : nullptr;
+	if (!validated || !owner || owner->kind != BlockKind::List) {
+		return false;
+	}
+	auto changed = false;
+	const auto current = CurrentListStyle(*owner);
+	if (current == style) {
+		if (style == ListStyle::Ordered) {
+			changed = ClearOrderedTaskStates(owner);
+		}
+		if (changed) {
+			rebuild();
+		}
+		return true;
+	}
+	switch (style) {
+	case ListStyle::Ordered:
+		owner->listKind = ListKind::Ordered;
+		owner->orderedList = {};
+		changed = true;
+		for (auto &item : owner->listItems) {
+			if (item.taskState != TaskState::None) {
+				item.taskState = TaskState::None;
+			}
+			item.number = {};
+		}
+		break;
+	case ListStyle::Bullet:
+		owner->listKind = ListKind::Bullet;
+		changed = ResetNonOrderedListMetadata(owner) || changed;
+		for (auto &item : owner->listItems) {
+			if (item.taskState != TaskState::None) {
+				item.taskState = TaskState::None;
+				changed = true;
+			}
+		}
+		break;
+	case ListStyle::Task:
+		owner->listKind = ListKind::Bullet;
+		changed = ResetNonOrderedListMetadata(owner) || changed;
+		for (auto &item : owner->listItems) {
+			if (item.taskState == TaskState::None) {
+				item.taskState = TaskState::Unchecked;
+				changed = true;
+			}
+		}
+		break;
+	}
+	if (changed) {
+		rebuild();
+	}
+	return true;
+}
+
+bool State::setListOrderedType(
+		const PreparedEditListItemRange &range,
+		PreparedOrderedListType type) {
+	const auto validated = validateListItemRange(range);
+	auto owner = validated ? block(validated->block) : nullptr;
+	if (!validated
+		|| !owner
+		|| owner->kind != BlockKind::List
+		|| owner->listKind != ListKind::Ordered) {
+		return false;
+	}
+	auto changed = false;
+	const auto stored = StoredOrderedListType(type);
+	if (owner->orderedList.type != stored) {
+		owner->orderedList.type = stored;
+		for (auto &item : owner->listItems) {
+			if (!item.number.type.has_value()
+				&& item.number.num.has_value()) {
+				item.number.num = std::nullopt;
+			}
+		}
+		changed = true;
+	}
+	if (changed) {
+		rebuild();
+	}
+	return true;
+}
+
+bool State::setListOrderedReversed(
+		const PreparedEditListItemRange &range,
+		bool reversed) {
+	const auto validated = validateListItemRange(range);
+	auto owner = validated ? block(validated->block) : nullptr;
+	if (!validated
+		|| !owner
+		|| owner->kind != BlockKind::List
+		|| owner->listKind != ListKind::Ordered) {
+		return false;
+	}
+	auto changed = false;
+	if (owner->orderedList.reversed != reversed) {
+		owner->orderedList.reversed = reversed;
+		(void)ClearOrderedListRawMarkers(owner);
+		changed = true;
+	}
+	if (changed) {
+		rebuild();
+	}
+	return true;
+}
+
+bool State::setListItemOrderedType(
+		const PreparedEditListItemRange &range,
+		std::optional<PreparedOrderedListType> type) {
+	const auto validated = validateListItemRange(range);
+	auto owner = validated ? block(validated->block) : nullptr;
+	if (!validated
+		|| !owner
+		|| owner->kind != BlockKind::List
+		|| owner->listKind != ListKind::Ordered) {
+		return false;
+	}
+	auto changed = false;
+	const auto parentType = ResolvePreparedOrderedListType(owner->orderedList.type);
+	const auto stored = (type && (*type != parentType))
+		? StoredOrderedListType(*type, (*type == PreparedOrderedListType::Decimal))
+		: std::optional<QString>();
+	for (auto i = validated->from; i != validated->till; ++i) {
+		auto &item = owner->listItems[i];
+		if (item.number.type != stored) {
+			item.number.type = stored;
+			if (item.number.num.has_value()) {
+				item.number.num = std::nullopt;
+			}
+			changed = true;
+		}
+	}
+	if (changed) {
+		rebuild();
+	}
+	return true;
+}
+
 State::TableSelectionInfo State::tableSelectionInfo(
 		const Markdown::PreparedEditTableCellRange &range) const {
 	const auto validated = validateTableCellRange(range);
@@ -2340,15 +2771,11 @@ auto State::structuredClipboardDataForSelection(
 		}
 		auto data = ClipboardListItemsData();
 		data.listKind = owner->listKind;
+		data.orderedList = owner->orderedList;
 		data.items = std::vector<ListItem>(
 			owner->listItems.begin() + range->from,
 			owner->listItems.begin() + range->till);
-		data.taskList = std::any_of(
-			data.items.begin(),
-			data.items.end(),
-			[](const ListItem &item) {
-				return item.taskState != TaskState::None;
-			});
+		data.taskList = IsTaskList(data.items);
 		return ClipboardData(std::move(data));
 	}
 	case PreparedEditSelectionKind::TableRows:
@@ -5017,9 +5444,11 @@ bool State::pasteClipboardListItemsAfterActive(
 		auto block = Block();
 		block.kind = BlockKind::List;
 		block.listKind = data.listKind;
+		block.orderedList = data.orderedList;
 		block.listItems = data.items;
 		auto blocks = std::vector<Block>();
 		blocks.push_back(std::move(block));
+		NormalizeInsertedOrderedListMetadata(&blocks);
 		candidate.normalizeInsertedBlockAnchors(blocks);
 
 		const auto sameList = [&] {
@@ -5030,16 +5459,7 @@ bool State::pasteClipboardListItemsAfterActive(
 			if (!descriptor
 				|| !surface
 				|| !owner
-				|| owner->kind != BlockKind::List) {
-				return false;
-			}
-			const auto taskList = std::any_of(
-				owner->listItems.begin(),
-				owner->listItems.end(),
-				[](const ListItem &item) {
-					return item.taskState != TaskState::None;
-				});
-			if (owner->listKind != data.listKind || (taskList != data.taskList)) {
+				|| !ListBlockMatchesClipboardData(*owner, data)) {
 				return false;
 			}
 			auto insertContext = context
@@ -5586,6 +6006,7 @@ State::StructuralSelectionDropResult State::moveStructuralSelectionToDropTarget(
 				};
 			}
 			auto inserted = blocks->blocks;
+			NormalizeInsertedOrderedListMetadata(&inserted);
 			candidate.normalizeInsertedBlockAnchors(inserted);
 			const auto count = int(inserted.size());
 			if (!candidate.insertPreparedBlocksAtExplicitPosition(
@@ -5618,9 +6039,11 @@ State::StructuralSelectionDropResult State::moveStructuralSelectionToDropTarget(
 		auto listBlock = Block();
 		listBlock.kind = BlockKind::List;
 		listBlock.listKind = items->listKind;
+		listBlock.orderedList = items->orderedList;
 		listBlock.listItems = items->items;
 		auto insertedBlocks = std::vector<Block>();
 		insertedBlocks.push_back(std::move(listBlock));
+		NormalizeInsertedOrderedListMetadata(&insertedBlocks);
 		candidate.normalizeInsertedBlockAnchors(insertedBlocks);
 		if (listTarget) {
 			const auto owner = candidate.block(listTarget->block);
@@ -5630,14 +6053,7 @@ State::StructuralSelectionDropResult State::moveStructuralSelectionToDropTarget(
 					.result = result,
 				};
 			}
-			const auto taskList = std::any_of(
-				owner->listItems.begin(),
-				owner->listItems.end(),
-				[](const ListItem &item) {
-					return item.taskState != TaskState::None;
-				});
-			if (owner->listKind == items->listKind
-				&& taskList == items->taskList) {
+			if (ListBlockMatchesClipboardData(*owner, *items)) {
 				auto insertedItems = std::move(insertedBlocks.front().listItems);
 				const auto count = int(insertedItems.size());
 				if (!candidate.insertPreparedListItemsAtExplicitPosition(
@@ -5663,12 +6079,26 @@ State::StructuralSelectionDropResult State::moveStructuralSelectionToDropTarget(
 			auto container = listTarget->block.container;
 			auto insertAt = listTarget->block.index;
 			auto trailingBlocks = std::vector<Block>();
+			const auto splitLeadingStart = (owner->listKind == ListKind::Ordered
+				&& listTarget->insertIndex > 0
+				&& listTarget->insertIndex < int(owner->listItems.size()))
+				? EffectiveOrderedItemValue(*owner, 0)
+				: std::optional<int>();
+			const auto splitTrailingStart = (owner->listKind == ListKind::Ordered
+				&& listTarget->insertIndex > 0
+				&& listTarget->insertIndex < int(owner->listItems.size()))
+				? EffectiveOrderedItemValue(*owner, listTarget->insertIndex)
+				: std::optional<int>();
 			if (listTarget->insertIndex > 0) {
 				insertAt = listTarget->block.index + 1;
 				if (listTarget->insertIndex < int(owner->listItems.size())) {
 					auto trailing = Block();
 					trailing.kind = BlockKind::List;
 					trailing.listKind = owner->listKind;
+					trailing.orderedList = owner->orderedList;
+					if (splitTrailingStart.has_value()) {
+						trailing.orderedList.start = splitTrailingStart;
+					}
 					trailing.listItems = std::vector<ListItem>(
 						std::make_move_iterator(
 							owner->listItems.begin() + listTarget->insertIndex),
@@ -5676,9 +6106,13 @@ State::StructuralSelectionDropResult State::moveStructuralSelectionToDropTarget(
 					owner->listItems.erase(
 						owner->listItems.begin() + listTarget->insertIndex,
 						owner->listItems.end());
+					if (splitLeadingStart.has_value()) {
+						owner->orderedList.start = splitLeadingStart;
+					}
 					trailingBlocks.push_back(std::move(trailing));
 				}
 			}
+			NormalizeInsertedOrderedListMetadata(&trailingBlocks);
 			if (!candidate.insertPreparedBlocksAtExplicitPosition(
 					std::move(insertedBlocks),
 					container,
@@ -6114,7 +6548,7 @@ State::DisplayMathEditResult State::editActiveDisplayMath(
 				},
 			};
 		}
-		auto inlineMath = MakeInlineMathText(std::move(source));
+		auto inlineMath = FormulaSourceToRichText(std::move(source));
 		const auto mathIndex = leaf.block.index;
 		const auto previousIndex = mathIndex - 1;
 		const auto nextIndex = mathIndex + 1;
@@ -6240,6 +6674,7 @@ bool State::insertBlocksAfterActiveUnchecked(
 		return false;
 	}
 	clearTemporaryDownParagraph();
+	NormalizeInsertedOrderedListMetadata(&blocks);
 	normalizeInsertedBlockAnchors(blocks);
 	if (context) {
 		if (insertBlocksAfterActiveWithContextUnchecked(blocks, *context)) {
@@ -6309,6 +6744,7 @@ bool State::insertPreparedBlocksAtExplicitPosition(
 	if (!destination || insertAt < 0 || insertAt > int(destination->size())) {
 		return false;
 	}
+	NormalizeInsertedOrderedListMetadata(&blocks);
 	destination->insert(
 		destination->begin() + insertAt,
 		std::make_move_iterator(blocks.begin()),
@@ -7460,12 +7896,16 @@ Block State::MakeListBlock(ListKind kind, TaskState taskState) {
 	auto item = ListItem();
 	item.taskState = taskState;
 	block.listItems.push_back(std::move(item));
+	if (kind != ListKind::Ordered) {
+		block.orderedList = {};
+	}
 	return block;
 }
 
 ListItem State::MakeParagraphListItem(TaskState taskState) {
 	auto item = ListItem();
 	item.taskState = taskState;
+	item.number = {};
 	item.blocks.push_back(MakeParagraphBlock());
 	return item;
 }

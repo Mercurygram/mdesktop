@@ -213,6 +213,27 @@ public:
 		bool striped = false;
 	};
 
+	struct ListSelectionInfo {
+		bool valid = false;
+		bool taskList = false;
+		bool wholeList = false;
+		bool singleItem = false;
+		bool reversed = false;
+		bool allOrderedDecimal = false;
+		bool allOrderedLowerAlpha = false;
+		bool allOrderedUpperAlpha = false;
+		bool allOrderedLowerRoman = false;
+		bool allOrderedUpperRoman = false;
+		int selectedItems = 0;
+		RichPage::ListKind listKind = RichPage::ListKind::Bullet;
+	};
+
+	enum class ListStyle : uchar {
+		Ordered,
+		Bullet,
+		Task,
+	};
+
 	State();
 	State(
 		std::shared_ptr<RichPage> richPage,
@@ -267,6 +288,24 @@ public:
 		const Markdown::PreparedEditListItemSource &source);
 	[[nodiscard]] bool toggleDetailsOpen(
 		const Markdown::PreparedEditBlockSource &source);
+	[[nodiscard]] ListSelectionInfo listSelectionInfo(
+		const Markdown::PreparedEditListItemRange &range) const;
+	[[nodiscard]] std::optional<Markdown::PreparedEditListItemRange>
+	listContextRangeForSelection(
+		const Markdown::PreparedEditSelection &selection,
+		const Markdown::PreparedEditListItemSource &source) const;
+	[[nodiscard]] bool setListStyle(
+		const Markdown::PreparedEditListItemRange &range,
+		ListStyle style);
+	[[nodiscard]] bool setListOrderedType(
+		const Markdown::PreparedEditListItemRange &range,
+		Markdown::PreparedOrderedListType type);
+	[[nodiscard]] bool setListOrderedReversed(
+		const Markdown::PreparedEditListItemRange &range,
+		bool reversed);
+	[[nodiscard]] bool setListItemOrderedType(
+		const Markdown::PreparedEditListItemRange &range,
+		std::optional<Markdown::PreparedOrderedListType> type);
 	[[nodiscard]] TableSelectionInfo tableSelectionInfo(
 		const Markdown::PreparedEditTableCellRange &range) const;
 	[[nodiscard]] std::optional<Markdown::PreparedEditTableCellRange>
