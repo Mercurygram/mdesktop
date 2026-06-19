@@ -2897,6 +2897,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_repeated_yearly" = "yearly";
 "lng_edited_date" = "Edited: {date}";
 "lng_sent_date" = "Sent: {date}";
+"lng_edited_at" = "edited at {time}";
+"lng_edited_on" = "edited on {date} at {time}";
+"lng_sent_on" = "sent on {date} at {time}";
 "lng_approximate_about" = "Estimated date of video publishing.";
 "lng_views_tooltip#one" = "Views: {count}";
 "lng_views_tooltip#other" = "Views: {count}";
