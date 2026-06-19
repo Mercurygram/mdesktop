@@ -335,6 +335,9 @@ HistoryWidget::HistoryWidget(
 				prepareSendAction({}),
 				[=] { return sendMenuDetails(); });
 		}
+	},
+	[=] {
+		updateControlsGeometry();
 	}))
 , _kbScroll(this, st::botKbScroll)
 , _keyboard(_kbScroll->setOwnedWidget(object_ptr<BotKeyboard>(

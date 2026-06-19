@@ -1097,6 +1097,9 @@ ComposeControls::ComposeControls(
 				_sendActionFactory(),
 				[=] { return sendMenuDetails(); });
 		}
+	},
+	[=] {
+		updateControlsGeometry(_wrap->size());
 	}))
 , _botCommandStart(_features.botCommandSend
 	? Ui::CreateChild<Ui::IconButton>(
