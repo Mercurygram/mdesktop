@@ -4408,6 +4408,7 @@ void OverlayWidget::displayPhoto(
 		_recognitionResult = {};
 		_recognitionPendingSessionUniqueId = 0;
 		_recognitionPendingPhotoId = 0;
+		_recognitionPendingDocumentId = 0;
 		_recognitionRetryOnLarge = false;
 	}
 
@@ -4486,6 +4487,7 @@ void OverlayWidget::displayDocument(
 		_recognitionResult = {};
 		_recognitionPendingSessionUniqueId = 0;
 		_recognitionPendingPhotoId = 0;
+		_recognitionPendingDocumentId = 0;
 		_recognitionRetryOnLarge = false;
 	}
 
@@ -4536,6 +4538,8 @@ void OverlayWidget::displayDocument(
 		}
 	}
 	refreshCaption();
+
+	tryStartTextRecognition();
 
 	const auto docGeneric = Layout::DocumentGenericPreview::Create(_document);
 	_docExt = docGeneric.ext;
@@ -5825,9 +5829,15 @@ void OverlayWidget::validatePhotoCurrentImage() {
 void OverlayWidget::tryStartTextRecognition() {
 	if (_stories
 		|| !_session
-		|| !_photo
-		|| !_photoMedia
 		|| !Platform::TextRecognition::IsAvailable()) {
+		return;
+	}
+	const auto forPhoto = (_photo != nullptr) && (_photoMedia != nullptr);
+	const auto forDocument = !_photo
+		&& _document
+		&& _document->isImage()
+		&& !_staticContent.isNull();
+	if (!forPhoto && !forDocument) {
 		return;
 	}
 	const auto cache = RecognitionCache();
@@ -5836,7 +5846,8 @@ void OverlayWidget::tryStartTextRecognition() {
 	}
 	const auto id = RecognitionId{
 		.sessionUniqueId = _session->uniqueId(),
-		.photoId = _photo->id,
+		.photoId = forPhoto ? _photo->id : PhotoId(),
+		.documentId = forDocument ? _document->id : DocumentId(),
 	};
 	if (const auto cached = cache->find(id); cached != cache->end()) {
 		_recognitionRetryOnLarge = false;
@@ -5849,17 +5860,29 @@ void OverlayWidget::tryStartTextRecognition() {
 		return;
 	}
 	if (_recognitionPendingSessionUniqueId == id.sessionUniqueId
-		&& _recognitionPendingPhotoId == id.photoId) {
+		&& _recognitionPendingPhotoId == id.photoId
+		&& _recognitionPendingDocumentId == id.documentId) {
 		_recognitionRetryOnLarge = false;
 		return;
 	}
-	_photoMedia->wanted(Data::PhotoSize::Large, fileOrigin());
-	const auto image = _photoMedia->image(Data::PhotoSize::Large);
-	if (!image) {
-		_recognitionRetryOnLarge = true;
-		return;
+	auto original = QImage();
+	auto recognizeSize = QSize();
+	if (forPhoto) {
+		_photoMedia->wanted(Data::PhotoSize::Large, fileOrigin());
+		if (const auto image = _photoMedia->image(Data::PhotoSize::Large)) {
+			original = image->original();
+		}
+	} else {
+		const auto ratio = style::DevicePixelRatio();
+		const auto percent = style::Scale();
+		const auto target = QSize(
+			(_staticContent.width() * 100) / (ratio * percent),
+			(_staticContent.height() * 100) / (ratio * percent));
+		original = _staticContent;
+		if (!target.isEmpty() && target != original.size()) {
+			recognizeSize = target;
+		}
 	}
-	const auto original = image->original();
 	if (original.isNull()) {
 		_recognitionRetryOnLarge = true;
 		return;
@@ -5867,9 +5890,16 @@ void OverlayWidget::tryStartTextRecognition() {
 	_recognitionRetryOnLarge = false;
 	_recognitionPendingSessionUniqueId = id.sessionUniqueId;
 	_recognitionPendingPhotoId = id.photoId;
+	_recognitionPendingDocumentId = id.documentId;
 	const auto weak = base::make_weak(_widget);
 	crl::async([=] {
-		auto result = Platform::TextRecognition::RecognizeText(original);
+		const auto input = recognizeSize.isEmpty()
+			? original
+			: original.scaled(
+				recognizeSize,
+				Qt::IgnoreAspectRatio,
+				Qt::SmoothTransformation);
+		auto result = Platform::TextRecognition::RecognizeText(input);
 		crl::on_main(weak, [=, result = std::move(result)]() mutable {
 			const auto cache = RecognitionCache();
 			if (!cache) {
@@ -5877,16 +5907,20 @@ void OverlayWidget::tryStartTextRecognition() {
 			}
 			const auto pendingMatches = (_recognitionPendingSessionUniqueId
 				== id.sessionUniqueId)
-				&& (_recognitionPendingPhotoId == id.photoId);
+				&& (_recognitionPendingPhotoId == id.photoId)
+				&& (_recognitionPendingDocumentId == id.documentId);
 			if (pendingMatches) {
 				_recognitionPendingSessionUniqueId = 0;
 				_recognitionPendingPhotoId = 0;
+				_recognitionPendingDocumentId = 0;
 			}
 			(*cache)[id] = result;
-			if (!_session
-				|| !_photo
-				|| (_session->uniqueId() != id.sessionUniqueId)
-				|| (_photo->id != id.photoId)) {
+			const auto stillSame = _session
+				&& (_session->uniqueId() == id.sessionUniqueId)
+				&& (id.photoId
+					? (_photo && _photo->id == id.photoId)
+					: (_document && _document->id == id.documentId));
+			if (!stillSame) {
 				return;
 			}
 			_recognitionResult = std::move(result);
@@ -8182,6 +8216,7 @@ void OverlayWidget::clearAfterHide() {
 	_recognitionResult = {};
 	_recognitionPendingSessionUniqueId = 0;
 	_recognitionPendingPhotoId = 0;
+	_recognitionPendingDocumentId = 0;
 	_recognitionRetryOnLarge = false;
 	_body->hide();
 	clearStreaming();
