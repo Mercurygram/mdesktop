@@ -3282,6 +3282,12 @@ void InnerWidget::touchScrollUpdated(const QPoint &screenPos) {
 	touchUpdateSpeed();
 }
 
-InnerWidget::~InnerWidget() = default;
+InnerWidget::~InnerWidget() {
+	// Drop rpl subscriptions before members are torn down: the base
+	// RpWidget lifetime is destroyed after derived members, so destroying
+	// _items here can fire viewResizeRequest back into resizeGetHeight over
+	// a half-cleared _displayItems and dereference a dead view.
+	lifetime().destroy();
+}
 
 } // namespace AdminLog
