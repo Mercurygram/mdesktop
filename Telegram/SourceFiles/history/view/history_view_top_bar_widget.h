@@ -171,6 +171,7 @@ private:
 	void connectingAnimationCallback();
 
 	void paintTopBar(Painter &p);
+	[[nodiscard]] PeerData *titleNamePeer() const;
 	void paintStatus(
 		Painter &p,
 		int left,
