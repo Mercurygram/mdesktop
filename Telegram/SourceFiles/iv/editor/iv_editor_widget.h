@@ -426,8 +426,11 @@ private:
 	[[nodiscard]] bool handleTabNavigation(QKeyEvent *e);
 	[[nodiscard]] bool handleClipboardKey(QKeyEvent *e);
 	[[nodiscard]] bool handleFieldBlockInsertShortcut(QKeyEvent *e);
+	[[nodiscard]] bool handleStructuralBlockInsertShortcut(QKeyEvent *e);
 	[[nodiscard]] bool fieldMonospaceShortcutUsesCodeBlock() const;
+	[[nodiscard]] bool structuralMonospaceShortcutTargetsCodeBlock() const;
 	void applyFieldMonospaceAction();
+	void applyStructuralMonospaceAction();
 	void insertCodeBlock();
 	[[nodiscard]] bool handleFieldKey(QKeyEvent *e);
 	struct VerticalNavigationTarget {

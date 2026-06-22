@@ -113,10 +113,21 @@ namespace {
 [[nodiscard]] bool MatchesKeySequence(
 		QKeyEvent *e,
 		const QKeySequence &sequence) {
-	const auto searchKey = (e->modifiers() | e->key())
-		& ~(Qt::KeypadModifier | Qt::GroupSwitchModifier);
-	return sequence.matches(QKeySequence(searchKey))
-		== QKeySequence::ExactMatch;
+	const auto matches = [&](Qt::KeyboardModifiers modifiers, int key) {
+		const auto searchKey = (int(modifiers) | key)
+			& ~(int(Qt::KeypadModifier) | int(Qt::GroupSwitchModifier));
+		return sequence.matches(QKeySequence(searchKey))
+			== QKeySequence::ExactMatch;
+	};
+	const auto modifiers = e->modifiers();
+	if (matches(modifiers, e->key())) {
+		return true;
+	}
+	const auto cleanedModifiers = int(modifiers)
+		& ~(int(Qt::KeypadModifier) | int(Qt::GroupSwitchModifier));
+	return (sequence == Ui::kBlockquoteSequence)
+		&& (cleanedModifiers == int(Qt::ControlModifier | Qt::ShiftModifier))
+		&& (e->key() == Qt::Key_Period || e->key() == Qt::Key_Greater);
 }
 
 constexpr auto kRetainedLeafFieldLimit = 50;
@@ -312,6 +323,37 @@ struct TextRange {
 		const StateBlockPath &path) {
 	return {
 		.container = ToPreparedBlockContainerPath(path.container),
+		.index = path.index,
+	};
+}
+
+[[nodiscard]] StateBlockContainerPath ToStateBlockContainerPath(
+		const PreparedBlockContainerPath &path) {
+	auto result = StateBlockContainerPath();
+	result.steps.reserve(path.steps.size());
+	for (const auto &step : path.steps) {
+		auto converted = State::BlockContainerStep();
+		converted.blockIndex = step.blockIndex;
+		converted.listItemIndex = step.listItemIndex;
+		switch (step.kind) {
+		case PreparedBlockContainerKind::Root:
+			continue;
+		case PreparedBlockContainerKind::BlockChildren:
+			converted.kind = StateBlockContainerKind::BlockChildren;
+			break;
+		case PreparedBlockContainerKind::ListItemChildren:
+			converted.kind = StateBlockContainerKind::ListItemChildren;
+			break;
+		}
+		result.steps.push_back(converted);
+	}
+	return result;
+}
+
+[[nodiscard]] StateBlockPath ToStateBlockPath(
+		const PreparedBlockPath &path) {
+	return {
+		.container = ToStateBlockContainerPath(path.container),
 		.index = path.index,
 	};
 }
@@ -2332,6 +2374,7 @@ void Widget::insertBlock(State::InsertAction action) {
 			}
 		}
 		const auto hadStructuralSelection = hasStructuralSelection();
+		auto destination = State::BoundaryTarget();
 		if (hadStructuralSelection || restoreField) {
 			_pendingOrdinal = -1;
 			_pendingCursorOffset = 0;
@@ -2383,7 +2426,8 @@ void Widget::insertBlock(State::InsertAction action) {
 			? _state->replaceStructuralSelectionWithBlock(
 				_structuralSelection,
 				action,
-				context)
+				context,
+				&destination)
 			: _state->insertBlockAfterActive(action, context);
 		if (!applied) {
 			showLastLimitToast();
@@ -2394,10 +2438,35 @@ void Widget::insertBlock(State::InsertAction action) {
 		}
 		restore = false;
 		if (hadStructuralSelection) {
-			clearSelection();
+			refreshPreparedContent();
+			switch (destination.action) {
+			case State::BoundaryTarget::Action::StructuralSelection:
+				_boundarySelectionOrigin = std::nullopt;
+				_selection = {};
+				_selectionEndpoints = {};
+				_articleSelectionDrag = {};
+				setStructuralSelection(destination.structuralSelection);
+				update();
+				break;
+			case State::BoundaryTarget::Action::Text:
+				clearSelection();
+				activateTextOrdinal(destination.textOrdinal, 0);
+				break;
+			case State::BoundaryTarget::Action::None:
+			case State::BoundaryTarget::Action::RemoveActiveOwner: {
+				clearSelection();
+				const auto ordinal = _state->activeTextOrdinal();
+				if (ordinal >= 0 && ordinal < _state->textNodeCount()) {
+					activateTextOrdinal(ordinal, 0);
+				} else {
+					activateInitialNode();
+				}
+			} break;
+			}
+		} else {
+			refreshPreparedContent();
+			activateTextOrdinal(_state->activeTextOrdinal(), 0);
 		}
-		refreshPreparedContent();
-		activateTextOrdinal(_state->activeTextOrdinal(), 0);
 		return MutationTransactionResult{
 			.committed = committed,
 			.changed = true,
@@ -2817,12 +2886,56 @@ bool Widget::handleFieldBlockInsertShortcut(QKeyEvent *e) {
 	return true;
 }
 
+bool Widget::handleStructuralBlockInsertShortcut(QKeyEvent *e) {
+	if (!hasStructuralSelection()) {
+		return false;
+	}
+	const auto type = e->type();
+	if (type != QEvent::ShortcutOverride && type != QEvent::KeyPress) {
+		return false;
+	}
+	const auto blockquote = MatchesKeySequence(e, Ui::kBlockquoteSequence);
+	const auto monospace = MatchesKeySequence(e, Ui::kMonospaceSequence);
+	if (!blockquote && !monospace) {
+		return false;
+	}
+	if (blockquote) {
+		if (type == QEvent::KeyPress) {
+			insertBlockquote();
+		}
+		e->accept();
+		return true;
+	}
+	if (type == QEvent::KeyPress) {
+		applyStructuralMonospaceAction();
+	}
+	e->accept();
+	return true;
+}
+
 bool Widget::fieldMonospaceShortcutUsesCodeBlock() const {
 	return (_fieldMode == State::FieldMode::Rich)
 		&& _field
 		&& _field->isVisible()
 		&& (_field->selectionMarkdownTagForToggle(
 			Ui::InputField::kTagCode) == Ui::InputField::kTagPre);
+}
+
+bool Widget::structuralMonospaceShortcutTargetsCodeBlock() const {
+	if (_structuralSelection.kind != PreparedSelectionKind::Blocks) {
+		return false;
+	}
+	const auto &range = _structuralSelection.blocks;
+	if (range.from + 1 != range.till) {
+		return false;
+	}
+	const auto block = BlockFromPath(_state->richPage(), ToStateBlockPath({
+		.container = range.container,
+		.index = range.from,
+	}));
+	return block
+		&& ((block->kind == RichPage::BlockKind::Paragraph)
+			|| (block->kind == RichPage::BlockKind::Code));
 }
 
 void Widget::applyFieldMonospaceAction() {
@@ -2834,6 +2947,40 @@ void Widget::applyFieldMonospaceAction() {
 		_field->toggleCurrentMarkdownTag(Ui::InputField::kTagCode);
 		notifyToolbarStateChanged();
 	}
+}
+
+void Widget::applyStructuralMonospaceAction() {
+	if (!structuralMonospaceShortcutTargetsCodeBlock()) {
+		return;
+	}
+	recordMutationTransaction([&] {
+		const auto committed = commitInlineField();
+		if (committed == ApplyResult::Failed) {
+			return MutationTransactionResult{
+				.committed = committed,
+				.failed = true,
+			};
+		}
+		_pendingOrdinal = -1;
+		_pendingCursorOffset = 0;
+		hideInlineField();
+		clearInlineFieldEditSession();
+		if (!_state->toggleCodeBlockForStructuralSelection(
+				_structuralSelection)) {
+			showLastLimitToast();
+			return MutationTransactionResult{
+				.committed = committed,
+				.changed = (committed == ApplyResult::Changed),
+			};
+		}
+		clearSelection();
+		refreshPreparedContent();
+		activateTextOrdinal(_state->activeTextOrdinal(), 0);
+		return MutationTransactionResult{
+			.committed = committed,
+			.changed = true,
+		};
+	});
 }
 
 void Widget::truncateHistoryRedo() {
@@ -3547,12 +3694,20 @@ bool Widget::eventFilter(QObject *object, QEvent *event) {
 		const auto raw = _field->rawTextEdit();
 		if (object == raw.get() || object == raw->viewport()) {
 			const auto type = event->type();
-			if (type == QEvent::ShortcutOverride
-				&& handleFieldBlockInsertShortcut(
-					static_cast<QKeyEvent*>(event))) {
-				return true;
-			}
-			if (type == QEvent::Wheel) {
+			if (type == QEvent::ShortcutOverride || type == QEvent::KeyPress) {
+				const auto keyEvent = static_cast<QKeyEvent*>(event);
+				if (handleFieldBlockInsertShortcut(keyEvent)
+					|| handleStructuralBlockInsertShortcut(keyEvent)) {
+					return true;
+				} else if (type == QEvent::KeyPress
+					&& (handleUndoRedoShortcut(keyEvent)
+						|| handleSelectAllShortcut(keyEvent)
+						|| handleTabNavigation(keyEvent)
+						|| handleStructuralSelectionKey(keyEvent)
+						|| handleFieldKey(keyEvent))) {
+					return true;
+				}
+			} else if (type == QEvent::Wheel) {
 				if (_article && _activeSegmentIndex >= 0) {
 					const auto wheel = static_cast<QWheelEvent*>(event);
 					auto articlePoint = std::optional<QPoint>();
@@ -3575,16 +3730,6 @@ bool Widget::eventFilter(QObject *object, QEvent *event) {
 						return true;
 					}
 				}
-			} else if (type == QEvent::KeyPress) {
-				const auto keyEvent = static_cast<QKeyEvent*>(event);
-				if (handleFieldBlockInsertShortcut(keyEvent)
-					|| handleUndoRedoShortcut(keyEvent)
-					|| handleSelectAllShortcut(keyEvent)
-					|| handleTabNavigation(keyEvent)
-					|| handleStructuralSelectionKey(keyEvent)
-					|| handleFieldKey(keyEvent)) {
-					return true;
-				}
 			} else if ((type == QEvent::MouseButtonPress
 				|| type == QEvent::MouseMove
 				|| type == QEvent::MouseButtonRelease)
@@ -3597,6 +3742,12 @@ bool Widget::eventFilter(QObject *object, QEvent *event) {
 }
 
 bool Widget::eventHook(QEvent *e) {
+	if (e->type() == QEvent::ShortcutOverride) {
+		if (handleStructuralBlockInsertShortcut(
+				static_cast<QKeyEvent*>(e))) {
+			return true;
+		}
+	}
 	if (e->type() == QEvent::TouchBegin
 		|| e->type() == QEvent::TouchUpdate
 		|| e->type() == QEvent::TouchEnd
@@ -3678,6 +3829,8 @@ void Widget::keyPressEvent(QKeyEvent *e) {
 	} else if (handleClipboardKey(e)) {
 		return;
 	} else if (handleFieldBlockInsertShortcut(e)) {
+		return;
+	} else if (handleStructuralBlockInsertShortcut(e)) {
 		return;
 	} else if (handleStructuralSelectionKey(e)) {
 		return;

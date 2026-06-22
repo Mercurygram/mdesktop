@@ -5663,11 +5663,259 @@ bool State::pasteClipboardListItemsAfterActive(
 	});
 }
 
+bool State::wrapStructuralBlockSelection(
+		const Markdown::PreparedEditSelection &selection,
+		InsertAction action,
+		BoundaryTarget *destination) {
+	if (selection.kind != PreparedEditSelectionKind::Blocks) {
+		return false;
+	}
+	const auto range = validateBlockRange(selection.blocks);
+	auto payload = structuredClipboardDataForSelection(selection);
+	auto *data = payload
+		? std::get_if<ClipboardBlockData>(&*payload)
+		: nullptr;
+	if (!range || !data) {
+		return false;
+	}
+	auto container = range->container;
+	auto insertAt = range->from;
+	if (!removeStructuralSelection(selection, true)) {
+		return false;
+	}
+	if (const auto normalized = normalizeTextOnlyListItemForInsertion(
+			container); normalized && (*normalized >= 0)) {
+		++insertAt;
+	}
+	auto wrapper = makeBlock(action);
+	switch (action.type) {
+	case InsertBlockType::Blockquote:
+	case InsertBlockType::Pullquote:
+	case InsertBlockType::Details:
+		wrapper.blocks = std::move(data->blocks);
+		break;
+	case InsertBlockType::OrderedList:
+	case InsertBlockType::BulletList:
+		if (wrapper.kind != BlockKind::List || wrapper.listItems.empty()) {
+			return false;
+		}
+		wrapper.listItems.front().blocks = std::move(data->blocks);
+		adoptLeadingParagraphListItemText(&wrapper.listItems.front());
+		break;
+	default:
+		return false;
+	}
+	auto inserted = std::vector<Block>();
+	inserted.push_back(std::move(wrapper));
+	normalizeInsertedBlockAnchors(inserted);
+	if (!insertPreparedBlocksAtExplicitPosition(
+			std::move(inserted),
+			container,
+			&insertAt)) {
+		return false;
+	}
+	rebuild();
+	const auto target = destinationTargetForInsertedBlocks(
+		container,
+		insertAt,
+		1);
+	if (destination) {
+		*destination = target;
+	}
+	return true;
+}
+
+bool State::unwrapMatchingStructuralWrapper(
+		const Markdown::PreparedEditSelection &selection,
+		InsertBlockType type,
+		BoundaryTarget *destination) {
+	if (selection.kind != PreparedEditSelectionKind::Blocks) {
+		return false;
+	}
+	const auto range = validateBlockRange(selection.blocks);
+	if (!range || range->container.steps.empty()) {
+		return false;
+	}
+	const auto step = range->container.steps.back();
+	if (step.kind != BlockContainerKind::BlockChildren) {
+		return false;
+	}
+	auto parentContainer = range->container;
+	parentContainer.steps.pop_back();
+	auto *parent = blockContainer(parentContainer);
+	const auto wrapperPath = BlockPath{
+		.container = parentContainer,
+		.index = step.blockIndex,
+	};
+	auto *wrapper = block(wrapperPath);
+	const auto matches = [&](const Block &block) {
+		switch (type) {
+		case InsertBlockType::Blockquote:
+			return (block.kind == BlockKind::Quote) && !block.pullquote;
+		case InsertBlockType::Pullquote:
+			return (block.kind == BlockKind::Quote) && block.pullquote;
+		case InsertBlockType::Details:
+			return (block.kind == BlockKind::Details);
+		default:
+			return false;
+		}
+	};
+	if (!parent
+		|| !wrapper
+		|| !matches(*wrapper)
+		|| (range->from != 0)
+		|| (range->till != int(wrapper->blocks.size()))) {
+		return false;
+	}
+	if (!wrapper->anchorId.isEmpty()
+		|| !RichTextIsEmpty(wrapper->text)
+		|| !RichTextIsEmpty(wrapper->caption)) {
+		return false;
+	}
+	clearTemporaryDownParagraph();
+	auto blocks = std::move(wrapper->blocks);
+	const auto insertedCount = int(blocks.size());
+	parent->erase(parent->begin() + wrapperPath.index);
+	parent->insert(
+		parent->begin() + wrapperPath.index,
+		std::make_move_iterator(blocks.begin()),
+		std::make_move_iterator(blocks.end()));
+	rebuild();
+	const auto target = destinationTargetForInsertedBlocks(
+		parentContainer,
+		wrapperPath.index,
+		insertedCount);
+	if (destination) {
+		*destination = target;
+	}
+	return true;
+}
+
+std::vector<Block> State::takeListItemBlocksForUnwrap(ListItem *item) {
+	auto result = std::vector<Block>();
+	if (!item) {
+		return result;
+	}
+	if (!item->anchorId.isEmpty() || !RichTextIsEmpty(item->text)) {
+		auto paragraph = MakeParagraphBlock();
+		paragraph.anchorId = std::move(item->anchorId);
+		paragraph.text = std::move(item->text);
+		result.push_back(std::move(paragraph));
+	}
+	result.insert(
+		result.end(),
+		std::make_move_iterator(item->blocks.begin()),
+		std::make_move_iterator(item->blocks.end()));
+	item->blocks.clear();
+	return result;
+}
+
+void State::adoptLeadingParagraphListItemText(ListItem *item) const {
+	if (!item
+		|| item->blocks.empty()
+		|| item->blocks.front().kind != BlockKind::Paragraph) {
+		return;
+	}
+	item->text = std::move(item->blocks.front().text);
+	item->anchorId = std::move(item->blocks.front().anchorId);
+	item->blocks.erase(item->blocks.begin());
+}
+
+bool State::unwrapMatchingListItemWrapper(
+		const Markdown::PreparedEditSelection &selection,
+		InsertBlockType type,
+		BoundaryTarget *destination) {
+	if (selection.kind != PreparedEditSelectionKind::ListItems) {
+		return false;
+	}
+	const auto range = validateListItemRange(selection.listItems);
+	if (!range || (range->from + 1 != range->till)) {
+		return false;
+	}
+	auto *owner = block(range->block);
+	auto *parent = blockContainer(range->block.container);
+	const auto matches = [&](const Block &block) {
+		switch (type) {
+		case InsertBlockType::OrderedList:
+			return (block.kind == BlockKind::List)
+				&& (block.listKind == ListKind::Ordered);
+		case InsertBlockType::BulletList:
+			return (block.kind == BlockKind::List)
+				&& (block.listKind == ListKind::Bullet);
+		default:
+			return false;
+		}
+	};
+	if (!owner || !parent || !matches(*owner) || IsTaskList(owner->listItems)) {
+		return false;
+	}
+	clearTemporaryDownParagraph();
+	const auto hasLeading = (range->from > 0);
+	const auto hasTrailing = (range->till < int(owner->listItems.size()));
+	const auto leadingStart = (owner->listKind == ListKind::Ordered
+		&& hasLeading)
+		? EffectiveOrderedItemValue(*owner, 0)
+		: std::optional<int>();
+	const auto trailingStart = (owner->listKind == ListKind::Ordered
+		&& hasTrailing)
+		? EffectiveOrderedItemValue(*owner, range->till)
+		: std::optional<int>();
+	auto inserted = takeListItemBlocksForUnwrap(&owner->listItems[range->from]);
+	auto trailing = std::optional<Block>();
+	if (hasTrailing) {
+		trailing = Block();
+		trailing->kind = BlockKind::List;
+		trailing->listKind = owner->listKind;
+		trailing->orderedList = owner->orderedList;
+		if (trailingStart.has_value()) {
+			trailing->orderedList.start = trailingStart;
+		}
+		trailing->listItems = std::vector<ListItem>(
+			std::make_move_iterator(owner->listItems.begin() + range->till),
+			std::make_move_iterator(owner->listItems.end()));
+	}
+	if (hasLeading) {
+		owner->listItems.erase(
+			owner->listItems.begin() + range->from,
+			owner->listItems.end());
+		if (leadingStart.has_value()) {
+			owner->orderedList.start = leadingStart;
+		}
+	} else {
+		parent->erase(parent->begin() + range->block.index);
+	}
+	auto insertAt = range->block.index + (hasLeading ? 1 : 0);
+	const auto insertedCount = int(inserted.size());
+	parent->insert(
+		parent->begin() + insertAt,
+		std::make_move_iterator(inserted.begin()),
+		std::make_move_iterator(inserted.end()));
+	if (trailing.has_value()) {
+		NormalizeInsertedOrderedListMetadata(&*trailing);
+		parent->insert(
+			parent->begin() + insertAt + insertedCount,
+			std::move(*trailing));
+	}
+	rebuild();
+	const auto target = destinationTargetForInsertedBlocks(
+		range->block.container,
+		insertAt,
+		insertedCount);
+	if (destination) {
+		*destination = target;
+	}
+	return true;
+}
+
 bool State::replaceStructuralSelectionWithBlock(
 		const Markdown::PreparedEditSelection &selection,
 		InsertAction action,
-		std::optional<ActiveTextInsertContext> context) {
+		std::optional<ActiveTextInsertContext> context,
+		BoundaryTarget *destination) {
 	_lastLimitError = std::nullopt;
+	if (destination) {
+		*destination = {};
+	}
 	auto candidate = State(
 		std::make_shared<RichPage>(*_richPage),
 		_mediaRuntime,
@@ -5675,15 +5923,23 @@ bool State::replaceStructuralSelectionWithBlock(
 	candidate._activeTextOrdinal = _activeTextOrdinal;
 	candidate._lastLimitError = std::nullopt;
 	candidate._temporaryDownParagraph = _temporaryDownParagraph;
+	const auto commitValidatedCandidate = [&](State &&candidate) {
+		const auto error = ValidateRichMessage(
+			*candidate._richPage,
+			_limits);
+		if (error) {
+			_lastLimitError = error;
+			return false;
+		}
+		commitCheckedMutation(std::move(candidate));
+		return true;
+	};
 	const auto structuralTextBlockConversion = [&]()
 	-> std::optional<LeafPath> {
 		const auto allowed = [](InsertBlockType type) {
 			switch (type) {
 			case InsertBlockType::Heading:
-			case InsertBlockType::Blockquote:
 			case InsertBlockType::Code:
-			case InsertBlockType::Pullquote:
-			case InsertBlockType::Details:
 				return true;
 			default:
 				return false;
@@ -5728,8 +5984,90 @@ bool State::replaceStructuralSelectionWithBlock(
 			_lastLimitError = candidate._lastLimitError;
 			return false;
 		}
+		if (destination && (candidate._activeTextOrdinal >= 0)) {
+			*destination = {
+				.action = BoundaryTarget::Action::Text,
+				.textOrdinal = candidate._activeTextOrdinal,
+			};
+		}
 		commitCheckedMutation(std::move(candidate));
 		return true;
+	}
+	auto target = BoundaryTarget();
+	switch (action.type) {
+	case InsertBlockType::Blockquote:
+	case InsertBlockType::Pullquote:
+	case InsertBlockType::Details:
+		if (selection.kind == PreparedEditSelectionKind::TableRows
+			|| selection.kind == PreparedEditSelectionKind::TableCells) {
+			return false;
+		}
+		if (candidate.unwrapMatchingStructuralWrapper(
+				selection,
+				action.type,
+				&target)) {
+			if (!commitValidatedCandidate(std::move(candidate))) {
+				return false;
+			}
+			if (destination) {
+				*destination = target;
+			}
+			return true;
+		}
+		if (selection.kind == PreparedEditSelectionKind::Blocks) {
+			if (!candidate.wrapStructuralBlockSelection(
+					selection,
+					action,
+					&target)) {
+				_lastLimitError = candidate._lastLimitError;
+				return false;
+			}
+			if (!commitValidatedCandidate(std::move(candidate))) {
+				return false;
+			}
+			if (destination) {
+				*destination = target;
+			}
+			return true;
+		}
+		break;
+	case InsertBlockType::OrderedList:
+	case InsertBlockType::BulletList:
+		if (selection.kind == PreparedEditSelectionKind::TableRows
+			|| selection.kind == PreparedEditSelectionKind::TableCells) {
+			return false;
+		}
+		if (candidate.unwrapMatchingListItemWrapper(
+				selection,
+				action.type,
+				&target)) {
+			if (!commitValidatedCandidate(std::move(candidate))) {
+				return false;
+			}
+			if (destination) {
+				*destination = target;
+			}
+			return true;
+		}
+		if (selection.kind == PreparedEditSelectionKind::Blocks) {
+			if (!candidate.wrapStructuralBlockSelection(
+					selection,
+					action,
+					&target)) {
+				_lastLimitError = candidate._lastLimitError;
+				return false;
+			}
+			if (!commitValidatedCandidate(std::move(candidate))) {
+				return false;
+			}
+			if (destination) {
+				*destination = target;
+			}
+			return true;
+		}
+		break;
+	default:
+		break;
 	}
 	if (!candidate.removeStructuralSelection(selection, true)) {
 		_lastLimitError = candidate._lastLimitError;
@@ -5739,8 +6077,88 @@ bool State::replaceStructuralSelectionWithBlock(
 		_lastLimitError = candidate._lastLimitError;
 		return false;
 	}
+	if (destination && (candidate._activeTextOrdinal >= 0)) {
+		*destination = {
+			.action = BoundaryTarget::Action::Text,
+			.textOrdinal = candidate._activeTextOrdinal,
+		};
+	}
 	commitCheckedMutation(std::move(candidate));
 	return true;
+}
+
+bool State::toggleCodeBlockForStructuralSelection(
+		const Markdown::PreparedEditSelection &selection) {
+	_lastLimitError = std::nullopt;
+	if (selection.kind != PreparedEditSelectionKind::Blocks) {
+		return false;
+	}
+	const auto range = validateBlockRange(selection.blocks);
+	if (!range || (range->from + 1 != range->till)) {
+		return false;
+	}
+	const auto path = BlockPath{
+		.container = range->container,
+		.index = range->from,
+	};
+	const auto owner = block(path);
+	if (!owner) {
+		return false;
+	}
+	switch (owner->kind) {
+	case BlockKind::Paragraph:
+		return replaceStructuralSelectionWithBlock(selection, {
+			.type = InsertBlockType::Code,
+		});
+	case BlockKind::Code: {
+		return applyCheckedMutation(false, [selection](State &candidate) {
+			const auto range = candidate.validateBlockRange(selection.blocks);
+			if (!range || (range->from + 1 != range->till)) {
+				return CheckedMutationResult<bool>{ .result = false };
+			}
+			const auto path = BlockPath{
+				.container = range->container,
+				.index = range->from,
+			};
+			const auto owner = candidate.block(path);
+			if (!owner || owner->kind != BlockKind::Code) {
+				return CheckedMutationResult<bool>{ .result = false };
+			}
+			auto paragraph = MakeParagraphBlock();
+			paragraph.anchorId = owner->anchorId;
+			paragraph.text = owner->text;
+			auto blocks = std::vector<Block>();
+			blocks.push_back(std::move(paragraph));
+			auto insertAt = range->from;
+			if (!candidate.removeStructuralSelection(selection, true)) {
+				return CheckedMutationResult<bool>{ .result = false };
+			}
+			const auto normalized
+				= candidate.normalizeTextOnlyListItemForInsertion(
+					range->container);
+			if (normalized && (*normalized >= 0)) {
+				++insertAt;
+			}
+			if (!candidate.insertPreparedBlocksAtExplicitPosition(
+					std::move(blocks),
+					range->container,
+					&insertAt)) {
+				return CheckedMutationResult<bool>{ .result = false };
+			}
+			candidate.rebuild();
+			(void)candidate.destinationTargetForInsertedBlocks(
+				range->container,
+				insertAt,
+				1);
+			return CheckedMutationResult<bool>{
+				.apply = true,
+				.result = true,
+			};
+		});
+	}
+	default:
+		return false;
+	}
 }
 
 bool State::replaceStructuralSelectionWithPreparedBlocks(

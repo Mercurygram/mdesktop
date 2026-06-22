@@ -388,7 +388,10 @@ public:
 	[[nodiscard]] bool replaceStructuralSelectionWithBlock(
 		const Markdown::PreparedEditSelection &selection,
 		InsertAction action,
-		std::optional<ActiveTextInsertContext> context = std::nullopt);
+		std::optional<ActiveTextInsertContext> context = std::nullopt,
+		BoundaryTarget *destination = nullptr);
+	[[nodiscard]] bool toggleCodeBlockForStructuralSelection(
+		const Markdown::PreparedEditSelection &selection);
 	[[nodiscard]] bool replaceStructuralSelectionWithPreparedBlocks(
 		const Markdown::PreparedEditSelection &selection,
 		std::vector<RichPage::Block> blocks,
@@ -691,6 +694,21 @@ private:
 		std::vector<RichPage::Block> blocks,
 		const BlockContainerPath &container,
 		int *insertAt);
+	[[nodiscard]] bool wrapStructuralBlockSelection(
+		const Markdown::PreparedEditSelection &selection,
+		InsertAction action,
+		BoundaryTarget *destination = nullptr);
+	[[nodiscard]] bool unwrapMatchingStructuralWrapper(
+		const Markdown::PreparedEditSelection &selection,
+		InsertBlockType type,
+		BoundaryTarget *destination = nullptr);
+	[[nodiscard]] bool unwrapMatchingListItemWrapper(
+		const Markdown::PreparedEditSelection &selection,
+		InsertBlockType type,
+		BoundaryTarget *destination = nullptr);
+	[[nodiscard]] std::vector<RichPage::Block> takeListItemBlocksForUnwrap(
+		RichPage::ListItem *item);
+	void adoptLeadingParagraphListItemText(RichPage::ListItem *item) const;
 	[[nodiscard]] bool insertPreparedListItemsAtExplicitPosition(
 		std::vector<RichPage::ListItem> items,
 		const BlockPath &path,
