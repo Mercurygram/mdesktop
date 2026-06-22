@@ -2144,6 +2144,29 @@ void HistoryWidget::fileChosen(ChatHelpers::FileChosen &&data) {
 			Data::InsertCustomEmoji(_field.data(), data.document);
 		}
 	} else if (_history) {
+		if (data.needsCaption) {
+			const auto document = data.document;
+			const auto from = data.messageSendingFrom;
+			Ui::SendGifWithCaption(
+				controller()->uiShow(),
+				_field,
+				document,
+				_peer,
+				sendMenuDetails(),
+				crl::guard(this, [=](
+						Api::SendOptions options,
+						TextWithTags caption) {
+					controller()->sendingAnimation().appendSending(from);
+					auto messageToSend = Api::MessageToSend(
+						prepareSendAction(options));
+					messageToSend.textWithTags = std::move(caption);
+					sendExistingDocument(
+						document,
+						std::move(messageToSend),
+						from.localId);
+				}));
+			return;
+		}
 		controller()->sendingAnimation().appendSending(
 			data.messageSendingFrom);
 		const auto localId = data.messageSendingFrom.localId;
