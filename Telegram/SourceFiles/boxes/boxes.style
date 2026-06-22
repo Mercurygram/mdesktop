@@ -169,6 +169,11 @@ contactsSortButton: IconButton(defaultIconButton) {
 contactsSortOnlineIcon: icon{{ "contacts_online", boxTitleCloseFg }};
 contactsSortOnlineIconOver: icon{{ "contacts_online", boxTitleCloseFgOver }};
 
+contactsSortHeaderHeight: 29px;
+contactsSortHeaderFont: font(13px);
+contactsSortHeaderPosition: point(16px, 7px);
+contactsSortHeaderFg: windowSubTextFg;
+
 membersMarginTop: 10px;
 membersMarginBottom: 10px;
 

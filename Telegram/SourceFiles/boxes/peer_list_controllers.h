@@ -272,6 +272,7 @@ protected:
 private:
 	void sort();
 	void sortByOnline();
+	void applySectionHeaders();
 	void rebuildRows();
 	void checkForEmptyRows();
 	bool appendRow(not_null<UserData*> user);

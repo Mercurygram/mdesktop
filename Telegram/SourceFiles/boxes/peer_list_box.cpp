@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/peer_list_box.h"
 
+#include "boxes/peer_list_section_headers.h"
 #include "history/history.h" // chatListNameSortKey.
 #include "main/session/session_show.h"
 #include "main/main_session.h"
@@ -1297,9 +1298,11 @@ std::optional<QPoint> PeerListContent::lastRowMousePosition() const {
 	auto in = parentWidget()->rect().contains(
 		parentWidget()->mapFromGlobal(*_lastMousePosition));
 	auto rowsPointY = point.y() - rowsTop();
-	const auto index = (in
-		&& rowsPointY >= 0
-		&& rowsPointY < shownRowsCount() * _rowHeight)
+	const auto index = (!in || rowsPointY < 0)
+		? -1
+		: sectionsShown()
+		? _sections->rowFromY(rowsPointY)
+		: (rowsPointY < shownRowsCount() * _rowHeight)
 		? (rowsPointY / _rowHeight)
 		: -1;
 	return (index >= 0 && index == _selected.index.value)
@@ -1552,17 +1555,43 @@ void PeerListContent::paintEvent(QPaintEvent *e) {
 	const auto yTo = clip.y() + clip.height() - rowsTopCached;
 	p.translate(0, rowsTopCached);
 	const auto count = shownRowsCount();
-	if (count > 0) {
+	const auto handleRepaintAfter = [&](crl::time repaintAfter) {
+		if (repaintAfter > 0
+			&& (repaintAfterMin < 0
+				|| repaintAfterMin > repaintAfter)) {
+			repaintAfterMin = repaintAfter;
+		}
+	};
+	if (count > 0 && sectionsShown()) {
+		const auto headerHeight = st::contactsSortHeaderHeight;
+		for (auto index = 0; index != count; ++index) {
+			const auto top = _sections->contentTop(index);
+			if (top >= yTo) {
+				break;
+			}
+			const auto hasHeader = _sections->hasHeader(index);
+			const auto headerTop = hasHeader ? (top - headerHeight) : top;
+			if (top + _rowHeight <= yFrom && headerTop <= yFrom) {
+				continue;
+			}
+			if (hasHeader) {
+				p.translate(0, headerTop);
+				_sections->paint(
+					p,
+					width(),
+					getRow(RowIndex(index))->section());
+				p.translate(0, -headerTop);
+			}
+			p.translate(0, top);
+			handleRepaintAfter(paintRow(p, now, RowIndex(index)));
+			p.translate(0, -top);
+		}
+	} else if (count > 0) {
 		const auto from = floorclamp(yFrom, _rowHeight, 0, count);
 		const auto to = ceilclamp(yTo, _rowHeight, 0, count);
 		p.translate(0, from * _rowHeight);
 		for (auto index = from; index != to; ++index) {
-			const auto repaintAfter = paintRow(p, now, RowIndex(index));
-			if (repaintAfter > 0
-				&& (repaintAfterMin < 0
-					|| repaintAfterMin > repaintAfter)) {
-				repaintAfterMin = repaintAfter;
-			}
+			handleRepaintAfter(paintRow(p, now, RowIndex(index)));
 			p.translate(0, _rowHeight);
 		}
 	}
@@ -1575,6 +1604,7 @@ void PeerListContent::paintEvent(QPaintEvent *e) {
 int PeerListContent::resizeGetHeight(int newWidth) {
 	const auto rowsCount = shownRowsCount();
 	const auto hideAll = !rowsCount && _hideEmpty;
+	refreshSectionHeaders();
 	_aboveHeight = 0;
 	if (_aboveWidget) {
 		_aboveWidget->resizeToWidth(newWidth);
@@ -1598,7 +1628,7 @@ int PeerListContent::resizeGetHeight(int newWidth) {
 	}
 	const auto labelTop = rowsTop()
 		+ std::max(
-			shownRowsCount() * _rowHeight,
+			sectionsFullHeight(),
 			_controller->descriptionTopSkipMin());
 	const auto labelWidth = newWidth - 2 * st::contactsPadding.left();
 	if (_description) {
@@ -2377,9 +2407,11 @@ void PeerListContent::selectByMouse(QPoint globalPosition) {
 	auto in = parentWidget()->rect().contains(parentWidget()->mapFromGlobal(globalPosition));
 	auto selected = Selected();
 	auto rowsPointY = point.y() - rowsTop();
-	selected.index.value = (in
-		&& rowsPointY >= 0
-		&& rowsPointY < shownRowsCount() * _rowHeight)
+	selected.index.value = (!in || rowsPointY < 0)
+		? -1
+		: sectionsShown()
+		? _sections->rowFromY(rowsPointY)
+		: (rowsPointY < shownRowsCount() * _rowHeight)
 		? (rowsPointY / _rowHeight)
 		: -1;
 	if (selected.index.value >= 0) {
@@ -2424,9 +2456,44 @@ int PeerListContent::rowsTop() const {
 
 int PeerListContent::getRowTop(RowIndex index) const {
 	if (index.value >= 0) {
-		return rowsTop() + index.value * _rowHeight;
+		return sectionsShown()
+			? (rowsTop() + _sections->contentTop(index.value))
+			: (rowsTop() + index.value * _rowHeight);
 	}
 	return -1;
+}
+
+bool PeerListContent::sectionsShown() const {
+	return _sections && !showingSearch();
+}
+
+void PeerListContent::setShowSectionHeaders(bool shown) {
+	if ((_sections != nullptr) == shown) {
+		return;
+	}
+	_sections = shown
+		? std::make_unique<PeerListSectionHeaders>()
+		: nullptr;
+	resizeToWidth(width());
+	update();
+}
+
+void PeerListContent::refreshSectionHeaders() {
+	if (!sectionsShown()) {
+		if (_sections) {
+			_sections->clear();
+		}
+		return;
+	}
+	_sections->rebuild(shownRowsCount(), _rowHeight, [&](int index) {
+		return getRow(RowIndex(index))->section();
+	});
+}
+
+int PeerListContent::sectionsFullHeight() const {
+	return sectionsShown()
+		? _sections->fullHeight()
+		: (shownRowsCount() * _rowHeight);
 }
 
 void PeerListContent::updateRow(not_null<PeerListRow*> row, RowIndex hint) {
