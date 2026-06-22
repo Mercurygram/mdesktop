@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/peer_list_box.h"
 
 #include "boxes/peer_list_section_headers.h"
+#include "boxes/peer_list_section_index.h"
 #include "history/history.h" // chatListNameSortKey.
 #include "main/session/session_show.h"
 #include "main/main_session.h"
@@ -245,6 +246,80 @@ void PeerListBox::keyPressEvent(QKeyEvent *e) {
 void PeerListBox::searchQueryChanged(const QString &query) {
 	scrollToY(0);
 	content()->searchQueryChanged(query);
+	refreshSectionIndex();
+}
+
+void PeerListBox::peerListSetShowSectionHeaders(bool shown) {
+	PeerListContentDelegate::peerListSetShowSectionHeaders(shown);
+	if (!shown) {
+		if (_sectionIndex) {
+			_sectionIndex.destroy();
+		}
+		return;
+	}
+	if (!_sectionIndex) {
+		_sectionIndex.create(this);
+		_sectionIndex->setJumpCallback([=](
+				int contentTop,
+				anim::type animated) {
+			scrollTo({ contentTop, contentTop + scrollHeight() }, animated);
+		});
+		_sectionIndex->setScrollCallback([=](not_null<QWheelEvent*> e) {
+			sendScrollViewportEvent(e);
+		});
+		content()->heightValue(
+		) | rpl::on_next([=] {
+			refreshSectionIndex();
+		}, _sectionIndex->lifetime());
+		scrolls(
+		) | rpl::on_next([=] {
+			if (_sectionIndex && !_sectionIndex->isHidden()) {
+				_sectionIndex->setVisibleLetters(
+					content()->visibleSectionLetters());
+			}
+		}, _sectionIndex->lifetime());
+	}
+	refreshSectionIndex();
+}
+
+void PeerListBox::refreshSectionIndex() {
+	if (!_sectionIndex) {
+		return;
+	}
+	auto letters = content()->sectionLetters();
+	const auto shown = (letters.size() >= 2);
+	if (shown) {
+		auto entries = std::vector<PeerListSectionIndex::Entry>();
+		entries.reserve(letters.size());
+		for (auto &letter : letters) {
+			entries.push_back({
+				std::move(letter.letter),
+				letter.contentTop,
+			});
+		}
+		_sectionIndex->setLetters(std::move(entries));
+		_sectionIndex->setVisibleLetters(content()->visibleSectionLetters());
+		updateSectionIndexGeometry();
+	}
+	_sectionIndex->setVisible(shown);
+}
+
+void PeerListBox::updateSectionIndexGeometry() {
+	if (!_sectionIndex) {
+		return;
+	}
+	const auto skip = topScrollSkip();
+	const auto indexWidth = _sectionIndex->idealWidth();
+	const auto scrollBar = st::boxScroll.width;
+	const auto left = style::RightToLeft()
+		? scrollBar
+		: (width() - scrollBar - indexWidth);
+	_sectionIndex->setGeometry(
+		left,
+		skip,
+		indexWidth,
+		height() - skip);
+	_sectionIndex->raise();
 }
 
 void PeerListBox::resizeEvent(QResizeEvent *e) {
@@ -256,6 +331,7 @@ void PeerListBox::resizeEvent(QResizeEvent *e) {
 	}
 
 	content()->resizeToWidth(width());
+	updateSectionIndexGeometry();
 }
 
 void PeerListBox::paintEvent(QPaintEvent *e) {
@@ -2494,6 +2570,48 @@ int PeerListContent::sectionsFullHeight() const {
 	return sectionsShown()
 		? _sections->fullHeight()
 		: (shownRowsCount() * _rowHeight);
+}
+
+std::vector<PeerListContent::SectionLetter> PeerListContent::sectionLetters(
+		) const {
+	auto result = std::vector<SectionLetter>();
+	if (!sectionsShown()) {
+		return result;
+	}
+	const auto count = shownRowsCount();
+	for (auto i = 0; i != count; ++i) {
+		if (_sections->hasHeader(i)) {
+			result.push_back({
+				rowAt(i)->section(),
+				getRowTop(RowIndex(i)) - st::contactsSortHeaderHeight,
+			});
+		}
+	}
+	return result;
+}
+
+base::flat_set<QString> PeerListContent::visibleSectionLetters() const {
+	auto result = base::flat_set<QString>();
+	const auto count = shownRowsCount();
+	if (!sectionsShown() || !count) {
+		return result;
+	}
+	auto low = 0, high = count;
+	while (low < high) {
+		const auto middle = (low + high) / 2;
+		if (getRowTop(RowIndex(middle)) + _rowHeight <= _visibleTop) {
+			low = middle + 1;
+		} else {
+			high = middle;
+		}
+	}
+	for (auto i = low; i != count; ++i) {
+		if (getRowTop(RowIndex(i)) >= _visibleBottom) {
+			break;
+		}
+		result.emplace(rowAt(i)->section());
+	}
+	return result;
 }
 
 void PeerListContent::updateRow(not_null<PeerListRow*> row, RowIndex hint) {

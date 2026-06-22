@@ -38,6 +38,7 @@ struct OutlineSegment;
 } // namespace Ui
 
 class PeerListSectionHeaders;
+class PeerListSectionIndex;
 
 using PaintRoundImageCallback = Fn<void(
 	Painter &p,
@@ -697,6 +698,13 @@ public:
 	void setIgnoreHiddenRowsOnSearch(bool value);
 	void setShowSectionHeaders(bool shown);
 
+	struct SectionLetter {
+		QString letter;
+		int contentTop = 0;
+	};
+	[[nodiscard]] std::vector<SectionLetter> sectionLetters() const;
+	[[nodiscard]] base::flat_set<QString> visibleSectionLetters() const;
+
 	// Interface for the controller.
 	void appendRow(std::unique_ptr<PeerListRow> row);
 	void appendSearchRow(std::unique_ptr<PeerListRow> row);
@@ -1167,6 +1175,7 @@ public:
 		setAdditionalTitle(std::move(title));
 	}
 	void peerListSetSearchMode(PeerListSearchMode mode) override;
+	void peerListSetShowSectionHeaders(bool shown) override;
 	void peerListSetRowChecked(
 		not_null<PeerListRow*> row,
 		bool checked) override;
@@ -1219,8 +1228,11 @@ private:
 	[[nodiscard]] int topSelectSkip() const;
 	void updateScrollSkips();
 	void searchQueryChanged(const QString &query);
+	void refreshSectionIndex();
+	void updateSectionIndexGeometry();
 
 	object_ptr<Ui::SlideWrap<Ui::MultiSelect>> _select = { nullptr };
+	object_ptr<PeerListSectionIndex> _sectionIndex = { nullptr };
 
 	const std::shared_ptr<Main::SessionShow> _show;
 	Fn<void(QString)> _customQueryChangedCallback;

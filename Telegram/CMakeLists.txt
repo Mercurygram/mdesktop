@@ -321,6 +321,8 @@ PRIVATE
     boxes/peer_list_controllers.h
     boxes/peer_list_section_headers.cpp
     boxes/peer_list_section_headers.h
+    boxes/peer_list_section_index.cpp
+    boxes/peer_list_section_index.h
     boxes/peer_list_widgets.cpp
     boxes/peer_list_widgets.h
     boxes/peer_lists_box.cpp
