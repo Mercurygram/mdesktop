@@ -59,6 +59,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtCore/QPointer>
 #include <QtGui/QClipboard>
 #include <QtGui/QContextMenuEvent>
+#include <QtGui/QCursor>
 #include <QtGui/QFocusEvent>
 #include <QtGui/QInputMethodEvent>
 #include <QtGui/QKeyEvent>
@@ -973,7 +974,6 @@ void EnableQTextEditLineMetrics(style::Markdown &style) {
 
 [[nodiscard]] style::Markdown CreateEditorMarkdownStyle() {
 	auto result = st::messageMarkdown;
-	result.pageMaxWidth = st::defaultMarkdown.pageMaxWidth;
 	EnableQTextEditLineMetrics(result);
 	return result;
 }
@@ -1966,6 +1966,17 @@ Widget::Widget(
 			}
 		});
 	_article->setMediaBlockHost(this);
+
+	_selectScroll.scrolls(
+	) | rpl::on_next([=](int delta) {
+		const auto scroll = selectionScrollArea();
+		if (!scroll) {
+			_selectScroll.cancel();
+			return;
+		}
+		scroll->scrollToY(scroll->scrollTop() + delta);
+		updateArticleSelectionDragFromCursor();
+	}, lifetime());
 
 	const auto &fieldStyle = inlineFieldStyleFor(
 		Markdown::MarkdownArticleTextLeafStyle());
@@ -4884,17 +4895,14 @@ void Widget::mouseMoveEvent(QMouseEvent *e) {
 		>= QApplication::startDragDistance();
 	if (!_articleSelectionDrag.dragStarted) {
 		if (!movedFarEnough) {
+			_selectScroll.cancel();
 			e->accept();
 			return;
 		}
 		_articleSelectionDrag.dragStarted = true;
 	}
-	if (_articleSelectionDrag.operation
-		== ArticleSelectionOperation::DragSelection) {
-		updateArticleDropTarget(articlePoint);
-	} else {
-		updateArticleSelection(articlePoint, hit, editHit);
-	}
+	updateArticleSelectionDragAtArticlePoint(articlePoint, hit, editHit);
+	updateArticleSelectionAutoScroll(e->pos());
 	e->accept();
 }
 
@@ -4904,6 +4912,7 @@ void Widget::mousePressEvent(QMouseEvent *e) {
 		return;
 	}
 	_trackingPointerPress = true;
+	_selectScroll.cancel();
 	_pressedControl = {};
 	_pressedControlPoint = std::nullopt;
 	auto articlePoint = e->pos() - articleTopLeft();
@@ -8267,8 +8276,79 @@ void Widget::clearArticleDropTarget() {
 	}
 }
 
+Ui::ScrollArea *Widget::selectionScrollArea() const {
+	for (auto parent = parentWidget(); parent; parent = parent->parentWidget()) {
+		if (const auto scroll = dynamic_cast<Ui::ScrollArea*>(parent)) {
+			return scroll;
+		}
+	}
+	return nullptr;
+}
+
+bool Widget::articleSelectionAutoScrollActive() const {
+	return _articleSelectionDrag.active
+		&& _articleSelectionDrag.dragStarted
+		&& ((_articleSelectionDrag.operation
+				== ArticleSelectionOperation::GrowSelection)
+			|| (_articleSelectionDrag.operation
+				== ArticleSelectionOperation::DragSelection));
+}
+
+void Widget::updateArticleSelectionAutoScroll(QPoint widgetPoint) {
+	if (!articleSelectionAutoScrollActive() || !selectionScrollArea()) {
+		_selectScroll.cancel();
+		return;
+	}
+	_selectScroll.checkDeltaScroll(
+		widgetPoint,
+		_visibleRange.top,
+		_visibleRange.bottom);
+}
+
+void Widget::updateArticleSelectionDragAtArticlePoint(
+		QPoint articlePoint,
+		const Markdown::MarkdownArticleHitTestResult &hit,
+		const PreparedEditHit &editHit) {
+	if (!_articleSelectionDrag.active
+		|| !_articleSelectionDrag.dragStarted
+		|| !_article) {
+		return;
+	}
+	switch (_articleSelectionDrag.operation) {
+	case ArticleSelectionOperation::GrowSelection:
+		updateArticleSelection(articlePoint, hit, editHit);
+		return;
+	case ArticleSelectionOperation::DragSelection:
+		updateArticleDropTarget(articlePoint);
+		return;
+	case ArticleSelectionOperation::None:
+		_selectScroll.cancel();
+		return;
+	}
+}
+
+void Widget::updateArticleSelectionDragAtWidgetPoint(QPoint widgetPoint) {
+	const auto articlePoint = widgetPoint - articleTopLeft();
+	const auto hit = _article->hitTest(
+		articlePoint,
+		Ui::Text::StateRequest::Flag::LookupSymbol);
+	const auto editHit = _article->editHitTest(articlePoint);
+	updateArticleSelectionDragAtArticlePoint(articlePoint, hit, editHit);
+}
+
+void Widget::updateArticleSelectionDragFromCursor() {
+	if (!articleSelectionAutoScrollActive()) {
+		_selectScroll.cancel();
+		return;
+	}
+	const auto widgetPoint = mapFromGlobal(QCursor::pos());
+	updateArticleSelectionDragAtWidgetPoint(widgetPoint);
+	updateArticleSelectionAutoScroll(widgetPoint);
+}
+
 void Widget::finishArticleSelection() {
 	const auto repaint = !_articleSelectionDrag.indicatorRect.isEmpty();
+	_selectScroll.cancel();
 	_articleSelectionDrag = {};
 	if (repaint) {
 		update();
@@ -8596,8 +8676,8 @@ bool Widget::handleFieldMouseEvent(QEvent *event) {
 			return false;
 		}
 		const auto globalPoint = mouse->globalPos();
-		const auto articlePoint = mapFromGlobal(globalPoint)
-			- articleTopLeft();
+		const auto widgetPoint = mapFromGlobal(globalPoint);
+		const auto articlePoint = widgetPoint - articleTopLeft();
 		const auto cursor = _field->textCursor();
 		const auto raw = _field->rawTextEdit();
 		const auto pressCursor = raw->cursorForPosition(
@@ -8607,6 +8687,7 @@ bool Widget::handleFieldMouseEvent(QEvent *event) {
 			&& cursor.hasSelection()
 			&& (pressCursor.position() >= cursor.selectionStart())
 			&& (pressCursor.position() < cursor.selectionEnd());
+		_selectScroll.cancel();
 		_trackingPointerPress = true;
 		if (pressingCurrentSelection
 			&& startSelectionDragFromExistingState(
@@ -8649,13 +8730,15 @@ bool Widget::handleFieldMouseEvent(QEvent *event) {
 	}
 
 	const auto globalPoint = mouse->globalPos();
-	const auto articlePoint = mapFromGlobal(globalPoint) - articleTopLeft();
+	const auto widgetPoint = mapFromGlobal(globalPoint);
+	const auto articlePoint = widgetPoint - articleTopLeft();
 	const auto operation = _articleSelectionDrag.operation;
 	const auto movedFarEnough = (globalPoint
 		- _articleSelectionDrag.globalPressPoint).manhattanLength()
 		>= QApplication::startDragDistance();
 	if (type == QEvent::MouseMove && !_articleSelectionDrag.dragStarted) {
 		if (!movedFarEnough) {
+			_selectScroll.cancel();
 			return false;
 		}
 		_articleSelectionDrag.dragStarted = true;
@@ -8700,6 +8783,8 @@ bool Widget::handleFieldMouseEvent(QEvent *event) {
 			clearArticleDropTarget();
 			finishArticleSelection();
 			_trackingPointerPress = false;
+		} else {
+			_selectScroll.cancel();
 		}
 		return false;
 	}
@@ -8710,11 +8795,8 @@ bool Widget::handleFieldMouseEvent(QEvent *event) {
 		_trackingPointerPress = false;
 		return false;
 	}
-	if (operation == ArticleSelectionOperation::DragSelection) {
-		updateArticleDropTarget(articlePoint);
-	} else {
-		updateArticleSelection(articlePoint, hit, editHit);
-	}
+	updateArticleSelectionDragAtArticlePoint(articlePoint, hit, editHit);
+	updateArticleSelectionAutoScroll(widgetPoint);
 	if (type == QEvent::MouseButtonRelease) {
 		if (operation == ArticleSelectionOperation::DragSelection) {
 			if (_articleSelectionDrag.dropTarget) {

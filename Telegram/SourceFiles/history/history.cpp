@@ -138,7 +138,6 @@ using UpdateFlag = Data::HistoryUpdate::Flag;
 		from.webpage);
 	result->richMessage = from.richMessage;
 	result->richMessageSummary = from.richMessageSummary;
-	result->richMessageEmpty = from.richMessageEmpty;
 	return result;
 }
 
@@ -157,7 +156,6 @@ void CopyDraftForThread(
 	to->webpage = from.webpage;
 	to->richMessage = from.richMessage;
 	to->richMessageSummary = from.richMessageSummary;
-	to->richMessageEmpty = from.richMessageEmpty;
 }
 
 } // namespace

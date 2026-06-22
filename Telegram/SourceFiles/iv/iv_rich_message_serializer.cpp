@@ -56,15 +56,61 @@ constexpr auto kNoEntityIndex = -1;
 
 struct SerializeContext {
 	not_null<Main::Session*> session;
-	SerializeInputRichMessageMode mode = SerializeInputRichMessageMode::Draft;
 	base::flat_map<uint64, MTPInputPhoto> photos;
 	base::flat_map<uint64, MTPInputDocument> documents;
 	base::flat_map<uint64, MTPInputUser> users;
 };
 
+template <typename Value>
+struct FinalSubmitNormalizationResult {
+	Value value;
+	bool hasMeaningfulContent = false;
+};
+
+struct FinalSubmitHybridSurface {
+	RichText text;
+	QString anchorId;
+	std::vector<Block> blocks;
+};
+
+using FinalSubmitNormalizedBlocks
+	= FinalSubmitNormalizationResult<std::vector<Block>>;
+using FinalSubmitNormalizedBlock
+	= FinalSubmitNormalizationResult<std::optional<Block>>;
+using FinalSubmitNormalizedListItem
+	= FinalSubmitNormalizationResult<RichPage::ListItem>;
+using FinalSubmitNormalizedTableCell
+	= FinalSubmitNormalizationResult<TableCell>;
+using FinalSubmitNormalizedTableRow
+	= FinalSubmitNormalizationResult<std::optional<RichPage::TableRow>>;
+using FinalSubmitNormalizedHybridSurface
+	= FinalSubmitNormalizationResult<FinalSubmitHybridSurface>;
+
+struct TrimEmptyParagraphEdgesRange {
+	int from = 0;
+	int till = 0;
+};
+
+[[nodiscard]] bool RichTextHasVisibleText(const RichText &text) {
+	return !StringIsEmpty(text.text.text);
+}
+
+[[nodiscard]] bool RichTextHasAnchorPayload(const RichText &text) {
+	return !text.anchorId.isEmpty() || !text.anchorIds.empty();
+}
+
+[[nodiscard]] bool RichTextIsStructurallyEmpty(const RichText &text) {
+	return StringIsEmpty(text.text.text) && !RichTextHasAnchorPayload(text);
+}
+
+[[nodiscard]] bool ParagraphHasTrimmableEdges(const Block &block) {
+	return (block.kind == BlockKind::Paragraph)
+		&& block.anchorId.isEmpty()
+		&& RichTextIsStructurallyEmpty(block.text);
+}
+
 enum class SerializeBlockState : uchar {
 	Success,
-	Skipped,
 	Failed,
 };
 
@@ -73,21 +119,11 @@ struct SerializeBlockResult {
 	std::optional<MTPPageBlock> block;
 };
 
-[[nodiscard]] bool IsFinalSerializeMode(const SerializeContext *context) {
-	return context->mode == SerializeInputRichMessageMode::FinalSubmit;
-}
-
 [[nodiscard]] SerializeBlockResult SuccessfulSerializeBlock(
 		MTPPageBlock block) {
 	auto result = SerializeBlockResult();
 	result.state = SerializeBlockState::Success;
 	result.block = std::move(block);
-	return result;
-}
-
-[[nodiscard]] SerializeBlockResult SkippedSerializeBlock() {
-	auto result = SerializeBlockResult();
-	result.state = SerializeBlockState::Skipped;
 	return result;
 }
 
@@ -159,18 +195,21 @@ struct SerializeBlockResult {
 		: MTP_textAnchor(std::move(text), MTP_string(anchorId));
 }
 
+[[nodiscard]] MTPRichText WrapRichTextAnchors(
+		MTPRichText text,
+		const RichText &richText,
+		const QString &anchorId) {
+	for (auto i = richText.anchorIds.rbegin();
+			i != richText.anchorIds.rend();
+			++i) {
+		text = WrapRichTextAnchor(std::move(text), *i);
+	}
+	text = WrapRichTextAnchor(std::move(text), richText.anchorId);
+	return WrapRichTextAnchor(std::move(text), anchorId);
+}
+
 [[nodiscard]] bool HasRichTextContent(const RichText &text) {
-	return !text.text.empty() || !text.anchorId.isEmpty();
-}
-
-[[nodiscard]] bool HasVisibleRichTextContent(const RichText &text) {
-	return !StringIsEmpty(text.text.text);
-}
-
-[[nodiscard]] bool ShouldSkipFinalRichTextContent(
-		const RichText &text,
-		const SerializeContext *context) {
-	return IsFinalSerializeMode(context) && !HasVisibleRichTextContent(text);
+	return !text.text.empty() || RichTextHasAnchorPayload(text);
 }
 
 [[nodiscard]] PhotoData *ResolvePhotoData(
@@ -586,8 +625,7 @@ struct SerializeBlockResult {
 	if (!result) {
 		return std::nullopt;
 	}
-	*result = WrapRichTextAnchor(std::move(*result), text.anchorId);
-	*result = WrapRichTextAnchor(std::move(*result), anchorId);
+	*result = WrapRichTextAnchors(std::move(*result), text, anchorId);
 	return result;
 }
 
@@ -689,9 +727,6 @@ struct SerializeBlockResult {
 		const RichText &text,
 		const QString &anchorId,
 		SerializeContext *context) {
-	if (IsFinalSerializeMode(context) && !HasVisibleRichTextContent(text)) {
-		return true;
-	}
 	const auto paragraph = SerializeParagraphBlock(text, anchorId, context);
 	if (!paragraph) {
 		return false;
@@ -756,14 +791,374 @@ struct SerializeBlockResult {
 		(rowspan != 1 ? MTP_int(rowspan) : MTPint()));
 }
 
+[[nodiscard]] TrimEmptyParagraphEdgesRange FindTrimEmptyParagraphEdgesRange(
+		const std::vector<Block> &blocks) {
+	auto result = TrimEmptyParagraphEdgesRange();
+	result.till = int(blocks.size());
+	while (result.from != result.till
+		&& ParagraphHasTrimmableEdges(blocks[result.from])) {
+		++result.from;
+	}
+	while (result.till != result.from
+		&& ParagraphHasTrimmableEdges(blocks[result.till - 1])) {
+		--result.till;
+	}
+	return result;
+}
+
+void TrimEmptyParagraphEdges(std::vector<Block> *blocks) {
+	if (!blocks) {
+		return;
+	}
+	const auto range = FindTrimEmptyParagraphEdgesRange(*blocks);
+	if (range.till < int(blocks->size())) {
+		blocks->erase(begin(*blocks) + range.till, end(*blocks));
+	}
+	if (range.from > 0) {
+		blocks->erase(begin(*blocks), begin(*blocks) + range.from);
+	}
+}
+
+[[nodiscard]] FinalSubmitNormalizedBlocks NormalizeFinalSubmitBlocks(
+		std::vector<Block> blocks,
+		SerializeContext *context,
+		bool trimParagraphEdges = true);
+
+[[nodiscard]] FinalSubmitNormalizedBlock NormalizeFinalSubmitBlock(
+		Block block,
+		SerializeContext *context);
+
+[[nodiscard]] FinalSubmitNormalizedListItem NormalizeFinalSubmitListItem(
+		RichPage::ListItem item,
+		SerializeContext *context);
+
+[[nodiscard]] FinalSubmitNormalizedTableCell NormalizeFinalSubmitTableCell(
+		TableCell cell);
+
+[[nodiscard]] FinalSubmitNormalizedTableRow NormalizeFinalSubmitTableRow(
+		RichPage::TableRow row);
+
+[[nodiscard]] FinalSubmitNormalizedHybridSurface NormalizeFinalSubmitHybridSurface(
+		RichText text,
+		QString anchorId,
+		std::vector<Block> blocks,
+		SerializeContext *context);
+
+[[nodiscard]] bool GroupedMediaItemHasMeaningfulContent(
+		const GroupedMediaItem &item,
+		SerializeContext *context) {
+	switch (item.kind) {
+	case BlockKind::Photo:
+		return ResolveInputPhoto(context, item.photoId, item.photo).has_value();
+	case BlockKind::Video:
+		return ResolveInputDocument(
+			context,
+			item.documentId,
+			item.document).has_value();
+	default:
+		return false;
+	}
+}
+
+[[nodiscard]] bool BlockHasOwnMeaningfulContent(
+		const Block &block,
+		SerializeContext *context) {
+	switch (block.kind) {
+	case BlockKind::Heading:
+	case BlockKind::Paragraph:
+	case BlockKind::Footer:
+	case BlockKind::Thinking:
+	case BlockKind::Code:
+		return RichTextHasVisibleText(block.text);
+	case BlockKind::Quote:
+		return RichTextHasVisibleText(block.text)
+			|| RichTextHasVisibleText(block.caption);
+	case BlockKind::Photo:
+		return ResolveInputPhoto(context, block.photoId, block.photo).has_value();
+	case BlockKind::Video:
+	case BlockKind::Audio:
+		return ResolveInputDocument(
+			context,
+			block.documentId,
+			block.document).has_value();
+	case BlockKind::Math:
+		return !StringIsEmpty(block.formula);
+	case BlockKind::Table:
+	case BlockKind::Details:
+		return RichTextHasVisibleText(block.text);
+	case BlockKind::GroupedMedia:
+		if (block.mediaItems.empty()) {
+			return false;
+		}
+		for (const auto &item : block.mediaItems) {
+			if (!GroupedMediaItemHasMeaningfulContent(item, context)) {
+				return false;
+			}
+		}
+		return true;
+	case BlockKind::Map:
+		return block.zoom > 0;
+	case BlockKind::AuthorDate:
+		return RichTextHasVisibleText(block.text) || block.date != 0;
+	case BlockKind::Divider:
+	case BlockKind::Anchor:
+	case BlockKind::Unsupported:
+	case BlockKind::List:
+	case BlockKind::Embed:
+	case BlockKind::EmbedPost:
+	case BlockKind::Channel:
+	case BlockKind::RelatedArticles:
+		break;
+	}
+	return false;
+}
+
+[[nodiscard]] FinalSubmitNormalizedHybridSurface NormalizeFinalSubmitHybridSurface(
+		RichText text,
+		QString anchorId,
+		std::vector<Block> blocks,
+		SerializeContext *context) {
+	auto result = FinalSubmitNormalizedHybridSurface();
+	auto normalizedBlocks = NormalizeFinalSubmitBlocks(
+		std::move(blocks),
+		context,
+		false);
+	auto combined = std::vector<Block>();
+	combined.reserve(normalizedBlocks.value.size() + 1);
+	auto paragraph = Block();
+	paragraph.kind = BlockKind::Paragraph;
+	paragraph.text = std::move(text);
+	paragraph.anchorId = std::move(anchorId);
+	combined.push_back(std::move(paragraph));
+	for (auto &block : normalizedBlocks.value) {
+		combined.push_back(std::move(block));
+	}
+	const auto range = FindTrimEmptyParagraphEdgesRange(combined);
+	if (range.from == 0 && range.till > 0) {
+		result.value.text = std::move(combined.front().text);
+		result.value.anchorId = std::move(combined.front().anchorId);
+		result.hasMeaningfulContent = RichTextHasVisibleText(result.value.text);
+	}
+	result.value.blocks.reserve(std::max(range.till - std::max(range.from, 1), 0));
+	for (auto index = std::max(range.from, 1); index < range.till; ++index) {
+		result.value.blocks.push_back(std::move(combined[index]));
+	}
+	result.hasMeaningfulContent = result.hasMeaningfulContent
+		|| normalizedBlocks.hasMeaningfulContent;
+	return result;
+}
+
+[[nodiscard]] FinalSubmitNormalizedTableCell NormalizeFinalSubmitTableCell(
+		TableCell cell) {
+	auto result = FinalSubmitNormalizedTableCell();
+	result.value = std::move(cell);
+	result.hasMeaningfulContent = RichTextHasVisibleText(result.value.text);
+	return result;
+}
+
+[[nodiscard]] FinalSubmitNormalizedTableRow NormalizeFinalSubmitTableRow(
+		RichPage::TableRow row) {
+	auto result = FinalSubmitNormalizedTableRow();
+	if (row.cells.empty()) {
+		return result;
+	}
+	auto normalizedRow = RichPage::TableRow();
+	normalizedRow.cells.reserve(row.cells.size());
+	for (auto &cell : row.cells) {
+		auto normalized = NormalizeFinalSubmitTableCell(std::move(cell));
+		result.hasMeaningfulContent = result.hasMeaningfulContent
+			|| normalized.hasMeaningfulContent;
+		normalizedRow.cells.push_back(std::move(normalized.value));
+	}
+	result.value = std::move(normalizedRow);
+	return result;
+}
+
+[[nodiscard]] FinalSubmitNormalizedListItem NormalizeFinalSubmitListItem(
+		RichPage::ListItem item,
+		SerializeContext *context) {
+	auto result = FinalSubmitNormalizedListItem();
+	result.value = std::move(item);
+	if (result.value.blocks.empty()) {
+		result.hasMeaningfulContent = RichTextHasVisibleText(result.value.text);
+		return result;
+	}
+	auto surface = NormalizeFinalSubmitHybridSurface(
+		std::move(result.value.text),
+		std::move(result.value.anchorId),
+		std::move(result.value.blocks),
+		context);
+	result.value.text = std::move(surface.value.text);
+	result.value.anchorId = std::move(surface.value.anchorId);
+	result.value.blocks = std::move(surface.value.blocks);
+	result.hasMeaningfulContent = surface.hasMeaningfulContent;
+	return result;
+}
+
+[[nodiscard]] FinalSubmitNormalizedBlock NormalizeFinalSubmitBlock(
+		Block block,
+		SerializeContext *context) {
+	auto result = FinalSubmitNormalizedBlock();
+	result.value = std::move(block);
+	auto &normalized = *result.value;
+	switch (normalized.kind) {
+	case BlockKind::Heading:
+	case BlockKind::Footer:
+	case BlockKind::Code:
+	case BlockKind::Thinking:
+		if (!RichTextHasVisibleText(normalized.text)) {
+			result.value.reset();
+			return result;
+		}
+		result.hasMeaningfulContent = true;
+		return result;
+	case BlockKind::Math:
+		if (StringIsEmpty(normalized.formula)) {
+			result.value.reset();
+			return result;
+		}
+		result.hasMeaningfulContent = true;
+		return result;
+	case BlockKind::Quote:
+		if (!normalized.blocks.empty() && !normalized.pullquote) {
+			auto surface = NormalizeFinalSubmitHybridSurface(
+				std::move(normalized.text),
+				QString(),
+				std::move(normalized.blocks),
+				context);
+			normalized.text = std::move(surface.value.text);
+			normalized.blocks = std::move(surface.value.blocks);
+			result.hasMeaningfulContent = surface.hasMeaningfulContent;
+		} else if (!normalized.blocks.empty()) {
+			auto blocks = NormalizeFinalSubmitBlocks(
+				std::move(normalized.blocks),
+				context);
+			normalized.blocks = std::move(blocks.value);
+			result.hasMeaningfulContent = blocks.hasMeaningfulContent;
+		}
+		result.hasMeaningfulContent = result.hasMeaningfulContent
+			|| RichTextHasVisibleText(normalized.text)
+			|| RichTextHasVisibleText(normalized.caption);
+		if (normalized.blocks.empty() && !result.hasMeaningfulContent) {
+			result.value.reset();
+		}
+		return result;
+	case BlockKind::List: {
+		auto items = std::vector<RichPage::ListItem>();
+		items.reserve(normalized.listItems.size());
+		for (auto &item : normalized.listItems) {
+			auto normalizedItem = NormalizeFinalSubmitListItem(
+				std::move(item),
+				context);
+			result.hasMeaningfulContent = result.hasMeaningfulContent
+				|| normalizedItem.hasMeaningfulContent;
+			items.push_back(std::move(normalizedItem.value));
+		}
+		normalized.listItems = std::move(items);
+		if (normalized.listItems.empty()) {
+			result.value.reset();
+		}
+		return result;
+	}
+	case BlockKind::Table: {
+		auto rows = std::vector<RichPage::TableRow>();
+		rows.reserve(normalized.tableRows.size());
+		for (auto &row : normalized.tableRows) {
+			auto normalizedRow = NormalizeFinalSubmitTableRow(std::move(row));
+			result.hasMeaningfulContent = result.hasMeaningfulContent
+				|| normalizedRow.hasMeaningfulContent;
+			if (normalizedRow.value) {
+				rows.push_back(std::move(*normalizedRow.value));
+			}
+		}
+		normalized.tableRows = std::move(rows);
+		result.hasMeaningfulContent = result.hasMeaningfulContent
+			|| RichTextHasVisibleText(normalized.text);
+		if (normalized.tableRows.empty()
+			&& !RichTextHasVisibleText(normalized.text)) {
+			result.value.reset();
+		}
+		return result;
+	}
+	case BlockKind::Details: {
+		auto blocks = NormalizeFinalSubmitBlocks(
+			std::move(normalized.blocks),
+			context);
+		normalized.blocks = std::move(blocks.value);
+		result.hasMeaningfulContent = blocks.hasMeaningfulContent
+			|| RichTextHasVisibleText(normalized.text);
+		if (normalized.blocks.empty()
+			&& !RichTextHasVisibleText(normalized.text)) {
+			result.value.reset();
+		}
+		return result;
+	}
+	default:
+		break;
+	}
+	if (!normalized.blocks.empty()) {
+		auto blocks = NormalizeFinalSubmitBlocks(
+			std::move(normalized.blocks),
+			context);
+		normalized.blocks = std::move(blocks.value);
+		result.hasMeaningfulContent = blocks.hasMeaningfulContent;
+	}
+	if (!normalized.listItems.empty()) {
+		auto items = std::vector<RichPage::ListItem>();
+		items.reserve(normalized.listItems.size());
+		for (auto &item : normalized.listItems) {
+			auto normalizedItem = NormalizeFinalSubmitListItem(
+				std::move(item),
+				context);
+			result.hasMeaningfulContent = result.hasMeaningfulContent
+				|| normalizedItem.hasMeaningfulContent;
+			items.push_back(std::move(normalizedItem.value));
+		}
+		normalized.listItems = std::move(items);
+	}
+	if (!normalized.tableRows.empty()) {
+		auto rows = std::vector<RichPage::TableRow>();
+		rows.reserve(normalized.tableRows.size());
+		for (auto &row : normalized.tableRows) {
+			auto normalizedRow = NormalizeFinalSubmitTableRow(std::move(row));
+			result.hasMeaningfulContent = result.hasMeaningfulContent
+				|| normalizedRow.hasMeaningfulContent;
+			if (normalizedRow.value) {
+				rows.push_back(std::move(*normalizedRow.value));
+			}
+		}
+		normalized.tableRows = std::move(rows);
+	}
+	result.hasMeaningfulContent = result.hasMeaningfulContent
+		|| BlockHasOwnMeaningfulContent(normalized, context);
+	return result;
+}
+
+[[nodiscard]] FinalSubmitNormalizedBlocks NormalizeFinalSubmitBlocks(
+		std::vector<Block> blocks,
+		SerializeContext *context,
+		bool trimParagraphEdges) {
+	auto result = FinalSubmitNormalizedBlocks();
+	result.value.reserve(blocks.size());
+	for (auto &block : blocks) {
+		auto normalized = NormalizeFinalSubmitBlock(std::move(block), context);
+		result.hasMeaningfulContent = result.hasMeaningfulContent
+			|| normalized.hasMeaningfulContent;
+		if (normalized.value) {
+			result.value.push_back(std::move(*normalized.value));
+		}
+	}
+	if (trimParagraphEdges) {
+		TrimEmptyParagraphEdges(&result.value);
+	}
+	return result;
+}
+
 [[nodiscard]] SerializeBlockResult SerializeBlock(
 		const Block &block,
 		SerializeContext *context) {
 	switch (block.kind) {
 	case BlockKind::Heading: {
-		if (ShouldSkipFinalRichTextContent(block.text, context)) {
-			return SkippedSerializeBlock();
-		}
 		const auto text = SerializeRichTextWithAnchor(
 			block.text,
 			block.anchorId,
@@ -782,18 +1177,11 @@ struct SerializeBlockResult {
 		return FailedSerializeBlock();
 	}
 	case BlockKind::Paragraph:
-		if (IsFinalSerializeMode(context)
-			&& !HasVisibleRichTextContent(block.text)) {
-			return SkippedSerializeBlock();
-		}
 		return FinishSerializeBlock(SerializeParagraphBlock(
 			block.text,
 			block.anchorId,
 			context));
 	case BlockKind::Footer: {
-		if (ShouldSkipFinalRichTextContent(block.text, context)) {
-			return SkippedSerializeBlock();
-		}
 		const auto text = SerializeRichTextWithAnchor(
 			block.text,
 			block.anchorId,
@@ -814,10 +1202,6 @@ struct SerializeBlockResult {
 			if (!block.blocks.empty()) {
 				return FailedSerializeBlock();
 			}
-			if (IsFinalSerializeMode(context)
-				&& !HasVisibleRichTextContent(block.text)) {
-				return SkippedSerializeBlock();
-			}
 			const auto caption = SerializeRichTextWithAnchor(
 				block.caption,
 				QString(),
@@ -833,10 +1217,6 @@ struct SerializeBlockResult {
 				: FailedSerializeBlock();
 		}
 		if (block.blocks.empty()) {
-			if (IsFinalSerializeMode(context)
-				&& !HasVisibleRichTextContent(block.text)) {
-				return SkippedSerializeBlock();
-			}
 			const auto caption = SerializeRichTextWithAnchor(
 				block.caption,
 				QString(),
@@ -852,7 +1232,7 @@ struct SerializeBlockResult {
 				: FailedSerializeBlock();
 		}
 		auto blocks = QVector<MTPPageBlock>();
-		if ((HasRichTextContent(block.text) || IsFinalSerializeMode(context))
+		if (HasRichTextContent(block.text)
 			&& !AppendSerializedParagraphBlock(
 				&blocks,
 				block.text,
@@ -865,9 +1245,6 @@ struct SerializeBlockResult {
 			return FailedSerializeBlock();
 		}
 		blocks += *nested;
-		if (IsFinalSerializeMode(context) && blocks.isEmpty()) {
-			return SkippedSerializeBlock();
-		}
 		const auto caption = SerializeRichTextWithAnchor(
 			block.caption,
 			block.anchorId,
@@ -914,8 +1291,7 @@ struct SerializeBlockResult {
 					}
 					auto blocks = QVector<MTPPageBlock>();
 					if ((HasRichTextContent(item.text)
-							|| !item.anchorId.isEmpty()
-							|| IsFinalSerializeMode(context))
+							|| !item.anchorId.isEmpty())
 						&& !AppendSerializedParagraphBlock(
 							&blocks,
 							item.text,
@@ -928,9 +1304,6 @@ struct SerializeBlockResult {
 						return FailedSerializeBlock();
 					}
 					blocks += *nested;
-					if (IsFinalSerializeMode(context) && blocks.isEmpty()) {
-						continue;
-					}
 					items.push_back(MTP_pageListOrderedItemBlocks(
 						MTP_flags(itemFlags),
 						item.number.num.has_value()
@@ -961,10 +1334,6 @@ struct SerializeBlockResult {
 					if (item.number.type.has_value()) {
 						itemFlags |= ItemFlag::f_type;
 					}
-					if (IsFinalSerializeMode(context)
-						&& !HasVisibleRichTextContent(item.text)) {
-						continue;
-					}
 					const auto text = SerializeRichTextWithAnchor(
 						item.text,
 						item.anchorId,
@@ -985,9 +1354,6 @@ struct SerializeBlockResult {
 							? MTP_string(*item.number.type)
 							: MTPstring()));
 				}
-			}
-			if (IsFinalSerializeMode(context) && items.isEmpty()) {
-				return SkippedSerializeBlock();
 			}
 			return SuccessfulSerializeBlock(MTP_pageBlockOrderedList(
 				MTP_flags(flags),
@@ -1013,8 +1379,7 @@ struct SerializeBlockResult {
 				}
 				auto blocks = QVector<MTPPageBlock>();
 				if ((HasRichTextContent(item.text)
-						|| !item.anchorId.isEmpty()
-						|| IsFinalSerializeMode(context))
+						|| !item.anchorId.isEmpty())
 					&& !AppendSerializedParagraphBlock(
 						&blocks,
 						item.text,
@@ -1027,9 +1392,6 @@ struct SerializeBlockResult {
 					return FailedSerializeBlock();
 				}
 				blocks += *nested;
-				if (IsFinalSerializeMode(context) && blocks.isEmpty()) {
-					continue;
-				}
 				items.push_back(MTP_pageListItemBlocks(
 					MTP_flags(flags),
 					MTP_vector<MTPPageBlock>(std::move(blocks))));
@@ -1042,10 +1404,6 @@ struct SerializeBlockResult {
 				if (item.taskState == TaskState::Checked) {
 					flags |= Flag::f_checked;
 				}
-				if (IsFinalSerializeMode(context)
-					&& !HasVisibleRichTextContent(item.text)) {
-					continue;
-				}
 				const auto text = SerializeRichTextWithAnchor(
 					item.text,
 					item.anchorId,
@@ -1055,9 +1413,6 @@ struct SerializeBlockResult {
 				}
 				items.push_back(MTP_pageListItemText(MTP_flags(flags), *text));
 			}
-		}
-		if (IsFinalSerializeMode(context) && items.isEmpty()) {
-			return SkippedSerializeBlock();
 		}
 		return SuccessfulSerializeBlock(MTP_pageBlockList(
 			MTP_vector<MTPPageListItem>(std::move(items))));
@@ -1118,9 +1473,6 @@ struct SerializeBlockResult {
 			: FailedSerializeBlock();
 	}
 	case BlockKind::Math:
-		if (IsFinalSerializeMode(context) && StringIsEmpty(block.formula)) {
-			return SkippedSerializeBlock();
-		}
 		return SuccessfulSerializeBlock(MTP_pageBlockMath(
 			MTP_string(block.formula)));
 	case BlockKind::Table: {
@@ -1144,14 +1496,8 @@ struct SerializeBlockResult {
 				}
 				cells.push_back(*serialized);
 			}
-			if (IsFinalSerializeMode(context) && cells.isEmpty()) {
-				continue;
-			}
 			rows.push_back(MTP_pageTableRow(
 				MTP_vector<MTPPageTableCell>(std::move(cells))));
-		}
-		if (IsFinalSerializeMode(context) && rows.isEmpty()) {
-			return SkippedSerializeBlock();
 		}
 		const auto title = SerializeRichTextWithAnchor(
 			block.text,
@@ -1169,9 +1515,6 @@ struct SerializeBlockResult {
 		using Flag = MTPDpageBlockDetails::Flag;
 		auto flags = block.open ? Flag::f_open : Flag();
 		const auto blocks = SerializeBlocks(block.blocks, context);
-		if (IsFinalSerializeMode(context) && blocks && blocks->isEmpty()) {
-			return SkippedSerializeBlock();
-		}
 		const auto title = SerializeRichTextWithAnchor(
 			block.text,
 			block.anchorId,
@@ -1211,9 +1554,6 @@ struct SerializeBlockResult {
 		if (!block.blocks.empty()) {
 			return FailedSerializeBlock();
 		}
-		if (ShouldSkipFinalRichTextContent(block.text, context)) {
-			return SkippedSerializeBlock();
-		}
 		const auto text = SerializeRichTextWithAnchor(
 			block.text,
 			block.anchorId,
@@ -1222,6 +1562,15 @@ struct SerializeBlockResult {
 			? SuccessfulSerializeBlock(MTP_pageBlockPreformatted(
 				*text,
 				MTP_string(block.language)))
+			: FailedSerializeBlock();
+	}
+	case BlockKind::Thinking: {
+		const auto text = SerializeRichTextWithAnchor(
+			block.text,
+			block.anchorId,
+			context);
+		return text
+			? SuccessfulSerializeBlock(MTP_pageBlockThinking(*text))
 			: FailedSerializeBlock();
 	}
 	case BlockKind::GroupedMedia: {
@@ -1245,7 +1594,6 @@ struct SerializeBlockResult {
 			*caption));
 	}
 	case BlockKind::Unsupported:
-	case BlockKind::Thinking:
 	case BlockKind::AuthorDate:
 	case BlockKind::Embed:
 	case BlockKind::EmbedPost:
@@ -1266,8 +1614,6 @@ struct SerializeBlockResult {
 		switch (serialized.state) {
 		case SerializeBlockState::Success:
 			result.push_back(*serialized.block);
-			break;
-		case SerializeBlockState::Skipped:
 			break;
 		case SerializeBlockState::Failed:
 			return std::nullopt;
@@ -1301,13 +1647,18 @@ SerializeInputRichMessageResult SerializeInputRichMessage(
 		const RichPage &page,
 		SerializeInputRichMessageMode mode) {
 	auto context = SerializeContext{ session };
-	context.mode = mode;
-	auto blocks = SerializeBlocks(page.blocks, &context);
+	auto normalizedBlocks = FinalSubmitNormalizedBlocks();
+	const auto *sourceBlocks = &page.blocks;
+	if (mode == SerializeInputRichMessageMode::FinalSubmit) {
+		normalizedBlocks = NormalizeFinalSubmitBlocks(page.blocks, &context);
+		sourceBlocks = &normalizedBlocks.value;
+	}
+	auto blocks = SerializeBlocks(*sourceBlocks, &context);
 	if (!blocks) {
 		return FailedSerializeInputRichMessage();
 	}
 	if (mode == SerializeInputRichMessageMode::FinalSubmit
-		&& blocks->isEmpty()) {
+		&& !normalizedBlocks.hasMeaningfulContent) {
 		return EmptySerializeInputRichMessage();
 	}
 	auto photos = QVector<MTPInputPhoto>();

@@ -628,6 +628,9 @@ private:
 		bool keepEmptyParagraph);
 	[[nodiscard]] std::optional<int> normalizeTextOnlyQuoteForInsertion(
 		const BlockContainerPath &container);
+	[[nodiscard]] bool normalizeTextOnlyContainerForInsertion(
+		const BlockContainerPath &container,
+		int *insertAt);
 	[[nodiscard]] bool shouldReplaceActiveTextOnlyBlock(
 		const TextNodeDescriptor &descriptor,
 		const std::vector<RichPage::Block> &blocks) const;
@@ -687,7 +690,7 @@ private:
 	[[nodiscard]] bool insertPreparedBlocksAtExplicitPosition(
 		std::vector<RichPage::Block> blocks,
 		const BlockContainerPath &container,
-		int insertAt);
+		int *insertAt);
 	[[nodiscard]] bool insertPreparedListItemsAtExplicitPosition(
 		std::vector<RichPage::ListItem> items,
 		const BlockPath &path,

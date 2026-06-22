@@ -1692,12 +1692,12 @@ void AppendSummaryBlock(TextWithEntities *result, const Block &block) {
 	case BlockKind::Unsupported:
 	case BlockKind::Divider:
 	case BlockKind::Anchor:
-	case BlockKind::Thinking:
 		return;
 	case BlockKind::Heading:
 	case BlockKind::Paragraph:
 	case BlockKind::Footer:
 	case BlockKind::Code:
+	case BlockKind::Thinking:
 		AppendSummaryLine(result, block.text);
 		return;
 	case BlockKind::AuthorDate: {

@@ -3261,23 +3261,12 @@ std::optional<::Data::Draft> ArticleSession::prepareRichDraftForAutosave() const
 	const auto serialized = SerializeInputRichMessage(
 		_session,
 		*richMessage,
-		SerializeInputRichMessageMode::FinalSubmit);
-	if (serialized.status == SerializeInputRichMessageStatus::EmptyContent) {
-		return ::Data::Draft(
-			TextWithTags(),
-			FullReplyTo{
-				.topicRootId = topicRootId,
-				.monoforumPeerId = monoforumPeerId,
-			},
-			SuggestOptions(),
-			MessageCursor(),
-			::Data::WebPageDraft());
-	} else if (serialized.status != SerializeInputRichMessageStatus::Success) {
+		SerializeInputRichMessageMode::Draft);
+	if (serialized.status == SerializeInputRichMessageStatus::Failed) {
 		return std::nullopt;
 	}
 	draft.richMessage = std::move(richMessage);
 	draft.richMessageSummary = FlattenRichPageSummary(*draft.richMessage);
-	draft.richMessageEmpty = false;
 	return draft;
 }
 

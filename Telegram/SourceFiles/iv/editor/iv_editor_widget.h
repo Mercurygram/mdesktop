@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "iv/markdown/iv_markdown_article.h"
 #include "ui/style/style_core_types.h"
 #include "ui/widgets/fields/input_field.h"
+#include "ui/dragging_scroll_manager.h"
 #include "ui/rp_widget.h"
 #include "rpl/lifetime.h"
 
@@ -39,6 +40,7 @@ class ChatStyle;
 class ChatTheme;
 class InputField;
 class PopupMenu;
+class ScrollArea;
 struct PreparedList;
 } // namespace Ui
 
@@ -588,6 +590,15 @@ private:
 	void updateArticleDropTarget(QPoint articlePoint);
 	void clearArticleDropTarget();
 	void finishArticleSelection();
+	[[nodiscard]] Ui::ScrollArea *selectionScrollArea() const;
+	[[nodiscard]] bool articleSelectionAutoScrollActive() const;
+	void updateArticleSelectionAutoScroll(QPoint widgetPoint);
+	void updateArticleSelectionDragAtArticlePoint(
+		QPoint articlePoint,
+		const Markdown::MarkdownArticleHitTestResult &hit,
+		const Markdown::PreparedEditHit &editHit);
+	void updateArticleSelectionDragAtWidgetPoint(QPoint widgetPoint);
+	void updateArticleSelectionDragFromCursor();
 	[[nodiscard]] bool applyStructuralSelectionDrop();
 	[[nodiscard]] bool applyInlineSelectionDrop();
 	[[nodiscard]] bool handleStructuralSelectionKey(QKeyEvent *e);
@@ -717,6 +728,7 @@ private:
 	std::optional<BoundarySelectionOrigin> _boundarySelectionOrigin;
 	Ui::VisibleRange _visibleRange;
 	ArticleSelectionDrag _articleSelectionDrag;
+	Ui::DraggingScrollManager _selectScroll;
 	std::optional<Qt::Orientation> _horizontalScrollLock;
 	bool _settingField = false;
 	bool _trackingPointerPress = false;

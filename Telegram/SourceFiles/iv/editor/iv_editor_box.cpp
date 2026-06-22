@@ -323,7 +323,7 @@ private:
 	const auto size = QSize(
 		std::max(
 			st::ivEditorWindowMinSize.width(),
-			(st::defaultMarkdown.pageMaxWidth * 3) / 4
+			st::messageMarkdown.pageMaxWidth
 				+ padding.left()
 				+ padding.right()),
 		st::ivEditorWindowDefaultSize.height());

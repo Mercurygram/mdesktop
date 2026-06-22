@@ -4524,7 +4524,6 @@ std::optional<int> State::normalizeTextOnlyQuoteSurface(
 	});
 	if (!owner
 		|| owner->kind != BlockKind::Quote
-		|| owner->pullquote
 		|| !owner->blocks.empty()) {
 		return std::nullopt;
 	}
@@ -4542,6 +4541,18 @@ std::optional<int> State::normalizeTextOnlyQuoteSurface(
 std::optional<int> State::normalizeTextOnlyQuoteForInsertion(
 		const BlockContainerPath &container) {
 	return normalizeTextOnlyQuoteSurface(container, false);
+}
+
+bool State::normalizeTextOnlyContainerForInsertion(
+		const BlockContainerPath &container,
+		int *insertAt) {
+	if (!insertAt || *insertAt < 0) {
+		return false;
+	}
+	(void)normalizeTextOnlyListItemForInsertion(container);
+	(void)normalizeTextOnlyQuoteForInsertion(container);
+	const auto blocks = blockContainer(container);
+	return blocks && *insertAt <= int(blocks->size());
 }
 
 bool State::shouldReplaceActiveTextOnlyBlock(
@@ -5816,13 +5827,9 @@ State::StructuralSelectionDropResult State::moveStructuralSelectionToDropTarget(
 				&target)) {
 			const auto container = candidate.convertBlockContainerPath(
 				block->container);
-			const auto blocks = container
-				? candidate.blockContainer(*container)
-				: nullptr;
 			if (!container
-				|| !blocks
-				|| block->insertIndex < 0
-				|| block->insertIndex > int(blocks->size())) {
+				|| !candidate.blockContainer(*container)
+				|| block->insertIndex < 0) {
 				return CheckedMutationResult<StructuralSelectionDropResult>{
 					.apply = false,
 					.result = result,
@@ -6018,7 +6025,7 @@ State::StructuralSelectionDropResult State::moveStructuralSelectionToDropTarget(
 			if (!candidate.insertPreparedBlocksAtExplicitPosition(
 					std::move(inserted),
 					blockTarget->container,
-					blockTarget->insertIndex)) {
+					&blockTarget->insertIndex)) {
 				return CheckedMutationResult<StructuralSelectionDropResult>{
 					.apply = false,
 					.result = result,
@@ -6122,17 +6129,18 @@ State::StructuralSelectionDropResult State::moveStructuralSelectionToDropTarget(
 			if (!candidate.insertPreparedBlocksAtExplicitPosition(
 					std::move(insertedBlocks),
 					container,
-					insertAt)) {
+					&insertAt)) {
 				return CheckedMutationResult<StructuralSelectionDropResult>{
 					.apply = false,
 					.result = result,
 				};
 			}
+			auto trailingInsertAt = insertAt + 1;
 			if (!trailingBlocks.empty()
 				&& !candidate.insertPreparedBlocksAtExplicitPosition(
 					std::move(trailingBlocks),
 					container,
-					insertAt + 1)) {
+					&trailingInsertAt)) {
 				return CheckedMutationResult<StructuralSelectionDropResult>{
 					.apply = false,
 					.result = result,
@@ -6153,7 +6161,7 @@ State::StructuralSelectionDropResult State::moveStructuralSelectionToDropTarget(
 			|| !candidate.insertPreparedBlocksAtExplicitPosition(
 				std::move(insertedBlocks),
 				blockTarget->container,
-				blockTarget->insertIndex)) {
+				&blockTarget->insertIndex)) {
 			return CheckedMutationResult<StructuralSelectionDropResult>{
 				.apply = false,
 				.result = result,
@@ -6331,8 +6339,7 @@ State::TextSelectionDropResult State::moveTextSelectionToDropTarget(
 			: nullptr;
 		if (!block
 			|| !destination
-			|| block->insertIndex < 0
-			|| block->insertIndex > int(destination->size())) {
+			|| block->insertIndex < 0) {
 			return CheckedMutationResult<TextSelectionDropResult>{
 				.apply = false,
 				.result = result,
@@ -6348,10 +6355,11 @@ State::TextSelectionDropResult State::moveTextSelectionToDropTarget(
 				.result = result,
 			};
 		}
+		auto insertIndex = block->insertIndex;
 		if (!candidate.insertPreparedBlocksAtExplicitPosition(
 				std::move(blocks),
 				*container,
-				block->insertIndex)) {
+				&insertIndex)) {
 			return CheckedMutationResult<TextSelectionDropResult>{
 				.apply = false,
 				.result = result,
@@ -6362,7 +6370,7 @@ State::TextSelectionDropResult State::moveTextSelectionToDropTarget(
 				.kind = LeafKind::BlockText,
 				.block = BlockPath{
 					.container = *container,
-					.index = block->insertIndex,
+					.index = insertIndex,
 				},
 			},
 			0,
@@ -6745,14 +6753,17 @@ bool State::insertBlocksAfterActiveUnchecked(
 bool State::insertPreparedBlocksAtExplicitPosition(
 		std::vector<Block> blocks,
 		const BlockContainerPath &container,
-		int insertAt) {
+		int *insertAt) {
+	if (!normalizeTextOnlyContainerForInsertion(container, insertAt)) {
+		return false;
+	}
 	auto *destination = blockContainer(container);
-	if (!destination || insertAt < 0 || insertAt > int(destination->size())) {
+	if (!destination || *insertAt > int(destination->size())) {
 		return false;
 	}
 	NormalizeInsertedOrderedListMetadata(&blocks);
 	destination->insert(
-		destination->begin() + insertAt,
+		destination->begin() + *insertAt,
 		std::make_move_iterator(blocks.begin()),
 		std::make_move_iterator(blocks.end()));
 	return true;

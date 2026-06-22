@@ -3850,9 +3850,7 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 				= _richDraftPreview->resizeGetHeight(
 				fieldWidth,
 				_st.field.heightMin,
-				std::min(
-					st::historyRichMessagePreviewHeight,
-					st::historyComposeFieldMaxHeight));
+				st::historyComposeFieldMaxHeight);
 		}
 		const auto newComposeHeight = shouldShowRichDraftPreview()
 			? _richDraftPreview->height()

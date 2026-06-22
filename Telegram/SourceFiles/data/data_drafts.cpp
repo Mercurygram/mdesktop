@@ -14,7 +14,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_widget.h"
 #include "history/history_item_components.h"
 #include "iv/iv_rich_page.h"
-#include "iv/iv_rich_message_serializer.h"
 #include "main/main_session.h"
 #include "data/data_changes.h"
 #include "data/data_session.h"
@@ -113,12 +112,6 @@ void ApplyPeerCloudDraft(
 	const auto richMessage = draft.vrich_message()
 		? Iv::ParseRichPage(session, *draft.vrich_message())
 		: std::shared_ptr<const Iv::RichPage>();
-	const auto richMessageEmpty = richMessage
-		&& (Iv::SerializeInputRichMessage(
-			session,
-			*richMessage,
-			Iv::SerializeInputRichMessageMode::FinalSubmit
-		).status == Iv::SerializeInputRichMessageStatus::EmptyContent);
 	const auto textWithTags = richMessage
 		? TextWithTags()
 		: TextWithTags{
@@ -172,7 +165,6 @@ void ApplyPeerCloudDraft(
 	cloudDraft->date = date;
 	cloudDraft->richMessage = richMessage;
 	cloudDraft->richMessageSummary = Iv::FlattenRichPageSummary(richMessage);
-	cloudDraft->richMessageEmpty = richMessageEmpty;
 
 	history->setCloudDraft(std::move(cloudDraft));
 	history->applyCloudDraft(topicRootId, monoforumPeerId);

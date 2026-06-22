@@ -6934,9 +6934,7 @@ void HistoryWidget::updateFieldSize() {
 	[[maybe_unused]] const auto previewHeight = _richDraftPreview->resizeGetHeight(
 		fieldWidth,
 		st::historyComposeField.heightMin,
-		std::min(
-			st::historyRichMessagePreviewHeight,
-			st::historyComposeFieldMaxHeight));
+		computeMaxFieldHeight());
 	moveFieldControls();
 }
 
