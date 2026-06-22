@@ -444,9 +444,9 @@ not_null<Ui::SettingsButton*> Search::createEntryButton(
 	}
 
 	const auto controlId = entry.id;
-	if (!controlId.isEmpty()) {
-		const auto targetSection = entry.section;
-		const auto deeplink = entry.deeplink;
+	const auto targetSection = entry.section;
+	const auto deeplink = entry.deeplink;
+	if (!deeplink.isEmpty() || targetSection || !controlId.isEmpty()) {
 		button->addClickHandler([=] {
 			bumpRecentEntry(controlId);
 			if (!deeplink.isEmpty()) {
@@ -456,11 +456,14 @@ not_null<Ui::SettingsButton*> Search::createEntryButton(
 						.sessionWindow = base::make_weak(controller()),
 					}));
 			} else {
-				controller()->setHighlightControlId(controlId);
+				if (!controlId.isEmpty()) {
+					controller()->setHighlightControlId(controlId);
+				}
 				showOtherMethod()(targetSection);
 			}
 		});
-
+	}
+	if (!controlId.isEmpty()) {
 		base::install_event_filter(button, [=](not_null<QEvent*> e) {
 			if (e->type() != QEvent::ContextMenu) {
 				return base::EventFilterResult::Continue;
