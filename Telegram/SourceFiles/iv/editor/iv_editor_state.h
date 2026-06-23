@@ -269,6 +269,8 @@ public:
 	[[nodiscard]] std::optional<int> previousEditableOrdinal() const;
 	[[nodiscard]] std::optional<int> nextEditableOrdinal() const;
 	[[nodiscard]] BoundaryTarget activeBoundaryTarget(bool forward) const;
+	[[nodiscard]] std::vector<BoundaryTarget> boundarySteps(
+		bool forward) const;
 	[[nodiscard]] bool isActiveTopLevelParagraph() const;
 	[[nodiscard]] bool activeSurfaceAllowsSeparateLineFormula() const;
 	[[nodiscard]] bool activeLeafUsesQuoteCaptionColor() const;
@@ -374,6 +376,12 @@ public:
 		int selectionFrom = 0;
 		int selectionTo = 0;
 	};
+	struct ParagraphBoundaryJoinResult {
+		ApplyResult result = ApplyResult::Failed;
+		std::optional<LeafPath> destinationLeaf;
+		int selectionFrom = 0;
+		int selectionTo = 0;
+	};
 	struct StructuralSelectionDropResult {
 		ApplyResult result = ApplyResult::Failed;
 		BoundaryTarget destination;
@@ -381,6 +389,8 @@ public:
 	[[nodiscard]] DisplayMathEditResult editActiveDisplayMath(
 		QString source,
 		bool separateLine);
+	[[nodiscard]] ParagraphBoundaryJoinResult joinActiveParagraphBoundary(
+		bool forward);
 	[[nodiscard]] bool insertBlockAfterActive(
 		InsertAction action,
 		std::optional<ActiveTextInsertContext> context = std::nullopt);
@@ -614,6 +624,9 @@ private:
 	[[nodiscard]] QString *rawText(const LeafPath &path);
 	[[nodiscard]] const QString *rawText(const LeafPath &path) const;
 	[[nodiscard]] const TextNodeDescriptor *textNode(int ordinal) const;
+	[[nodiscard]] const TextNodeDescriptor *adjacentTextNode(
+		int ordinal,
+		bool forward) const;
 	[[nodiscard]] int textNodeOrdinal(const LeafPath &path) const;
 	[[nodiscard]] auto convertPreparedLeafSource(const LeafPath &path) const
 	-> std::optional<Markdown::PreparedEditLeafSource>;
@@ -669,6 +682,9 @@ private:
 		ActiveTextSelectionTarget *target);
 	[[nodiscard]] bool unwrapActiveBlockquoteUnchecked(
 		const ActiveTextInsertContext &context,
+		ActiveTextSelectionTarget *target);
+	[[nodiscard]] bool joinActiveParagraphBoundaryUnchecked(
+		bool forward,
 		ActiveTextSelectionTarget *target);
 	[[nodiscard]] auto normalizeActiveListItemSurface()
 	-> std::optional<ActiveListItemSurface>;

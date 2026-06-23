@@ -3256,6 +3256,16 @@ std::optional<int> State::nextEditableOrdinal() const {
 	return adjacentEditableOrdinal(true);
 }
 
+std::vector<State::BoundaryTarget> State::boundarySteps(bool forward) const {
+	auto steps = std::vector<BoundaryTarget>();
+	collectBoundarySteps(
+		_richPage->blocks,
+		BlockContainerPath(),
+		forward,
+		&steps);
+	return steps;
+}
+
 State::BoundaryTarget State::activeBoundaryTarget(bool forward) const {
 	const auto descriptor = textNode(_activeTextOrdinal);
 	if (!descriptor) {
@@ -3513,6 +3523,133 @@ std::optional<int> State::removeActiveOwnerAndSelectAdjacent(bool forward) {
 		ensureActiveTextOrdinal();
 	}
 	return _activeTextOrdinal;
+}
+
+const TextNodeDescriptor *State::adjacentTextNode(
+		int ordinal,
+		bool forward) const {
+	return textNode(ordinal + (forward ? 1 : -1));
+}
+
+bool State::joinActiveParagraphBoundaryUnchecked(
+		bool forward,
+		ActiveTextSelectionTarget *target) {
+	if (!target) {
+		return false;
+	}
+	const auto descriptor = textNode(_activeTextOrdinal);
+	const auto adjacent = descriptor
+		? adjacentTextNode(_activeTextOrdinal, forward)
+		: nullptr;
+	if (!descriptor
+		|| !adjacent
+		|| descriptor->leaf.kind != LeafKind::BlockText
+		|| adjacent->leaf.kind != LeafKind::BlockText
+		|| !(descriptor->leaf.block.container == adjacent->leaf.block.container)) {
+		return false;
+	}
+	const auto activeIndex = descriptor->leaf.block.index;
+	const auto adjacentIndex = adjacent->leaf.block.index;
+	if (adjacentIndex != activeIndex + (forward ? 1 : -1)) {
+		return false;
+	}
+	auto *blocks = blockContainer(descriptor->leaf.block.container);
+	if (!blocks
+		|| activeIndex < 0
+		|| adjacentIndex < 0
+		|| activeIndex >= int(blocks->size())
+		|| adjacentIndex >= int(blocks->size())) {
+		return false;
+	}
+	auto &activeOwner = (*blocks)[activeIndex];
+	auto &adjacentOwner = (*blocks)[adjacentIndex];
+	if (activeOwner.kind != BlockKind::Paragraph
+		|| adjacentOwner.kind != BlockKind::Paragraph) {
+		return false;
+	}
+	clearTemporaryDownParagraph();
+	auto destinationLeaf = forward ? descriptor->leaf : adjacent->leaf;
+	auto seamOffset = 0;
+	if (forward) {
+		auto updated = std::move(activeOwner.text.text);
+		seamOffset = updated.text.size();
+		updated.append(std::move(adjacentOwner.text.text));
+		activeOwner.text.text = std::move(updated);
+		MergeRichTextAnchors(&activeOwner.text, std::move(adjacentOwner.text));
+		blocks->erase(blocks->begin() + adjacentIndex);
+	} else {
+		auto updated = std::move(adjacentOwner.text.text);
+		seamOffset = updated.text.size();
+		updated.append(std::move(activeOwner.text.text));
+		adjacentOwner.text.text = std::move(updated);
+		MergeRichTextAnchors(&adjacentOwner.text, std::move(activeOwner.text));
+		blocks->erase(blocks->begin() + activeIndex);
+	}
+	rebuild();
+	if (!activateRebuiltLeaf(destinationLeaf)) {
+		return false;
+	}
+	*target = {
+		.leaf = destinationLeaf,
+		.selectionFrom = seamOffset,
+		.selectionTo = seamOffset,
+	};
+	return true;
+}
+
+State::ParagraphBoundaryJoinResult State::joinActiveParagraphBoundary(
+		bool forward) {
+	auto failure = ParagraphBoundaryJoinResult{
+		.result = ApplyResult::Failed,
+	};
+	return applyCheckedMutation(failure, [forward](State &candidate) {
+		const auto unchanged = ParagraphBoundaryJoinResult{
+			.result = ApplyResult::Unchanged,
+		};
+		const auto descriptor = candidate.textNode(candidate._activeTextOrdinal);
+		const auto adjacent = descriptor
+			? candidate.adjacentTextNode(candidate._activeTextOrdinal, forward)
+			: nullptr;
+		if (!descriptor
+			|| !adjacent
+			|| descriptor->leaf.kind != LeafKind::BlockText
+			|| adjacent->leaf.kind != LeafKind::BlockText
+			|| !(descriptor->leaf.block.container
+				== adjacent->leaf.block.container)
+			|| (adjacent->leaf.block.index
+				!= descriptor->leaf.block.index + (forward ? 1 : -1))) {
+			return CheckedMutationResult<ParagraphBoundaryJoinResult>{
+				.result = unchanged,
+			};
+		}
+		const auto activeOwner = candidate.block(descriptor->leaf.block);
+		const auto adjacentOwner = candidate.block(adjacent->leaf.block);
+		if (!activeOwner
+			|| !adjacentOwner
+			|| activeOwner->kind != BlockKind::Paragraph
+			|| adjacentOwner->kind != BlockKind::Paragraph) {
+			return CheckedMutationResult<ParagraphBoundaryJoinResult>{
+				.result = unchanged,
+			};
+		}
+		ActiveTextSelectionTarget target;
+		if (!candidate.joinActiveParagraphBoundaryUnchecked(forward, &target)) {
+			return CheckedMutationResult<ParagraphBoundaryJoinResult>{
+				.result = {
+					.result = ApplyResult::Failed,
+				},
+			};
+		}
+		return CheckedMutationResult<ParagraphBoundaryJoinResult>{
+			.apply = true,
+			.result = {
+				.result = ApplyResult::Changed,
+				.destinationLeaf = target.leaf,
+				.selectionFrom = target.selectionFrom,
+				.selectionTo = target.selectionTo,
+			},
+		};
+	});
 }
 
 std::optional<int> State::removeStructuralSelection(

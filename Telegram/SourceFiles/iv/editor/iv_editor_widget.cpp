@@ -152,10 +152,183 @@ using PreparedOrderedListType = Markdown::PreparedOrderedListType;
 using PreparedSelection = Markdown::PreparedEditSelection;
 using PreparedSelectionKind = Markdown::PreparedEditSelectionKind;
 
+[[nodiscard]] const std::vector<RichPage::Block> *BlockContainer(
+	const RichPage &page,
+	const StateBlockContainerPath &path);
+[[nodiscard]] const RichPage::Block *BlockFromPath(
+	const RichPage &page,
+	const StateBlockPath &path);
+[[nodiscard]] const RichPage::RichText *RichTextFromPath(
+	const RichPage &page,
+	const StateLeafPath &path);
+[[nodiscard]] StateBlockContainerPath BlockChildrenContainer(
+	StateBlockPath path);
+[[nodiscard]] StateBlockContainerPath ListItemChildrenContainer(
+	StateBlockPath path,
+	int itemIndex);
+
 struct TextRange {
 	int offset = 0;
 	int length = 0;
 };
+
+struct CommittedFieldSelectionCapture {
+	StateLeafPath leaf;
+	TextWithEntities text;
+	int anchorOffset = 0;
+	int cursorOffset = 0;
+};
+
+struct CommittedFieldSelectionRestore {
+	int ordinal = -1;
+	int anchorOffset = 0;
+	int cursorOffset = 0;
+};
+
+constexpr auto kMaxRichTextNodeLength = 16000;
+constexpr auto kMaxCommittedFieldLength = 256 * 1024;
+
+[[nodiscard]] std::vector<TextWithEntities> SplitCommittedFieldText(
+		TextWithEntities text) {
+	auto result = std::vector<TextWithEntities>();
+	auto left = std::move(text);
+	auto consumed = 0;
+	while (!left.text.isEmpty() && consumed < kMaxCommittedFieldLength) {
+		auto part = TextWithEntities();
+		const auto limit = std::min(
+			kMaxRichTextNodeLength,
+			kMaxCommittedFieldLength - consumed);
+		if (!TextUtilities::CutPart(part, left, limit)
+			|| part.text.isEmpty()) {
+			break;
+		}
+		consumed += part.text.size();
+		result.push_back(std::move(part));
+	}
+	return result;
+}
+
+struct SplitCommittedFieldOffset {
+	int chunkIndex = -1;
+	int localOffset = 0;
+};
+
+[[nodiscard]] SplitCommittedFieldOffset SplitCommittedFieldOffsetAt(
+		const std::vector<TextWithEntities> &chunks,
+		int offset) {
+	auto consumed = 0;
+	for (auto i = 0, count = int(chunks.size()); i != count; ++i) {
+		const auto size = int(chunks[i].text.size());
+		if ((offset <= consumed + size) || (i + 1 == count)) {
+			return {
+				.chunkIndex = i,
+				.localOffset = std::clamp(offset - consumed, 0, size),
+			};
+		}
+		consumed += size;
+	}
+	return {};
+}
+
+[[nodiscard]] std::optional<StateLeafPath> SplitCommittedFieldLeafAt(
+		const RichPage &page,
+		const CommittedFieldSelectionCapture &capture,
+		int chunkIndex) {
+	if (chunkIndex < 0) {
+		return std::nullopt;
+	}
+	if (capture.leaf.kind == StateLeafKind::BlockText) {
+		const auto block = BlockFromPath(page, capture.leaf.block);
+		if (!block) {
+			return std::nullopt;
+		} else if (block->kind == RichPage::BlockKind::Paragraph) {
+			return StateLeafPath{
+				.kind = StateLeafKind::BlockText,
+				.block = {
+					.container = capture.leaf.block.container,
+					.index = capture.leaf.block.index + chunkIndex,
+				},
+			};
+		} else if (block->kind == RichPage::BlockKind::Quote
+			&& !block->pullquote) {
+			return StateLeafPath{
+				.kind = StateLeafKind::BlockText,
+				.block = {
+					.container = BlockChildrenContainer(capture.leaf.block),
+					.index = chunkIndex,
+				},
+			};
+		}
+	} else if (capture.leaf.kind == StateLeafKind::ListItemText) {
+		return StateLeafPath{
+			.kind = StateLeafKind::BlockText,
+			.block = {
+				.container = ListItemChildrenContainer(
+					capture.leaf.block,
+					capture.leaf.listItemIndex),
+				.index = chunkIndex,
+			},
+		};
+	}
+	return std::nullopt;
+}
+
+[[nodiscard]] std::optional<CommittedFieldSelectionRestore>
+MapCommittedFieldSelectionAfterCommit(
+		const State &state,
+		const CommittedFieldSelectionCapture &capture) {
+	const auto fallback = [&](int anchor, int cursor)
+			-> std::optional<CommittedFieldSelectionRestore> {
+		const auto ordinal = state.activeTextOrdinal();
+		if (ordinal < 0 || ordinal >= state.textNodeCount()) {
+			return std::nullopt;
+		}
+		const auto length = state.activeTextLength();
+		return CommittedFieldSelectionRestore{
+			.ordinal = ordinal,
+			.anchorOffset = std::clamp(anchor, 0, length),
+			.cursorOffset = std::clamp(cursor, 0, length),
+		};
+	};
+	const auto fullLength = int(capture.text.text.size());
+	const auto anchorOffset = std::clamp(capture.anchorOffset, 0, fullLength);
+	const auto cursorOffset = std::clamp(capture.cursorOffset, 0, fullLength);
+	auto chunks = SplitCommittedFieldText(capture.text);
+	if (chunks.size() <= 1) {
+		const auto ordinal = state.textOrdinalForLeafPath(capture.leaf);
+		if (ordinal >= 0) {
+			const auto rich = RichTextFromPath(state.richPage(), capture.leaf);
+			const auto length = rich ? int(rich->text.text.size()) : 0;
+			return CommittedFieldSelectionRestore{
+				.ordinal = ordinal,
+				.anchorOffset = std::clamp(anchorOffset, 0, length),
+				.cursorOffset = std::clamp(cursorOffset, 0, length),
+			};
+		}
+		return fallback(anchorOffset, cursorOffset);
+	}
+	const auto anchor = SplitCommittedFieldOffsetAt(chunks, anchorOffset);
+	const auto cursor = SplitCommittedFieldOffsetAt(chunks, cursorOffset);
+	if (anchor.chunkIndex >= 0
+		&& (anchor.chunkIndex == cursor.chunkIndex)) {
+		if (const auto leaf = SplitCommittedFieldLeafAt(
+				state.richPage(),
+				capture,
+				cursor.chunkIndex)) {
+			const auto ordinal = state.textOrdinalForLeafPath(*leaf);
+			const auto rich = RichTextFromPath(state.richPage(), *leaf);
+			if (ordinal >= 0 && rich) {
+				const auto length = int(rich->text.text.size());
+				return CommittedFieldSelectionRestore{
+					.ordinal = ordinal,
+					.anchorOffset = std::clamp(anchor.localOffset, 0, length),
+					.cursorOffset = std::clamp(cursor.localOffset, 0, length),
+				};
+			}
+		}
+	}
+	return fallback(anchorOffset, cursorOffset);
+}
 
 [[nodiscard]] const QString *ToolbarActionTag(ToolbarFormatAction action) {
 	switch (action) {
@@ -1914,6 +2087,201 @@ LiftPreparedEditBlocksToCommonContainer(
 	return {};
 }
 
+[[nodiscard]] PreparedEditHit PreparedEditHitFromBlockSelection(
+		const PreparedBlockRange &range,
+		bool forward) {
+	if (range.empty()) {
+		return {};
+	}
+	const auto index = forward ? (range.till - 1) : range.from;
+	if (index < 0) {
+		return {};
+	}
+	return {
+		.kind = PreparedEditHitKind::Block,
+		.block = PreparedEditBlockSource{
+			.path = {
+				.container = range.container,
+				.index = index,
+			},
+		},
+	};
+}
+
+[[nodiscard]] PreparedEditHit PreparedEditHitFromListItemSelection(
+		const PreparedListItemRange &range,
+		bool forward) {
+	if (range.empty()) {
+		return {};
+	}
+	const auto index = forward ? (range.till - 1) : range.from;
+	if (index < 0) {
+		return {};
+	}
+	return {
+		.kind = PreparedEditHitKind::ListItem,
+		.listItem = PreparedEditListItemSource{
+			.block = range.block,
+			.listItemIndex = index,
+		},
+	};
+}
+
+[[nodiscard]] PreparedEditSelection SelectionFromStructuralOwner(
+		const StructuralOwner &owner) {
+	switch (owner.kind) {
+	case StructuralOwnerKind::Block:
+		return owner.block
+			? BlockSelectionFromIndexes(
+				owner.block->path.container,
+				owner.block->path.index,
+				owner.block->path.index)
+			: PreparedEditSelection();
+	case StructuralOwnerKind::ListItem:
+		return owner.listItem
+			? PreparedEditSelection{
+				.kind = PreparedEditSelectionKind::ListItems,
+				.listItems = {
+					.block = owner.listItem->block,
+					.from = owner.listItem->listItemIndex,
+					.till = owner.listItem->listItemIndex + 1,
+				},
+			}
+			: PreparedEditSelection();
+	case StructuralOwnerKind::TableRow:
+		return owner.tableRow
+			? PreparedEditSelection{
+				.kind = PreparedEditSelectionKind::TableRows,
+				.tableRows = {
+					.block = owner.tableRow->block,
+					.from = owner.tableRow->tableRowIndex,
+					.till = owner.tableRow->tableRowIndex + 1,
+				},
+			}
+			: PreparedEditSelection();
+	case StructuralOwnerKind::TableCell:
+		return owner.tableCell
+			? PreparedEditSelection{
+				.kind = PreparedEditSelectionKind::TableCells,
+				.tableCells = TableRangeFromCell(*owner.tableCell),
+			}
+			: PreparedEditSelection();
+	case StructuralOwnerKind::None:
+		break;
+	}
+	return {};
+}
+
+[[nodiscard]] PreparedEditSelection EdgeSelection(
+		const PreparedEditSelection &selection,
+		bool forward) {
+	switch (selection.kind) {
+	case PreparedEditSelectionKind::Blocks:
+		if (selection.blocks.empty()) {
+			return {};
+		}
+		return {
+			.kind = PreparedEditSelectionKind::Blocks,
+			.blocks = {
+				.container = selection.blocks.container,
+				.from = forward
+					? (selection.blocks.till - 1)
+					: selection.blocks.from,
+				.till = forward
+					? selection.blocks.till
+					: (selection.blocks.from + 1),
+			},
+		};
+	case PreparedEditSelectionKind::ListItems:
+		if (selection.listItems.empty()) {
+			return {};
+		}
+		return {
+			.kind = PreparedEditSelectionKind::ListItems,
+			.listItems = {
+				.block = selection.listItems.block,
+				.from = forward
+					? (selection.listItems.till - 1)
+					: selection.listItems.from,
+				.till = forward
+					? selection.listItems.till
+					: (selection.listItems.from + 1),
+			},
+		};
+	case PreparedEditSelectionKind::TableRows:
+		if (selection.tableRows.empty()) {
+			return {};
+		}
+		return {
+			.kind = PreparedEditSelectionKind::TableRows,
+			.tableRows = {
+				.block = selection.tableRows.block,
+				.from = forward
+					? (selection.tableRows.till - 1)
+					: selection.tableRows.from,
+				.till = forward
+					? selection.tableRows.till
+					: (selection.tableRows.from + 1),
+			},
+		};
+	case PreparedEditSelectionKind::TableCells:
+		if (selection.tableCells.empty()) {
+			return {};
+		}
+		return {
+			.kind = PreparedEditSelectionKind::TableCells,
+			.tableCells = {
+				.block = selection.tableCells.block,
+				.rowFrom = forward
+					? (selection.tableCells.rowTill - 1)
+					: selection.tableCells.rowFrom,
+				.rowTill = forward
+					? selection.tableCells.rowTill
+					: (selection.tableCells.rowFrom + 1),
+				.columnFrom = forward
+					? (selection.tableCells.columnTill - 1)
+					: selection.tableCells.columnFrom,
+				.columnTill = forward
+					? selection.tableCells.columnTill
+					: (selection.tableCells.columnFrom + 1),
+			},
+		};
+	case PreparedEditSelectionKind::None:
+		break;
+	}
+	return {};
+}
+
+[[nodiscard]] std::optional<int> StructuralSelectionEdgeTextOrdinal(
+		const State &state,
+		const PreparedEditSelection &selection,
+		bool forward) {
+	const auto edge = EdgeSelection(selection, forward);
+	if (edge.empty()) {
+		return std::nullopt;
+	}
+	const auto &nodes = state.textNodes();
+	const auto &page = state.richPage();
+	if (forward) {
+		for (auto i = int(nodes.size()); i != 0; --i) {
+			const auto ordinal = i - 1;
+			const auto &descriptor = nodes[ordinal];
+			if (LeafSelectedStructurally(page, descriptor.leaf, edge)) {
+				return ordinal;
+			}
+		}
+	} else {
+		for (auto ordinal = 0, count = int(nodes.size()); ordinal != count;
+				++ordinal) {
+			const auto &descriptor = nodes[ordinal];
+			if (LeafSelectedStructurally(page, descriptor.leaf, edge)) {
+				return ordinal;
+			}
+		}
+	}
+	return std::nullopt;
+}
+
 [[nodiscard]] bool IsMultiListItemSelection(
 		const PreparedEditSelection &selection) {
 	return !selection.empty()
@@ -2036,6 +2404,9 @@ Widget::Widget(
 }
 
 Widget::~Widget() {
+	if (_keyboardStructuralSelectionActive) {
+		releaseKeyboard();
+	}
 	if (_article) {
 		_article->setTextRepaintCallbacks(nullptr, nullptr);
 		_article->setMediaBlockHost(nullptr);
@@ -2458,7 +2829,7 @@ void Widget::insertBlock(State::InsertAction action) {
 				_boundarySelectionOrigin = std::nullopt;
 				_selection = {};
 				_selectionEndpoints = {};
-				_articleSelectionDrag = {};
+				finishArticleSelection();
 				setStructuralSelection(destination.structuralSelection);
 				update();
 				break;
@@ -3147,7 +3518,7 @@ bool Widget::handleSelectAllShortcut(QKeyEvent *e) {
 	const auto blockCount = int(_state->richPage().blocks.size());
 	_selection = {};
 	_selectionEndpoints = {};
-	_articleSelectionDrag = {};
+	finishArticleSelection();
 	setStructuralSelection(blockCount > 0
 		? BlockSelectionFromIndexes(
 			PreparedEditBlockContainerPath(),
@@ -5050,6 +5421,9 @@ void Widget::mouseMoveEvent(QMouseEvent *e) {
 		e->accept();
 		return;
 	}
+	if (_articleSelectionDrag.active && !(e->buttons() & Qt::LeftButton)) {
+		finishArticleSelection();
+	}
 	if (!_articleSelectionDrag.active) {
 		auto cursor = style::cur_default;
 		const auto controlHit = _article->editControlHitTest(articlePoint);
@@ -5102,6 +5476,9 @@ void Widget::mousePressEvent(QMouseEvent *e) {
 	if (e->button() != Qt::LeftButton) {
 		Ui::RpWidget::mousePressEvent(e);
 		return;
+	}
+	if (_articleSelectionDrag.active) {
+		finishArticleSelection();
 	}
 	_trackingPointerPress = true;
 	_selectScroll.cancel();
@@ -5870,6 +6247,7 @@ void Widget::setupInlineField() {
 	};
 	disableFieldShortcut(Ui::kBlockquoteSequence);
 	disableFieldShortcut(Ui::kMonospaceSequence);
+	_field->customUpDown(true);
 	_field->installEventFilter(this);
 	raw->installEventFilter(this);
 	raw->viewport()->installEventFilter(this);
@@ -6933,6 +7311,332 @@ std::optional<Widget::VerticalNavigationTarget> Widget::pageNavigationTarget(
 		: std::nullopt;
 }
 
+std::optional<Widget::BoundarySelectionOrigin>
+Widget::currentBoundarySelectionOrigin(bool forward) const {
+	if (_field->isHidden()
+		|| !_article
+		|| (_activeOrdinal < 0)
+		|| (_state->activeFieldMode() != State::FieldMode::Rich)) {
+		return std::nullopt;
+	}
+	const auto viewState = captureHistoryViewState();
+	if (!viewState.leafSelection) {
+		return std::nullopt;
+	}
+	const auto activeLeaf = _state->activePreparedLeafSource();
+	auto hit = PreparedEditHit();
+	if (const auto articlePoint = activeFieldCursorArticlePoint()) {
+		const auto current = _article->editHitTest(*articlePoint);
+		if (current.valid()
+			&& activeLeaf
+			&& current.leaf
+			&& (*current.leaf == *activeLeaf)
+			&& StructuralOwnerFromHit(current).valid()) {
+			hit = current;
+		}
+	}
+	if (!hit.valid()) {
+		const auto segmentIndex = textEditableSegmentIndex(_activeOrdinal);
+		if (segmentIndex >= 0) {
+			const auto rect = _article->segmentRect(segmentIndex);
+			if (rect.isValid() && !rect.isEmpty()) {
+				hit = _article->editHitTest(rect.center());
+			}
+		}
+	}
+	if (!StructuralOwnerFromHit(hit).valid()) {
+		return std::nullopt;
+	}
+	return BoundarySelectionOrigin{
+		.leafSelection = *viewState.leafSelection,
+		.anchorHit = hit,
+		.forward = forward,
+	};
+}
+
+std::optional<PreparedEditHit> Widget::boundaryHitFromTarget(
+		const State::BoundaryTarget &target) const {
+	switch (target.action) {
+	case State::BoundaryTarget::Action::Text: {
+		if (!_article || target.textOrdinal < 0) {
+			return std::nullopt;
+		}
+		const auto segmentIndex = segmentIndexForEditableOrdinal(
+			target.textOrdinal);
+		if (segmentIndex < 0
+			|| (editableOrdinalForSegment(segmentIndex)
+				!= target.textOrdinal)) {
+			return std::nullopt;
+		}
+		const auto rect = _article->segmentRect(segmentIndex);
+		if (!rect.isValid() || rect.isEmpty()) {
+			return std::nullopt;
+		}
+		const auto hit = _article->editHitTest(rect.center());
+		return StructuralOwnerFromHit(hit).valid()
+			? std::make_optional(hit)
+			: std::nullopt;
+	}
+	case State::BoundaryTarget::Action::StructuralSelection:
+		switch (target.structuralSelection.kind) {
+		case PreparedEditSelectionKind::Blocks: {
+			if (target.structuralSelection.blocks.from + 1
+				!= target.structuralSelection.blocks.till) {
+				return std::nullopt;
+			}
+			const auto hit = PreparedEditHitFromBlockSelection(
+				target.structuralSelection.blocks,
+				false);
+			return StructuralOwnerFromHit(hit).valid()
+				? std::make_optional(hit)
+				: std::nullopt;
+		}
+		case PreparedEditSelectionKind::ListItems: {
+			if (target.structuralSelection.listItems.from + 1
+				!= target.structuralSelection.listItems.till) {
+				return std::nullopt;
+			}
+			const auto hit = PreparedEditHitFromListItemSelection(
+				target.structuralSelection.listItems,
+				false);
+			return StructuralOwnerFromHit(hit).valid()
+				? std::make_optional(hit)
+				: std::nullopt;
+		}
+		case PreparedEditSelectionKind::None:
+		case PreparedEditSelectionKind::TableRows:
+		case PreparedEditSelectionKind::TableCells:
+			return std::nullopt;
+		}
+		return std::nullopt;
+	case State::BoundaryTarget::Action::None:
+	case State::BoundaryTarget::Action::RemoveActiveOwner:
+		return std::nullopt;
+	}
+	return std::nullopt;
+}
+
+bool Widget::enterStructuralSelectionFromField(bool forward, bool page) {
+	const auto committedSelection = [&]() {
+		if (_field->isHidden()
+			|| (_state->activeFieldMode() != State::FieldMode::Rich)) {
+			return std::optional<CommittedFieldSelectionCapture>();
+		}
+		const auto leaf = _state->activeLeafPath();
+		if (!leaf) {
+			return std::optional<CommittedFieldSelectionCapture>();
+		}
+		const auto text = ConvertEditorTagsToRichText(
+			_field->getTextWithAppliedMarkdown());
+		const auto cursor = _field->textCursor();
+		const auto length = int(text.text.size());
+		return std::make_optional(CommittedFieldSelectionCapture{
+			.leaf = *leaf,
+			.text = text,
+			.anchorOffset = std::clamp(
+				richOffsetForFieldOffset(text, cursor.anchor()),
+				0,
+				length),
+			.cursorOffset = std::clamp(
+				richOffsetForFieldOffset(text, cursor.position()),
+				0,
+				length),
+		});
+	}();
+	const auto committed = commitInlineFieldForClose();
+	if (committed == ApplyResult::Failed) {
+		return false;
+	}
+	if (committed == ApplyResult::Changed) {
+		const auto mapped = committedSelection
+			? MapCommittedFieldSelectionAfterCommit(*_state, *committedSelection)
+			: std::nullopt;
+		if (!mapped) {
+			return false;
+		}
+		activateTextOrdinal(
+			mapped->ordinal,
+			mapped->anchorOffset,
+			mapped->cursorOffset,
+			ActivateReveal::Skip);
+		const auto activeLeaf = _state->activeLeafPath();
+		if (_field->isHidden()
+			|| !activeLeaf
+			|| !_fieldLeaf
+			|| (*_fieldLeaf != *activeLeaf)) {
+			return false;
+		}
+	}
+	const auto origin = currentBoundarySelectionOrigin(forward);
+	if (!origin) {
+		return false;
+	}
+	const auto owner = StructuralOwnerFromHit(origin->anchorHit);
+	if (!owner.valid()) {
+		return false;
+	}
+	const auto initialSelection = SelectionFromStructuralOwner(owner);
+	if (initialSelection.empty()) {
+		return false;
+	}
+	_selection = {};
+	_selectionEndpoints = {};
+	finishArticleSelection();
+	_pendingOrdinal = -1;
+	_pendingCursorOffset = 0;
+	hideInlineField();
+	clearInlineFieldEditSession();
+	relayoutCurrentContent();
+	setFocus();
+	setStructuralSelection(initialSelection, origin);
+	if (page) {
+		static_cast<void>(adjustStructuralSelectionFromKeyboard(
+			forward,
+			true));
+	}
+	update();
+	return true;
+}
+
+bool Widget::adjustStructuralSelectionFromKeyboard(bool forward, bool page) {
+	if (!_article
+		|| !_boundarySelectionOrigin
+		|| _structuralSelection.empty()) {
+		return false;
+	}
+	const auto origin = *_boundarySelectionOrigin;
+	const auto originSelection = SelectionFromStructuralOwner(
+		StructuralOwnerFromHit(origin.anchorHit));
+	if (originSelection.empty()) {
+		return false;
+	}
+	const auto edgeY = [&](const PreparedEditSelection &selection) {
+		const auto ordinal = StructuralSelectionEdgeTextOrdinal(
+			*_state,
+			selection,
+			origin.forward);
+		if (!ordinal) {
+			return std::optional<int>();
+		}
+		const auto segmentIndex = segmentIndexForEditableOrdinal(*ordinal);
+		if (segmentIndex < 0
+			|| (editableOrdinalForSegment(segmentIndex) != *ordinal)) {
+			return std::optional<int>();
+		}
+		const auto rect = _article->segmentRect(segmentIndex);
+		if (!rect.isValid() || rect.isEmpty()) {
+			return std::optional<int>();
+		}
+		return std::make_optional(origin.forward ? rect.bottom() : rect.top());
+	};
+	const auto advance = [&]() {
+		if (!_boundarySelectionOrigin || _structuralSelection.empty()) {
+			return false;
+		}
+		if ((forward != origin.forward)
+			&& (_structuralSelection == originSelection)) {
+			return restoreFieldFromBoundaryOrigin();
+		}
+		const auto focusEdge = EdgeSelection(
+			_structuralSelection,
+			origin.forward);
+		if (focusEdge.empty()) {
+			return false;
+		}
+		const auto withinFocusEdge = [&](const PreparedEditHit &hit) {
+			const auto owner = StructuralOwnerFromHit(hit);
+			const auto selection = SelectionFromStructuralOwner(owner);
+			if (selection.empty()) {
+				return false;
+			} else if (selection == focusEdge) {
+				return true;
+			}
+			const auto block = BlockPathFromOwner(owner);
+			if (!block) {
+				return false;
+			} else if (focusEdge.kind == PreparedEditSelectionKind::Blocks) {
+				return PreparedPathInBlockRange(*block, focusEdge.blocks);
+			} else if (focusEdge.kind == PreparedEditSelectionKind::ListItems) {
+				return PreparedPathInListItemRange(
+					*block,
+					focusEdge.listItems);
+			}
+			return false;
+		};
+		const auto steps = _state->boundarySteps(true);
+		auto firstFocus = -1;
+		auto lastFocus = -1;
+		for (auto i = 0, count = int(steps.size()); i != count; ++i) {
+			const auto hit = boundaryHitFromTarget(steps[i]);
+			if (!hit || !withinFocusEdge(*hit)) {
+				continue;
+			}
+			if (firstFocus < 0) {
+				firstFocus = i;
+			}
+			lastFocus = i;
+		}
+		if (firstFocus < 0 || lastFocus < firstFocus) {
+			return false;
+		}
+		for (auto i = forward ? (lastFocus + 1) : (firstFocus - 1);
+				i >= 0 && i < int(steps.size());
+				i += forward ? 1 : -1) {
+			const auto hit = boundaryHitFromTarget(steps[i]);
+			if (!hit || withinFocusEdge(*hit)) {
+				continue;
+			}
+			const auto selection = SelectionFromStructuralOwner(
+				StructuralOwnerFromHit(*hit));
+			if (selection.empty()) {
+				continue;
+			}
+			if ((forward != origin.forward)
+				&& (selection == originSelection)) {
+				return restoreFieldFromBoundaryOrigin();
+			}
+			const auto next = structuralSelectionFromHits(
+				origin.anchorHit,
+				*hit);
+			if (next.empty() || next == _structuralSelection) {
+				continue;
+			}
+			setStructuralSelection(next, _boundarySelectionOrigin);
+			revealStructuralSelectionEdge(origin.forward);
+			update();
+			return true;
+		}
+		return false;
+	};
+	const auto start = page ? edgeY(_structuralSelection) : std::optional<int>();
+	if (!advance()) {
+		return false;
+	}
+	if (!page || !_boundarySelectionOrigin || _structuralSelection.empty()) {
+		return true;
+	}
+	const auto pageHeight = _visibleRange.bottom - _visibleRange.top;
+	if (pageHeight <= 0 || !start) {
+		return true;
+	}
+	while (_boundarySelectionOrigin && !_structuralSelection.empty()) {
+		const auto current = edgeY(_structuralSelection);
+		if (!current) {
+			break;
+		}
+		if (std::abs(*current - *start) >= pageHeight) {
+			break;
+		}
+		if (!advance()) {
+			break;
+		}
+		if (!_boundarySelectionOrigin || _structuralSelection.empty()) {
+			break;
+		}
+	}
+	return true;
+}
+
 bool Widget::handleFieldKey(QKeyEvent *e) {
 	if (_field->isHidden()) {
 		return false;
@@ -6945,16 +7649,34 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 	}
 	const auto modifiers = e->modifiers()
 		& ~(Qt::KeypadModifier | Qt::GroupSwitchModifier);
-	if (modifiers != Qt::NoModifier) {
-		return false;
-	}
 	const auto cursor = _field->textCursor();
-	if (cursor.hasSelection()) {
-		return false;
-	}
+	const auto vertical = (key == Qt::Key_Up)
+		|| (key == Qt::Key_Down)
+		|| (key == Qt::Key_PageUp)
+		|| (key == Qt::Key_PageDown);
+	const auto down = (key == Qt::Key_Down) || (key == Qt::Key_PageDown);
+	const auto page = (key == Qt::Key_PageUp) || (key == Qt::Key_PageDown);
 	const auto atStart = cursor.atStart();
 	const auto atEnd = cursor.atEnd();
 	auto handled = false;
+	const auto applyFieldCursor = [&](QTextCursor next) {
+		if ((next.position() == cursor.position())
+			&& (next.anchor() == cursor.anchor())) {
+			return false;
+		}
+		_field->setTextCursor(next);
+		_field->setFocusFast();
+		revealActiveInlineField();
+		handled = true;
+		return true;
+	};
+	const auto moveFieldCursor = [&](
+			QTextCursor::MoveOperation operation,
+			QTextCursor::MoveMode mode) {
+		auto next = _field->textCursor();
+		static_cast<void>(next.movePosition(operation, mode));
+		return applyFieldCursor(next);
+	};
 	const auto activateVerticalTarget = [&](
 			const VerticalNavigationTarget &target) {
 		if (target.ordinal == _activeOrdinal) {
@@ -6981,53 +7703,78 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 		}
 		revealActiveInlineField();
 	};
-	if (key == Qt::Key_PageUp || key == Qt::Key_PageDown) {
-		const auto down = (key == Qt::Key_PageDown);
-		if (const auto offset = activeFieldPageCursorOffset(down)) {
-			setActiveFieldCursorOffset(*offset);
-			handled = true;
-		} else if (const auto target = pageNavigationTarget(down)) {
-			activateVerticalTarget(*target);
-		} else if (down) {
-			handled = moveVerticalDownBoundary();
-		} else {
-			handled = moveBoundary(false, false);
-		}
-	} else if (key == Qt::Key_Up && fieldCursorLeavesVisibleRow(false)) {
-		const auto articlePoint = activeFieldCursorArticlePoint();
-		if (articlePoint) {
-			if (const auto ordinal = adjacentTextEditableOrdinal(false)) {
-				if (const auto target = adjacentRowTarget(
-						*ordinal,
-						*articlePoint,
-						false)) {
-					activateVerticalTarget(*target);
+	if (vertical) {
+		if (modifiers == Qt::NoModifier) {
+			if (page) {
+				if (const auto offset = activeFieldPageCursorOffset(down)) {
+					auto next = cursor;
+					next.setPosition(*offset);
+					handled = applyFieldCursor(next);
+				}
+				if (!handled) {
+					if (const auto target = pageNavigationTarget(down)) {
+						activateVerticalTarget(*target);
+					} else if (down) {
+						handled = moveVerticalDownBoundary();
+					} else {
+						handled = moveBoundary(false, false);
+					}
+				}
+			} else if (!fieldCursorLeavesVisibleRow(down)) {
+				handled = moveFieldCursor(
+					down ? QTextCursor::Down : QTextCursor::Up,
+					QTextCursor::MoveAnchor);
+			}
+			if (!handled) {
+				if (const auto articlePoint = activeFieldCursorArticlePoint()) {
+					if (const auto ordinal = adjacentTextEditableOrdinal(down)) {
+						if (const auto target = adjacentRowTarget(
+								*ordinal,
+								*articlePoint,
+								down)) {
+							activateVerticalTarget(*target);
+						}
+					}
+				}
+				if (!handled) {
+					handled = down
+						? moveVerticalDownBoundary()
+						: moveBoundary(false, false);
 				}
 			}
-		}
-		if (!handled) {
-			handled = moveBoundary(false, false);
-		}
-	} else if (key == Qt::Key_Down && fieldCursorLeavesVisibleRow(true)) {
-		const auto articlePoint = activeFieldCursorArticlePoint();
-		if (articlePoint) {
-			if (const auto ordinal = adjacentTextEditableOrdinal(true)) {
-				if (const auto target = adjacentRowTarget(
-						*ordinal,
-						*articlePoint,
-						true)) {
-					activateVerticalTarget(*target);
+		} else if (modifiers == Qt::ShiftModifier) {
+			if (page) {
+				if (const auto offset = activeFieldPageCursorOffset(down)) {
+					auto next = cursor;
+					next.setPosition(*offset, QTextCursor::KeepAnchor);
+					handled = applyFieldCursor(next);
 				}
+				if (!handled) {
+					handled = enterStructuralSelectionFromField(down, true);
+				}
+			} else if (!fieldCursorLeavesVisibleRow(down)) {
+				handled = moveFieldCursor(
+					down ? QTextCursor::Down : QTextCursor::Up,
+					QTextCursor::KeepAnchor);
+			}
+			if (!handled) {
+				handled = enterStructuralSelectionFromField(down, false);
 			}
 		}
-		if (!handled) {
-			handled = moveVerticalDownBoundary();
+		if (handled) {
+			e->accept();
 		}
-	} else if (atStart
-		&& (key == Qt::Key_Left || key == Qt::Key_Up)) {
+		return handled;
+	}
+	if (modifiers != Qt::NoModifier) {
+		return false;
+	}
+	if (cursor.hasSelection()) {
+		return false;
+	}
+	if (atStart
+		&& key == Qt::Key_Left) {
 		handled = moveBoundary(false, false);
-	} else if (atEnd && key == Qt::Key_Down) {
-		handled = moveVerticalDownBoundary();
 	} else if (atEnd
 		&& key == Qt::Key_Right) {
 		handled = moveBoundary(true, true);
@@ -7236,12 +7983,14 @@ bool Widget::moveVerticalDownBoundary() {
 				_boundarySelectionOrigin = std::nullopt;
 				_selection = {};
 				_selectionEndpoints = {};
-				_articleSelectionDrag = {};
+				finishArticleSelection();
 				setStructuralSelection(target.structuralSelection);
 				_pendingOrdinal = -1;
 				_pendingCursorOffset = 0;
 				hideInlineField();
 				clearInlineFieldEditSession();
+				relayoutCurrentContent();
+				setFocus();
 				update();
 				break;
 			case State::BoundaryTarget::Action::None:
@@ -7340,6 +8089,32 @@ bool Widget::moveTabBoundary(bool forward) {
 
 bool Widget::removeBoundaryOwner(bool forward) {
 	auto handled = false;
+	const auto committedSelection = [&]() {
+		if (_field->isHidden()
+			|| (_state->activeFieldMode() != State::FieldMode::Rich)) {
+			return std::optional<CommittedFieldSelectionCapture>();
+		}
+		const auto leaf = _state->activeLeafPath();
+		if (!leaf) {
+			return std::optional<CommittedFieldSelectionCapture>();
+		}
+		const auto text = ConvertEditorTagsToRichText(
+			_field->getTextWithAppliedMarkdown());
+		const auto cursor = _field->textCursor();
+		const auto length = int(text.text.size());
+		return std::make_optional(CommittedFieldSelectionCapture{
+			.leaf = *leaf,
+			.text = text,
+			.anchorOffset = std::clamp(
+				richOffsetForFieldOffset(text, cursor.anchor()),
+				0,
+				length),
+			.cursorOffset = std::clamp(
+				richOffsetForFieldOffset(text, cursor.position()),
+				0,
+				length),
+		});
+	}();
 	recordMutationTransaction([&] {
 		const auto committed = commitInlineField();
 		if (committed == ApplyResult::Failed) {
@@ -7347,6 +8122,62 @@ bool Widget::removeBoundaryOwner(bool forward) {
 			return MutationTransactionResult{
 				.committed = committed,
 				.failed = true,
+			};
+		}
+		if (committed == ApplyResult::Changed) {
+			refreshAfterInlineFieldCommit(committed);
+			if (committedSelection) {
+				const auto mapped = MapCommittedFieldSelectionAfterCommit(
+					*_state,
+					*committedSelection);
+				if (!mapped) {
+					handled = true;
+					return MutationTransactionResult{
+						.committed = committed,
+						.changed = true,
+					};
+				}
+				activateTextOrdinal(
+					mapped->ordinal,
+					mapped->anchorOffset,
+					mapped->cursorOffset,
+					ActivateReveal::Skip);
+			}
+		}
+		const auto joined = _state->joinActiveParagraphBoundary(forward);
+		if (joined.result == ApplyResult::Changed) {
+			_boundarySelectionOrigin = std::nullopt;
+			hideInlineField();
+			clearInlineFieldEditSession();
+			refreshPreparedContent();
+			auto ordinal = joined.destinationLeaf
+				? _state->textOrdinalForLeafPath(*joined.destinationLeaf)
+				: -1;
+			if (ordinal < 0) {
+				ordinal = _state->activeTextOrdinal();
+			}
+			if (ordinal >= 0 && ordinal < _state->textNodeCount()) {
+				activateTextOrdinal(
+					ordinal,
+					joined.selectionFrom,
+					joined.selectionTo);
+			} else {
+				setFocus();
+				notifyToolbarStateChanged();
+			}
+			handled = true;
+			return MutationTransactionResult{
+				.committed = committed,
+				.changed = true,
+			};
+		} else if (joined.result == ApplyResult::Failed) {
+			if (_state->lastLimitError()) {
+				showLastLimitToast();
+			}
+			handled = true;
+			return MutationTransactionResult{
+				.committed = committed,
+				.changed = (committed == ApplyResult::Changed),
 			};
 		}
 		const auto target = _state->activeBoundaryTarget(forward);
@@ -7392,13 +8223,10 @@ bool Widget::removeBoundaryOwner(bool forward) {
 		case BoundaryAction::StructuralSelection:
 			setStructuralSelection(
 				target.structuralSelection,
-				BoundarySelectionOrigin{
-					.ordinal = _activeOrdinal,
-					.forward = forward,
-				});
+				currentBoundarySelectionOrigin(forward));
 			_selection = {};
 			_selectionEndpoints = {};
-			_articleSelectionDrag = {};
+			finishArticleSelection();
 			_pendingOrdinal = -1;
 			_pendingCursorOffset = 0;
 			hideInlineField();
@@ -7579,7 +8407,7 @@ void Widget::restoreHistoryEntry(const HistoryEntry &entry) {
 	_selection = {};
 	_selectionEndpoints = {};
 	setStructuralSelection({});
-	_articleSelectionDrag = {};
+	finishArticleSelection();
 	_pendingOrdinal = -1;
 	_pendingCursorOffset = 0;
 	_trackingPointerPress = false;
@@ -7876,6 +8704,15 @@ void Widget::setStructuralSelection(
 		std::optional<BoundarySelectionOrigin> origin) {
 	_structuralSelection = std::move(selection);
 	_boundarySelectionOrigin = std::move(origin);
+	const auto keyboardSelection = !_structuralSelection.empty()
+		&& _boundarySelectionOrigin.has_value();
+	if (keyboardSelection && !_keyboardStructuralSelectionActive) {
+		grabKeyboard();
+		_keyboardStructuralSelectionActive = true;
+	} else if (!keyboardSelection && _keyboardStructuralSelectionActive) {
+		releaseKeyboard();
+		_keyboardStructuralSelectionActive = false;
+	}
 	notifyToolbarStateChanged();
 }
 
@@ -8026,7 +8863,7 @@ void Widget::clearSelection() {
 	_selection = {};
 	_selectionEndpoints = {};
 	setStructuralSelection({});
-	_articleSelectionDrag = {};
+	finishArticleSelection();
 	if (changed) {
 		update();
 		notifyToolbarStateChanged();
@@ -8508,6 +9345,63 @@ void Widget::updateArticleSelectionAutoScroll(QPoint widgetPoint) {
 		_visibleRange.bottom);
 }
 
+bool Widget::restoreFieldFromBoundaryOrigin() {
+	if (!_boundarySelectionOrigin) {
+		return false;
+	}
+	const auto expected = _boundarySelectionOrigin->leafSelection;
+	const auto ordinal = _state->textOrdinalForLeafPath(expected.leaf);
+	if (ordinal < 0) {
+		return false;
+	}
+	activateTextOrdinal(
+		ordinal,
+		expected.anchorOffset,
+		expected.cursorOffset,
+		ActivateReveal::Reveal);
+	const auto restored = [&]() {
+		if (hasStructuralSelection()) {
+			return false;
+		}
+		const auto viewState = captureHistoryViewState();
+		return viewState.leafSelection
+			&& (*viewState.leafSelection == expected);
+	}();
+	if (restored) {
+		setStructuralSelection({});
+		_boundarySelectionOrigin = std::nullopt;
+	}
+	return restored;
+}
+
+void Widget::revealStructuralSelectionEdge(bool forward) {
+	if (!_article || _structuralSelection.empty()) {
+		return;
+	}
+	const auto ordinal = StructuralSelectionEdgeTextOrdinal(
+		*_state,
+		_structuralSelection,
+		forward);
+	const auto scroll = selectionScrollArea();
+	if (!ordinal || !scroll) {
+		return;
+	}
+	const auto segmentIndex = segmentIndexForEditableOrdinal(*ordinal);
+	if (segmentIndex < 0
+		|| (editableOrdinalForSegment(segmentIndex) != *ordinal)) {
+		return;
+	}
+	auto rect = _article->segmentRect(segmentIndex);
+	if (!rect.isValid() || rect.isEmpty()) {
+		return;
+	}
+	if (const auto inner = scroll->widget()) {
+		rect.translate(articleTopLeft());
+		rect.moveTopLeft(mapTo(inner, rect.topLeft()));
+		scroll->scrollToY(rect.y(), rect.y() + rect.height());
+	}
+}
+
 void Widget::updateArticleSelectionDragAtArticlePoint(
 		QPoint articlePoint,
 		const Markdown::MarkdownArticleHitTestResult &hit,
@@ -8780,6 +9674,23 @@ bool Widget::handleStructuralSelectionKey(QKeyEvent *e) {
 	}
 	const auto modifiers = e->modifiers()
 		& ~(Qt::KeypadModifier | Qt::GroupSwitchModifier);
+	if (modifiers == Qt::ShiftModifier) {
+		const auto vertical = (key == Qt::Key_Up)
+			|| (key == Qt::Key_Down)
+			|| (key == Qt::Key_PageUp)
+			|| (key == Qt::Key_PageDown);
+		if (!vertical) {
+			return false;
+		}
+		if (adjustStructuralSelectionFromKeyboard(
+				(key == Qt::Key_Down) || (key == Qt::Key_PageDown),
+				(key == Qt::Key_PageUp) || (key == Qt::Key_PageDown))) {
+			e->accept();
+			return true;
+		}
+		e->accept();
+		return true;
+	}
 	if (modifiers != Qt::NoModifier) {
 		return false;
 	}
@@ -8806,22 +9717,25 @@ void Widget::removeStructuralSelectionAndReposition(bool forward) {
 	if (hasStructuralSelection()) {
 		return;
 	}
-	auto activatedOrigin = false;
-	if (origin && _state->setActiveTextByOrdinal(origin->ordinal)) {
-		const auto cursor = origin->forward ? _state->activeTextLength() : 0;
-		activateTextOrdinal(origin->ordinal, cursor);
-		activatedOrigin = true;
-	}
-	if (!activatedOrigin) {
-		if (target) {
-			if (forward) {
-				activateTextOrdinal(*target, 0);
-			} else {
-				activateTextOrdinalAtEnd(*target);
-			}
-		} else {
-			activateInitialNode();
+	if (origin) {
+		const auto ordinal = _state->textOrdinalForLeafPath(
+			origin->leafSelection.leaf);
+		if (ordinal >= 0 && ordinal < _state->textNodeCount()) {
+			activateTextOrdinal(
+				ordinal,
+				origin->leafSelection.anchorOffset,
+				origin->leafSelection.cursorOffset);
+			return;
 		}
+	}
+	if (target) {
+		if (forward) {
+			activateTextOrdinal(*target, 0);
+		} else {
+			activateTextOrdinalAtEnd(*target);
+		}
+	} else {
+		activateInitialNode();
 	}
 }
 

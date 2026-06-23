@@ -275,18 +275,6 @@ private:
 		Touch,
 	};
 
-	struct BoundarySelectionOrigin {
-		int ordinal = -1;
-		bool forward = false;
-
-		friend inline bool operator==(
-				const BoundarySelectionOrigin &a,
-				const BoundarySelectionOrigin &b) {
-			return (a.ordinal == b.ordinal)
-				&& (a.forward == b.forward);
-		}
-	};
-
 	struct HistoryLeafSelection {
 		State::LeafPath leaf;
 		int anchorOffset = 0;
@@ -298,6 +286,20 @@ private:
 			return (a.leaf == b.leaf)
 				&& (a.anchorOffset == b.anchorOffset)
 				&& (a.cursorOffset == b.cursorOffset);
+		}
+	};
+
+	struct BoundarySelectionOrigin {
+		HistoryLeafSelection leafSelection;
+		Markdown::PreparedEditHit anchorHit;
+		bool forward = false;
+
+		friend inline bool operator==(
+				const BoundarySelectionOrigin &a,
+				const BoundarySelectionOrigin &b) {
+			return (a.leafSelection == b.leafSelection)
+				&& (a.anchorHit == b.anchorHit)
+				&& (a.forward == b.forward);
 		}
 	};
 
@@ -459,6 +461,18 @@ private:
 		bool down);
 	[[nodiscard]] std::optional<VerticalNavigationTarget> pageNavigationTarget(
 		bool down);
+	[[nodiscard]] std::optional<BoundarySelectionOrigin>
+	currentBoundarySelectionOrigin(bool forward) const;
+	[[nodiscard]] std::optional<Markdown::PreparedEditHit> boundaryHitFromTarget(
+		const State::BoundaryTarget &target) const;
+	[[nodiscard]] bool enterStructuralSelectionFromField(
+		bool forward,
+		bool page);
+	[[nodiscard]] bool adjustStructuralSelectionFromKeyboard(
+		bool forward,
+		bool page);
+	[[nodiscard]] bool restoreFieldFromBoundaryOrigin();
+	void revealStructuralSelectionEdge(bool forward);
 	[[nodiscard]] bool moveVerticalDownBoundary();
 	void copyCurrentSelectionToClipboard();
 	[[nodiscard]] TextForMimeData currentSelectionTextForClipboard() const;
@@ -736,6 +750,7 @@ private:
 	bool _settingField = false;
 	bool _trackingPointerPress = false;
 	bool _inlineFieldExternalInteractionActive = false;
+	bool _keyboardStructuralSelectionActive = false;
 	Markdown::MarkdownArticleEditControlHit _pressedControl;
 	std::optional<QPoint> _pressedControlPoint;
 	HorizontalScrollDrag _horizontalScrollDrag = HorizontalScrollDrag::None;
