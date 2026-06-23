@@ -362,6 +362,12 @@ public:
 		TextWithEntities selected;
 		TextWithEntities after;
 	};
+	struct ActiveTextBlockActionResult {
+		ApplyResult result = ApplyResult::Failed;
+		std::optional<LeafPath> destinationLeaf;
+		int selectionFrom = 0;
+		int selectionTo = 0;
+	};
 	struct DisplayMathEditResult {
 		ApplyResult result = ApplyResult::Failed;
 		std::optional<LeafPath> inlineLeaf;
@@ -378,6 +384,9 @@ public:
 	[[nodiscard]] bool insertBlockAfterActive(
 		InsertAction action,
 		std::optional<ActiveTextInsertContext> context = std::nullopt);
+	[[nodiscard]] ActiveTextBlockActionResult applyActiveTextBlockAction(
+		InsertAction action,
+		ActiveTextInsertContext context);
 	[[nodiscard]] bool insertPreparedBlockAfterActive(RichPage::Block block);
 	[[nodiscard]] bool insertPreparedBlocksAfterActive(
 		std::vector<RichPage::Block> blocks,
@@ -503,6 +512,12 @@ private:
 	struct ActiveTextInsertTarget {
 		LeafPath leaf;
 		InsertionAnchor anchor;
+	};
+
+	struct ActiveTextSelectionTarget {
+		LeafPath leaf;
+		int selectionFrom = 0;
+		int selectionTo = 0;
 	};
 
 	struct RebuiltBoundaryTarget {
@@ -646,6 +661,15 @@ private:
 	-> std::optional<ActiveNonPullquoteQuote>;
 	[[nodiscard]] auto activeListItemSurface() const
 	-> std::optional<ActiveListItemSurface>;
+	[[nodiscard]] std::optional<LeafPath> leafAfterUnwrappingBlockChildren(
+		const LeafPath &leaf,
+		const BlockPath &wrapper) const;
+	[[nodiscard]] bool unwrapActiveCodeBlockUnchecked(
+		const ActiveTextInsertContext &context,
+		ActiveTextSelectionTarget *target);
+	[[nodiscard]] bool unwrapActiveBlockquoteUnchecked(
+		const ActiveTextInsertContext &context,
+		ActiveTextSelectionTarget *target);
 	[[nodiscard]] auto normalizeActiveListItemSurface()
 	-> std::optional<ActiveListItemSurface>;
 	[[nodiscard]] ApplyResult applyActiveTextUnchecked(TextWithEntities text);

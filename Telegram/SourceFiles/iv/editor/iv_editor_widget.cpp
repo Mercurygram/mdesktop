@@ -72,6 +72,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtGui/QTextDocument>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QMenu>
+#include <QtWidgets/QShortcut>
 #include <QtWidgets/QTextEdit>
 #include <QAction>
 
@@ -2422,13 +2423,26 @@ void Widget::insertBlock(State::InsertAction action) {
 			_field->setFocusFast();
 			notifyToolbarStateChanged();
 		});
-		const auto applied = hadStructuralSelection
-			? _state->replaceStructuralSelectionWithBlock(
+		auto activeBlockResult
+			= std::optional<State::ActiveTextBlockActionResult>();
+		auto applied = false;
+		if (hadStructuralSelection) {
+			applied = _state->replaceStructuralSelectionWithBlock(
 				_structuralSelection,
 				action,
 				context,
-				&destination)
-			: _state->insertBlockAfterActive(action, context);
+				&destination);
+		} else if (restoreField
+			&& context
+			&& (action.type == State::InsertBlockType::Blockquote
+				|| action.type == State::InsertBlockType::Code)) {
+			activeBlockResult = _state->applyActiveTextBlockAction(
+				action,
+				*context);
+			applied = (activeBlockResult->result == ApplyResult::Changed);
+		} else {
+			applied = _state->insertBlockAfterActive(action, context);
+		}
 		if (!applied) {
 			showLastLimitToast();
 			return MutationTransactionResult{
@@ -2465,7 +2479,26 @@ void Widget::insertBlock(State::InsertAction action) {
 			}
 		} else {
 			refreshPreparedContent();
-			activateTextOrdinal(_state->activeTextOrdinal(), 0);
+			auto restoredActiveBlock = false;
+			if (activeBlockResult && activeBlockResult->destinationLeaf) {
+				const auto ordinal = _state->textOrdinalForLeafPath(
+					*activeBlockResult->destinationLeaf);
+				if (ordinal >= 0) {
+					activateTextOrdinal(
+						ordinal,
+						activeBlockResult->selectionFrom,
+						activeBlockResult->selectionTo);
+					restoredActiveBlock = true;
+				}
+			}
+			if (!restoredActiveBlock) {
+				const auto ordinal = _state->activeTextOrdinal();
+				if (ordinal >= 0 && ordinal < _state->textNodeCount()) {
+					activateTextOrdinal(ordinal, 0);
+				} else {
+					activateInitialNode();
+				}
+			}
 		}
 		return MutationTransactionResult{
 			.committed = committed,
@@ -3692,7 +3725,10 @@ void Widget::visibleTopBottomUpdated(int visibleTop, int visibleBottom) {
 bool Widget::eventFilter(QObject *object, QEvent *event) {
 	if (_field) {
 		const auto raw = _field->rawTextEdit();
-		if (object == raw.get() || object == raw->viewport()) {
+		const auto fieldObject = (object == _field.get());
+		const auto rawObject = (object == raw.get())
+			|| (object == raw->viewport());
+		if (fieldObject || rawObject) {
 			const auto type = event->type();
 			if (type == QEvent::ShortcutOverride || type == QEvent::KeyPress) {
 				const auto keyEvent = static_cast<QKeyEvent*>(event);
@@ -3707,7 +3743,7 @@ bool Widget::eventFilter(QObject *object, QEvent *event) {
 						|| handleFieldKey(keyEvent))) {
 					return true;
 				}
-			} else if (type == QEvent::Wheel) {
+			} else if (rawObject && type == QEvent::Wheel) {
 				if (_article && _activeSegmentIndex >= 0) {
 					const auto wheel = static_cast<QWheelEvent*>(event);
 					auto articlePoint = std::optional<QPoint>();
@@ -3730,7 +3766,8 @@ bool Widget::eventFilter(QObject *object, QEvent *event) {
 						return true;
 					}
 				}
-			} else if ((type == QEvent::MouseButtonPress
+			} else if (rawObject
+				&& (type == QEvent::MouseButtonPress
 				|| type == QEvent::MouseMove
 				|| type == QEvent::MouseButtonRelease)
 				&& handleFieldMouseEvent(event)) {
@@ -3743,7 +3780,9 @@ bool Widget::eventFilter(QObject *object, QEvent *event) {
 
 bool Widget::eventHook(QEvent *e) {
 	if (e->type() == QEvent::ShortcutOverride) {
-		if (handleStructuralBlockInsertShortcut(
+		if (handleFieldBlockInsertShortcut(
+				static_cast<QKeyEvent*>(e))
+			|| handleStructuralBlockInsertShortcut(
 				static_cast<QKeyEvent*>(e))) {
 			return true;
 		}
@@ -5821,6 +5860,17 @@ void Widget::setupInlineField() {
 	_field->setMaxHeight(std::numeric_limits<int>::max());
 	refreshInlineFieldPlaceholderColor();
 	const auto raw = _field->rawTextEdit();
+	const auto disableFieldShortcut = [&](const QKeySequence &sequence) {
+		for (const auto shortcut : raw->findChildren<QShortcut*>()) {
+			if (shortcut->key().matches(sequence)
+				== QKeySequence::ExactMatch) {
+				shortcut->setEnabled(false);
+			}
+		}
+	};
+	disableFieldShortcut(Ui::kBlockquoteSequence);
+	disableFieldShortcut(Ui::kMonospaceSequence);
+	_field->installEventFilter(this);
 	raw->installEventFilter(this);
 	raw->viewport()->installEventFilter(this);
 	_field->addContextMenuHook([this](
