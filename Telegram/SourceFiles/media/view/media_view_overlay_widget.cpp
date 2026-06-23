@@ -575,6 +575,10 @@ public:
 		return { SendMenu::Type::SilentOnly };
 	}
 
+	Window::SessionController *resolveWindow() const override {
+		return _widget->findWindow();
+	}
+
 	bool showMediaPreview(
 			Data::FileOrigin origin,
 			not_null<DocumentData*> document) const override {
@@ -8251,14 +8255,15 @@ void OverlayWidget::applyHideWindowWorkaround() {
 }
 
 Window::SessionController *OverlayWidget::findWindow(bool switchTo) const {
-	if (!_session) {
+	const auto session = _session ? _session : _storiesSession;
+	if (!session) {
 		return nullptr;
 	}
 
 	const auto window = _openedFrom.get();
 	if (window) {
 		if (const auto controller = window->sessionController()) {
-			if (&controller->session() == _session) {
+			if (&controller->session() == session) {
 				return controller;
 			}
 		}
@@ -8266,7 +8271,7 @@ Window::SessionController *OverlayWidget::findWindow(bool switchTo) const {
 
 	if (switchTo) {
 		auto controllerPtr = (Window::SessionController*)nullptr;
-		const auto account = not_null(&_session->account());
+		const auto account = not_null(&session->account());
 		const auto sessionWindow = Core::App().windowFor(account);
 		const auto anyWindow = (sessionWindow
 			&& &sessionWindow->account() == account)
@@ -8276,7 +8281,7 @@ Window::SessionController *OverlayWidget::findWindow(bool switchTo) const {
 			: sessionWindow;
 		if (anyWindow) {
 			anyWindow->invokeForSessionController(
-				&_session->account(),
+				&session->account(),
 				_history ? _history->peer.get() : nullptr,
 				[&](not_null<Window::SessionController*> newController) {
 					controllerPtr = newController;
