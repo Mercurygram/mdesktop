@@ -3735,7 +3735,7 @@ bool Widget::applySearchState(SearchState state) {
 	});
 	if (_subsectionTopBar) {
 		_subsectionTopBar->searchEnableJumpToDate(
-			_openedForum && _searchState.inChat);
+			_openedForum || _searchState.inChat);
 	}
 	if (!_searchState.inChat && _searchState.query.isEmpty()) {
 		if (!_widthAnimationCache.isNull()) {
@@ -3778,8 +3778,11 @@ void Widget::clearSearchCache(bool clearPosts) {
 }
 
 void Widget::showCalendar() {
-	if (_searchState.inChat) {
-		controller()->showCalendar({ _searchState.inChat });
+	const auto chat = (!_searchState.inChat && _openedForum)
+		? Key(_openedForum->history())
+		: _searchState.inChat;
+	if (chat) {
+		controller()->showCalendar({ chat });
 	}
 }
 

@@ -140,6 +140,9 @@ private:
 	void refreshInfoButton();
 	void refreshLang();
 	void updateSearchVisibility();
+	void updateSearchJumpToDateVisibility();
+	[[nodiscard]] bool searchJumpToDateFits() const;
+	void updateChooseFromUserGeometry();
 	void updateControlsGeometry();
 	void slideAnimationCallback();
 	void updateInfoToggleActive();
