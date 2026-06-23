@@ -157,7 +157,9 @@ writing any overlay:
      `git show <IMPL_SHA>^:<path>`). Render those references to PNG and compare the tight crop
      against both. **If the rendered target matches the OLD art — or you cannot tell them apart —
      that is a FAIL, not a pass.** (This is the check that catches a change that never took effect,
-     e.g. an asset that wasn't rebuilt into the binary.)
+     e.g. an asset that wasn't rebuilt into the binary.) For a task the wrapper marked
+     `Visual: layout`, matching-the-art is necessary but NOT sufficient — also verify the numeric
+     design contract in `<TASK_DIR>/visual.md` (sizes, spacings, alignment); see "Visual contract".
    - **Behavior** → drive the specific action and observe the concrete state/log/screenshot the
      change should produce, and confirm the pre-change behavior no longer happens.
 3. **Cover every surface the task names.** If the Observable result lists a settings row, a balance
@@ -165,6 +167,53 @@ writing any overlay:
    a reason). Do not stop at one or two.
 4. **Write the checks into `<TASK_DIR>/test.md` BEFORE running** (format under "Test report"), so the
    design is explicit and Actual/Result can be filled in per check afterward.
+
+## Visual contract (layout tasks)
+
+When the wrapper marks a task `Visual: layout`, "looks right" is not a vibe — it is a small
+computation, and the test MEASURES it. The wrapper's design-spec phase writes the contract to
+`<TASK_DIR>/visual.md`; impl builds to it; this loop verifies it. (Tasks marked `Visual: appearance`
+or unmarked use the ordinary visual/asset check above — this section does not apply.)
+
+A mockup (usually mobile) gives RELATIONSHIPS, never pixels. The contract re-expresses those
+relationships in desktop units by anchoring every quantity to a font metric or an existing tdesktop
+`.style` token — so it auto-adjusts to desktop and reuses real components. The strongest anchor is an
+existing widget: "the count badge IS the dialogs-list unread badge" pins font + height + padding to
+`st::dialogsUnread*` and is self-correcting — far better than "a blue circle ~24px".
+
+Write it as an ORDERED DERIVATION: each step resolves one quantity the next consumes, so impl and
+test are both mechanical. Example — a glyph-on-rounded-square icon + title + count, in a bubble:
+
+    Anchor:  T = st::<title>.font->height ;  Badge := the dialogs unread-badge metrics
+    1. glyphH = 1.4·T              ±2px   — white glyph box height                    (from T)
+    2. square = glyphH ÷ (2/3)    ±2px   — accent rounded-square side ; iconR = square·0.28
+    3. margin m (equal on square's top/left/bottom) ; bubbleH = square + 2·m   ±1px
+       bubbleR = bubbleH/2 ; iconR : bubbleR must read as in-sync (icon proportionally smaller)
+    4. titleY = (bubbleH − T)/2    ±1px   — title vertically centered in the bubble
+    5. badge = Badge (font+height+padding) ; vertically centered ; margins top=right=bottom equal ±1px
+
+Then the RELATIONSHIP checks that catch what existence-checks miss — each falsifiable: `square ≤
+bubbleH` (no overflow/overlap), the square's three margins equal, the two corner radii in sync, the
+badge identical to a real chat-row unread badge. Note every mobile→desktop adjustment and which token
+replaced each mobile measurement.
+
+How TEST verifies it (numbers over eyes):
+- **Measure, don't admire.** Have the overlay LOG the computed geometry — `font->height` and the
+  `QRect` of each piece (glyph, square, bubble, title, badge) — and assert each derivation line
+  arithmetically within tolerance. Live-widget geometry is the primary oracle; it deterministically
+  catches "icon taller than the bubble", "square overflows", "badge oversized / cramped". Where a
+  rect can't be logged, measure it from a tight crop by colour (accent square, badge, bubble outline
+  are separable).
+- **Same-scale side-by-side.** Build one composite — the mockup's bubble crop and the rendered crop
+  scaled to EQUAL element height, side by side — and judge composition on THAT, never on a
+  full-window screenshot (a 30px bubble in a 600px window is what rubber-stamps bad proportions).
+- **Adversarial designer pass.** One final judgement framed to REJECT: "You are a product designer
+  rejecting this PR — list every way these two differ in proportion, spacing, or alignment." Approve
+  only if it finds nothing disqualifying. (The approval-framed "does it look OK?" is what passed the
+  broken build.)
+- **Existence ≠ sufficiency.** "Icon + title + count are all present" is a precondition, not a pass.
+  A `Visual: layout` check APPROVES only when the measured geometry satisfies the contract; any line
+  out of tolerance is an IMPL_BUG (report measured-vs-target) and loops like any other.
 
 ## Overlay mechanics
 
@@ -329,7 +378,11 @@ correct.
   convey the intended look, they are NOT pixel targets, so never fail a check merely for not matching
   a mockup pixel-for-pixel. The falsifiable signal is the on-screen crop against the OLD vs
   intended-NEW render (does it match the new and differ from the old?); the mockup informs what
-  "correct" means. Read the images and decide like a designer reviewing the build.
+  "correct" means. Read the images and decide like a designer reviewing the build. This bans
+  pixel-diffing against the MOCKUP — not measuring your OWN render: for a `Visual: layout` task you DO
+  assert the rendered widget's measured geometry against the desktop-unit contract in `visual.md`
+  ("Visual contract"). That is numeric and falsifiable, and it is exactly the check that catches the
+  wrong proportions/spacings an eye waves through.
 - **No-difference = IMPL_BUG.** If a check detects no difference from the pre-change state (the glyph
   matches the OLD art; the string still shows the old word), the change did not take effect — return
   IMPL_BUG; do not approve.

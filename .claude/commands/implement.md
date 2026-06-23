@@ -163,6 +163,7 @@ Write `.ai/<project>/implementing.md` in EXACTLY this format:
 Status: todo
 <2-4 line self-contained description: what to implement and the observable, testable result. Enough
 that a fresh agent can act on it.>
+Visual: layout | appearance       (UI tasks only — see "Visual classification" below; omit otherwise)
 Images: images/<file> — <caption>      (this line only if the task uses an image)
 
 ### b: <imperative title>
@@ -176,6 +177,19 @@ that changes UI / visual / asset behavior MUST cite the specific mockups/resourc
 do not leave such a task without its images, and do not leave a provided image referenced by no task
 (if one genuinely applies to none, note why). These per-task references are the oracle the test
 phase verifies against — be specific and per-task, not one shared dump on the first task.
+
+**Visual classification (required for UI tasks).** For every task that changes how something LOOKS,
+add a `Visual:` line — it routes the task-runner's flow:
+- `Visual: layout` — must reproduce the mockup's COMPOSITION: element sizes, proportions,
+  spacing/margins, alignment, or a component's geometry (e.g. "a glyph on a rounded square inside a
+  bubble with a count badge"). Triggers a dedicated design-spec phase (which derives a numeric design
+  contract) and a geometry-MEASURING test oracle. Such a task MUST cite its mockup(s) via `Images:`.
+- `Visual: appearance` — must match COLORS / wording / which-style / glyph identity, but NOT
+  proportions or geometry (e.g. "make Decline red", "use the box-button palette"). Lighter check; no
+  contract.
+- omit the line — the task changes no appearance.
+When torn between the two, choose `layout` (the safe default for anything built from multiple
+sized/positioned pieces). The human can override by editing the `Visual:` line in `implementing.md`.
 
 Use letters a, b, c... as task ids. Do not plan internals or implement. When done, reply with ONLY a
 compact confirmation — `ready — <N> tasks` (extend: `ready — appended <letters>`); do NOT echo the
@@ -241,16 +255,27 @@ stays in YOUR context, not the orchestrator's):
 
 1. CONTEXT  — run task.md's Phase 1 (new) or Phase 1F (follow-up) prompt for this task; produces
    `<TASK_DIR>/context.md` (and `about.md` for the project).
-2. PLAN     — task.md Phase 2 -> `<TASK_DIR>/plan.md`.
+1b. DESIGN-SPEC — only if the task is `Visual: layout`. Spawn a design-spec subagent that READS the
+   task's mockup image(s) closely (crop/zoom) AND the existing desktop widgets/tokens it should borrow
+   from (e.g. how the dialogs-list unread badge is built), then writes `<TASK_DIR>/visual.md`: the
+   design contract as an ORDERED DERIVATION per `.agents/shared/test-loop.md` ("Visual contract") —
+   every quantity anchored to a font metric or an existing tdesktop `.style` token, NEVER a mobile
+   pixel, each with a tolerance. This contract is the spec IMPLEMENT builds to and the oracle TEST
+   measures against. Skip entirely for non-visual and `Visual: appearance` tasks.
+2. PLAN     — task.md Phase 2 -> `<TASK_DIR>/plan.md`. For a `Visual: layout` task the plan's `.style`
+   metrics come straight from `<TASK_DIR>/visual.md`.
 3. ASSESS   — task.md Phase 3 (refine plan, size phases).
-4. IMPLEMENT— task.md Phase 4, one subagent per plan phase. Implementation agents do NOT commit
-   yet; you commit after build passes.
+4. IMPLEMENT— task.md Phase 4, one subagent per plan phase. For a `Visual: layout` task, give each
+   impl subagent `<TASK_DIR>/visual.md` and require its `.style` metrics to satisfy that contract
+   exactly (no eyeballed sizes). Implementation agents do NOT commit yet; you commit after build
+   passes.
 5. BUILD    — task.md Phase 5 (build with BUILD, fix errors). On file-lock errors, run the
    path-scoped kill of THIS checkout's binary (see test-loop.md "Serialize app runs") and retry
    once, else stop.
 6. REVIEW   — task.md Phase 6 but a SINGLE pass (not 3): one review agent, then one fix agent if
    NEEDS_CHANGES, then rebuild. (Tests catch behavior; review catches dead code / duplication /
-   placement / style.)
+   placement / style.) For a `Visual: layout` task, also hand the review agent `<TASK_DIR>/visual.md`
+   so it flags any `.style` metric that violates the contract.
 7. COMMIT   — `git add -A && git commit` with a concise plain-language subject (≤ ~50-60 chars,
    matching recent `git log` style; usually the whole message — add a short plain body only if the
    subject can't carry it). NO `Autotask:`/attempt trailer and NO `Co-Authored-By:`/attribution line
@@ -263,7 +288,11 @@ stays in YOUR context, not the orchestrator's):
    `git show <IMPL_SHA>` + touched files. It designs a falsifiable oracle per change and writes the
    plan into `<TASK_DIR>/test.md` BEFORE running (for visual/asset changes the oracle compares the
    tight crop against old vs intended-new art — judged VISUALLY, never by hash/byte; mobile mockups
-   are not pixel targets), covers every surface the task names, and never reuses another task's
+   are not pixel targets; and for a `Visual: layout` task ALSO feed `<TASK_DIR>/visual.md` and make
+   the oracle that numeric design contract — measured sizes/spacings/alignment must satisfy each
+   derivation line within tolerance, on a same-scale side-by-side plus an adversarial designer pass,
+   "all elements present" is NOT a pass — see test-loop.md "Visual contract"), covers every surface
+   the task names, and never reuses another task's
    navigate+screenshot. You drive RUN/ASSESS yourself, ADVERSARIALLY (no pass-by-inference; missing
    evidence = TEST_FLAW; no-difference-from-before = IMPL_BUG), and keep the human-readable
    `<TASK_DIR>/test.md` report. Spawn an impl-fix subagent on IMPL_BUG (it commits the next attempt →
