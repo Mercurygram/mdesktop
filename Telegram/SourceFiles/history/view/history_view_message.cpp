@@ -4431,6 +4431,7 @@ bool Message::getStateText(
 			local,
 			request.flags | Ui::Text::StateRequest::Flag::LookupSymbol);
 		if (horizontalScrollHit.overScrollbar) {
+			rich->handlerCodeHeaderSegmentIndex = -1;
 			rich->handlerPreparedLink = std::nullopt;
 			rich->handlerMediaActivation = {};
 			rich->handlerPlaceholderId = {};
@@ -4446,6 +4447,7 @@ bool Message::getStateText(
 			return true;
 		}
 		if (!hit.valid()) {
+			rich->handlerCodeHeaderSegmentIndex = -1;
 			clearHorizontalScrollHandler();
 			return horizontalScrollHit.scrollable;
 		}
@@ -4458,16 +4460,21 @@ bool Message::getStateText(
 			offset,
 			hit.direct);
 		if (hit.codeHeaderCopy) {
-			const auto text = rich->article.textForContext(hit);
+			const auto reuse = rich->handler
+				&& (rich->handlerCodeHeaderSegmentIndex == hit.segmentIndex);
 			clearHorizontalScrollHandler();
 			rich->handlerPreparedLink = std::nullopt;
 			rich->handlerMediaActivation = {};
 			rich->handlerPlaceholderId = {};
 			rich->handlerPlaceholderPoint = {};
-			rich->handler = std::make_shared<RichPageActionClickHandler>(
-				[text](ClickContext context) {
-					CopyRichPageCodeBlockText(text, std::move(context));
-				});
+			if (!reuse) {
+				const auto text = rich->article.textForContext(hit);
+				rich->handlerCodeHeaderSegmentIndex = hit.segmentIndex;
+				rich->handler = std::make_shared<RichPageActionClickHandler>(
+					[text](ClickContext context) {
+						CopyRichPageCodeBlockText(text, std::move(context));
+					});
+			}
 			outResult->link = rich->handler;
 		} else if (hit.preparedLink
 			|| hit.mediaActivation.kind != MediaActivationKind::None) {
@@ -4479,6 +4486,7 @@ bool Message::getStateText(
 				&& SameMediaActivation(
 					rich->handlerMediaActivation,
 					activation);
+			rich->handlerCodeHeaderSegmentIndex = -1;
 			clearHorizontalScrollHandler();
 			rich->handlerPlaceholderId = hit.mediaActivation.placeholderId;
 			rich->handlerPlaceholderPoint = hit.placeholderLocalPoint;
@@ -4505,6 +4513,7 @@ bool Message::getStateText(
 			}
 			outResult->link = rich->handler;
 		} else {
+			rich->handlerCodeHeaderSegmentIndex = -1;
 			clearHorizontalScrollHandler();
 			outResult->link = hit.state.link;
 		}

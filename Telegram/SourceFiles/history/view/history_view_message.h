@@ -104,6 +104,7 @@ struct HistoryMessageRichPage
 	mutable QPoint handlerHorizontalScrollPoint;
 	mutable bool handlerHorizontalScrollActive = false;
 	mutable ClickHandlerPtr handlerHorizontalScrollPressed;
+	mutable int handlerCodeHeaderSegmentIndex = -1;
 	mutable std::optional<Iv::Markdown::PreparedLink> handlerPreparedLink;
 	mutable Iv::Markdown::MediaActivation handlerMediaActivation;
 	mutable Iv::Markdown::PreparedPlaceholderBlockId handlerPlaceholderId;
