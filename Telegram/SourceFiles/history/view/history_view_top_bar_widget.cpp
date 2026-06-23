@@ -553,9 +553,7 @@ void TopBarWidget::paintTopBar(Painter &p) {
 		? _activeChat.key.owningHistory()->peer.get()
 		: nullptr;
 	const auto folder = _activeChat.key.folder();
-	const auto sublist = _activeChat.key.sublist();
 	const auto topic = _activeChat.key.topic();
-	const auto history = _activeChat.key.history();
 	const auto namePeer = titleNamePeer();
 	if (topic && _activeChat.section == Section::Replies) {
 		p.setPen(st::dialogsNameFg);
