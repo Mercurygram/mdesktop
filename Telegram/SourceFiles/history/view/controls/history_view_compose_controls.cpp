@@ -2087,6 +2087,13 @@ Data::Draft *ComposeControls::cloudDraft() const {
 		: nullptr;
 }
 
+std::shared_ptr<const Iv::RichPage> ComposeControls::shownRichMessage() const {
+	if (const auto draft = shouldShowRichDraftPreview() ? cloudDraft() : nullptr) {
+		return draft->richMessage;
+	}
+	return nullptr;
+}
+
 bool ComposeControls::isComposeBoxOpen() const {
 	return _history
 		&& hasRichDraftThreadScope()

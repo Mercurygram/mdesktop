@@ -28,6 +28,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_drag_area.h"
 #include "history/history_item_components.h"
 #include "history/history_item_helpers.h" // GetErrorForSending.
+#include "iv/iv_rich_message_serializer.h"
 #include "ui/chat/pinned_bar.h"
 #include "ui/chat/chat_style.h"
 #include "ui/controls/swipe_handler.h"
@@ -1392,6 +1393,9 @@ Api::SendAction ChatWidget::prepareSendAction(
 
 void ChatWidget::send() {
 	if (_composeControls->getTextWithAppliedMarkdown().text.isEmpty()) {
+		if (const auto page = _composeControls->shownRichMessage()) {
+			sendRichDraft(page, {});
+		}
 		return;
 	}
 	send({});
@@ -1425,6 +1429,10 @@ void ChatWidget::sendVoice(const ComposeControls::VoiceToSend &data) {
 }
 
 void ChatWidget::send(Api::SendOptions options) {
+	if (const auto page = _composeControls->shownRichMessage()) {
+		sendRichDraft(page, options);
+		return;
+	}
 	if (!options.scheduled && showSlowmodeError()) {
 		return;
 	}
@@ -1434,6 +1442,76 @@ void ChatWidget::send(Api::SendOptions options) {
 		true,
 		options,
 		nullptr);
+}
+
+void ChatWidget::sendRichDraft(
+		std::shared_ptr<const Iv::RichPage> page,
+		Api::SendOptions options) {
+	if (!page) {
+		return;
+	}
+	if (!options.scheduled) {
+		_cornerButtons.clearReplyReturns();
+		if (showSlowmodeError()) {
+			return;
+		}
+	}
+
+	auto request = SendingErrorRequest{
+		.topicRootId = _topic ? _topic->rootId() : MsgId(0),
+		.forward = &_composeControls->forwardItems(),
+		.messagesCount = 1,
+		.ignoreSlowmodeCountdown = (options.scheduled != 0),
+		.richMessage = true,
+	};
+	const auto error = GetErrorForSending(_peer, request);
+	if (error) {
+		Data::ShowSendErrorToast(controller(), _peer, error);
+		return;
+	}
+
+	const auto serialized = Iv::SerializeInputRichMessage(
+		&session(),
+		*page,
+		Iv::SerializeInputRichMessageMode::FinalSubmit);
+	if (serialized.status == Iv::SerializeInputRichMessageStatus::EmptyContent) {
+		controller()->showToast(tr::lng_article_submit_empty(tr::now));
+		return;
+	} else if (serialized.status != Iv::SerializeInputRichMessageStatus::Success
+		|| !serialized.value) {
+		controller()->showToast(tr::lng_attach_failed(tr::now));
+		return;
+	}
+	if (!options.scheduled) {
+		const auto withPaymentApproved = [=](int approved) {
+			auto copy = options;
+			copy.starsApproved = approved;
+			sendRichDraft(page, copy);
+		};
+		const auto checked = checkSendPayment(
+			1,
+			options,
+			withPaymentApproved);
+		if (!checked) {
+			return;
+		}
+	}
+
+	session().api().sendRichMessage(
+		page,
+		*serialized.value,
+		prepareSendAction(options));
+
+	_composeControls->clear();
+	_composeControls->applyCloudDraft();
+	if (_repliesRootId) {
+		session().sendProgressManager().update(
+			_history,
+			_repliesRootId,
+			Api::SendProgressType::Typing,
+			-1);
+	}
+	finishSending();
 }
 
 void ChatWidget::sendTextWithTags(

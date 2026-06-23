@@ -54,6 +54,10 @@ class Widget;
 struct ResultSelected;
 } // namespace InlineBots
 
+namespace Iv {
+struct RichPage;
+} // namespace Iv
+
 namespace Support {
 class Autocomplete;
 struct Contact;
@@ -448,6 +452,9 @@ private:
 		bool useWebPageDraft,
 		Api::SendOptions options,
 		Fn<void()> done);
+	void sendRichDraft(
+		std::shared_ptr<const Iv::RichPage> page,
+		Api::SendOptions options);
 	void sendVoice(const VoiceToSend &data);
 	void sendWithTextOverride(
 		TextWithEntities text,
@@ -518,6 +525,10 @@ private:
 
 	bool showSendMessageError(
 		const TextWithTags &textWithTags,
+		bool ignoreSlowmodeCountdown,
+		Fn<void(int starsApproved)> withPaymentApproved = nullptr,
+		Api::SendOptions options = {});
+	bool showSendRichDraftError(
 		bool ignoreSlowmodeCountdown,
 		Fn<void(int starsApproved)> withPaymentApproved = nullptr,
 		Api::SendOptions options = {});
@@ -674,12 +685,15 @@ private:
 	[[nodiscard]] int fieldHeight() const;
 	[[nodiscard]] bool fieldOrDisabledShown() const;
 	[[nodiscard]] bool fieldHasSendText() const;
+	[[nodiscard]] bool hasSendableContent() const;
+	[[nodiscard]] bool hideExtraButtons() const;
 
 	void unregisterDraftSources();
 	void registerDraftSource();
 	void unregisterThreadFieldBridge();
 	void registerThreadFieldBridge();
 	[[nodiscard]] Data::Draft *cloudDraft() const;
+	[[nodiscard]] std::shared_ptr<const Iv::RichPage> shownRichMessage() const;
 	[[nodiscard]] bool isComposeBoxOpen() const;
 	[[nodiscard]] bool bypassNormalDraftHandling() const;
 	[[nodiscard]] bool shouldShowRichDraftPreview() const;

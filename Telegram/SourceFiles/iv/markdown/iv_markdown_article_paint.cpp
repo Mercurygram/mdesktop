@@ -1387,6 +1387,30 @@ void PaintTableCaption(
 		&& (block.horizontalScrollLeft < block.horizontalScrollMax);
 }
 
+[[nodiscard]] QRect HorizontalOverflowContentClip(
+		const LaidOutBlock &block,
+		const style::Markdown &st,
+		QRect viewport) {
+	if (block.horizontalScrollMax <= 0 || viewport.isEmpty()) {
+		return viewport;
+	}
+	const auto indicatorWidth = std::min(
+		std::max(OverflowIndicatorWidth(block, st), 1),
+		viewport.width());
+	const auto left = (block.horizontalScrollLeft > 0)
+		? indicatorWidth
+		: 0;
+	const auto right = HorizontalRightEdgeHidden(block)
+		? indicatorWidth
+		: 0;
+	const auto width = std::max(viewport.width() - left - right, 0);
+	return QRect(
+		viewport.x() + left,
+		viewport.y(),
+		width,
+		viewport.height());
+}
+
 [[nodiscard]] QRect HorizontalScrollLogicalPaintRect(
 		const LaidOutBlock &block) {
 	if (block.insideHorizontalScroll) {
@@ -1509,7 +1533,9 @@ void PaintWholeTable(
 	if (tableClip.isEmpty()) {
 		return;
 	}
-	const auto tableContext = ClippedContext(context, tableClip);
+	const auto textClip = tableClip.intersected(
+		HorizontalOverflowContentClip(block, st, block.visibleTableRect));
+	const auto tableContext = ClippedContext(context, textClip);
 
 	const auto border = TableBorder(block, st);
 	const auto radius = st.table.radius;
@@ -1630,7 +1656,8 @@ void PaintTableRowBand(
 	const auto cells = TableCellsForRowBand(ownership, rowIndex, rowBand);
 	const auto rowContext = ClippedContext(
 		RevealSuppressedContext(context),
-		rowClip);
+		rowClip.intersected(
+			HorizontalOverflowContentClip(block, st, block.visibleTableRect)));
 
 	p.save();
 	p.setClipRect(rowClip, Qt::IntersectClip);

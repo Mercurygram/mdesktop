@@ -144,6 +144,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/history_view_translate_bar.h"
 #include "history/view/media/history_view_media.h"
 #include "iv/editor/iv_editor_session.h"
+#include "iv/iv_rich_message_serializer.h"
 #include "core/click_handler_types.h"
 #include "chat_helpers/field_autocomplete.h"
 #include "chat_helpers/tabbed_panel.h"
@@ -2163,6 +2164,13 @@ Data::Draft *HistoryWidget::cloudDraft() const {
 	return _history ? _history->cloudDraft(MsgId(), PeerId()) : nullptr;
 }
 
+std::shared_ptr<const Iv::RichPage> HistoryWidget::shownRichMessage() const {
+	if (const auto draft = shouldShowRichDraftPreview() ? cloudDraft() : nullptr) {
+		return draft->richMessage;
+	}
+	return nullptr;
+}
+
 bool HistoryWidget::isComposeBoxOpen() const {
 	return _history
 		&& Iv::Editor::IsComposeBoxOpen(
@@ -2592,6 +2600,7 @@ void HistoryWidget::fastShowAtEnd(not_null<History*> history) {
 
 bool HistoryWidget::applyDraft(FieldHistoryAction fieldHistoryAction) {
 	if (bypassNormalDraftHandling()) {
+		updateCmdStartShown();
 		updateControlsVisibility();
 		updateControlsGeometry();
 		return true;
@@ -2650,6 +2659,7 @@ bool HistoryWidget::applyDraft(FieldHistoryAction fieldHistoryAction) {
 		}
 		_textUpdateEvents = TextUpdateEvent::SaveDraft
 			| TextUpdateEvent::SendTyping;
+		updateCmdStartShown();
 		updateControlsVisibility();
 		updateControlsGeometry();
 		refreshTopBarActiveChat();
@@ -3441,6 +3451,7 @@ void HistoryWidget::registerThreadFieldBridge() {
 		}
 		unregisterDraftSources();
 		registerDraftSource();
+		updateCmdStartShown();
 		updateSendButtonType();
 		updateControlsVisibility();
 		updateControlsGeometry();
@@ -3775,7 +3786,7 @@ bool HistoryWidget::canWriteMessage() const {
 void HistoryWidget::updateControlsVisibility() {
 	auto fieldDisabledRemoved = (_fieldDisabled != nullptr);
 	auto fieldVisibilityChanged = false;
-	const auto hideExtraButtons = _fieldCharsCountManager.isLimitExceeded();
+	const auto hideExtra = hideExtraButtons();
 	const auto guard = gsl::finally([&] {
 		if (fieldDisabledRemoved) {
 			_fieldDisabled = nullptr;
@@ -4014,7 +4025,7 @@ void HistoryWidget::updateControlsVisibility() {
 			auto rightButtonsChanged = false;
 			if (_silent) {
 				const auto was = _silent->isVisible();
-				const auto now = (!_editMsgId) && (!hideExtraButtons);
+				const auto now = (!_editMsgId) && (!hideExtra);
 				if (was != now) {
 					_silent->setVisible(now);
 					rightButtonsChanged = true;
@@ -4022,7 +4033,7 @@ void HistoryWidget::updateControlsVisibility() {
 			}
 			if (_scheduled) {
 				const auto was = _scheduled->isVisible();
-				const auto now = (!_editMsgId) && (!hideExtraButtons);
+				const auto now = (!_editMsgId) && (!hideExtra);
 				if (was != now) {
 					_scheduled->setVisible(now);
 					rightButtonsChanged = true;
@@ -4038,7 +4049,7 @@ void HistoryWidget::updateControlsVisibility() {
 			}
 			if (_giftToUser) {
 				const auto was = _giftToUser->isVisible();
-				const auto now = (!_editMsgId) && (!hideExtraButtons);
+				const auto now = (!_editMsgId) && (!hideExtra);
 				if (was != now) {
 					_giftToUser->setVisible(now);
 					rightButtonsChanged = true;
@@ -4046,7 +4057,7 @@ void HistoryWidget::updateControlsVisibility() {
 			}
 			if (_ttlInfo) {
 				const auto was = _ttlInfo->isVisible();
-				const auto now = (!_editMsgId) && (!hideExtraButtons);
+				const auto now = (!_editMsgId) && (!hideExtra);
 				if (was != now) {
 					_ttlInfo->setVisible(now);
 					rightButtonsChanged = true;
@@ -5352,6 +5363,9 @@ void HistoryWidget::send(Api::SendOptions options) {
 	} else if (_editMsgId) {
 		saveEditMessage({});
 		return;
+	} else if (const auto page = shownRichMessage()) {
+		sendRichDraft(page, options);
+		return;
 	} else if (!options.scheduled && showSlowmodeError()) {
 		return;
 	} else if (_voiceRecordBar->isListenState()) {
@@ -5364,6 +5378,78 @@ void HistoryWidget::send(Api::SendOptions options) {
 		true,
 		options,
 		nullptr);
+}
+
+void HistoryWidget::sendRichDraft(
+		std::shared_ptr<const Iv::RichPage> page,
+		Api::SendOptions options) {
+	if (!page) {
+		return;
+	}
+	if (!options.scheduled) {
+		_cornerButtons.clearReplyReturns();
+		if (showSlowmodeError()) {
+			return;
+		}
+	}
+
+	auto action = prepareSendAction(options);
+	auto withPaymentApproved = Fn<void(int)>();
+	if (!options.scheduled) {
+		withPaymentApproved = [=](int approved) {
+			auto copy = options;
+			copy.starsApproved = approved;
+			sendRichDraft(page, copy);
+		};
+	}
+	if (showSendRichDraftError(
+			options.scheduled != 0,
+			std::move(withPaymentApproved),
+			action.options)) {
+		return;
+	}
+
+	const auto serialized = Iv::SerializeInputRichMessage(
+		&session(),
+		*page,
+		Iv::SerializeInputRichMessageMode::FinalSubmit);
+	if (serialized.status == Iv::SerializeInputRichMessageStatus::EmptyContent) {
+		controller()->showToast(tr::lng_article_submit_empty(tr::now));
+		return;
+	} else if (serialized.status != Iv::SerializeInputRichMessageStatus::Success
+		|| !serialized.value) {
+		controller()->showToast(tr::lng_attach_failed(tr::now));
+		return;
+	}
+
+	session().api().sendRichMessage(
+		page,
+		*serialized.value,
+		action);
+
+	clearFieldText();
+	if (_preview) {
+		_preview->apply({ .removed = true });
+	}
+	saveDraftWithTextNow();
+	if (session().supportMode()) {
+		updateCmdStartShown();
+		updateControlsVisibility();
+		updateControlsGeometry();
+	} else {
+		applyCloudDraft(_history);
+	}
+
+	hideSelectorControlsAnimated();
+	setInnerFocus();
+
+	if (!_keyboard->hasMarkup() && _keyboard->forceReply() && !_kbReplyTo) {
+		toggleKeyboard();
+	}
+	session().sendProgressManager().update(
+		_history,
+		Api::SendProgressType::Typing,
+		-1);
 }
 
 void HistoryWidget::sendTextWithTags(
@@ -5460,7 +5546,9 @@ void HistoryWidget::sendScheduled(Api::SendOptions initialOptions) {
 		return;
 	}
 	const auto ignoreSlowmodeCountdown = true;
-	if (showSendMessageError(
+	if (shownRichMessage()
+		? showSendRichDraftError(ignoreSlowmodeCountdown)
+		: showSendMessageError(
 			_field->getTextWithAppliedMarkdown(),
 			ignoreSlowmodeCountdown)) {
 		return;
@@ -5534,7 +5622,7 @@ SendMenu::Details HistoryWidget::sendButtonMenuDetails() const {
 
 SendMenu::Details HistoryWidget::sendButtonDefaultDetails() const {
 	auto result = sendMenuDetails();
-	if (!fieldHasSendText() && !_previewDrawPreview) {
+	if (!hasSendableContent() && !_previewDrawPreview) {
 		result.effectAllowed = false;
 	}
 	return result;
@@ -6234,7 +6322,7 @@ bool HistoryWidget::showRecordButton() const {
 	return (_recordAvailability != Webrtc::RecordAvailability::None)
 		&& !_voiceRecordBar->isListenState()
 		&& !_voiceRecordBar->isRecordingByAnotherBar()
-		&& !fieldHasSendText()
+		&& !hasSendableContent()
 		&& !_previewDrawPreview
 		&& (_replyTo || !readyToForward())
 		&& !_editMsgId;
@@ -6270,13 +6358,15 @@ void HistoryWidget::updateSendButtonType() {
 			: 0;
 	}();
 	const auto perMessage = _peer ? _peer->starsPerMessageChecked() : 0;
+	const auto richMessage = (shownRichMessage() != nullptr);
 	const auto messages = !_peer
 		? 0
 		: _voiceRecordBar->isListenState()
 		? 1
 		: ComputeSendingMessagesCount(_history, {
 			.forward = &_forwardPanel->items(),
-			.text = &_field->getTextWithTags(),
+			.text = richMessage ? nullptr : &_field->getTextWithTags(),
+			.richMessage = richMessage,
 		});
 	const auto stars = perMessage ? (perMessage * messages) : 0;
 	_send->setState({
@@ -6314,7 +6404,7 @@ bool HistoryWidget::updateCmdStartShown() {
 			&& !_keyboard->hasMarkup()
 			&& !_keyboard->forceReply()
 			&& !_editMsgId) {
-			if (!fieldHasSendText()) {
+			if (!hasSendableContent()) {
 				cmdStartShown = true;
 			}
 		}
@@ -6719,6 +6809,15 @@ bool HistoryWidget::fieldHasSendText() const {
 	return !_field->isHidden() && HasSendText(_field);
 }
 
+bool HistoryWidget::hasSendableContent() const {
+	return fieldHasSendText() || shouldShowRichDraftPreview();
+}
+
+bool HistoryWidget::hideExtraButtons() const {
+	return _fieldCharsCountManager.isLimitExceeded()
+		|| shouldShowRichDraftPreview();
+}
+
 bool HistoryWidget::hasEnoughLinesForAi() const {
 	return _history
 		&& !_voiceRecordBar->isActive()
@@ -7104,6 +7203,35 @@ bool HistoryWidget::showSendMessageError(
 		.forward = &_forwardPanel->items(),
 		.text = &textWithTags,
 		.ignoreSlowmodeCountdown = ignoreSlowmodeCountdown,
+	};
+	request.messagesCount = ComputeSendingMessagesCount(_history, request);
+	const auto error = GetErrorForSending(_peer, request);
+	if (error) {
+		Data::ShowSendErrorToast(controller(), _peer, error);
+		return true;
+	}
+
+	return withPaymentApproved
+		&& !checkSendPayment(
+			request.messagesCount,
+			options,
+			withPaymentApproved);
+}
+
+bool HistoryWidget::showSendRichDraftError(
+		bool ignoreSlowmodeCountdown,
+		Fn<void(int starsApproved)> withPaymentApproved,
+		Api::SendOptions options) {
+	if (!_canSendMessages || !_history || !_peer) {
+		return false;
+	}
+	const auto topicRootId = resolveReplyToTopicRootId();
+	auto request = SendingErrorRequest{
+		.topicRootId = topicRootId,
+		.forward = &_forwardPanel->items(),
+		.messagesCount = 1,
+		.ignoreSlowmodeCountdown = ignoreSlowmodeCountdown,
+		.richMessage = true,
 	};
 	request.messagesCount = ComputeSendingMessagesCount(_history, request);
 	const auto error = GetErrorForSending(_peer, request);
@@ -8076,7 +8204,7 @@ void HistoryWidget::updateBotKeyboard(History *h, bool force) {
 			&& _canSendMessages
 			&& (wasVisible
 				|| (_replyTo && _replyEditMsg)
-				|| (!fieldHasSendText() && !kbWasHidden()))) {
+				|| (!hasSendableContent() && !kbWasHidden()))) {
 			if (!_showAnimation) {
 				if (hasMarkup) {
 					_kbScroll->show();

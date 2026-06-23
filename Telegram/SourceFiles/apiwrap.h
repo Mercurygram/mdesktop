@@ -25,6 +25,10 @@ namespace Main {
 class Session;
 } // namespace Main
 
+namespace Iv {
+struct RichPage;
+} // namespace Iv
+
 namespace Data {
 struct ReactionId;
 struct UpdatedFileReferences;
@@ -386,6 +390,10 @@ public:
 		BusinessShortcutId id);
 	void sendRichMessage(
 		not_null<HistoryItem*> item,
+		const MTPInputRichMessage &richMessage,
+		SendAction action);
+	void sendRichMessage(
+		std::shared_ptr<const Iv::RichPage> page,
 		const MTPInputRichMessage &richMessage,
 		SendAction action);
 	void sendMessage(

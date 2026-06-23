@@ -4207,6 +4207,55 @@ void ApiWrap::sendShortcutMessages(
 }
 
 void ApiWrap::sendRichMessage(
+		std::shared_ptr<const Iv::RichPage> page,
+		const MTPInputRichMessage &richMessage,
+		SendAction action) {
+	Expects(page != nullptr);
+
+	const auto history = action.history;
+	const auto peer = history->peer;
+	const auto newId = FullMsgId(
+		peer->id,
+		_session->data().nextLocalMessageId());
+	auto flags = NewMessageFlags(peer);
+	if (action.replyTo) {
+		flags |= MessageFlag::HasReplyInfo;
+	}
+	FillMessagePostFlags(action, peer, flags);
+	if (action.options.scheduled) {
+		flags |= MessageFlag::IsOrWasScheduled;
+	}
+	if (action.options.shortcutId) {
+		flags |= MessageFlag::ShortcutMessage;
+	}
+	const auto item = history->addNewLocalMessage({
+		.id = newId.msg,
+		.flags = flags,
+		.from = NewMessageFromId(action),
+		.replyTo = action.replyTo,
+		.date = NewMessageDate(action.options),
+		.scheduleRepeatPeriod = action.options.scheduleRepeatPeriod,
+		.shortcutId = action.options.shortcutId,
+		.starsPaid = std::min(
+			peer->starsPerMessageChecked(),
+			action.options.starsApproved),
+		.postAuthor = NewMessagePostAuthor(action),
+		.effectId = action.options.effectId,
+		.suggest = HistoryMessageSuggestInfo(action.options),
+	}, TextWithEntities(), MTP_messageMediaEmpty());
+	item->applyLocalRichPage(std::move(page));
+
+	sendRichMessage(item, richMessage, action);
+
+	_session->data().sendHistoryChangeNotifications();
+	_session->changes().historyUpdated(
+		history,
+		(action.options.scheduled
+			? Data::HistoryUpdate::Flag::ScheduledSent
+			: Data::HistoryUpdate::Flag::MessageSent));
+}
+
+void ApiWrap::sendRichMessage(
 		not_null<HistoryItem*> item,
 		const MTPInputRichMessage &richMessage,
 		SendAction action) {

@@ -84,6 +84,10 @@ class Session;
 struct SendAsKey;
 } // namespace Main
 
+namespace Iv {
+struct RichPage;
+} // namespace Iv
+
 namespace Webrtc {
 enum class RecordAvailability : uchar;
 } // namespace Webrtc
@@ -259,6 +263,7 @@ public:
 
 	[[nodiscard]] TextWithTags getTextWithAppliedMarkdown() const;
 	[[nodiscard]] Data::WebPageDraft webPageDraft() const;
+	[[nodiscard]] std::shared_ptr<const Iv::RichPage> shownRichMessage() const;
 	void setText(const TextWithTags &text);
 	void clear();
 	void hidePanelsAnimated();
