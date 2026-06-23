@@ -380,6 +380,9 @@ private:
 	[[nodiscard]] int shownStarsPerMessage() const;
 	bool updateBotCommandShown();
 	bool updateLikeShown();
+	[[nodiscard]] bool hasVisibleSendText() const;
+	[[nodiscard]] bool hasSendableContent() const;
+	[[nodiscard]] bool hideExtraButtons() const;
 	[[nodiscard]] bool hasEnoughLinesForAi() const;
 	[[nodiscard]] bool textExceedsMaxSize() const;
 

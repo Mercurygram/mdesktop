@@ -2385,14 +2385,14 @@ bool ComposeControls::showRecordButton() const {
 		&& (_recordAvailability != Webrtc::RecordAvailability::None)
 		&& !_voiceRecordBar->isListenState()
 		&& !_voiceRecordBar->isRecordingByAnotherBar()
-		&& !(_field->isVisible() && HasSendText(_field))
+		&& !hasSendableContent()
 		&& !readyToForward()
 		&& !isEditingMessage();
 }
 
 bool ComposeControls::showEditStarsButton() const {
 	return editStarsButtonShown()
-		&& !(_field->isVisible() && HasSendText(_field))
+		&& !hasSendableContent()
 		&& !readyToForward()
 		&& !isEditingMessage()
 		&& !shownStarsPerMessage();
@@ -2885,7 +2885,7 @@ void ComposeControls::updateFieldVisibility() {
 	const auto showPreview = shouldShowRichDraftPreview();
 	const auto showField = !_recording.current() && !showPreview;
 	_field->setVisible(showField);
-	_hasSendText = showField && HasSendText(_field);
+	_hasSendText = hasVisibleSendText();
 	if (_richDraftPreview) {
 		if (showPreview && !_recording.current()) {
 			if (const auto draft = cloudDraft()) {
@@ -2896,6 +2896,8 @@ void ComposeControls::updateFieldVisibility() {
 			_richDraftPreview->hide();
 		}
 	}
+	updateBotCommandShown();
+	updateLikeShown();
 }
 
 void ComposeControls::writeDrafts() {
@@ -3837,9 +3839,11 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 		- _tabbedSelectorToggle->width()
 		- (_likeShown ? _like->width() : 0)
 		- (_botCommandShown ? _botCommandStart->width() : 0)
-		- (_silent ? _silent->width() : 0)
-		- (_scheduled ? _scheduled->width() : 0)
-		- (_ttlInfo ? _ttlInfo->width() : 0)
+		- ((_silent && !_silent->isHidden()) ? _silent->width() : 0)
+		- ((_scheduled && !_scheduled->isHidden())
+			? _scheduled->width()
+			: 0)
+		- ((_ttlInfo && _ttlInfo->isVisible()) ? _ttlInfo->width() : 0)
 		- (_starsReaction
 			? (_st.starsSkip + _starsReaction->width())
 			: 0);
@@ -3927,11 +3931,15 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 	}
 	if (_silent) {
 		_silent->moveToRight(right, buttonsTop);
-		right += _silent->width();
+		if (!_silent->isHidden()) {
+			right += _silent->width();
+		}
 	}
 	if (_scheduled) {
 		_scheduled->moveToRight(right, buttonsTop);
-		right += _scheduled->width();
+		if (!_scheduled->isHidden()) {
+			right += _scheduled->width();
+		}
 	}
 	if (_ttlInfo) {
 		_ttlInfo->move(size.width() - right - _ttlInfo->width(), buttonsTop);
@@ -3946,6 +3954,7 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 }
 
 void ComposeControls::updateControlsVisibility() {
+	const auto hide = hideExtraButtons();
 	if (_botCommandStart) {
 		_botCommandStart->setVisible(_botCommandShown);
 	}
@@ -3954,9 +3963,6 @@ void ComposeControls::updateControlsVisibility() {
 	}
 	if (_editStars) {
 		_editStars->show();
-	}
-	if (_ttlInfo) {
-		_ttlInfo->show();
 	}
 	if (_sendAs) {
 		_sendAs->show();
@@ -3967,14 +3973,20 @@ void ComposeControls::updateControlsVisibility() {
 	if (_attachToggle) {
 		_attachToggle->setVisible(!_replaceMedia);
 	}
+	if (_silent) {
+		_silent->setVisible(!hide);
+	}
 	if (_scheduled) {
-		_scheduled->setVisible(!isEditingMessage());
+		_scheduled->setVisible(!isEditingMessage() && !hide);
 	}
 	if (_commentsShown) {
 		_commentsShown->setVisible(!_commentsShownHidden.current());
 	}
 	if (_starsReaction) {
 		_starsReaction->show();
+	}
+	if (_ttlInfo) {
+		_ttlInfo->setVisible(!hide);
 	}
 	updateAiButtonVisibility();
 	updateSendAsFileVisibility();
@@ -4041,7 +4053,7 @@ void ComposeControls::updateSendAsFileGeometry() {
 }
 
 bool ComposeControls::updateLikeShown() {
-	auto shown = _like && !(_field->isVisible() && HasSendText(_field));
+	auto shown = _like && !hasSendableContent();
 	if (_likeShown != shown) {
 		_likeShown = shown;
 		return true;
@@ -4143,7 +4155,7 @@ bool ComposeControls::updateBotCommandShown() {
 			}
 			return false;
 		}();
-		if (hasBotCommands && !(_field->isVisible() && HasSendText(_field))) {
+		if (hasBotCommands && !hasSendableContent()) {
 			shown = true;
 		}
 	}
@@ -4152,6 +4164,18 @@ bool ComposeControls::updateBotCommandShown() {
 		return true;
 	}
 	return false;
+}
+
+bool ComposeControls::hasVisibleSendText() const {
+	return !_field->isHidden() && HasSendText(_field);
+}
+
+bool ComposeControls::hasSendableContent() const {
+	return hasVisibleSendText() || shouldShowRichDraftPreview();
+}
+
+bool ComposeControls::hideExtraButtons() const {
+	return shouldShowRichDraftPreview();
 }
 
 void ComposeControls::updateOuterGeometry(QRect rect) {
