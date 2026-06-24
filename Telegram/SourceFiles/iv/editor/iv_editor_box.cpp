@@ -42,6 +42,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/labels.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/widgets/scroll_area.h"
+#include "ui/widgets/shadow.h"
 
 #include <crl/crl_on_main.h>
 #include <rpl/never.h>
@@ -182,6 +183,7 @@ public:
 
 	int resizeGetHeight(int width) override;
 	void hideShownTooltip();
+	void setEmojiColumnOpen(bool open);
 
 private:
 	struct PillButton {
@@ -211,6 +213,7 @@ private:
 	object_ptr<ToolbarPill> _emojiPill = { nullptr };
 	std::vector<PillButton> _stateButtons;
 	Ui::IconButton *_linkButton = nullptr;
+	Ui::IconButton *_emojiButton = nullptr;
 	base::unique_qptr<Ui::PopupMenu> _menu;
 
 };
@@ -552,7 +555,7 @@ void Toolbar::buildPills() {
 			});
 	}
 
-	addPillButton(
+	_emojiButton = addPillButton(
 		not_null<ToolbarPill*>(_emojiPill.data()),
 		ToolbarActionId::Attach,
 		&st::ivEditorToolbarEmojiIcon,
@@ -560,7 +563,8 @@ void Toolbar::buildPills() {
 			if (_toggleEmoji) {
 				_toggleEmoji();
 			}
-		})->setAccessibleName(tr::lng_article_insert_emoji(tr::now));
+		});
+	_emojiButton->setAccessibleName(tr::lng_article_insert_emoji(tr::now));
 }
 
 void Toolbar::fillHeadingMenu(not_null<Ui::PopupMenu*> menu) {
@@ -604,6 +608,15 @@ void Toolbar::updateFromEditorState() {
 		_linkButton->setAccessibleName(
 			ToolbarActionLabel(ToolbarActionId::Link, _toolbarState.linkMode));
 	}
+}
+
+void Toolbar::setEmojiColumnOpen(bool open) {
+	if (!_emojiButton) {
+		return;
+	}
+	SetupToolbarButton(
+		not_null<Ui::IconButton*>(_emojiButton),
+		open ? ToolbarButtonState::Active : ToolbarButtonState::Inactive);
 }
 
 int Toolbar::resizeGetHeight(int width) {
@@ -665,6 +678,7 @@ private:
 	object_ptr<Ui::RoundButton> _cancel = { nullptr };
 	object_ptr<Ui::RoundButton> _submit = { nullptr };
 	object_ptr<ChatHelpers::TabbedSelector> _emojiColumn = { nullptr };
+	object_ptr<Ui::PlainShadow> _emojiColumnShadow = { nullptr };
 	Fn<bool()> _discarded;
 	Fn<bool()> _cancelled;
 	Fn<bool()> _changedCancelled;
@@ -851,6 +865,8 @@ void WindowHost::Impl::setupEmojiColumn(const ShowWindowDescriptor &descriptor) 
 			},
 		});
 	_emojiColumn->hide();
+	_emojiColumnShadow = object_ptr<Ui::PlainShadow>(_window->body().get());
+	_emojiColumnShadow->hide();
 	_emojiColumn->setCurrentPeer(descriptor.peer);
 	_emojiColumn->emojiChosen(
 	) | rpl::on_next([=](ChatHelpers::EmojiChosen data) {
@@ -877,7 +893,8 @@ void WindowHost::Impl::setupEmojiColumn(const ShowWindowDescriptor &descriptor) 
 }
 
 void WindowHost::Impl::layout() {
-	if (!_window || !_top || !_bottom || !_toolbar || !_editor || !_emojiColumn) {
+	if (!_window || !_top || !_bottom || !_toolbar || !_editor || !_emojiColumn
+		|| !_emojiColumnShadow) {
 		return;
 	}
 	const auto width = _window->body()->width();
@@ -924,8 +941,12 @@ void WindowHost::Impl::layout() {
 			0,
 			emojiWidth,
 			height);
+		_emojiColumnShadow->setGeometry(editorWidth, 0, st::lineWidth, height);
+		_emojiColumnShadow->show();
+		_emojiColumnShadow->raise();
 	} else {
 		_emojiColumn->hide();
+		_emojiColumnShadow->hide();
 	}
 	_editor->setTopContentPadding(toolbarHeight);
 	_editor->resizeToWidth(std::max(_scroll->width(), 1));
@@ -961,6 +982,9 @@ void WindowHost::Impl::showEmojiColumn() {
 	}
 	window->setMinimumWidth(minimalWindowWidthWithEmojiColumn());
 	_emojiColumnShown = true;
+	if (_toolbar) {
+		_toolbar->setEmojiColumnOpen(true);
+	}
 	_emojiColumn->setRoundRadius(0);
 	setEmojiColumnInteractionActive(true);
 	_emojiColumn->showStarted();
@@ -978,6 +1002,9 @@ void WindowHost::Impl::hideEmojiColumn(bool skipResize) {
 	_emojiColumn->hide();
 	_emojiColumn->hideFinished();
 	_emojiColumnShown = false;
+	if (_toolbar) {
+		_toolbar->setEmojiColumnOpen(false);
+	}
 	window->setMinimumWidth(st::ivEditorWindowMinSize.width());
 	setEmojiColumnInteractionActive(false);
 	if (!skipResize
