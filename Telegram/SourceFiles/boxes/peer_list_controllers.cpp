@@ -95,6 +95,7 @@ object_ptr<Ui::BoxContent> PrepareContactsBox(
 		&window->session());
 	controller->setStyleOverrides(&st::contactsWithStories);
 	controller->setStoriesShown(true);
+	controller->setSectionHeadersShown(true);
 	const auto raw = controller.get();
 	auto init = [=](not_null<PeerListBox*> box) {
 		struct State {
@@ -743,6 +744,10 @@ void ContactsBoxController::setSortMode(SortMode mode) {
 	}
 }
 
+void ContactsBoxController::setSectionHeadersShown(bool shown) {
+	_sectionHeadersShown = shown;
+}
+
 void ContactsBoxController::setStoriesShown(bool shown) {
 	_stories = std::make_unique<PeerListStories>(this, _session);
 }
@@ -751,8 +756,10 @@ void ContactsBoxController::sort() {
 	switch (_sortMode) {
 	case SortMode::Alphabet:
 		sortByName();
-		applySectionHeaders();
-		delegate()->peerListSetShowSectionHeaders(true);
+		if (_sectionHeadersShown) {
+			applySectionHeaders();
+		}
+		delegate()->peerListSetShowSectionHeaders(_sectionHeadersShown);
 		break;
 	case SortMode::Online:
 		sortByOnline();
