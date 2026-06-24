@@ -1563,6 +1563,12 @@ int State::textOrdinalForLeaf(
 	return leaf ? textOrdinalForLeafPath(*leaf) : -1;
 }
 
+std::optional<PreparedEditLeafSource> State::preparedLeafSourceForOrdinal(
+		int ordinal) const {
+	const auto descriptor = textNode(ordinal);
+	return descriptor ? convertPreparedLeafSource(*descriptor) : std::nullopt;
+}
+
 PreparedMutationKind State::lastPreparedMutationKind() const {
 	return _lastPreparedMutationKind;
 }
@@ -1750,8 +1756,9 @@ QString State::activePlaceholderText() const {
 		case BlockKind::Paragraph:
 		case BlockKind::Footer:
 		case BlockKind::Code:
-		case BlockKind::Quote:
 			return u"Text"_q;
+		case BlockKind::Quote:
+			return u"Enter quote"_q;
 		case BlockKind::Heading:
 		case BlockKind::Details:
 			return u"Header"_q;
@@ -3412,7 +3419,6 @@ bool State::activeLeafUsesQuotePlaceholderColor() const {
 	const auto owner = block(leaf.block);
 	if (owner
 		&& owner->kind == BlockKind::Quote
-		&& !owner->pullquote
 		&& (leaf.kind == LeafKind::BlockText
 			|| leaf.kind == LeafKind::BlockCaption)) {
 		return true;
@@ -3429,8 +3435,7 @@ bool State::activeLeafUsesQuotePlaceholderColor() const {
 			.index = step.blockIndex,
 		});
 		if (ancestor
-			&& ancestor->kind == BlockKind::Quote
-			&& !ancestor->pullquote) {
+			&& ancestor->kind == BlockKind::Quote) {
 			return true;
 		}
 	}
@@ -8159,25 +8164,25 @@ void State::collectBoundarySteps(
 						.block = path,
 					}, steps);
 				}
-				appendBoundaryTextStep({
-					.kind = LeafKind::BlockCaption,
-					.block = path,
-				}, steps);
 				collectBoundarySteps(
 					block.blocks,
 					BlockChildrenContainer(path),
 					forward,
 					steps);
+				appendBoundaryTextStep({
+					.kind = LeafKind::BlockCaption,
+					.block = path,
+				}, steps);
 			} else {
+				appendBoundaryTextStep({
+					.kind = LeafKind::BlockCaption,
+					.block = path,
+				}, steps);
 				collectBoundarySteps(
 					block.blocks,
 					BlockChildrenContainer(path),
 					forward,
 					steps);
-				appendBoundaryTextStep({
-					.kind = LeafKind::BlockCaption,
-					.block = path,
-				}, steps);
 				if (block.blocks.empty()) {
 					appendBoundaryTextStep({
 						.kind = LeafKind::BlockText,

@@ -996,6 +996,9 @@ void CopyBlockCachedTextLeafs(
 	case PreparedBlockKind::Thinking:
 	case PreparedBlockKind::Heading: {
 		const auto &textStyle = TextStyleFor(prepared, st);
+		const auto &placeholderStyle = EditPlaceholderTextStyleFor(
+			prepared,
+			st);
 		copyBlockLeaf(
 			CachedTextLeafSlot::Leaf,
 			MarkedTextLeafSourceSignature(
@@ -1007,8 +1010,8 @@ void CopyBlockCachedTextLeafs(
 			CachedTextLeafSlot::Placeholder,
 			PlainTextLeafSourceSignature(
 				prepared.editPlaceholderText,
-				textStyle,
-				PlainTextMinResizeWidth(textStyle)),
+				placeholderStyle,
+				PlainTextMinResizeWidth(placeholderStyle)),
 			&block.placeholderLeaf);
 	} break;
 	case PreparedBlockKind::CodeBlock:
@@ -1745,6 +1748,7 @@ int FlowBlockPreferredWidth(
 				return leaf.maxWidth();
 			});
 	}
+	const auto &placeholderStyle = EditPlaceholderTextStyleFor(prepared, st);
 	return WithCachedTextLeaf(
 		context,
 		BlockCachedTextLeafKey(
@@ -1753,15 +1757,15 @@ int FlowBlockPreferredWidth(
 			context.preparedPath),
 		PlainTextLeafSourceSignature(
 			prepared.editPlaceholderText,
-			textStyle,
-			PlainTextMinResizeWidth(textStyle)),
+			placeholderStyle,
+			PlainTextMinResizeWidth(placeholderStyle)),
 		[&](Ui::Text::String *leaf,
 				Spellchecker::HighlightProcessId*) {
 			SetPlainTextLeaf(
 				leaf,
-				textStyle,
+				placeholderStyle,
 				prepared.editPlaceholderText,
-				PlainTextMinResizeWidth(textStyle));
+				PlainTextMinResizeWidth(placeholderStyle));
 		},
 		[](const Ui::Text::String &leaf,
 				Spellchecker::HighlightProcessId) {
@@ -2406,6 +2410,12 @@ const style::TextStyle &TextStyleFor(
 	return st.heading6;
 }
 
+const style::TextStyle &EditPlaceholderTextStyleFor(
+		const PreparedBlock &block,
+		const style::Markdown &st) {
+	return block.quoteAuthor ? st.body : TextStyleFor(block, st);
+}
+
 void ApplyPreparedEditSources(
 		LaidOutBlock *block,
 		const PreparedBlock &prepared) {
@@ -2461,6 +2471,9 @@ void UpdateLaidOutLeafContent(
 	case PreparedBlockKind::Thinking:
 	case PreparedBlockKind::Heading: {
 		const auto &textStyle = TextStyleFor(prepared, st);
+		const auto &placeholderStyle = EditPlaceholderTextStyleFor(
+			prepared,
+			st);
 		BuildOrReuseMarkedTextLeaf(
 			&block->leaf,
 			CachedTextLeafSlot::Leaf,
@@ -2481,8 +2494,8 @@ void UpdateLaidOutLeafContent(
 				&block->placeholderLeaf,
 				prepared,
 				prepared.editPlaceholderText,
-				textStyle,
-				PlainTextMinResizeWidth(textStyle),
+				placeholderStyle,
+				PlainTextMinResizeWidth(placeholderStyle),
 				context);
 		}
 	} break;
@@ -2807,6 +2820,7 @@ LaidOutBlock LayoutFlowBlock(
 	block.quoteAuthor = prepared.quoteAuthor;
 	block.flowTextAlign = CellAlign(prepared.flowAlignment);
 	const auto &textStyle = TextStyleFor(prepared, st);
+	const auto &placeholderStyle = EditPlaceholderTextStyleFor(prepared, st);
 	if (!IsAnchorOnlyBlock(prepared)) {
 		BuildOrReuseMarkedTextLeaf(
 			&block.leaf,
@@ -2829,8 +2843,8 @@ LaidOutBlock LayoutFlowBlock(
 				&block.placeholderLeaf,
 				prepared,
 				prepared.editPlaceholderText,
-				textStyle,
-				PlainTextMinResizeWidth(textStyle),
+				placeholderStyle,
+				PlainTextMinResizeWidth(placeholderStyle),
 				context);
 		}
 	}

@@ -198,7 +198,9 @@ void WrapPreparedIvRichTextItalic(PreparedIvRichText *prepared) {
 		prepared->text.text.size()));
 }
 
-void ApplyNativeIvEditPlaceholderText(PreparedBlock *block);
+void ApplyNativeIvQuoteEditPlaceholderText(
+	PreparedBlock *block,
+	bool quoteAuthor);
 
 bool AppendPreparedQuoteParagraph(
 		std::vector<PreparedBlock> *result,
@@ -225,13 +227,15 @@ bool AppendPreparedQuoteParagraph(
 		return false;
 	}
 	if (result->size() > count) {
-		if (allowEmpty) {
-			ApplyNativeIvEditPlaceholderText(&result->back());
-		}
 		result->back().quoteAuthor = quoteAuthor;
 		if (pullquote) {
 			result->back().flowAlignment = TableAlignment::Center;
 			result->back().pullquote = true;
+		}
+		if (allowEmpty) {
+			ApplyNativeIvQuoteEditPlaceholderText(
+				&result->back(),
+				quoteAuthor);
 		}
 	}
 	return true;
@@ -675,6 +679,23 @@ void ApplyNativeIvEditPlaceholderText(PreparedBlock *block) {
 		block->editLeaf->kind);
 }
 
+void ApplyNativeIvQuoteEditPlaceholderText(
+		PreparedBlock *block,
+		bool quoteAuthor) {
+	block->editPlaceholderText = quoteAuthor
+		? u"Add author"_q
+		: u"Enter quote"_q;
+}
+
+void RefreshPreparedNativeIvQuotePlaceholder(
+		PreparedBlock *block,
+		NativeIvPrepareState *state) {
+	block->editPlaceholderText = QString();
+	if (state->editMode && block->editLeaf) {
+		ApplyNativeIvQuoteEditPlaceholderText(block, block->quoteAuthor);
+	}
+}
+
 void ApplyNativeIvEditPlaceholderText(PreparedTableCell *cell) {
 	if (!cell->editLeaf) {
 		return;
@@ -905,7 +926,7 @@ void RefreshPreparedNativeIvPlaceholderCopyText(PreparedBlock *block) {
 		SortPreparedIvRichText(&prepared);
 		target->text = std::move(prepared.text);
 		target->links = std::move(prepared.links);
-		RefreshPreparedNativeIvBlockPlaceholder(target, state);
+		RefreshPreparedNativeIvQuotePlaceholder(target, state);
 	} break;
 	case RichPageBlockKind::Table: {
 		if (!preparedBlock->editLeaf || (*preparedBlock->editLeaf != source)) {
@@ -999,13 +1020,10 @@ void RefreshPreparedNativeIvPlaceholderCopyText(PreparedBlock *block) {
 				state)) {
 			return NativeInstantViewLeafUpdateResult::Failed;
 		}
-		if (canonicalBlock.pullquote) {
-			WrapPreparedIvRichTextItalic(&prepared);
-		}
 		SortPreparedIvRichText(&prepared);
 		target->text = std::move(prepared.text);
 		target->links = std::move(prepared.links);
-		RefreshPreparedNativeIvBlockPlaceholder(target, state);
+		RefreshPreparedNativeIvQuotePlaceholder(target, state);
 	} break;
 	case RichPageBlockKind::Photo:
 	case RichPageBlockKind::Video:
@@ -1293,7 +1311,9 @@ void ClearPreparedEditSources(std::vector<PreparedBlock> *blocks) {
 	if (!PrepareNativeIvRichText(data.caption, &cite, &block.anchorId, state)) {
 		return false;
 	}
-	if (!AppendPreparedQuoteParagraph(
+	const auto quoteAuthorEmpty = cite.text.text.isEmpty();
+	const auto includeQuoteAuthor = state->editMode || !quoteAuthorEmpty;
+	if (includeQuoteAuthor && !AppendPreparedQuoteParagraph(
 			&block.children,
 			std::move(cite),
 			data.pullquote,

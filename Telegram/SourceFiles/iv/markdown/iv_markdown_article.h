@@ -324,9 +324,13 @@ public:
 	void setEditableMaxLineWidthOverride(
 		const PreparedEditLeafSource &source,
 		int width);
+	void setEditableTextEmptyOverride(
+		const PreparedEditLeafSource &source,
+		bool empty);
 	void setEditableHeightOverride(int editableIndex, int height);
 	void setEditableHeightOverrideForSegment(int segmentIndex, int height);
 	void clearEditableMaxLineWidthOverride();
+	void clearEditableTextEmptyOverride();
 	void clearEditableHeightOverride();
 	void setTextLeafHeightOverride(int textLeafIndex, int height);
 	void clearTextLeafHeightOverride();
@@ -375,11 +379,17 @@ public:
 	[[nodiscard]] int segmentIndexForTextLeafIndex(int textLeafIndex) const;
 	[[nodiscard]] int editableIndexForSegment(int segmentIndex) const;
 	[[nodiscard]] int segmentIndexForEditableIndex(int editableIndex) const;
+	[[nodiscard]] auto editableLeafForSegment(int segmentIndex) const
+	-> std::optional<PreparedEditLeafSource>;
+	[[nodiscard]] int segmentIndexForEditableLeaf(
+		const PreparedEditLeafSource &source) const;
 	[[nodiscard]] QRect textSegmentRect(int segmentIndex) const;
 	[[nodiscard]] QRect logicalSegmentRect(int segmentIndex) const;
 	[[nodiscard]] QRect segmentRect(int segmentIndex) const;
 	[[nodiscard]] QRect displayMathEditRect(int segmentIndex) const;
 	[[nodiscard]] QRect displayMathBlockRect(int segmentIndex) const;
+	[[nodiscard]] int pullquoteAvailableTextWidthForEditableLeaf(
+		const PreparedEditLeafSource &source) const;
 	[[nodiscard]] bool revealSegment(int segmentIndex);
 	[[nodiscard]] MarkdownArticleTextLeafStyle textLeafStyleForSegment(
 		int segmentIndex) const;

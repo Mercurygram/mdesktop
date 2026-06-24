@@ -203,6 +203,11 @@ struct EditableMaxLineWidthOverride {
 	int width = 0;
 };
 
+struct EditableTextEmptyOverride {
+	PreparedEditLeafSource leaf;
+	bool empty = true;
+};
+
 enum class CachedTextLeafSlot {
 	Leaf,
 	Placeholder,
@@ -310,6 +315,7 @@ struct LayoutContext {
 	bool tightList = false;
 	bool useArticleBands = false;
 	bool editMode = false;
+	bool hideEmptyQuoteAuthor = false;
 	bool allowAsyncSyntaxHighlighting = true;
 	CodeBlockSyntaxHighlightTracker *syntaxHighlightTracker = nullptr;
 	CachedTextLeafPool *cachedTextLeafs = nullptr;
@@ -320,6 +326,7 @@ struct LayoutContext {
 	std::shared_ptr<EditableHeightOverride> editableHeightOverride;
 	std::shared_ptr<EditableMaxLineWidthOverride>
 		editableMaxLineWidthOverride;
+	std::shared_ptr<EditableTextEmptyOverride> editableTextEmptyOverride;
 	std::function<std::shared_ptr<MediaBlock>(const PreparedBlock&)> mediaBlockFactory;
 	std::function<std::shared_ptr<PlaceholderBlockRuntime>(
 		PreparedPlaceholderBlockId)> placeholderRuntimeFactory;
@@ -453,6 +460,9 @@ struct TableCellMinimumWidthConstraint {
 	LayoutContext context,
 	const style::Markdown &st);
 [[nodiscard]] const style::TextStyle &TextStyleFor(
+	const PreparedBlock &block,
+	const style::Markdown &st);
+[[nodiscard]] const style::TextStyle &EditPlaceholderTextStyleFor(
 	const PreparedBlock &block,
 	const style::Markdown &st);
 void CopyCachedTextLeafs(

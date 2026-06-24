@@ -208,6 +208,68 @@ void PrepareNestedContext(
 	context->listItemContentShift = 0;
 }
 
+[[nodiscard]] bool TextEmptyForLayout(
+		const PreparedBlock &block,
+		LayoutContext context) {
+	return (block.editLeaf
+		&& context.editableTextEmptyOverride
+		&& (*block.editLeaf == context.editableTextEmptyOverride->leaf))
+		? context.editableTextEmptyOverride->empty
+		: block.text.text.isEmpty();
+}
+
+[[nodiscard]] bool QuoteBodyEmptyForLayout(
+		const PreparedBlock &block,
+		LayoutContext context) {
+	for (const auto &child : block.children) {
+		if (child.quoteAuthor || IsAnchorOnlyBlock(child)) {
+			continue;
+		} else if (IsFlowKind(child.kind)
+			&& TextEmptyForLayout(child, context)
+			&& child.children.empty()) {
+			continue;
+		}
+		return false;
+	}
+	return true;
+}
+
+[[nodiscard]] bool HideEmptyQuoteAuthorBlock(
+		const PreparedBlock &block,
+		LayoutContext context) {
+	return context.hideEmptyQuoteAuthor
+		&& block.quoteAuthor
+		&& TextEmptyForLayout(block, context);
+}
+
+[[nodiscard]] style::align FlowTextAlign(TableAlignment alignment) {
+	switch (alignment) {
+	case TableAlignment::Center:
+		return style::al_center;
+	case TableAlignment::Right:
+		return style::al_right;
+	case TableAlignment::None:
+	case TableAlignment::Left:
+		return style::al_left;
+	}
+	return style::al_left;
+}
+
+[[nodiscard]] LaidOutBlock HiddenQuoteAuthorBlock(
+		const PreparedBlock &prepared) {
+	auto block = LaidOutBlock();
+	ApplyPreparedEditSources(&block, prepared);
+	block.kind = prepared.kind;
+	block.anchorId = prepared.anchorId;
+	block.anchorIds = prepared.anchorIds;
+	block.headingLevel = prepared.headingLevel;
+	block.supplementary = prepared.supplementary;
+	block.pullquote = prepared.pullquote;
+	block.quoteAuthor = prepared.quoteAuthor;
+	block.flowTextAlign = FlowTextAlign(prepared.flowAlignment);
+	return block;
+}
+
 [[nodiscard]] bool FirstLineComesFromChildren(const LaidOutBlock &block) {
 	switch (block.kind) {
 	case PreparedBlockKind::List:
@@ -616,6 +678,9 @@ void FinalizeOwnerSelection(
 		int width,
 		LayoutContext context) {
 	auto analysis = WidthAnalysisNode();
+	if (HideEmptyQuoteAuthorBlock(prepared, context)) {
+		return analysis;
+	}
 	const auto availableWidth = std::max(width, 1);
 	auto visibleScrollViewportWidth = availableWidth;
 	switch (prepared.kind) {
@@ -888,6 +953,9 @@ void FinalizeOwnerSelection(
 		childContext.quoteDepth = prepared.visualDepth + 1;
 		childContext.tightList = false;
 		PrepareNestedContext(&childContext, 0, childWidth);
+		childContext.hideEmptyQuoteAuthor = QuoteBodyEmptyForLayout(
+			prepared,
+			childContext);
 		analysis.children = AnalyzeBlocks(
 			prepared.children,
 			formulas,
@@ -1226,6 +1294,9 @@ void FinalizeOwnerSelection(
 		return std::nullopt;
 	}
 	auto analysis = WidthAnalysisNode();
+	if (HideEmptyQuoteAuthorBlock(prepared, context)) {
+		return analysis;
+	}
 	const auto availableWidth = std::max(width, 1);
 	auto visibleScrollViewportWidth = availableWidth;
 	switch (prepared.kind) {
@@ -1524,6 +1595,9 @@ void FinalizeOwnerSelection(
 		childContext.quoteDepth = prepared.visualDepth + 1;
 		childContext.tightList = false;
 		PrepareNestedContext(&childContext, 0, childWidth);
+		childContext.hideEmptyQuoteAuthor = QuoteBodyEmptyForLayout(
+			prepared,
+			childContext);
 		auto children = AnalyzeRetainedBlocks(
 			prepared.children,
 			block.children,
@@ -2587,6 +2661,10 @@ int LayoutBlocks(
 		const auto next = NextVisibleBlock(prepared, i);
 		auto blockContext = context;
 		blockContext.preparedPath.push_back(i);
+		if (HideEmptyQuoteAuthorBlock(block, blockContext)) {
+			blocks->push_back(HiddenQuoteAuthorBlock(block));
+			continue;
+		}
 		if (previous && !anchorOnly) {
 			y += BlockSkip(*previous, block, context, st);
 		}
@@ -3032,6 +3110,9 @@ int LayoutBlocks(
 	childContext.quoteDepth = prepared.visualDepth + 1;
 	childContext.tightList = false;
 	PrepareNestedContext(&childContext, contentLeft, contentLayoutWidth);
+	childContext.hideEmptyQuoteAuthor = QuoteBodyEmptyForLayout(
+		prepared,
+		childContext);
 	const auto childBottom = layoutNestedBlocks(
 		prepared.children,
 		&block->children,
@@ -3050,6 +3131,7 @@ int LayoutBlocks(
 		prepared.children.empty()
 			? TextLineHeight(st.body)
 			: 0);
+	block->textWidth = contentWidth;
 	block->horizontalScrollMax = scrollOwner
 		? std::max(contentLogicalWidth - contentWidth, 0)
 		: 0;
@@ -3802,6 +3884,10 @@ int LayoutBlocks(
 		const auto next = NextVisibleBlock(prepared, i);
 		auto blockContext = context;
 		blockContext.preparedPath.push_back(i);
+		if (HideEmptyQuoteAuthorBlock(preparedBlock, blockContext)) {
+			live = HiddenQuoteAuthorBlock(preparedBlock);
+			continue;
+		}
 		if (previous && !anchorOnly) {
 			y += BlockSkip(*previous, preparedBlock, context, st);
 		}

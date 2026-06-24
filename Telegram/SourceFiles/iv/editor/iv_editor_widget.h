@@ -234,6 +234,7 @@ private:
 		QColor textMarkBg;
 		style::align align = style::al_left;
 		bool italic = false;
+		bool quoteCaptionPlaceholder = false;
 	};
 
 	struct InlineFieldStyleKey {
@@ -242,6 +243,7 @@ private:
 		style::color textFg;
 		QColor textMarkBg;
 		style::align align = style::al_left;
+		bool quoteCaptionPlaceholder = false;
 
 		friend inline bool operator==(
 				const InlineFieldStyleKey &a,
@@ -250,7 +252,9 @@ private:
 				&& (a.lineHeight == b.lineHeight)
 				&& (a.textFg == b.textFg)
 				&& (a.textMarkBg == b.textMarkBg)
-				&& (a.align == b.align);
+				&& (a.align == b.align)
+				&& (a.quoteCaptionPlaceholder
+					== b.quoteCaptionPlaceholder);
 		}
 
 		friend inline bool operator!=(
@@ -406,6 +410,7 @@ private:
 	void recreateInlineField(const style::InputField &st);
 	void refreshInlineFieldPlaceholder();
 	void refreshInlineFieldPlaceholderColor();
+	void refreshInlineFieldTextEmptyOverride();
 	void refreshInlineFieldMaxLineWidthOverride();
 	void activateTrailingParagraph();
 	void setInlineFieldFromActiveState(int selectionFrom, int selectionTo);

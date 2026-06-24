@@ -98,6 +98,33 @@ namespace {
 	return result;
 }
 
+[[nodiscard]] int MaxVisualLineWidth(
+		not_null<const QTextDocument*> document) {
+	auto result = 0.;
+	for (auto block = document->begin(); block.isValid(); block = block.next()) {
+		const auto layout = block.layout();
+		if (!layout) {
+			continue;
+		}
+		for (auto i = 0, count = layout->lineCount(); i != count; ++i) {
+			result = std::max(
+				result,
+				double(layout->lineAt(i).naturalTextWidth()));
+		}
+	}
+	return std::max(int(std::ceil(result)), 0);
+}
+
+[[nodiscard]] int MaxVisualLineWidthForWidth(
+		not_null<const QTextDocument*> document,
+		int width) {
+	width = std::max(width, 1);
+	const auto clone = std::unique_ptr<QTextDocument>(document->clone());
+	clone->setTextWidth(width);
+	clone->adjustSize();
+	return MaxVisualLineWidth(clone.get());
+}
+
 [[nodiscard]] std::unique_ptr<Ui::ChatTheme> CreateStandaloneChatTheme() {
 	const auto palette = style::main_palette::get();
 	return std::make_unique<Ui::ChatTheme>(Ui::ChatThemeDescriptor{
@@ -1173,6 +1200,7 @@ void EnableQTextEditLineMetrics(style::Markdown &style) {
 	EnableQTextEditLineMetrics(style.heading4);
 	EnableQTextEditLineMetrics(style.heading5);
 	EnableQTextEditLineMetrics(style.heading6);
+	EnableQTextEditLineMetrics(style.quoteAuthorStyle);
 	EnableQTextEditLineMetrics(style.code);
 	EnableQTextEditLineMetrics(style.displayMath.fallbackStyle);
 	EnableQTextEditLineMetrics(style.table.headerStyle);
@@ -2841,6 +2869,7 @@ void Widget::flushArticleRelayoutDeferral() {
 	}
 	if (relayout) {
 		relayoutCurrentContent();
+		ensurePendingActivation();
 	}
 	if (geometry) {
 		syncInlineFieldGeometry();
@@ -6300,7 +6329,9 @@ const Widget::CachedInlineFieldStyle &Widget::inlineFieldStyleFor(
 	fieldStyle->textFg = textFg;
 	fieldStyle->textMarkBg = textMarkBg;
 	fieldStyle->textAlign = data.align;
-	fieldStyle->placeholderFont = fieldStyle->style.font;
+	fieldStyle->placeholderFont = data.quoteCaptionPlaceholder
+		? fieldStyle->style.font->bold(false)
+		: fieldStyle->style.font;
 	fieldStyle->placeholderAlign = data.align;
 	_fieldStyles.push_back({
 		.key = key,
@@ -6365,6 +6396,7 @@ Widget::InlineFieldStyleData Widget::normalizedInlineFieldStyle(
 			: _articleStyle->textPalette.markBg->c,
 		.align = valid ? leafStyle.align : style::al_left,
 		.italic = valid ? leafStyle.italic : false,
+		.quoteCaptionPlaceholder = _state->activeLeafUsesQuoteCaptionColor(),
 	};
 }
 
@@ -6381,6 +6413,7 @@ Widget::InlineFieldStyleKey Widget::inlineFieldStyleKey(
 		.textFg = data.textFg,
 		.textMarkBg = data.textMarkBg,
 		.align = data.align,
+		.quoteCaptionPlaceholder = data.quoteCaptionPlaceholder,
 	};
 }
 
@@ -6572,6 +6605,7 @@ void Widget::setupInlineField() {
 				truncateHistoryRedo();
 			}
 			if (!_restoringHistory && !_performingUndoRedo && !_settingField) {
+				refreshInlineFieldTextEmptyOverride();
 				clearFieldUndoRedoNoopState();
 				_autosaveEvents.fire({
 					.type = AutosaveEventType::TextIdle,
@@ -6687,21 +6721,25 @@ int Widget::inlineFieldMaxVisualLineWidth() const {
 	if (_field->isHidden()) {
 		return 0;
 	}
-	auto result = 0.;
-	for (auto block = _field->rawTextEdit()->document()->begin();
-			block.isValid();
-			block = block.next()) {
-		const auto layout = block.layout();
-		if (!layout) {
-			continue;
-		}
-		for (auto i = 0, count = layout->lineCount(); i != count; ++i) {
-			result = std::max(
-				result,
-				double(layout->lineAt(i).naturalTextWidth()));
-		}
+	return MaxVisualLineWidth(_field->rawTextEdit()->document());
+}
+
+void Widget::refreshInlineFieldTextEmptyOverride() {
+	if (!_article) {
+		return;
 	}
-	return std::max(int(std::ceil(result)), 0);
+	if (!_field || _field->isHidden() || _settingField) {
+		_article->clearEditableTextEmptyOverride();
+		return;
+	}
+	const auto source = _state->activePreparedLeafSource();
+	if (source) {
+		_article->setEditableTextEmptyOverride(
+			*source,
+			_field->getLastText().isEmpty());
+	} else {
+		_article->clearEditableTextEmptyOverride();
+	}
 }
 
 void Widget::refreshInlineFieldMaxLineWidthOverride() {
@@ -6713,6 +6751,7 @@ void Widget::refreshInlineFieldMaxLineWidthOverride() {
 		_refreshingInlineFieldMaxLineWidthOverride = false;
 	});
 	for (auto pass = 0; pass != 2; ++pass) {
+		refreshInlineFieldTextEmptyOverride();
 		const auto livePullquoteWidthRelevant = !_field->isHidden()
 			&& (_activeSegmentIndex >= 0)
 			&& !_settingField
@@ -6722,7 +6761,13 @@ void Widget::refreshInlineFieldMaxLineWidthOverride() {
 			? _state->activePreparedLeafSource()
 			: std::optional<Markdown::PreparedEditLeafSource>();
 		if (source) {
-			const auto width = inlineFieldMaxVisualLineWidth();
+			const auto maxWidth = _article
+				->pullquoteAvailableTextWidthForEditableLeaf(*source);
+			const auto width = (maxWidth > 0)
+				? MaxVisualLineWidthForWidth(
+					_field->rawTextEdit()->document(),
+					maxWidth)
+				: inlineFieldMaxVisualLineWidth();
 			if (width > 0) {
 				_article->setEditableMaxLineWidthOverride(*source, width);
 			} else {
@@ -8191,6 +8236,10 @@ bool Widget::moveBoundary(bool forward, bool allowTrailing) {
 		return false;
 	}
 	auto handled = false;
+	beginArticleRelayoutDeferral();
+	const auto relayoutGuard = gsl::finally([&] {
+		endArticleRelayoutDeferral();
+	});
 	recordMutationTransaction([&] {
 		const auto committed = commitInlineField();
 		if (committed == ApplyResult::Failed) {
@@ -8374,6 +8423,10 @@ bool Widget::moveTabBoundary(bool forward) {
 	if (!target && (!forward || _state->isActiveTopLevelParagraph())) {
 		return false;
 	}
+	beginArticleRelayoutDeferral();
+	const auto relayoutGuard = gsl::finally([&] {
+		endArticleRelayoutDeferral();
+	});
 	recordMutationTransaction([&] {
 		auto committed = ApplyResult::Unchanged;
 		if (!_field->isHidden()) {
@@ -8446,6 +8499,10 @@ bool Widget::removeBoundaryOwner(bool forward) {
 				length),
 		});
 	}();
+	beginArticleRelayoutDeferral();
+	const auto relayoutGuard = gsl::finally([&] {
+		endArticleRelayoutDeferral();
+	});
 	recordMutationTransaction([&] {
 		const auto committed = commitInlineField();
 		if (committed == ApplyResult::Failed) {
@@ -9012,6 +9069,16 @@ void Widget::syncInlineFieldGeometry(int width) {
 		hideInlineField();
 		clearArticleEditableHeightOverride();
 		_article->clearEditableMaxLineWidthOverride();
+		const auto pendingOrdinal = _pendingOrdinal;
+		ensureArticleLayoutForInlineField(width);
+		if (_pendingOrdinal == pendingOrdinal && pendingOrdinal >= 0) {
+			const auto segmentIndex = segmentIndexForEditableOrdinal(
+				pendingOrdinal);
+			if (segmentIndex >= 0
+				&& !_article->logicalSegmentRect(segmentIndex).isEmpty()) {
+				ensurePendingActivation();
+			}
+		}
 		return;
 	}
 	const auto margins = _field->fullTextMargins();
@@ -10395,10 +10462,19 @@ PreparedEditSelection Widget::structuralSelectionFromHits(
 }
 
 int Widget::editableOrdinalForSegment(int segmentIndex) const {
+	if (const auto source = _article->editableLeafForSegment(segmentIndex)) {
+		const auto ordinal = _state->textOrdinalForLeaf(*source);
+		if (ordinal >= 0) {
+			return ordinal;
+		}
+	}
 	return _article->editableIndexForSegment(segmentIndex);
 }
 
 int Widget::segmentIndexForEditableOrdinal(int ordinal) const {
+	if (const auto source = _state->preparedLeafSourceForOrdinal(ordinal)) {
+		return _article->segmentIndexForEditableLeaf(*source);
+	}
 	return _article->segmentIndexForEditableIndex(ordinal);
 }
 

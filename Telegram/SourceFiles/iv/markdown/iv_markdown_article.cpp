@@ -356,6 +356,9 @@ void HarvestCachedTextLeafs(
 	case PreparedBlockKind::Heading:
 	{
 		const auto &textStyle = TextStyleFor(prepared, st);
+		const auto &placeholderStyle = EditPlaceholderTextStyleFor(
+			prepared,
+			st);
 		storeBlockLeaf(
 			CachedTextLeafSlot::Leaf,
 			MarkedTextLeafSourceSignature(
@@ -367,8 +370,8 @@ void HarvestCachedTextLeafs(
 			CachedTextLeafSlot::Placeholder,
 			PlainTextLeafSourceSignature(
 				prepared.editPlaceholderText,
-				textStyle,
-				PlainTextMinResizeWidth(textStyle)),
+				placeholderStyle,
+				PlainTextMinResizeWidth(placeholderStyle)),
 			&block->placeholderLeaf);
 	} break;
 	case PreparedBlockKind::CodeBlock:
@@ -2112,6 +2115,8 @@ void ApplyOwnerContentGeometry(
 		const SelectableSegment &segment) {
 	if (segment.cell) {
 		return segment.cell->editLeaf;
+	} else if (IsDisplayMathSegment(segment) && segment.block) {
+		return segment.block->editLeaf;
 	} else if (segment.block && (segment.leaf == &segment.block->leaf)) {
 		return segment.block->editLeaf;
 	}
@@ -3219,11 +3224,17 @@ public:
 		const PreparedEditLeafSource &source,
 		int width);
 
+	void setEditableTextEmptyOverride(
+		const PreparedEditLeafSource &source,
+		bool empty);
+
 	void setEditableHeightOverride(int editableIndex, int height);
 
 	void setEditableHeightOverrideForSegment(int segmentIndex, int height);
 
 	void clearEditableMaxLineWidthOverride();
+
+	void clearEditableTextEmptyOverride();
 
 	void clearEditableHeightOverride();
 
@@ -3293,12 +3304,20 @@ public:
 
 	[[nodiscard]] int segmentIndexForEditableIndex(int editableIndex) const;
 
+	[[nodiscard]] auto editableLeafForSegment(int segmentIndex) const
+	-> std::optional<PreparedEditLeafSource>;
+
+	[[nodiscard]] int segmentIndexForEditableLeaf(
+		const PreparedEditLeafSource &source) const;
+
 	[[nodiscard]] QRect textSegmentRect(int segmentIndex) const;
 	[[nodiscard]] QRect logicalSegmentRect(int segmentIndex) const;
 
 	[[nodiscard]] QRect segmentRect(int segmentIndex) const;
 	[[nodiscard]] QRect displayMathEditRect(int segmentIndex) const;
 	[[nodiscard]] QRect displayMathBlockRect(int segmentIndex) const;
+	[[nodiscard]] int pullquoteAvailableTextWidthForEditableLeaf(
+		const PreparedEditLeafSource &source) const;
 	[[nodiscard]] bool revealSegment(int segmentIndex);
 
 	[[nodiscard]] MarkdownArticleTextLeafStyle textLeafStyleForSegment(
@@ -3484,6 +3503,8 @@ private:
 	void relayout(int width);
 	void relayoutRetained(int width);
 	void retainBlocks();
+	[[nodiscard]] const LaidOutBlock *pullquoteBlockForEditableLeaf(
+		const PreparedEditLeafSource &source) const;
 
 	mutable MarkdownArticleContent _content;
 	style::Markdown _style;
@@ -3529,6 +3550,8 @@ private:
 	std::optional<ActiveHorizontalScrollDrag> _activeHorizontalScrollDrag;
 	std::optional<PreparedEditLeafSource> _editableMaxLineWidthOverrideLeaf;
 	int _editableMaxLineWidthOverride = 0;
+	std::optional<PreparedEditLeafSource> _editableTextEmptyOverrideLeaf;
+	bool _editableTextEmptyOverride = true;
 	int _editableHeightOverrideIndex = -1;
 	int _editableHeightOverride = 0;
 	bool _blocksPainted = false;
@@ -3735,6 +3758,19 @@ void MarkdownArticle::Impl::setEditableMaxLineWidthOverride(
 	invalidateGeometry();
 }
 
+void MarkdownArticle::Impl::setEditableTextEmptyOverride(
+		const PreparedEditLeafSource &source,
+		bool empty) {
+	if (_editableTextEmptyOverrideLeaf
+		&& (*_editableTextEmptyOverrideLeaf == source)
+		&& (_editableTextEmptyOverride == empty)) {
+		return;
+	}
+	_editableTextEmptyOverrideLeaf = source;
+	_editableTextEmptyOverride = empty;
+	invalidateGeometry();
+}
+
 void MarkdownArticle::Impl::setEditableHeightOverride(
 		int editableIndex,
 		int height) {
@@ -3762,6 +3798,15 @@ void MarkdownArticle::Impl::clearEditableMaxLineWidthOverride() {
 	}
 	_editableMaxLineWidthOverrideLeaf = std::nullopt;
 	_editableMaxLineWidthOverride = 0;
+	invalidateGeometry();
+}
+
+void MarkdownArticle::Impl::clearEditableTextEmptyOverride() {
+	if (!_editableTextEmptyOverrideLeaf) {
+		return;
+	}
+	_editableTextEmptyOverrideLeaf = std::nullopt;
+	_editableTextEmptyOverride = true;
 	invalidateGeometry();
 }
 
@@ -4106,6 +4151,28 @@ int MarkdownArticle::Impl::segmentIndexForEditableIndex(
 	return -1;
 }
 
+std::optional<PreparedEditLeafSource>
+MarkdownArticle::Impl::editableLeafForSegment(int segmentIndex) const {
+	const auto segment = FindSegment(&_segments, segmentIndex);
+	return (segment && IsEditableSegment(*segment))
+		? EditableLeafForSegment(*segment)
+		: std::nullopt;
+}
+
+int MarkdownArticle::Impl::segmentIndexForEditableLeaf(
+		const PreparedEditLeafSource &source) const {
+	for (const auto &segment : _segments) {
+		if (!IsEditableSegment(segment)) {
+			continue;
+		}
+		const auto leaf = EditableLeafForSegment(segment);
+		if (leaf && (*leaf == source)) {
+			return segment.index;
+		}
+	}
+	return -1;
+}
+
 QRect MarkdownArticle::Impl::textSegmentRect(int segmentIndex) const {
 	const auto segment = FindSegment(&_segments, segmentIndex);
 	return (segment && segment->isTextLeaf()) ? segment->textRect : QRect();
@@ -4162,6 +4229,37 @@ QRect MarkdownArticle::Impl::displayMathBlockRect(int segmentIndex) const {
 		return block.outer;
 	}
 	return displayMathEditRect(segmentIndex);
+}
+
+const LaidOutBlock *MarkdownArticle::Impl::pullquoteBlockForEditableLeaf(
+		const PreparedEditLeafSource &source) const {
+	const auto find = [&](const auto &self,
+			const std::vector<LaidOutBlock> &blocks,
+			const LaidOutBlock *activePullquote) -> const LaidOutBlock * {
+		for (const auto &block : blocks) {
+			const auto nextPullquote = (block.kind == PreparedBlockKind::Quote)
+				&& block.pullquote
+				? &block
+				: activePullquote;
+			if (block.editLeaf && (*block.editLeaf == source) && nextPullquote) {
+				return nextPullquote;
+			}
+			if (const auto nested = self(self, block.children, nextPullquote)) {
+				return nested;
+			}
+		}
+		return nullptr;
+	};
+	return find(find, _blocks, nullptr);
+}
+
+int MarkdownArticle::Impl::pullquoteAvailableTextWidthForEditableLeaf(
+		const PreparedEditLeafSource &source) const {
+	const auto block = pullquoteBlockForEditableLeaf(source);
+	if (block) {
+		return block->textWidth;
+	}
+	return 0;
 }
 
 MarkdownArticleTextLeafStyle MarkdownArticle::Impl::textLeafStyleForSegment(
@@ -5408,6 +5506,14 @@ void MarkdownArticle::Impl::relayout(int width) {
 					.width = _editableMaxLineWidthOverride,
 				});
 	}
+	if (_editableTextEmptyOverrideLeaf) {
+		context.editableTextEmptyOverride
+			= std::make_shared<EditableTextEmptyOverride>(
+				EditableTextEmptyOverride{
+					.leaf = *_editableTextEmptyOverrideLeaf,
+					.empty = _editableTextEmptyOverride,
+				});
+	}
 	if (_editableHeightOverrideIndex >= 0 && _editableHeightOverride > 0) {
 		context.editableHeightOverride
 			= std::make_shared<EditableHeightOverride>(
@@ -5479,6 +5585,14 @@ void MarkdownArticle::Impl::relayoutRetained(int width) {
 				EditableMaxLineWidthOverride{
 					.leaf = *_editableMaxLineWidthOverrideLeaf,
 					.width = _editableMaxLineWidthOverride,
+				});
+	}
+	if (_editableTextEmptyOverrideLeaf) {
+		context.editableTextEmptyOverride
+			= std::make_shared<EditableTextEmptyOverride>(
+				EditableTextEmptyOverride{
+					.leaf = *_editableTextEmptyOverrideLeaf,
+					.empty = _editableTextEmptyOverride,
 				});
 	}
 	if (_editableHeightOverrideIndex >= 0 && _editableHeightOverride > 0) {
@@ -5562,6 +5676,12 @@ void MarkdownArticle::setEditableMaxLineWidthOverride(
 	_impl->setEditableMaxLineWidthOverride(source, width);
 }
 
+void MarkdownArticle::setEditableTextEmptyOverride(
+		const PreparedEditLeafSource &source,
+		bool empty) {
+	_impl->setEditableTextEmptyOverride(source, empty);
+}
+
 void MarkdownArticle::setEditableHeightOverride(
 		int editableIndex,
 		int height) {
@@ -5576,6 +5696,10 @@ void MarkdownArticle::setEditableHeightOverrideForSegment(
 
 void MarkdownArticle::clearEditableMaxLineWidthOverride() {
 	_impl->clearEditableMaxLineWidthOverride();
+}
+
+void MarkdownArticle::clearEditableTextEmptyOverride() {
+	_impl->clearEditableTextEmptyOverride();
 }
 
 void MarkdownArticle::clearEditableHeightOverride() {
@@ -5735,6 +5859,16 @@ int MarkdownArticle::segmentIndexForEditableIndex(int editableIndex) const {
 	return _impl->segmentIndexForEditableIndex(editableIndex);
 }
 
+std::optional<PreparedEditLeafSource> MarkdownArticle::editableLeafForSegment(
+		int segmentIndex) const {
+	return _impl->editableLeafForSegment(segmentIndex);
+}
+
+int MarkdownArticle::segmentIndexForEditableLeaf(
+		const PreparedEditLeafSource &source) const {
+	return _impl->segmentIndexForEditableLeaf(source);
+}
+
 QRect MarkdownArticle::textSegmentRect(int segmentIndex) const {
 	return _impl->textSegmentRect(segmentIndex);
 }
@@ -5753,6 +5887,11 @@ QRect MarkdownArticle::displayMathEditRect(int segmentIndex) const {
 
 QRect MarkdownArticle::displayMathBlockRect(int segmentIndex) const {
 	return _impl->displayMathBlockRect(segmentIndex);
+}
+
+int MarkdownArticle::pullquoteAvailableTextWidthForEditableLeaf(
+		const PreparedEditLeafSource &source) const {
+	return _impl->pullquoteAvailableTextWidthForEditableLeaf(source);
 }
 
 bool MarkdownArticle::revealSegment(int segmentIndex) {

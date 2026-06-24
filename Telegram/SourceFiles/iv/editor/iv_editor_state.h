@@ -250,6 +250,8 @@ public:
 	[[nodiscard]] int textOrdinalForLeafPath(const LeafPath &path) const;
 	[[nodiscard]] int textOrdinalForLeaf(
 		const Markdown::PreparedEditLeafSource &source) const;
+	[[nodiscard]] auto preparedLeafSourceForOrdinal(int ordinal) const
+	-> std::optional<Markdown::PreparedEditLeafSource>;
 	[[nodiscard]] PreparedMutationKind lastPreparedMutationKind() const;
 	[[nodiscard]] auto activePreparedLeafSource() const
 	-> std::optional<Markdown::PreparedEditLeafSource>;
