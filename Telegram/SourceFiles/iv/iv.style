@@ -538,6 +538,22 @@ defaultMarkdownDisplayMath: MarkdownDisplayMath {
 	overflowWidth: 4px;
 	overflowFg: windowSubTextFg;
 }
+ivFormulaPreviewScroll: ScrollArea(defaultScrollArea) {
+	barHidden: true;
+}
+ivFormulaPreviewLabel: FlatLabel(defaultFlatLabel) {
+	textFg: windowSubTextFg;
+	style: defaultTextStyle;
+	align: align(topleft);
+	minWidth: 0px;
+}
+ivFormulaPreviewLabelMargin: margins(22px, 4px, 22px, 4px);
+ivFormulaPreviewMargin: margins(22px, 0px, 22px, 10px);
+ivFormulaPreviewPadding: margins(12px, 10px, 12px, 10px);
+ivFormulaPreviewMinHeight: 108px;
+ivFormulaPreviewRadius: 8px;
+ivFormulaPreviewBg: windowBgOver;
+ivFormulaPreviewFg: windowFg;
 defaultMarkdownTable: MarkdownTable {
 	cellPadding: margins(8px, 10px, 8px, 10px);
 	border: 1px;

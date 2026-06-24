@@ -17,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/stickers/data_custom_emoji.h"
 #include "iv/editor/iv_editor_text_entities.h"
 #include "iv/markdown/iv_markdown_article_paint.h"
+#include "iv/markdown/iv_markdown_microtex.h"
 #include "iv/markdown/iv_markdown_prepare_links.h"
 #include "iv/markdown/iv_markdown_prepare_native_richtext.h"
 #include "lang/lang_keys.h"
@@ -38,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/elastic_scroll.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/fields/input_field.h"
+#include "ui/widgets/labels.h"
 #include "ui/widgets/menu/menu_action.h"
 #include "ui/widgets/menu/menu_add_action_callback.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
@@ -1357,6 +1359,131 @@ struct InlineFieldTrimResult {
 	return QString();
 }
 
+class MathPreview final : public Ui::RpWidget {
+public:
+	MathPreview(QWidget *parent);
+
+	void setSource(QString source);
+	void setCardWidth(int cardWidth);
+
+	[[nodiscard]] rpl::producer<int> desiredHeightValue() const;
+
+protected:
+	void paintEvent(QPaintEvent *e) override;
+
+private:
+	void rerender();
+	void updateDesiredHeight();
+	void relayout();
+
+	QString _source;
+	QImage _image;
+	QSize _logicalSize;
+	int _cardWidth = 0;
+	rpl::variable<int> _desiredHeight = 0;
+
+};
+
+MathPreview::MathPreview(QWidget *parent) : RpWidget(parent) {
+	_desiredHeight = st::ivFormulaPreviewMinHeight;
+}
+
+void MathPreview::setSource(QString source) {
+	source = source.trimmed();
+	source.replace('\r', ' ');
+	source.replace('\n', ' ');
+	if (source == _source) {
+		return;
+	}
+	_source = source;
+	rerender();
+}
+
+void MathPreview::setCardWidth(int cardWidth) {
+	if (_cardWidth == cardWidth) {
+		return;
+	}
+	_cardWidth = cardWidth;
+	relayout();
+}
+
+rpl::producer<int> MathPreview::desiredHeightValue() const {
+	return _desiredHeight.value();
+}
+
+void MathPreview::rerender() {
+	if (_source.isEmpty()) {
+		_image = QImage();
+		_logicalSize = QSize();
+		updateDesiredHeight();
+		relayout();
+		update();
+		return;
+	}
+	const auto ratio = std::max(style::DevicePixelRatio(), 1);
+	const auto &math = st::defaultMarkdownDisplayMath;
+	auto rendered = Markdown::RenderWithMicrotex({
+		.trimmedTex = _source,
+		.kind = Markdown::MathKind::Display,
+		.textSize = math.textSize,
+		.renderWidthCap = math.maxRenderWidth,
+		.renderHeightCap = math.maxRenderHeight,
+		.devicePixelRatio = ratio,
+	});
+	if (!rendered.measured.success || rendered.image.isNull()) {
+		_image = QImage();
+		_logicalSize = QSize();
+		updateDesiredHeight();
+		relayout();
+		update();
+		return;
+	}
+	const auto &white = rendered.image;
+	auto colorized = QImage(
+		white.size(),
+		QImage::Format_ARGB32_Premultiplied);
+	style::colorizeImage(
+		white,
+		st::ivFormulaPreviewFg->c,
+		&colorized,
+		QRect(),
+		QPoint(),
+		true);
+	colorized.setDevicePixelRatio(white.devicePixelRatio());
+	_image = std::move(colorized);
+	_logicalSize = rendered.measured.logicalSize;
+	updateDesiredHeight();
+	relayout();
+	update();
+}
+
+void MathPreview::updateDesiredHeight() {
+	const auto padded = _logicalSize.height()
+		+ st::ivFormulaPreviewPadding.top()
+		+ st::ivFormulaPreviewPadding.bottom();
+	_desiredHeight = std::max(st::ivFormulaPreviewMinHeight, padded);
+}
+
+void MathPreview::relayout() {
+	const auto width = std::max(_cardWidth, _logicalSize.width());
+	resize(width, _desiredHeight.current());
+}
+
+void MathPreview::paintEvent(QPaintEvent *e) {
+	auto p = Painter(this);
+	auto hq = PainterHighQualityEnabler(p);
+	p.setPen(Qt::NoPen);
+	p.setBrush(st::ivFormulaPreviewBg);
+	const auto radius = st::ivFormulaPreviewRadius;
+	p.drawRoundedRect(rect(), radius, radius);
+	if (_image.isNull()) {
+		return;
+	}
+	const auto x = (width() - _logicalSize.width()) / 2;
+	const auto y = (height() - _logicalSize.height()) / 2;
+	p.drawImage(QPoint(x, y), _image);
+}
+
 void EditMathBox(
 		not_null<Ui::GenericBox*> box,
 		QString startSource,
@@ -1376,6 +1503,12 @@ void EditMathBox(
 		}
 	}, box->lifetime());
 
+	box->addRow(
+		object_ptr<Ui::FlatLabel>(
+			box,
+			tr::lng_formatting_math_source_label(),
+			st::ivFormulaPreviewLabel),
+		st::ivFormulaPreviewLabelMargin);
 	const auto source = box->addRow(
 		object_ptr<Ui::InputField>(
 			box,
@@ -1436,6 +1569,39 @@ void EditMathBox(
 	};
 	source->submits(
 	) | rpl::on_next(submit, source->lifetime());
+
+	box->addRow(
+		object_ptr<Ui::FlatLabel>(
+			box,
+			tr::lng_formatting_math_result_label(),
+			st::ivFormulaPreviewLabel),
+		st::ivFormulaPreviewLabelMargin);
+	const auto host = box->addRow(
+		object_ptr<Ui::RpWidget>(box),
+		st::ivFormulaPreviewMargin);
+	const auto scroll = Ui::CreateChild<Ui::ScrollArea>(
+		host,
+		st::ivFormulaPreviewScroll,
+		true);
+	const auto preview = scroll->setOwnedWidget(
+		object_ptr<MathPreview>(scroll));
+	host->sizeValue(
+	) | rpl::on_next([=](QSize size) {
+		scroll->setGeometry(QRect(QPoint(), size));
+	}, host->lifetime());
+	const auto cardWidth = st::boxWidth
+		- st::ivFormulaPreviewMargin.left()
+		- st::ivFormulaPreviewMargin.right();
+	preview->setCardWidth(cardWidth);
+	preview->desiredHeightValue(
+	) | rpl::on_next([=](int desiredHeight) {
+		host->resize(cardWidth, desiredHeight);
+	}, host->lifetime());
+	preview->setSource(startSource);
+	source->changes(
+	) | rpl::on_next([=] {
+		preview->setSource(source->getLastText());
+	}, source->lifetime());
 
 	box->setTitle(editingExisting
 		? tr::lng_formatting_math_edit_title()
