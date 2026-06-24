@@ -519,6 +519,7 @@ EmojiListWidget::EmojiListWidget(
 	if (_mode != Mode::RecentReactions
 		&& _mode != Mode::BackgroundEmoji
 		&& _mode != Mode::ChannelStatus
+		&& _mode != Mode::CustomOnly
 		&& !_onlyUnicodeEmoji) {
 		setupSearch();
 	}
@@ -2896,6 +2897,7 @@ void EmojiListWidget::mouseReleaseEvent(QMouseEvent *e) {
 			switch (_mode) {
 			case Mode::Full:
 			case Mode::UserpicBuilder:
+			case Mode::CustomOnly:
 				Settings::ShowPremium(resolved, u"animated_emoji"_q);
 				break;
 			case Mode::FullReactions:

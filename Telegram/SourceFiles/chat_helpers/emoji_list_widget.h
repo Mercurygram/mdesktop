@@ -85,6 +85,7 @@ enum class EmojiListMode {
 	BackgroundEmoji,
 	PeerTitle,
 	MessageEffects,
+	CustomOnly,
 };
 
 [[nodiscard]] std::vector<EmojiStatusId> DocumentListToRecent(

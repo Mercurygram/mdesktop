@@ -444,6 +444,8 @@ stickersRowDuration: 200;
 stickersAddCellPlusSize: 22px;
 stickersAddCellPlusThickness: 2px;
 stickersAddCellBgRadius: 28px;
+emojiSetAddCellPlusSize: 13px;
+emojiSetAddCellBgRadius: 16px;
 
 stickersEmojiPickerExpandedRadius: 20px;
 stickersEmojiPickerBg: emojiPanBg;
