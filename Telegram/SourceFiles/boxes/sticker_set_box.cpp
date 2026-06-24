@@ -582,7 +582,11 @@ void StickerSetBox::prepare() {
 	_inner->setInstalled(
 	) | rpl::on_next([=](uint64 setId) {
 		if (_inner->setType() == Data::StickersType::Masks) {
-			showToast(tr::lng_masks_installed(tr::now));
+			showToast({
+				.text = { tr::lng_masks_installed(tr::now) },
+				.iconLottie = u"toast/contact_check"_q,
+				.iconLottieSize = st::toastLottieIconSize,
+			});
 		} else if (_inner->setType() == Data::StickersType::Emoji) {
 			auto &stickers = _session->data().stickers();
 			stickers.notifyEmojiSetInstalled(setId);
