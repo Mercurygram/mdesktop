@@ -90,6 +90,13 @@ ivEditorToolbarDividerHeight: 18px;
 ivEditorToolbarEmojiSkip: 8px;
 ivEditorBottomControlsPadding: margins(8px, defaultVerticalListSkip, 8px, defaultVerticalListSkip);
 ivEditorBottomControlsButtonSkip: 6px;
+ivEditorPillPadding: 4px;
+ivEditorPillButtonSkip: 6px;
+ivEditorPillShadow: BoxShadow {
+	blurRadius: 8px;
+	offset: point(0px, 2px);
+	opacity: 0.18;
+}
 ivEditorSubmitButton: RoundButton(defaultActiveButton) {
 	height: ivEditorToolbarButtonSize;
 }
