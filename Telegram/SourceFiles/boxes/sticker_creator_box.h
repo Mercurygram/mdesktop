@@ -9,8 +9,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "data/stickers/data_stickers.h"
 
-#include <QtGui/QImage>
-
 namespace ChatHelpers {
 class Show;
 } // namespace ChatHelpers
@@ -21,14 +19,12 @@ class GenericBox;
 
 namespace Api {
 
-void CreateStickerBox(
-	not_null<Ui::GenericBox*> box,
+void OpenCreateStickerFlow(
 	std::shared_ptr<ChatHelpers::Show> show,
 	StickerSetIdentifier set,
-	QImage image,
-	Fn<void(MTPmessages_StickerSet)> done);
+	Fn<void(MTPmessages_StickerSet)> done = nullptr);
 
-void OpenCreateStickerFlow(
+void OpenCreateEmojiFlow(
 	std::shared_ptr<ChatHelpers::Show> show,
 	StickerSetIdentifier set,
 	Fn<void(MTPmessages_StickerSet)> done = nullptr);
