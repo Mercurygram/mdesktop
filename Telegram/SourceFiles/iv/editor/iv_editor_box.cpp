@@ -609,11 +609,18 @@ int Toolbar::resizeGetHeight(int width) {
 	const auto padding = st::ivEditorToolbarPadding;
 	const auto top = padding.top();
 	const auto skip = st::ivEditorToolbarEmojiSkip;
-	auto left = padding.left();
-	_controlsPill->moveToLeft(left, top, width);
-	left += _controlsPill->naturalSize().width() + skip;
-	_emojiPill->moveToLeft(left, top, width);
+	const auto undoRedoWidth = _undoRedoPill->naturalSize().width();
 	_undoRedoPill->moveToRight(padding.right(), top, width);
+	const auto undoRedoLeft = width - padding.right() - undoRedoWidth;
+	_controlsPill->moveToLeft(padding.left(), top, width);
+	const auto emojiWidth = _emojiPill->naturalSize().width();
+	const auto emojiAfterControls = padding.left()
+		+ _controlsPill->naturalSize().width()
+		+ skip;
+	const auto emojiLeft = std::min(
+		emojiAfterControls,
+		std::max(undoRedoLeft - skip - emojiWidth, padding.left()));
+	_emojiPill->moveToLeft(emojiLeft, top, width);
 	return top + _controlsPill->naturalSize().height() + padding.bottom();
 }
 
