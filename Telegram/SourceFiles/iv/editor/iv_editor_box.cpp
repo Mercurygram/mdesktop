@@ -33,6 +33,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "iv/editor/iv_editor_widget.h"
 #include "iv/editor/iv_editor_window.h"
 #include "lang/lang_keys.h"
+#include "menu/menu_checked_action.h"
 #include "menu/menu_send_details.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/delayed_activation.h"
@@ -200,6 +201,13 @@ private:
 	void buildPills();
 	void fillHeadingMenu(not_null<Ui::PopupMenu*> menu);
 	void showHeadingMenu(not_null<Ui::IconButton*> button);
+	void fillBlockStyleMenu(not_null<Ui::PopupMenu*> menu);
+	void showBlockStyleMenu(not_null<Ui::IconButton*> button);
+	void fillTextStyleMenu(not_null<Ui::PopupMenu*> menu);
+	void showTextStyleMenu(not_null<Ui::IconButton*> button);
+	void fillListStyleMenu(not_null<Ui::PopupMenu*> menu);
+	void showListStyleMenu(not_null<Ui::IconButton*> button);
+	void applyBlockText();
 	void updateFromEditorState();
 
 	const QPointer<Widget> _editor;
@@ -214,6 +222,7 @@ private:
 	std::vector<PillButton> _stateButtons;
 	Ui::IconButton *_linkButton = nullptr;
 	Ui::IconButton *_emojiButton = nullptr;
+	Ui::IconButton *_listButton = nullptr;
 	base::unique_qptr<Ui::PopupMenu> _menu;
 
 };
@@ -504,7 +513,7 @@ void Toolbar::buildPills() {
 		nullptr);
 	heading->setIsMenuButton(true);
 	heading->setClickedCallback([=] {
-		showHeadingMenu(heading);
+		showBlockStyleMenu(heading);
 	});
 	const auto textStyle = addPillButton(
 		controls,
@@ -512,12 +521,19 @@ void Toolbar::buildPills() {
 		&st::ivEditorToolbarBoldIcon,
 		nullptr);
 	textStyle->setIsMenuButton(true);
+	textStyle->setClickedCallback([=] {
+		showTextStyleMenu(textStyle);
+	});
 	const auto listStyle = addPillButton(
 		controls,
 		ToolbarActionId::BulletList,
 		&st::ivEditorToolbarBulletListIcon,
 		nullptr);
 	listStyle->setIsMenuButton(true);
+	listStyle->setClickedCallback([=] {
+		showListStyleMenu(listStyle);
+	});
+	_listButton = listStyle;
 	addPillButton(
 		controls,
 		ToolbarActionId::Table,
@@ -594,6 +610,234 @@ void Toolbar::showHeadingMenu(not_null<Ui::IconButton*> button) {
 	_menu->popup(button->mapToGlobal(QPoint(0, button->height())));
 }
 
+void Toolbar::fillBlockStyleMenu(not_null<Ui::PopupMenu*> menu) {
+	const auto info = _editor
+		? _editor->activeBlockInfo()
+		: Widget::ActiveBlockInfo();
+	const auto kind = info.kind;
+	using Kind = RichPage::BlockKind;
+	const auto insertType = [=](State::InsertBlockType type) {
+		if (_editor) {
+			_editor->insertBlock({ .type = type });
+		}
+	};
+
+	auto sub = std::make_unique<Ui::PopupMenu>(menu, st::popupMenuWithIcons);
+	fillHeadingMenu(not_null<Ui::PopupMenu*>(sub.get()));
+	menu->addAction(
+		tr::lng_article_insert_heading(tr::now),
+		std::move(sub),
+		&st::ivEditorToolbarHeadingIcon,
+		&st::ivEditorToolbarHeadingIcon);
+
+	Menu::AddCheckedAction(
+		menu,
+		tr::lng_article_insert_text(tr::now),
+		[=] { applyBlockText(); },
+		&st::ivEditorToolbarPlainTextIcon,
+		(kind == Kind::Paragraph));
+	Menu::AddCheckedAction(
+		menu,
+		tr::lng_article_insert_blockquote(tr::now),
+		[=] { insertType(State::InsertBlockType::Blockquote); },
+		&st::ivEditorToolbarBlockquoteIcon,
+		(kind == Kind::Quote && !info.pullquote));
+	Menu::AddCheckedAction(
+		menu,
+		tr::lng_article_insert_pullquote(tr::now),
+		[=] { insertType(State::InsertBlockType::Pullquote); },
+		&st::ivEditorToolbarPullquoteIcon,
+		(kind == Kind::Quote && info.pullquote));
+	Menu::AddCheckedAction(
+		menu,
+		tr::lng_article_insert_code(tr::now),
+		[=] { insertType(State::InsertBlockType::Code); },
+		&st::ivEditorToolbarCodeIcon,
+		(kind == Kind::Code));
+}
+
+void Toolbar::applyBlockText() {
+	if (!_editor) {
+		return;
+	}
+	const auto info = _editor->activeBlockInfo();
+	using Kind = RichPage::BlockKind;
+	switch (info.kind) {
+	case Kind::Quote:
+		_editor->insertBlock({
+			.type = info.pullquote
+				? State::InsertBlockType::Pullquote
+				: State::InsertBlockType::Blockquote,
+		});
+		break;
+	case Kind::Code:
+		_editor->insertBlock({ .type = State::InsertBlockType::Code });
+		break;
+	case Kind::Heading:
+		_editor->applyToolbarFormatAction(
+			Widget::ToolbarFormatAction::PlainText);
+		break;
+	default:
+		break;
+	}
+}
+
+void Toolbar::showBlockStyleMenu(not_null<Ui::IconButton*> button) {
+	if (_menu) {
+		return;
+	}
+	_menu = base::make_unique_q<Ui::PopupMenu>(this, st::popupMenuWithIcons);
+	fillBlockStyleMenu(not_null<Ui::PopupMenu*>(_menu.get()));
+	_menu->popup(button->mapToGlobal(QPoint(0, button->height())));
+}
+
+void Toolbar::fillTextStyleMenu(not_null<Ui::PopupMenu*> menu) {
+	using Action = Widget::ToolbarFormatAction;
+	const auto add = [&](
+			Action action,
+			const QString &label,
+			const style::icon *icon) {
+		const auto &state = _toolbarState[action];
+		if (!state.shown) {
+			return;
+		}
+		Menu::AddCheckedAction(
+			menu,
+			label,
+			[=] {
+				if (_editor) {
+					_editor->applyToolbarFormatAction(action);
+				}
+			},
+			icon,
+			state.active);
+	};
+	add(Action::Bold,
+		tr::lng_menu_formatting_bold(tr::now),
+		&st::ivEditorToolbarBoldIcon);
+	add(Action::Italic,
+		tr::lng_menu_formatting_italic(tr::now),
+		&st::ivEditorToolbarItalicIcon);
+	add(Action::Underline,
+		tr::lng_menu_formatting_underline(tr::now),
+		&st::ivEditorToolbarUnderlineIcon);
+	add(Action::StrikeOut,
+		tr::lng_menu_formatting_strike_out(tr::now),
+		&st::ivEditorToolbarStrikeOutIcon);
+	add(Action::Spoiler,
+		tr::lng_menu_formatting_spoiler(tr::now),
+		&st::ivEditorToolbarSpoilerIcon);
+	add(Action::Subscript,
+		tr::lng_menu_formatting_subscript(tr::now),
+		&st::ivEditorToolbarSubscriptIcon);
+	add(Action::Superscript,
+		tr::lng_menu_formatting_superscript(tr::now),
+		&st::ivEditorToolbarSuperscriptIcon);
+	add(Action::Marked,
+		tr::lng_menu_formatting_marked(tr::now),
+		&st::ivEditorToolbarMarkedIcon);
+}
+
+void Toolbar::showTextStyleMenu(not_null<Ui::IconButton*> button) {
+	if (_menu) {
+		return;
+	}
+	auto menu = base::make_unique_q<Ui::PopupMenu>(
+		this,
+		st::popupMenuWithIcons);
+	fillTextStyleMenu(not_null<Ui::PopupMenu*>(menu.get()));
+	if (menu->empty()) {
+		return;
+	}
+	_menu = std::move(menu);
+	_menu->popup(button->mapToGlobal(QPoint(0, button->height())));
+}
+
+void Toolbar::fillListStyleMenu(not_null<Ui::PopupMenu*> menu) {
+	const auto insertType = [=](State::InsertBlockType type) {
+		if (_editor) {
+			_editor->insertBlock({ .type = type });
+		}
+	};
+	const auto addInserts = [=](not_null<Ui::PopupMenu*> target) {
+		target->addAction(
+			tr::lng_article_insert_ordered_list(tr::now),
+			[=] { insertType(State::InsertBlockType::OrderedList); },
+			&st::ivEditorToolbarOrderedListIcon,
+			&st::ivEditorToolbarOrderedListIcon);
+		target->addAction(
+			tr::lng_article_insert_bullet_list(tr::now),
+			[=] { insertType(State::InsertBlockType::BulletList); },
+			&st::ivEditorToolbarBulletListIcon,
+			&st::ivEditorToolbarBulletListIcon);
+		target->addAction(
+			tr::lng_article_insert_task_list(tr::now),
+			[=] { insertType(State::InsertBlockType::TaskList); },
+			&st::ivEditorToolbarTaskListIcon,
+			&st::ivEditorToolbarTaskListIcon);
+	};
+
+	const auto range = _editor
+		? _editor->currentListRangeAtCaret()
+		: std::optional<Markdown::PreparedEditListItemRange>();
+	if (!range) {
+		addInserts(menu);
+		return;
+	}
+	const auto info = _editor->listSelectionInfo(*range);
+	const auto hasItemMenu = info.valid
+		&& (info.listKind == RichPage::ListKind::Ordered)
+		&& !info.taskList;
+
+	auto changeSub = std::make_unique<Ui::PopupMenu>(
+		menu,
+		st::popupMenuWithIcons);
+	_editor->fillListChangeMenu(
+		not_null<Ui::PopupMenu*>(changeSub.get()),
+		*range);
+	menu->addAction(
+		tr::lng_article_list_change(tr::now),
+		std::move(changeSub),
+		&st::ivEditorToolbarBulletListIcon,
+		&st::ivEditorToolbarBulletListIcon);
+
+	if (hasItemMenu) {
+		const auto itemRange = _editor->currentListItemRangeAtCaret();
+		if (itemRange) {
+			auto itemSub = std::make_unique<Ui::PopupMenu>(
+				menu,
+				st::popupMenuWithIcons);
+			_editor->fillListItemChangeMenu(
+				not_null<Ui::PopupMenu*>(itemSub.get()),
+				*itemRange);
+			menu->addAction(
+				tr::lng_article_list_item_change(tr::now),
+				std::move(itemSub),
+				&st::ivEditorToolbarOrderedListIcon,
+				&st::ivEditorToolbarOrderedListIcon);
+		}
+	}
+
+	auto insertSub = std::make_unique<Ui::PopupMenu>(
+		menu,
+		st::popupMenuWithIcons);
+	addInserts(not_null<Ui::PopupMenu*>(insertSub.get()));
+	menu->addAction(
+		tr::lng_article_list_insert(tr::now),
+		std::move(insertSub),
+		&st::ivEditorToolbarBulletListIcon,
+		&st::ivEditorToolbarBulletListIcon);
+}
+
+void Toolbar::showListStyleMenu(not_null<Ui::IconButton*> button) {
+	if (_menu) {
+		return;
+	}
+	_menu = base::make_unique_q<Ui::PopupMenu>(this, st::popupMenuWithIcons);
+	fillListStyleMenu(not_null<Ui::PopupMenu*>(_menu.get()));
+	_menu->popup(button->mapToGlobal(QPoint(0, button->height())));
+}
+
 void Toolbar::updateFromEditorState() {
 	for (const auto &pb : _stateButtons) {
 		const auto &state = _toolbarState[pb.format];
@@ -607,6 +851,15 @@ void Toolbar::updateFromEditorState() {
 	if (_linkButton) {
 		_linkButton->setAccessibleName(
 			ToolbarActionLabel(ToolbarActionId::Link, _toolbarState.linkMode));
+	}
+	if (_listButton) {
+		const auto inList = _editor
+			&& _editor->currentListRangeAtCaret().has_value();
+		SetupToolbarButton(
+			not_null<Ui::IconButton*>(_listButton),
+			inList
+				? ToolbarButtonState::Active
+				: ToolbarButtonState::Inactive);
 	}
 }
 

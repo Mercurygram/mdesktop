@@ -7216,6 +7216,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_article_menu_item" = "Article";
 "lng_article_editor_title" = "Article";
 "lng_article_insert_heading" = "Heading";
+"lng_article_insert_text" = "Text";
 "lng_article_insert_heading1" = "Heading 1";
 "lng_article_insert_heading2" = "Heading 2";
 "lng_article_insert_heading3" = "Heading 3";
@@ -7231,6 +7232,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_article_insert_bullet_list" = "Bullet List";
 "lng_article_insert_task_list" = "Task List";
 "lng_article_list_change" = "Change List";
+"lng_article_list_insert" = "Insert List";
 "lng_article_list_item_change" = "Change List Item";
 "lng_article_list_numbers" = "Numbers";
 "lng_article_list_lowercase_letters" = "Lowercase Letters";

@@ -4533,6 +4533,61 @@ std::optional<PreparedListItemRange> Widget::fullListRangeForSource(
 	};
 }
 
+Widget::ActiveBlockInfo Widget::activeBlockInfo() const {
+	const auto leaf = _state->activeLeafPath();
+	if (!leaf) {
+		return {};
+	}
+	const auto block = BlockFromPath(_state->richPage(), leaf->block);
+	if (!block) {
+		return {};
+	}
+	return {
+		.kind = block->kind,
+		.pullquote = block->pullquote,
+		.headingLevel = block->headingLevel,
+	};
+}
+
+std::optional<PreparedListItemRange> Widget::currentListRangeAtCaret() const {
+	const auto activeLeaf = _state->activePreparedLeafSource();
+	const auto listSource = activeLeaf
+		? ListItemSourceFromLeaf(*activeLeaf)
+		: std::optional<PreparedEditListItemSource>();
+	const auto listBlock = activeLeaf
+		? std::make_optional(activeLeaf->block)
+		: std::optional<PreparedEditBlockPath>();
+	const auto sources = ListContextSources(listSource, listBlock);
+	if (sources.empty()) {
+		return std::nullopt;
+	}
+	const auto range = fullListRangeForSource(sources.front());
+	if (!range || !_state->listSelectionInfo(*range).valid) {
+		return std::nullopt;
+	}
+	return range;
+}
+
+std::optional<PreparedListItemRange> Widget::currentListItemRangeAtCaret() {
+	const auto activeLeaf = _state->activePreparedLeafSource();
+	const auto listSource = activeLeaf
+		? ListItemSourceFromLeaf(*activeLeaf)
+		: std::optional<PreparedEditListItemSource>();
+	const auto listBlock = activeLeaf
+		? std::make_optional(activeLeaf->block)
+		: std::optional<PreparedEditBlockPath>();
+	const auto range = effectiveListRangeForSource(listSource, listBlock);
+	if (!range || !_state->listSelectionInfo(*range).valid) {
+		return std::nullopt;
+	}
+	return range;
+}
+
+State::ListSelectionInfo Widget::listSelectionInfo(
+		const PreparedListItemRange &range) const {
+	return _state->listSelectionInfo(range);
+}
+
 void Widget::showListContextMenu(
 		const PreparedListItemRange &range,
 		QPoint globalPos) {

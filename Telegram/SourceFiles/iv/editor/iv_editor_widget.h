@@ -169,6 +169,24 @@ public:
 	void applyToolbarFormatAction(ToolbarFormatAction action);
 	void editLinkFromToolbar();
 	void editMathFromToolbar();
+	struct ActiveBlockInfo {
+		RichPage::BlockKind kind = RichPage::BlockKind::Unsupported;
+		bool pullquote = false;
+		int headingLevel = 0;
+	};
+	[[nodiscard]] ActiveBlockInfo activeBlockInfo() const;
+	[[nodiscard]] std::optional<Markdown::PreparedEditListItemRange>
+		currentListRangeAtCaret() const;
+	[[nodiscard]] std::optional<Markdown::PreparedEditListItemRange>
+		currentListItemRangeAtCaret();
+	[[nodiscard]] State::ListSelectionInfo listSelectionInfo(
+		const Markdown::PreparedEditListItemRange &range) const;
+	void fillListChangeMenu(
+		not_null<Ui::PopupMenu*> menu,
+		const Markdown::PreparedEditListItemRange &range);
+	void fillListItemChangeMenu(
+		not_null<Ui::PopupMenu*> menu,
+		const Markdown::PreparedEditListItemRange &range);
 	void setInlineFieldExternalInteractionActive(bool active);
 	void setTopContentPadding(int value);
 
@@ -646,12 +664,6 @@ private:
 	void showListContextMenu(
 		const Markdown::PreparedEditListItemRange &range,
 		QPoint globalPos);
-	void fillListChangeMenu(
-		not_null<Ui::PopupMenu*> menu,
-		const Markdown::PreparedEditListItemRange &range);
-	void fillListItemChangeMenu(
-		not_null<Ui::PopupMenu*> menu,
-		const Markdown::PreparedEditListItemRange &range);
 	void applyListChange(Fn<bool()> change);
 	void showTableContextMenu(
 		const Markdown::PreparedEditTableCellRange &range,
