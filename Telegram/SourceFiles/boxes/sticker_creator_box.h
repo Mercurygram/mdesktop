@@ -9,6 +9,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "data/stickers/data_stickers.h"
 
+class DocumentData;
+
 namespace ChatHelpers {
 class Show;
 } // namespace ChatHelpers
@@ -27,6 +29,12 @@ void OpenCreateStickerFlow(
 void OpenCreateEmojiFlow(
 	std::shared_ptr<ChatHelpers::Show> show,
 	StickerSetIdentifier set,
+	Fn<void(MTPmessages_StickerSet)> done = nullptr);
+
+[[nodiscard]] bool AdaptStickerToEmoji(
+	std::shared_ptr<ChatHelpers::Show> show,
+	StickerSetIdentifier set,
+	not_null<DocumentData*> document,
 	Fn<void(MTPmessages_StickerSet)> done = nullptr);
 
 } // namespace Api

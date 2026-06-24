@@ -404,6 +404,7 @@ private:
 	void startCreateNewStickerFlow();
 	void startAddExistingEmojiFlow();
 	void startCreateNewEmojiFlow();
+	void startAdaptStickerToEmojiFlow();
 	[[nodiscard]] ChatHelpers::TabbedPanel *createPickerPanel(
 		ChatHelpers::TabbedSelector::Mode mode,
 		uint64 excludeSetId);
@@ -2533,6 +2534,10 @@ void StickerSetBox::Inner::showAddMenu(QPoint globalPos) {
 			tr::lng_emoji_add_existing(tr::now),
 			crl::guard(this, [=] { startAddExistingEmojiFlow(); }),
 			&st::menuIconEmoji);
+		_menu->addAction(
+			tr::lng_emoji_adapt_sticker(tr::now),
+			crl::guard(this, [=] { startAdaptStickerToEmojiFlow(); }),
+			&st::menuIconStickerAdd);
 	} else {
 		_menu->addAction(
 			tr::lng_stickers_create_new(tr::now),
@@ -2720,6 +2725,38 @@ void StickerSetBox::Inner::startCreateNewEmojiFlow() {
 		applySet(result);
 	});
 	Api::OpenCreateEmojiFlow(_show, identifier, onDone);
+}
+
+void StickerSetBox::Inner::startAdaptStickerToEmojiFlow() {
+	if (!hasAddCell()) {
+		return;
+	}
+	const auto panel = createPickerPanel(
+		ChatHelpers::TabbedSelector::Mode::StickersOnly,
+		0);
+	if (!panel) {
+		return;
+	}
+	const auto identifier = StickerSetIdentifier{
+		.id = _setId,
+		.accessHash = _setAccessHash,
+		.shortName = _setShortName,
+	};
+	const auto show = _show;
+	panel->selector()->fileChosen(
+	) | rpl::on_next([=, this](const ChatHelpers::FileChosen &chosen) {
+		const auto accepted = Api::AdaptStickerToEmoji(
+			show,
+			identifier,
+			chosen.document,
+			crl::guard(this, [=, this](MTPmessages_StickerSet result) {
+				applySet(result);
+			}));
+		if (accepted && _pickerPanel) {
+			_pickerPanel->hideAnimated();
+		}
+	}, panel->lifetime());
+	panel->showAnimated();
 }
 
 StickerSetBox::Inner::~Inner() = default;

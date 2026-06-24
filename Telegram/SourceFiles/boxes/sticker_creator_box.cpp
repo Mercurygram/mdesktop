@@ -11,6 +11,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/compose/compose_show.h"
 #include "chat_helpers/emoji_picker_overlay.h"
 #include "core/file_utilities.h"
+#include "data/data_document.h"
+#include "data/data_document_media.h"
 #include "editor/editor_layer_widget.h"
 #include "editor/photo_editor.h"
 #include "editor/photo_editor_common.h"
@@ -240,6 +242,35 @@ void OpenPhotoEditorForImage(
 	buffer.open(QIODevice::WriteOnly);
 	image.save(&buffer, "WEBP", kWebpQuality);
 	return bytes;
+}
+
+void LoadStickerImage(
+		std::shared_ptr<ChatHelpers::Show> show,
+		not_null<DocumentData*> document,
+		Fn<void(QImage)> done) {
+	struct State {
+		std::shared_ptr<Data::DocumentMedia> media;
+		rpl::lifetime lifetime;
+	};
+	const auto state = std::make_shared<State>();
+	state->media = document->createMediaView();
+	state->media->checkStickerLarge();
+	const auto finish = [=] {
+		const auto large = state->media->getStickerLarge();
+		auto image = large ? large->original() : QImage();
+		state->lifetime.destroy();
+		done(std::move(image));
+	};
+	if (state->media->loaded()) {
+		finish();
+		return;
+	}
+	show->session().downloaderTaskFinished(
+	) | rpl::filter([=] {
+		return state->media->loaded();
+	}) | rpl::on_next([=] {
+		finish();
+	}, state->lifetime);
 }
 
 } // namespace
@@ -485,6 +516,56 @@ void OpenCreateEmojiFlow(
 		std::move(set),
 		Data::StickersType::Emoji,
 		std::move(done));
+}
+
+bool AdaptStickerToEmoji(
+		std::shared_ptr<ChatHelpers::Show> show,
+		StickerSetIdentifier set,
+		not_null<DocumentData*> document,
+		Fn<void(MTPmessages_StickerSet)> done) {
+	const auto sticker = document->sticker();
+	if (!sticker || sticker->isWebm()) {
+		show->showToast(tr::lng_emoji_adapt_no_video(tr::now));
+		return false;
+	}
+	if (sticker->isLottie()) {
+		const auto emoji = StickerEmojiOrDefault(document);
+		AddExistingStickerToSet(
+			&show->session(),
+			set,
+			document,
+			emoji,
+			[=](MTPmessages_StickerSet result) {
+				show->showToast(tr::lng_emoji_added(tr::now));
+				if (done) {
+					done(result);
+				}
+			},
+			[=](QString err) {
+				show->showToast(err.isEmpty()
+					? tr::lng_attach_failed(tr::now)
+					: err);
+			});
+		return true;
+	}
+	LoadStickerImage(
+		show,
+		document,
+		[=, set = std::move(set), done = std::move(done)](
+				QImage image) mutable {
+			if (image.isNull()) {
+				show->showToast(
+					tr::lng_stickers_create_open_failed(tr::now));
+				return;
+			}
+			RunImageEditorAndCreate(
+				show,
+				std::move(set),
+				std::move(image),
+				Data::StickersType::Emoji,
+				std::move(done));
+		});
+	return true;
 }
 
 } // namespace Api
