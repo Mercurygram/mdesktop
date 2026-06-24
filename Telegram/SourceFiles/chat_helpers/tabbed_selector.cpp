@@ -1330,6 +1330,10 @@ void TabbedSelector::switchTab() {
 	}
 }
 
+void TabbedSelector::setSearchRightReserved(int value) {
+	emoji()->setSearchRightReserved(value);
+}
+
 not_null<EmojiListWidget*> TabbedSelector::emoji() const {
 	Expects(hasEmojiTab());
 

@@ -679,6 +679,7 @@ private:
 	object_ptr<Ui::RoundButton> _submit = { nullptr };
 	object_ptr<ChatHelpers::TabbedSelector> _emojiColumn = { nullptr };
 	object_ptr<Ui::PlainShadow> _emojiColumnShadow = { nullptr };
+	object_ptr<ToolbarPill> _emojiColumnClose = { nullptr };
 	Fn<bool()> _discarded;
 	Fn<bool()> _cancelled;
 	Fn<bool()> _changedCancelled;
@@ -867,6 +868,21 @@ void WindowHost::Impl::setupEmojiColumn(const ShowWindowDescriptor &descriptor) 
 	_emojiColumn->hide();
 	_emojiColumnShadow = object_ptr<Ui::PlainShadow>(_window->body().get());
 	_emojiColumnShadow->hide();
+	_emojiColumnClose = object_ptr<ToolbarPill>(
+		_window->body().get(),
+		st::ivEditorPillShadow);
+	_emojiColumnClose->addButton(
+		st::ivEditorEmojiColumnClose,
+		&st::ivEditorEmojiColumnCloseIcon,
+		&st::ivEditorEmojiColumnCloseIconOver,
+		ToolbarButtonState::Inactive
+	)->setClickedCallback([=] {
+		hideEmojiColumn();
+	});
+	_emojiColumnClose->hide();
+	_emojiColumn->setSearchRightReserved(
+		_emojiColumnClose->naturalSize().width()
+			+ 2 * st::ivEditorEmojiColumnCloseSkip);
 	_emojiColumn->setCurrentPeer(descriptor.peer);
 	_emojiColumn->emojiChosen(
 	) | rpl::on_next([=](ChatHelpers::EmojiChosen data) {
@@ -894,7 +910,7 @@ void WindowHost::Impl::setupEmojiColumn(const ShowWindowDescriptor &descriptor) 
 
 void WindowHost::Impl::layout() {
 	if (!_window || !_top || !_bottom || !_toolbar || !_editor || !_emojiColumn
-		|| !_emojiColumnShadow) {
+		|| !_emojiColumnShadow || !_emojiColumnClose) {
 		return;
 	}
 	const auto width = _window->body()->width();
@@ -944,9 +960,18 @@ void WindowHost::Impl::layout() {
 		_emojiColumnShadow->setGeometry(editorWidth, 0, st::lineWidth, height);
 		_emojiColumnShadow->show();
 		_emojiColumnShadow->raise();
+		const auto closeSize = _emojiColumnClose->naturalSize();
+		const auto closeInset = st::ivEditorEmojiColumnCloseSkip;
+		_emojiColumnClose->moveToLeft(
+			width - closeSize.width() - closeInset,
+			closeInset,
+			width);
+		_emojiColumnClose->show();
+		_emojiColumnClose->raise();
 	} else {
 		_emojiColumn->hide();
 		_emojiColumnShadow->hide();
+		_emojiColumnClose->hide();
 	}
 	_editor->setTopContentPadding(toolbarHeight);
 	_editor->resizeToWidth(std::max(_scroll->width(), 1));

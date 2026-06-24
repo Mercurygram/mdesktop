@@ -68,6 +68,7 @@ public:
 	void setLoading(bool loading);
 	void stealFocus();
 	void returnFocus();
+	void setRightReserved(int value);
 
 	[[nodiscard]] static int IconSizeOverride();
 
@@ -100,6 +101,7 @@ private:
 	not_null<RpWidget*> _fade;
 	rpl::variable<float64> _fadeOpacity = 0.;
 	int _fadeLeftStart = 0;
+	int _rightReserved = 0;
 
 	rpl::variable<int> _fieldPlaceholderWidth;
 	rpl::variable<bool> _fieldEmpty = true;
@@ -135,6 +137,7 @@ public:
 	void setLoading(bool loading);
 	void stealFocus();
 	void returnFocus();
+	void setRightReserved(int value);
 
 private:
 	const style::EmojiPan &_st;

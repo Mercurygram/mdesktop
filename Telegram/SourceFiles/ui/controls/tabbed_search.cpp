@@ -577,17 +577,26 @@ int SearchWithGroups::resizeGetHeight(int newWidth) {
 	if (!newWidth) {
 		return _st.height;
 	}
+	const auto usable = std::max(newWidth - _rightReserved, 0);
 	_back->moveToLeft(0, 0, newWidth);
 	_search->moveToLeft(0, 0, newWidth);
-	_cancel->moveToRight(0, 0, newWidth);
+	_cancel->moveToRight(0, 0, usable);
 
-	moveGroupsBy(newWidth, 0);
+	moveGroupsBy(usable, 0);
 
 	const auto fadeWidth = _fadeLeftStart + _st.fadeLeft.width();
 	const auto fade = QRect(0, 0, fadeWidth, _st.height);
 	_fade->setGeometry(fade);
 
 	return _st.height;
+}
+
+void SearchWithGroups::setRightReserved(int value) {
+	if (_rightReserved == value) {
+		return;
+	}
+	_rightReserved = value;
+	resizeToWidth(width());
 }
 
 void SearchWithGroups::wheelEvent(QWheelEvent *e) {
@@ -674,6 +683,10 @@ void TabbedSearch::stealFocus() {
 
 void TabbedSearch::returnFocus() {
 	_search.returnFocus();
+}
+
+void TabbedSearch::setRightReserved(int value) {
+	_search.setRightReserved(value);
 }
 
 rpl::producer<> TabbedSearch::escapes() const {

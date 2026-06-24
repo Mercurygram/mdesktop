@@ -160,6 +160,7 @@ public:
 	void setCurrentPeer(PeerData *peer);
 	void provideRecentEmoji(
 		const std::vector<EmojiStatusId> &customRecentList);
+	void setSearchRightReserved(int value);
 
 	void hideFinished();
 	void showStarted();
