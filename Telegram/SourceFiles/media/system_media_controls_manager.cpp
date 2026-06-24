@@ -64,6 +64,20 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 	using TrackState = Media::Player::TrackState;
 	const auto mediaPlayer = Media::Player::instance();
 
+	const auto lookupPlaybackRate = [=] {
+		const auto type = mediaPlayer->getActiveType();
+		const auto current = mediaPlayer->current(type);
+		if (!current || !current.changeablePlaybackSpeed()) {
+			return 1.;
+		}
+		const auto document = current.audio();
+		return (document
+			&& !document->isVoiceMessage()
+			&& !document->isVideoMessage())
+			? Core::App().settings().audioPlaybackSpeed()
+			: Core::App().settings().voicePlaybackSpeed();
+	};
+
 	auto trackFilter = rpl::filter([=](const TrackState &state) {
 		const auto type = state.id.type();
 		return (type == AudioMsgId::Type::Song)
@@ -175,6 +189,7 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 			// the track is changed
 			// or when the position is changed by the user.
 			_controls->setPosition(state.position);
+			_controls->setPlaybackRate(lookupPlaybackRate());
 
 			_streamed = std::make_unique<Media::Streaming::Instance>(
 				document,
@@ -268,6 +283,13 @@ SystemMediaControlsManager::SystemMediaControlsManager()
 			_lastOrderMode = mode;
 		}
 		_controls->setShuffle(mode == OrderMode::Shuffle);
+	}, _lifetime);
+
+	rpl::merge(
+		Core::App().settings().voicePlaybackSpeedChanges() | rpl::to_empty,
+		Core::App().settings().audioPlaybackSpeedChanges() | rpl::to_empty
+	) | rpl::on_next([=] {
+		_controls->setPlaybackRate(lookupPlaybackRate());
 	}, _lifetime);
 
 	_controls->commandRequests(
