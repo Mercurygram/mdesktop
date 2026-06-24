@@ -5809,6 +5809,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_sr_message_invoice_paid" = "Paid";
 "lng_sr_message_invoice_unpaid" = "Unpaid";
 
+"lng_sr_folder_locked" = "{text}, Premium required";
+"lng_sr_folder_locked_about" = "Press to view subscription options.";
+
 "lng_media_save_progress" = "{ready} of {total} {mb}";
 "lng_mediaview_save_as" = "Save As...";
 "lng_mediaview_copy" = "Copy";

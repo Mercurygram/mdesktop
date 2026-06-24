@@ -65,6 +65,21 @@ public:
 		// The folders strip is a vertically stacked tab control.
 		return Qt::Vertical;
 	}
+	std::vector<not_null<QWidget*>> accessibilityChildWidgets() const override {
+		// Report the tab buttons in visual (row) order, which can differ from
+		// the QObject child order after a drag-reorder. This override lives
+		// here, on the one VerticalLayout that exposes an accessibility role,
+		// rather than in the base class: a role-less VerticalLayout gets no
+		// custom accessible interface, so it would never call this anyway, and
+		// the widely-used base type keeps Qt's default child enumeration.
+		auto result = std::vector<not_null<QWidget*>>();
+		const auto rows = count();
+		result.reserve(rows);
+		for (auto i = 0; i != rows; ++i) {
+			result.push_back(widgetAt(i).get());
+		}
+		return result;
+	}
 };
 
 } // namespace
@@ -283,16 +298,16 @@ void FiltersMenu::refresh() {
 		if (nextIsLocked && (currentFilter == filter.id())) {
 			_session->setActiveChatsFilter(FilterId(0));
 		}
+		// A locked (premium) folder can't become the current tab - pressing it
+		// opens the Premium box. prepareButton() exposes it as a plain button
+		// rather than a selectable page tab (configured before it is shown), so
+		// screen readers don't offer it as a tab.
 		auto button = prepareButton(
 			_list,
 			filter.id(),
 			filter.title(),
-			Ui::ComputeFilterIcon(filter));
-		button->setLocked(nextIsLocked);
-		// A locked (premium) folder can't become the current tab - pressing it
-		// opens the Premium box. Expose it as a plain button rather than a
-		// selectable page tab, so screen readers don't offer it as a tab.
-		button->setIsPageTab(!nextIsLocked);
+			Ui::ComputeFilterIcon(filter),
+			nextIsLocked);
 		now.emplace(filter.id(), std::move(button));
 	}
 	_filters = std::move(now);
@@ -308,7 +323,6 @@ void FiltersMenu::refresh() {
 void FiltersMenu::setupList() {
 	_list = _container->add(object_ptr<TabListLayout>(_container));
 	_list->setAccessibleName(tr::lng_filters_title(tr::now));
-	_list->setObjectName(u"Folders"_q);
 	_setup = prepareButton(
 		_container,
 		-1,
@@ -337,7 +351,13 @@ bool FiltersMenu::premium() const {
 }
 
 base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareAll() {
-	return prepareButton(_container, 0, {}, Ui::FilterIcon::All, true);
+	return prepareButton(
+		_container,
+		0,
+		{},
+		Ui::FilterIcon::All,
+		false,
+		true);
 }
 
 base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
@@ -345,12 +365,19 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 		FilterId id,
 		Data::ChatFilterTitle title,
 		Ui::FilterIcon icon,
+		bool locked,
 		bool toBeginning) {
 	const auto isStatic = title.isStatic;
 	const auto paused = [=] {
 		return On(PowerSaving::kEmojiChat)
 			|| _session->isGifPausedAtLeastFor(Window::GifPauseReason::Any);
 	};
+	// A real folder (id >= 0) that isn't premium-locked behaves as a selectable
+	// page tab; locked folders and the "Edit" button (id < 0) stay plain
+	// buttons. Establish this before inserting the widget - insertion shows the
+	// child immediately, so configuring the role up front avoids a transient or
+	// separately-announced role change.
+	const auto pageTab = (id >= 0) && !locked;
 	auto prepared = object_ptr<Ui::SideBarButton>(
 		container,
 		id ? title.text : TextWithEntities{ tr::lng_filters_all(tr::now) },
@@ -360,6 +387,8 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 			.customEmojiLoopLimit = isStatic ? -1 : 0,
 		}),
 		paused);
+	prepared->setLocked(locked);
+	prepared->setIsPageTab(pageTab);
 	auto added = toBeginning
 		? container->insert(0, std::move(prepared))
 		: container->add(std::move(prepared));
@@ -373,6 +402,15 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 		: Ui::FilterIcon::All);
 	raw->setIconOverride(icons.normal, icons.active);
 	if (id >= 0) {
+		if (locked) {
+			// A locked folder isn't a tab - surface its premium-gated status
+			// and what pressing it does, which the visual lock glyph alone
+			// can't convey to a screen reader.
+			raw->setAccessibleName(
+				tr::lng_sr_folder_locked(tr::now, lt_text, nameText));
+			raw->setAccessibleDescription(
+				tr::lng_sr_folder_locked_about(tr::now));
+		}
 		rpl::combine(
 			Data::UnreadStateValue(&_session->session(), id),
 			Data::IncludeMutedCounterFoldersValue()
@@ -390,18 +428,19 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 				? "99+"
 				: QString::number(count);
 			raw->setBadge(string, includeMuted && (count == muted));
-			raw->setAccessibleName(count
-				? tr::lng_filter_unread_chats(
-					tr::now,
-					lt_count,
-					count,
-					lt_text,
-					nameText)
-				: nameText);
+			if (!locked) {
+				raw->setAccessibleName(count
+					? tr::lng_filter_unread_chats(
+						tr::now,
+						lt_count,
+						count,
+						lt_text,
+						nameText)
+					: nameText);
+			}
 		}, raw->lifetime());
 	}
-	if (id >= 0) {
-		raw->setIsPageTab(true);
+	if (pageTab) {
 		// Like a tab strip, only the active tab is reachable with the Tab
 		// key. Drive the focus policy reactively so it stays correct as the
 		// active filter and screen-reader mode change (the active tab also
@@ -432,7 +471,8 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 		}, raw->lifetime());
 		// Up/Down move to the previous/next folder, Home/End to the first/last
 		// one, activating it (the tabs are only focusable in screen-reader
-		// mode, so this is scoped to it).
+		// mode, so this is scoped to it). A locked folder isn't a page tab and
+		// keeps ordinary button keyboard behavior.
 		base::install_event_filter(raw, [=](not_null<QEvent*> event) {
 			if (event->type() != QEvent::KeyPress) {
 				return base::EventFilterResult::Continue;

@@ -50,6 +50,7 @@ private:
 		FilterId id,
 		Data::ChatFilterTitle title,
 		Ui::FilterIcon icon,
+		bool locked = false,
 		bool toBeginning = false);
 	void setupMainMenuIcon();
 	void showMenu(QPoint position, FilterId id);
