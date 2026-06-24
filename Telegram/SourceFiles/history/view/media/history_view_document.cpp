@@ -1010,6 +1010,10 @@ void Document::draw(
 			voiceStatusOverride = Ui::FormatPlayedText(
 				base::SafeRound(progress * voice->lastDurationMs) / 1000,
 				voice->lastDurationMs / 1000);
+		} else if (_voiceHoverProgress >= 0 && voice->lastDurationMs > 0) {
+			voiceStatusOverride = Ui::FormatPlayedText(
+				base::SafeRound(_voiceHoverProgress * voice->lastDurationMs) / 1000,
+				voice->lastDurationMs / 1000);
 		}
 		if (voice->transcribe) {
 			const auto size = voice->transcribe->size();
