@@ -85,6 +85,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/themes/window_theme_preview.h"
 #include "window/window_peer_menu.h"
 #include "window/window_controller.h"
+#include "base/platform/base_platform_haptic.h"
 #include "base/platform/base_platform_info.h"
 #include "base/power_save_blocker.h"
 #include "base/random.h"
@@ -115,6 +116,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtWidgets/QApplication>
 #include <QtCore/QBuffer>
 #include <QtGui/QGuiApplication>
+#include <QtGui/QNativeGestureEvent>
 #include <QtGui/QPainterPathStroker>
 #include <QtGui/QWindow>
 #include <QtGui/QScreen>
@@ -179,6 +181,7 @@ using RecognitionCacheMap = base::flat_map<RecognitionId, RecognitionResult>;
 constexpr auto kPreloadCount = 3;
 constexpr auto kMaxZoomLevel = 7; // x8
 constexpr auto kZoomToScreenLevel = 1024;
+constexpr auto kPinchZoomStep = 0.25;
 constexpr auto kOverlayLoaderPriority = 2;
 constexpr auto kSeekTimeMs = 5 * crl::time(1000);
 constexpr auto kSeekTimeMsLong = 10 * crl::time(1000);
@@ -838,6 +841,10 @@ OverlayWidget::OverlayWidget()
 			}
 		} else if (type == QEvent::Wheel) {
 			handleWheelEvent(static_cast<QWheelEvent*>(e.get()));
+		} else if (type == QEvent::NativeGesture) {
+			if (handleNativeGesture(static_cast<QNativeGestureEvent*>(e.get()))) {
+				return base::EventFilterResult::Cancel;
+			}
 		}
 		return base::EventFilterResult::Continue;
 	});
@@ -7108,6 +7115,38 @@ void OverlayWidget::handleWheelEvent(not_null<QWheelEvent*> e) {
 			}
 		}
 	}
+}
+
+bool OverlayWidget::handleNativeGesture(not_null<QNativeGestureEvent*> e) {
+	if (e->gestureType() == Qt::BeginNativeGesture) {
+		_pinchZoomAccumulated = 0.;
+		_zoomAtLimit = false;
+		return false;
+	} else if (e->gestureType() != Qt::ZoomNativeGesture) {
+		return false;
+	} else if (_stories || _fullScreenVideo) {
+		return false;
+	}
+	const auto stepZoom = [&](auto &&zoom) {
+		const auto before = _zoom;
+		zoom();
+		if (_zoom != before) {
+			_zoomAtLimit = false;
+		} else if (!_zoomAtLimit) {
+			_zoomAtLimit = true;
+			base::Platform::Haptic();
+		}
+	};
+	_pinchZoomAccumulated += e->value();
+	while (_pinchZoomAccumulated >= kPinchZoomStep) {
+		_pinchZoomAccumulated -= kPinchZoomStep;
+		stepZoom([&] { zoomIn(); });
+	}
+	while (_pinchZoomAccumulated <= -kPinchZoomStep) {
+		_pinchZoomAccumulated += kPinchZoomStep;
+		stepZoom([&] { zoomOut(); });
+	}
+	return true;
 }
 
 void OverlayWidget::setZoomLevel(int newZoom, bool force) {
