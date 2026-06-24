@@ -50,18 +50,6 @@ namespace {
 		+ padding) / 2;
 }
 
-void PaintTopFade(QPainter &p, int outerWidth, int fadeHeight) {
-	if (fadeHeight <= 0) {
-		return;
-	}
-	auto transparent = st::dialogsBg->c;
-	transparent.setAlpha(0);
-	auto grad = QLinearGradient(0, 0, 0, fadeHeight);
-	grad.setColorAt(0, st::dialogsBg->c);
-	grad.setColorAt(1, transparent);
-	p.fillRect(QRect(0, 0, outerWidth, fadeHeight), grad);
-}
-
 [[nodiscard]] QString FormatUnconfirmedAuthMessage(
 		const std::vector<Data::UnreviewedAuth> &list) {
 	if (list.empty()) {
@@ -175,7 +163,11 @@ not_null<UnconfirmedAuthWrap*> CreateUnconfirmedAuthContent(
 	content->paintOn([=](QPainter &p) {
 		const auto outer = content->rect();
 		const auto pill = outer - margins;
-		PaintTopFade(p, outer.width(), margins.top() + pill.height() / 2);
+		PaintTopFade(
+			p,
+			outer.width(),
+			margins.top() + pill.height() / 2,
+			st::dialogsBg->c);
 		if (pill.isEmpty()) {
 			return;
 		}
@@ -364,7 +356,11 @@ void TopBarSuggestionContent::draw(QPainter &p) {
 	const auto &margins = st::dialogsTopBarSuggestionMargins;
 	const auto pill = outer - margins;
 
-	PaintTopFade(p, outer.width(), margins.top() + pill.height() / 2);
+	PaintTopFade(
+		p,
+		outer.width(),
+		margins.top() + pill.height() / 2,
+		st::dialogsBg->c);
 
 	if (pill.isEmpty()) {
 		return;

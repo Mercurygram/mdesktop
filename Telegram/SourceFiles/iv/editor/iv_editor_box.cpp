@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_msg_id.h"
 #include "data/data_types.h"
 #include "data/data_emoji_statuses.h"
+#include "dialogs/ui/dialogs_pill.h"
 #include "history/history_item.h"
 #include "main/main_session.h"
 #include "ui/emoji_config.h"
@@ -720,8 +721,14 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 	}, window->body()->lifetime());
 
 	_top = object_ptr<Ui::RpWidget>(window->body().get());
-	_top->paintRequest() | rpl::on_next([=](QRect clip) {
-		QPainter(_top.data()).fillRect(clip, st::windowBg);
+	_top->setAttribute(Qt::WA_TransparentForMouseEvents);
+	_top->paintRequest() | rpl::on_next([=] {
+		auto p = QPainter(_top.data());
+		Dialogs::PaintTopFade(
+			p,
+			_top->width(),
+			st::ivEditorTopFadeHeight,
+			st::windowBg->c);
 	}, _top->lifetime());
 	_bottom = object_ptr<Ui::RpWidget>(window->body().get());
 	_bottom->paintRequest() | rpl::on_next([=](QRect clip) {
@@ -823,6 +830,8 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 	_top->show();
 	_bottom->show();
 	_scroll->show();
+	_top->raise();
+	_bottom->raise();
 	window->show();
 	editor->activateInitialNode();
 }
@@ -885,7 +894,6 @@ void WindowHost::Impl::layout() {
 		buttonsHeight = std::max(buttonsHeight, _discard->height());
 	}
 	const auto bottomHeight = padding.top() + buttonsHeight + padding.bottom();
-	const auto contentHeight = std::max(height - toolbarHeight - bottomHeight, 0);
 	const auto buttonsTop = padding.top();
 	_top->setGeometry(0, 0, editorWidth, toolbarHeight);
 	_toolbar->setGeometry(0, 0, editorWidth, toolbarHeight);
@@ -906,11 +914,10 @@ void WindowHost::Impl::layout() {
 			buttonsTop,
 			editorWidth);
 	}
-	_scroll->setGeometry(
-		0,
-		toolbarHeight,
-		editorWidth,
-		contentHeight);
+	const auto scrollTop = 0;
+	const auto scrollBottom = std::max(height - bottomHeight, toolbarHeight);
+	const auto scrollHeight = std::max(scrollBottom - scrollTop, 0);
+	_scroll->setGeometry(0, scrollTop, editorWidth, scrollHeight);
 	if (_emojiColumnShown) {
 		_emojiColumn->setGeometry(
 			editorWidth,
@@ -920,6 +927,7 @@ void WindowHost::Impl::layout() {
 	} else {
 		_emojiColumn->hide();
 	}
+	_editor->setTopContentPadding(toolbarHeight);
 	_editor->resizeToWidth(std::max(_scroll->width(), 1));
 	updateEditorVisibleTopBottom();
 }

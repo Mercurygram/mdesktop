@@ -97,6 +97,7 @@ ivEditorPillShadow: BoxShadow {
 	offset: point(0px, 2px);
 	opacity: 0.18;
 }
+ivEditorTopFadeHeight: 8px;
 ivEditorSubmitButton: RoundButton(defaultActiveButton) {
 	height: ivEditorToolbarButtonSize;
 }

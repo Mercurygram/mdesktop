@@ -170,6 +170,7 @@ public:
 	void editLinkFromToolbar();
 	void editMathFromToolbar();
 	void setInlineFieldExternalInteractionActive(bool active);
+	void setTopContentPadding(int value);
 
 	int resizeGetHeight(int newWidth) override;
 
@@ -684,6 +685,7 @@ private:
 		const Markdown::PreparedEditHit &focus) const;
 	[[nodiscard]] int editableOrdinalForSegment(int segmentIndex) const;
 	[[nodiscard]] int segmentIndexForEditableOrdinal(int ordinal) const;
+	[[nodiscard]] style::margins effectiveBodyPadding() const;
 	[[nodiscard]] QPoint articleTopLeft() const;
 	[[nodiscard]] int articleWidth(int outerWidth) const;
 	void touchEvent(QTouchEvent *e);
@@ -721,6 +723,7 @@ private:
 	std::optional<State::LeafPath> _fieldLeaf;
 	State::FieldMode _fieldMode = State::FieldMode::Rich;
 	int _articleHeight = 0;
+	int _topContentPadding = 0;
 	int _activeOrdinal = -1;
 	int _activeSegmentIndex = -1;
 	bool _activeSegmentIsDisplayMath = false;

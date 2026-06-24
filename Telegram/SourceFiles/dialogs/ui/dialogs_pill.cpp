@@ -31,4 +31,16 @@ void PaintPillTopSheen(QPainter &p, const QRect &pill, int radius) {
 	p.drawRoundedRect(stroke, radius - half, radius - half);
 }
 
+void PaintTopFade(QPainter &p, int outerWidth, int fadeHeight, QColor bg) {
+	if (fadeHeight <= 0) {
+		return;
+	}
+	auto transparent = bg;
+	transparent.setAlpha(0);
+	auto grad = QLinearGradient(0, 0, 0, fadeHeight);
+	grad.setColorAt(0, bg);
+	grad.setColorAt(1, transparent);
+	p.fillRect(QRect(0, 0, outerWidth, fadeHeight), grad);
+}
+
 } // namespace Dialogs

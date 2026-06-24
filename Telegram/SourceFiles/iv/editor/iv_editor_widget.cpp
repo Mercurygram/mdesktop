@@ -4051,12 +4051,21 @@ void Widget::setInlineFieldExternalInteractionActive(bool active) {
 	_inlineFieldExternalInteractionActive = active;
 }
 
+void Widget::setTopContentPadding(int value) {
+	if (_topContentPadding == value) {
+		return;
+	}
+	_topContentPadding = value;
+	resizeToWidth(width());
+	update();
+}
+
 int Widget::resizeGetHeight(int newWidth) {
 	if (!_article) {
 		return 1;
 	}
 	const auto width = std::max(newWidth, 1);
-	const auto padding = EditorBodyPadding();
+	const auto padding = effectiveBodyPadding();
 	if (articleRelayoutDeferralActive()) {
 		requestDeferredArticleRelayout();
 		if (!_field->isHidden()) {
@@ -10132,8 +10141,17 @@ int Widget::segmentIndexForEditableOrdinal(int ordinal) const {
 	return _article->segmentIndexForEditableIndex(ordinal);
 }
 
+style::margins Widget::effectiveBodyPadding() const {
+	const auto base = EditorBodyPadding();
+	return style::margins(
+		base.left(),
+		base.top() + _topContentPadding,
+		base.right(),
+		base.bottom());
+}
+
 QPoint Widget::articleTopLeft() const {
-	const auto padding = EditorBodyPadding();
+	const auto padding = effectiveBodyPadding();
 	const auto outerWidth = std::max(widthNoMargins(), 1);
 	const auto available = std::max(
 		outerWidth - padding.left() - padding.right(),
