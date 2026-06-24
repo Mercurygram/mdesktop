@@ -922,9 +922,10 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 					tr::lng_channel_invite_private(tr::now));
 				return;
 			}
-			controller->showPeerHistory(
-				chat,
+			auto params = Window::SectionShow(
 				Window::SectionShow::Way::Forward);
+			params.preferCurrentWindow = true;
+			controller->showPeerHistory(chat, params);
 		});
 		discuss->setAccessibleName(tr::lng_profile_action_short_discuss(tr::now));
 		_actions->add(discuss);

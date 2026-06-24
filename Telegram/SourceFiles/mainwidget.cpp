@@ -1354,6 +1354,8 @@ bool MainWidget::showHistoryInDifferentWindow(
 		return true;
 	} else if (windowId().hasChatsList()) {
 		return false;
+	} else if (params.preferCurrentWindow) {
+		return false;
 	}
 	const auto account = not_null(&session().account());
 	auto primary = Core::App().separateWindowFor(account);

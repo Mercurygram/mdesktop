@@ -211,6 +211,7 @@ struct SectionShow {
 	bool childColumn = false;
 	bool forbidLayer = false;
 	bool forceTopicsList = false;
+	bool preferCurrentWindow = false;
 	bool reapplyLocalDraft = false;
 	bool dropSameFromStack = false;
 	bool allowDuplicateInStack = false;
