@@ -56,6 +56,10 @@
     <file alias="toast/delete.tgs">../../animations/toast/delete.tgs</file>
     <file alias="toast/voip_invite.tgs">../../animations/toast/voip_invite.tgs</file>
     <file alias="toast/copy.tgs">../../animations/toast/copy.tgs</file>
+    <file alias="toast/mute.tgs">../../animations/toast/mute.tgs</file>
+    <file alias="toast/unmute.tgs">../../animations/toast/unmute.tgs</file>
+    <file alias="toast/pin.tgs">../../animations/toast/pin.tgs</file>
+    <file alias="toast/unpin.tgs">../../animations/toast/unpin.tgs</file>
     <file alias="rtmp.tgs">../../animations/rtmp.tgs</file>
     <file alias="show_or_premium_lastseen.tgs">../../animations/show_or_premium_lastseen.tgs</file>
     <file alias="show_or_premium_readtime.tgs">../../animations/show_or_premium_readtime.tgs</file>
