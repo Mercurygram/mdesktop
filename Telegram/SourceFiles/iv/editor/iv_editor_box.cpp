@@ -1450,7 +1450,16 @@ void WindowHost::Impl::setEmojiColumnInteractionActive(bool active) {
 }
 
 int WindowHost::Impl::emojiColumnWidth() const {
-	return st::emojiPanWidth;
+	const auto &pan = st::defaultEmojiPan;
+	const auto columns = 8;
+	const auto innerWidth = columns * pan.desiredSize;
+	return innerWidth
+		+ pan.padding.left()
+		+ pan.padding.right()
+		- pan.margin.left()
+		- pan.margin.right()
+		+ st::emojiPanRadius
+		+ st::emojiScroll.width;
 }
 
 int WindowHost::Impl::minimalWindowWidth() const {
