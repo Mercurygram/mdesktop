@@ -83,6 +83,7 @@ ivEditorWindowMinSize: size(384px, 480px);
 ivEditorWindowDefaultSize: size(800px, 600px);
 ivEditorBodyPadding: margins(0px, 8px, 0px, 8px);
 ivEditorToolbarButtonSize: 36px;
+ivEditorEmojiColumnCloseSize: 22px;
 ivEditorToolbarPadding: margins(8px, defaultVerticalListSkip, 8px, defaultVerticalListSkip);
 ivEditorToolbarButtonSkip: 6px;
 ivEditorToolbarDividerSkip: 6px;
@@ -98,6 +99,7 @@ ivEditorPillShadow: BoxShadow {
 	opacity: 0.18;
 }
 ivEditorEmojiColumnCloseSkip: 8px;
+ivEditorEmojiColumnCloseInset: 5px;
 ivEditorTopFadeHeight: 8px;
 ivEditorSubmitButton: RoundButton(defaultActiveButton) {
 	height: ivEditorToolbarButtonSize;
@@ -138,9 +140,13 @@ ivEditorToolbarOverflowButton: IconButton(ivEditorToolbarButton) {
 	icon: ivEditorToolbarOverflowIcon;
 	iconOver: ivEditorToolbarOverflowIconOver;
 }
-ivEditorEmojiColumnCloseIcon: icon {{ "box_button_close", menuIconColor }};
-ivEditorEmojiColumnCloseIconOver: icon {{ "box_button_close", menuIconColor }};
+ivEditorEmojiColumnCloseIcon: icon {{ "simple_close", menuIconColor }};
+ivEditorEmojiColumnCloseIconOver: icon {{ "simple_close", menuIconColor }};
 ivEditorEmojiColumnClose: IconButton(ivEditorToolbarButton) {
+	width: ivEditorEmojiColumnCloseSize;
+	height: ivEditorEmojiColumnCloseSize;
+	rippleAreaSize: ivEditorEmojiColumnCloseSize;
+	rippleAreaPosition: point(0px, 0px);
 	icon: ivEditorEmojiColumnCloseIcon;
 	iconOver: ivEditorEmojiColumnCloseIconOver;
 }

@@ -1267,9 +1267,19 @@ void WindowHost::Impl::setupEmojiColumn(const ShowWindowDescriptor &descriptor) 
 		hideEmojiColumn();
 	});
 	_emojiColumnClose->hide();
-	_emojiColumn->setSearchRightReserved(
-		_emojiColumnClose->naturalSize().width()
-			+ 2 * st::ivEditorEmojiColumnCloseSkip);
+	const auto closeNatural = _emojiColumnClose->naturalSize();
+	const auto closeMargins = _emojiColumnClose->shadowMargins();
+	const auto closeVisibleWidth = closeNatural.width()
+		- closeMargins.left()
+		- closeMargins.right();
+	const auto closeReserved = std::max(
+		0,
+		closeVisibleWidth
+			+ st::ivEditorEmojiColumnCloseSkip
+			+ st::ivEditorEmojiColumnCloseInset
+			- st::emojiScroll.width
+			- st::defaultEmojiPan.searchMargin.right());
+	_emojiColumn->setSearchRightReserved(closeReserved);
 	_emojiColumn->setCurrentPeer(descriptor.peer);
 	_emojiColumn->emojiChosen(
 	) | rpl::on_next([=](ChatHelpers::EmojiChosen data) {
@@ -1348,12 +1358,21 @@ void WindowHost::Impl::layout() {
 		_emojiColumnShadow->setGeometry(editorWidth, 0, st::lineWidth, height);
 		_emojiColumnShadow->show();
 		_emojiColumnShadow->raise();
-		const auto closeSize = _emojiColumnClose->naturalSize();
-		const auto closeInset = st::ivEditorEmojiColumnCloseSkip;
-		_emojiColumnClose->moveToLeft(
-			width - closeSize.width() - closeInset,
-			closeInset,
-			width);
+		const auto closeNatural = _emojiColumnClose->naturalSize();
+		const auto closeMargins = _emojiColumnClose->shadowMargins();
+		const auto searchCenterY = st::defaultEmojiPan.searchMargin.top()
+			+ st::defaultTabbedSearch.height / 2;
+		const auto closeVisibleHeight = closeNatural.height()
+			- closeMargins.top()
+			- closeMargins.bottom();
+		const auto closeX = width
+			- closeNatural.width()
+			+ closeMargins.right()
+			- st::ivEditorEmojiColumnCloseInset;
+		const auto closeY = searchCenterY
+			- closeVisibleHeight / 2
+			- closeMargins.top();
+		_emojiColumnClose->moveToLeft(closeX, closeY, width);
 		_emojiColumnClose->show();
 		_emojiColumnClose->raise();
 	} else {

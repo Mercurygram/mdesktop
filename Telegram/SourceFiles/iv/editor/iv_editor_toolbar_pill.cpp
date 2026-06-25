@@ -49,10 +49,12 @@ not_null<Ui::IconButton*> ToolbarPill::addButton(
 // sits at that offset within the widget. Shadow extend() margins are reserved
 // around the inner rect so the blur is never clipped.
 void ToolbarPill::updateGeometryToContent() {
-	const auto &button = st::ivEditorToolbarButton;
+	const auto count = int(_buttons.size());
 	const auto pad = st::ivEditorPillPadding;
 	const auto skip = st::ivEditorPillButtonSkip;
-	const auto count = int(_buttons.size());
+	const auto &button = count
+		? _buttons.front()->st()
+		: st::ivEditorToolbarButton;
 	const auto rippleSize = button.rippleAreaSize;
 
 	const auto innerHeight = rippleSize + 2 * pad;
@@ -77,6 +79,10 @@ void ToolbarPill::updateGeometryToContent() {
 
 QSize ToolbarPill::naturalSize() const {
 	return size();
+}
+
+QMargins ToolbarPill::shadowMargins() const {
+	return _shadowMargins;
 }
 
 void ToolbarPill::paintEvent(QPaintEvent *e) {
