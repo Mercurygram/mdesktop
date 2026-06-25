@@ -100,7 +100,7 @@ ivEditorPillShadow: BoxShadow {
 }
 ivEditorEmojiColumnCloseSkip: 8px;
 ivEditorEmojiColumnCloseInset: 5px;
-ivEditorTopFadeHeight: 8px;
+ivEditorTopFadeHeight: 34px;
 ivEditorSubmitButton: RoundButton(defaultActiveButton) {
 	height: ivEditorToolbarButtonSize;
 }
