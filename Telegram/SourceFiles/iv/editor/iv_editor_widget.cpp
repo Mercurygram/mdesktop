@@ -4294,6 +4294,15 @@ void Widget::setTopContentPadding(int value) {
 	update();
 }
 
+void Widget::setBottomContentPadding(int value) {
+	if (_bottomContentPadding == value) {
+		return;
+	}
+	_bottomContentPadding = value;
+	resizeToWidth(width());
+	update();
+}
+
 void Widget::setContentMaxWidth(int value) {
 	if (_contentMaxWidth == value) {
 		return;
@@ -10528,7 +10537,7 @@ style::margins Widget::effectiveBodyPadding() const {
 		base.left(),
 		base.top() + _topContentPadding,
 		base.right(),
-		base.bottom());
+		base.bottom() + _bottomContentPadding);
 }
 
 QPoint Widget::articleTopLeft() const {

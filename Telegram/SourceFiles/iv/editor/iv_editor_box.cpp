@@ -1155,9 +1155,6 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 			st::windowBg->c);
 	}, _top->lifetime());
 	_bottom = object_ptr<Ui::RpWidget>(window->body().get());
-	_bottom->paintRequest() | rpl::on_next([=](QRect clip) {
-		QPainter(_bottom.data()).fillRect(clip, st::windowBg);
-	}, _bottom->lifetime());
 
 	const auto hasRequestMedia = static_cast<bool>(descriptor.requestMedia);
 	_scroll = object_ptr<Ui::ScrollArea>(window->body().get(), st::boxScroll);
@@ -1354,27 +1351,41 @@ void WindowHost::Impl::layout() {
 	_top->setGeometry(0, 0, editorWidth, toolbarHeight);
 	_toolbar->setGeometry(0, 0, editorWidth, toolbarHeight);
 	_toolbar->raise();
-	_bottom->setGeometry(
-		0,
-		std::max(height - bottomHeight, toolbarHeight),
-		editorWidth,
-		bottomHeight);
+	_bottom->setGeometry(0, height - bottomHeight, editorWidth, bottomHeight);
+	const auto column = _editor->articleColumnForWidth(editorWidth);
+	const auto fitsArticle = (column.width >= _toolbar->contentMaxWidth());
+	const auto left = fitsArticle ? column.left : 0;
+	const auto right = fitsArticle
+		? (column.left + column.width)
+		: editorWidth;
 	if (_discard) {
-		_discard->moveToLeft(padding.left(), buttonsTop);
+		_discard->moveToLeft(left, buttonsTop, editorWidth);
 	}
-	_submit->moveToRight(padding.right(), buttonsTop, editorWidth);
+	_submit->moveToLeft(right - _submit->width(), buttonsTop, editorWidth);
 	if (_cancel) {
-		_cancel->moveToRight(
-			padding.right()
-				+ _submit->width()
-				+ st::ivEditorBottomControlsButtonSkip,
+		_cancel->moveToLeft(
+			right
+				- _submit->width()
+				- st::ivEditorBottomControlsButtonSkip
+				- _cancel->width(),
 			buttonsTop,
 			editorWidth);
 	}
-	const auto scrollTop = 0;
-	const auto scrollBottom = std::max(height - bottomHeight, toolbarHeight);
-	const auto scrollHeight = std::max(scrollBottom - scrollTop, 0);
-	_scroll->setGeometry(0, scrollTop, editorWidth, scrollHeight);
+	auto bottomMask = QRegion();
+	const auto addMask = [&](Ui::RoundButton *button) {
+		if (button && !button->isHidden()) {
+			bottomMask += button->geometry();
+		}
+	};
+	addMask(_discard.data());
+	addMask(_cancel.data());
+	addMask(_submit.data());
+	if (bottomMask.isEmpty()) {
+		_bottom->clearMask();
+	} else {
+		_bottom->setMask(bottomMask);
+	}
+	_scroll->setGeometry(0, 0, editorWidth, std::max(height, 1));
 	if (_emojiColumnShown) {
 		_emojiColumn->setGeometry(
 			editorWidth,
@@ -1407,6 +1418,7 @@ void WindowHost::Impl::layout() {
 		_emojiColumnClose->hide();
 	}
 	_editor->setTopContentPadding(toolbarHeight);
+	_editor->setBottomContentPadding(bottomHeight);
 	_editor->resizeToWidth(std::max(_scroll->width(), 1));
 	updateEditorVisibleTopBottom();
 }
