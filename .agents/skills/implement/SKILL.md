@@ -42,10 +42,17 @@ BUILD         = cmake --build ./out --config Debug --target Telegram
 EXE           = ./out/Debug/Telegram.exe   (or ./out/Debug/Telegram on WSL/Linux — verify the tree)
 TEST_ACCOUNT  = ./out/Debug/test_TelegramForcePortable   (user-prepared golden; launch gate aborts if absent)
 MAX_ATTEMPTS  = 4
+SUBAGENT_MODEL = highest-quality available non-fast model (currently gpt-5.5)
+SUBAGENT_REASONING = xhigh
 ```
 
 `EXE` is also the process-cleanup scope. Any autonomous kill step must match the full executable
 path for THIS checkout's built binary only; never blanket-kill all `Telegram.exe` processes.
+
+For every subagent spawned by this skill — planner, task-runner, per-phase implementation/review
+agents, test-author agents, and impl-fix agents — request `SUBAGENT_MODEL` and
+`SUBAGENT_REASONING` when the host supports model overrides. If model names change, choose the
+smartest/frontier model available, never a mini, fast, spark, or cost-optimized variant.
 
 Tasks run **sequentially** in this one checkout (the build cache stays warm; app runs must serialize
 against the account anyway). To parallelize, run the skill in a different checkout/slot (e.g.
@@ -117,7 +124,8 @@ first unfinished task.
 
 ## Phase B: Planning & testability split (delegate)
 
-Spawn one planner subagent (`fork_context: false`) with this prompt shape:
+Spawn one planner subagent (`fork_context: false`, request `SUBAGENT_MODEL` and
+`SUBAGENT_REASONING` when supported) with this prompt shape:
 
 ```
 You are a planning/splitting agent for a large C++ codebase (Telegram Desktop).
@@ -209,8 +217,9 @@ is visible.
 For each task whose `Status` is not `approved`/`blocked`, in order:
 
 1. Set `Status: in-progress` and mark the corresponding progress item in progress. Spawn ONE
-   **task-runner** worker (`fork_context: false`, request `model: gpt-5.4`,
-   `reasoning_effort: xhigh` when supported) with the prompt below. Apply task-think's wait ladder
+   **task-runner** worker (`fork_context: false`, request `SUBAGENT_MODEL` and
+   `SUBAGENT_REASONING` when supported; currently `model: gpt-5.5` and
+   `reasoning_effort: xhigh`) with the prompt below. Apply task-think's wait ladder
    (5-min waits while in progress, 1-2 min near completion; inspect the task's progress/result
    artifacts on timeout; one follow-up then one fresh retry before escalating).
 2. Read only its compact reply block. Detail is in `.ai/`.
@@ -227,6 +236,10 @@ For each task whose `Status` is not `approved`/`blocked`, in order:
 You are a task-runner for ONE task in an autonomous implement-and-test workflow on Telegram
 Desktop (C++ / Qt). You own this task end to end and isolate its context from the orchestrator.
 You MUST use subagents (spawn_agent/wait_agent) for each phase, keeping the parent thread lean.
+When spawning any subagent for context, plan, assess, implementation, review, test-author, or
+impl-fix work, request the highest-quality available non-fast model and highest reasoning effort
+(`model: gpt-5.5`, `reasoning_effort: xhigh` when available). Never choose mini, fast, spark, or
+cost-optimized model variants.
 
 PROJECT: <project>   TASK: <letter> — <title>
 TASK DESCRIPTION:
