@@ -975,18 +975,20 @@ int Toolbar::resizeGetHeight(int width) {
 	const auto padding = st::ivEditorToolbarPadding;
 	const auto top = padding.top();
 	const auto skip = st::ivEditorToolbarEmojiSkip;
+	const auto rowWidth = minimalWidth();
 	const auto column = _editor
 		? _editor->articleColumnForWidth(width)
 		: Widget::ArticleColumn{ 0, width };
-	const auto articleLeft = column.left;
-	const auto articleRight = column.left + column.width;
-	const auto undoRedoLeft = articleLeft + skip;
+	const auto fitsArticle = (column.width >= rowWidth);
+	const auto left = fitsArticle ? column.left : 0;
+	const auto right = fitsArticle ? (column.left + column.width) : width;
+	const auto undoRedoLeft = left + skip;
 	_undoRedoPill->moveToLeft(undoRedoLeft, top, width);
 	const auto controlsLeft = undoRedoLeft
 		+ _undoRedoPill->naturalSize().width()
 		+ skip;
 	_controlsPill->moveToLeft(controlsLeft, top, width);
-	const auto emojiLeft = articleRight
+	const auto emojiLeft = right
 		- skip
 		- _emojiPill->naturalSize().width();
 	_emojiPill->moveToLeft(emojiLeft, top, width);
