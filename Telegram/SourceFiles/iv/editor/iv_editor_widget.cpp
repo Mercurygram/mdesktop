@@ -1493,7 +1493,10 @@ void MathPreview::updateDesiredHeight() {
 }
 
 void MathPreview::relayout() {
-	const auto width = std::max(_cardWidth, _logicalSize.width());
+	const auto &padding = st::ivFormulaPreviewPadding;
+	const auto width = std::max(
+		_cardWidth,
+		_logicalSize.width() + padding.left() + padding.right());
 	resize(width, _desiredHeight.current());
 }
 
@@ -1535,12 +1538,12 @@ void EditMathBox(
 		object_ptr<Ui::FlatLabel>(
 			box,
 			tr::lng_formatting_math_source_label(),
-			st::ivFormulaPreviewLabel),
+			st::ivFormulaSectionTitle),
 		st::ivFormulaPreviewLabelMargin);
 	const auto source = box->addRow(
 		object_ptr<Ui::InputField>(
 			box,
-			st::defaultInputField,
+			st::ivFormulaSourceField,
 			Ui::InputField::Mode::MultiLine,
 			tr::lng_formatting_math_source_placeholder(),
 			startSource),
@@ -1602,7 +1605,7 @@ void EditMathBox(
 		object_ptr<Ui::FlatLabel>(
 			box,
 			tr::lng_formatting_math_result_label(),
-			st::ivFormulaPreviewLabel),
+			st::ivFormulaSectionTitle),
 		st::ivFormulaPreviewLabelMargin);
 	const auto host = box->addRow(
 		object_ptr<Ui::RpWidget>(box),

@@ -547,19 +547,21 @@ defaultMarkdownDisplayMath: MarkdownDisplayMath {
 ivFormulaPreviewScroll: ScrollArea(defaultScrollArea) {
 	barHidden: true;
 }
-ivFormulaPreviewLabel: FlatLabel(defaultFlatLabel) {
-	textFg: windowSubTextFg;
-	style: defaultTextStyle;
-	align: align(topleft);
+ivFormulaSectionTitle: FlatLabel(defaultSubsectionTitle) {
 	minWidth: 0px;
 }
 ivFormulaPreviewLabelMargin: margins(22px, 4px, 22px, 4px);
 ivFormulaPreviewMargin: margins(22px, 0px, 22px, 10px);
-ivFormulaPreviewPadding: margins(12px, 10px, 12px, 10px);
-ivFormulaPreviewMinHeight: 108px;
+ivFormulaPreviewPadding: margins(10px, 10px, 10px, 10px);
+ivFormulaPreviewMinHeight: 72px;
 ivFormulaPreviewRadius: 8px;
 ivFormulaPreviewBg: windowBgOver;
 ivFormulaPreviewFg: windowFg;
+ivFormulaSourceField: InputField(defaultInputField) {
+	placeholderScale: 0.;
+	placeholderFont: normalFont;
+	placeholderShift: -50px;
+}
 defaultMarkdownTable: MarkdownTable {
 	cellPadding: margins(8px, 10px, 8px, 10px);
 	border: 1px;

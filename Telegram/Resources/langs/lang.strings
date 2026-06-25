@@ -5908,8 +5908,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_formatting_math_source" = "Formula";
 "lng_formatting_math_source_placeholder" = "Formula source";
 "lng_formatting_math_separate_line" = "Separate Line Formula";
-"lng_formatting_math_source_label" = "LATEX";
-"lng_formatting_math_result_label" = "RESULT";
+"lng_formatting_math_source_label" = "LaTeX";
+"lng_formatting_math_result_label" = "Result";
 "lng_formatting_link_create" = "Create";
 "lng_formatting_code_title" = "Code Language";
 "lng_formatting_code_language" = "Language for syntax highlighting.";
