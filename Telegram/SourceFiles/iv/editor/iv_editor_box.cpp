@@ -797,6 +797,24 @@ void Toolbar::fillAttachMenu(not_null<Ui::PopupMenu*> menu) {
 		},
 		&st::ivEditorToolbarAudioIcon,
 		&st::ivEditorToolbarAudioIcon);
+	if (_requestMap) {
+		menu->addAction(
+			tr::lng_article_insert_map(tr::now),
+			[=] {
+				if (_editor) {
+					const auto parent = _tooltipParent;
+					auto closeRequests = parent
+						? static_cast<Ui::RpWidget*>(parent.data())->death()
+						: rpl::never<>();
+					_requestMap(
+						not_null<Widget*>(_editor.data()),
+						parent,
+						std::move(closeRequests));
+				}
+			},
+			&st::ivEditorToolbarLocationIcon,
+			&st::ivEditorToolbarLocationIcon);
+	}
 }
 
 void Toolbar::showAttachMenu(not_null<Ui::IconButton*> button) {
@@ -833,6 +851,11 @@ void Toolbar::fillListStyleMenu(not_null<Ui::PopupMenu*> menu) {
 			[=] { insertType(State::InsertBlockType::TaskList); },
 			&st::ivEditorToolbarTaskListIcon,
 			&st::ivEditorToolbarTaskListIcon);
+		target->addAction(
+			tr::lng_article_insert_details(tr::now),
+			[=] { insertType(State::InsertBlockType::Details); },
+			&st::ivEditorToolbarDetailsIcon,
+			&st::ivEditorToolbarDetailsIcon);
 	};
 
 	const auto range = _editor
