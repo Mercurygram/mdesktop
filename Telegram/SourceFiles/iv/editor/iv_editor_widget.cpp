@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/qthelp_url.h"
 #include "base/qt/qt_common_adapters.h"
+#include "base/random.h"
 #include "chat_helpers/emoji_suggestions_widget.h"
 #include "chat_helpers/message_field.h"
 #include "core/mime_type.h"
@@ -80,11 +81,19 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QAction>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 
 namespace Iv::Editor {
 namespace {
+
+const auto kFormulaSamples = std::array{
+	u"e^{i\\pi}=-1"_q,
+	u"x^n+y^n=z^n"_q,
+	u"\\sin^2\\alpha+\\cos^2\\alpha=1"_q,
+	u"x_{1,2}=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}"_q,
+};
 
 [[nodiscard]] std::vector<Ui::Text::SpecialColor> HighlightColors(
 		not_null<const Ui::ChatStyle*> style) {
@@ -1392,6 +1401,7 @@ public:
 	MathPreview(QWidget *parent);
 
 	void setSource(QString source);
+	void setColor(const style::color &color);
 	void setCardWidth(int cardWidth);
 
 	[[nodiscard]] rpl::producer<int> desiredHeightValue() const;
@@ -1405,6 +1415,7 @@ private:
 	void relayout();
 
 	QString _source;
+	style::color _color = st::ivFormulaPreviewFg;
 	QImage _image;
 	QSize _logicalSize;
 	int _cardWidth = 0;
@@ -1424,6 +1435,14 @@ void MathPreview::setSource(QString source) {
 		return;
 	}
 	_source = source;
+	rerender();
+}
+
+void MathPreview::setColor(const style::color &color) {
+	if (_color == color) {
+		return;
+	}
+	_color = color;
 	rerender();
 }
 
@@ -1472,7 +1491,7 @@ void MathPreview::rerender() {
 		QImage::Format_ARGB32_Premultiplied);
 	style::colorizeImage(
 		white,
-		st::ivFormulaPreviewFg->c,
+		_color->c,
 		&colorized,
 		QRect(),
 		QPoint(),
@@ -1629,8 +1648,22 @@ void EditMathBox(
 		host->resize(cardWidth, desiredHeight);
 	}, host->lifetime());
 	preview->setSource(startSource);
+	const auto interacted = box->lifetime().make_state<bool>(false);
+	if (startSource.isEmpty()) {
+		const auto &sample = kFormulaSamples[
+			base::RandomIndex(int(kFormulaSamples.size()))];
+		source->setPlaceholder(rpl::single(sample));
+		preview->setColor(st::windowSubTextFg);
+		preview->setSource(sample);
+	}
 	source->changes(
 	) | rpl::on_next([=] {
+		if (!*interacted) {
+			*interacted = true;
+			preview->setColor(st::ivFormulaPreviewFg);
+			source->setPlaceholder(
+				tr::lng_formatting_math_source_placeholder());
+		}
 		preview->setSource(source->getLastText());
 	}, source->lifetime());
 
