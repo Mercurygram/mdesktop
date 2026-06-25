@@ -223,12 +223,82 @@ highest level that still exercises the change (often a direct data-layer call li
   it and the binary keeps the OLD asset. Before building such a task force regeneration — touch the
   referencing `.style` (or clean the codegen output) — so the change actually ships. A render that
   shows no difference from before is the symptom of skipping this.
-- Run: run the SETUP steps (Test account) -> launch `EXE` in the background -> poll `test_log.txt`
-  every ~5s -> on each `SCREENSHOT:` read the image and judge it -> detect `TEST_COMPLETE` (success)
-  or process death (crash) or no new output for the watchdog cap (hang) -> path-scoped kill of any
-  straggler (Test account → "Serialize app runs") -> optional CLEANUP -> save the overlay
-  (`git diff > <TASK_DIR>/test-overlay.patch`) -> THEN `git reset --hard <IMPL_SHA>` (back to
-  impl-only — the patch must be saved before this reset).
+- Run: run the SETUP steps (Test account) -> launch `EXE` **with `-testagent`** in the background,
+  redirecting BOTH stdout and stderr to `<TASK_DIR>/app_stderr.txt` (see "Crashes & assertions"
+  below — this flag is what stops a crash from hanging on a modal dialog, and the redirect is what
+  captures the assertion text) -> **start a hard wall-clock deadline (~90s) from launch** -> poll
+  `test_log.txt` every ~5s -> on each `SCREENSHOT:` read the image and judge it -> detect
+  `TEST_COMPLETE` (success) or process death (crash) or no new output for the watchdog cap, or the
+  hard deadline elapsing (hang) -> path-scoped kill of any straggler (Test account → "Serialize app
+  runs") -> optional CLEANUP -> save the overlay (`git diff > <TASK_DIR>/test-overlay.patch`) ->
+  THEN `git reset --hard <IMPL_SHA>` (back to impl-only — the patch must be saved before this reset).
+
+    On Windows, launch and capture both streams like:
+
+        $exe = (Resolve-Path "$EXE").Path
+        Start-Process -FilePath $exe -ArgumentList '-testagent' `
+          -RedirectStandardError "$TASK_DIR/app_stderr.txt" `
+          -RedirectStandardOutput "$TASK_DIR/app_stdout.txt" -PassThru
+
+### Crashes & assertions (always launch the test binary with `-testagent`)
+
+A Debug build normally turns a failed `std::vector` bounds check, a bad iterator, an `assert()`, a
+pure-virtual call, or `abort()` into a modal **Abort / Retry / Ignore** dialog. That dialog blocks
+the process forever — the agent sees no `TEST_COMPLETE`, no process death, just a hang until the
+watchdog cap, and learns nothing about the cause. **`-testagent` removes those dialogs.** With it
+set, the binary:
+
+- suppresses every CRT / STL / WER / `abort()` message box (no button to press, never hangs);
+- converts any such assertion into a real crash that the crash reporter records, so the process
+  **terminates immediately** instead of waiting;
+- writes the assertion text (expression + file:line) to **stderr** — captured in
+  `<TASK_DIR>/app_stderr.txt`, tagged `[testagent]`;
+- also turns on debug logging (`-testagent` implies `-debug`).
+
+**Do NOT key the crash decision on exit code.** Breakpad handles the crash and the process usually
+exits **0** — exactly as tdesktop's own crash detection assumes. The reliable crash signals are: the
+process is gone WITHOUT a `TEST_COMPLETE` marker, AND a fresh non-empty
+`<workdir>/tdata/working` exists. So **always pass `-testagent`**, and on a crash gather diagnostics
+in this order before deciding the verdict:
+
+1. **`<TASK_DIR>/app_stderr.txt`** — the `[testagent] assert: …` line gives the failed expression and
+   `file:line` (e.g. `vector(1931) : … vector subscript out of range`). Usually enough to localize.
+2. **`<workdir>/tdata/working`** — the crash report the reporter wrote: the `Assertion:` /
+   `CrtAssert:` annotations, the failed `file:line`, and `Caught signal …` / minidump id. Plain text;
+   read it directly. `<workdir>` is the launch `-workdir` (in portable test runs,
+   `out/Debug/TelegramForcePortable/`).
+3. **`<workdir>/tdata/dumps/*.dmp`** — the minidump (full stack, needs symbols to read; note its path
+   in `test.md`, don't try to symbolize inline).
+
+A crash is an **IMPL_BUG** (the implementation tripped an assertion / dereferenced out of range), not
+a TEST_FLAW, unless the overlay itself is what reached out of bounds — quote the `[testagent]` line
+and the `tdata/working` excerpt in `test.md` as evidence, and feed the expression + file:line to the
+impl-fix agent as the Root cause / Fix hint. Only a crash with NO usable diagnostic after one retry
+is UNRECOVERABLE.
+
+### Hangs & freezes (two layers, because they have two causes)
+
+A run that never reaches `TEST_COMPLETE` and never dies is a hang. Two independent guards catch it:
+
+- **Frozen main thread (in-app).** `-testagent` force-enables the built-in **DeadlockDetector** — a
+  ping thread that, if the main/event loop stops responding (a genuine deadlock or an infinite loop
+  on the UI thread), raises `Unexpected("Deadlock found!")` from a side thread. That crashes through
+  the same reporter, so the **frozen main-thread stack is captured in the minidump** and the process
+  exits on its own (key on the `tdata/working` report, not the exit code) — same diagnostics path as
+  a crash above. No agent action needed beyond reading `tdata/working` / the dump. Detection is
+  within ~30–90s of the stall.
+- **Everything else (external hard cap).** The DeadlockDetector does NOT fire when the event loop is
+  still alive but the test simply never finishes — e.g. a buggy overlay that loops forever, waits on
+  a condition that never comes, or just never calls `Core::Quit()`. For that the **runner enforces a
+  hard wall-clock deadline (~90s) from launch** and, when it elapses, does the path-scoped kill
+  regardless of output. No legitimate auto-test runs anywhere near a minute, so this cap is pure
+  backstop — but it is what guarantees the agent can never wedge forever.
+
+Classify by which guard tripped: a DeadlockDetector crash with a real main-thread stack in app code
+is an **IMPL_BUG**; the external cap firing is almost always a **TEST_FLAW** (the overlay didn't
+drive to `TEST_COMPLETE`/quit) — re-author the overlay — unless the captured stack/log shows the
+implementation itself wedged, in which case it is an IMPL_BUG. Two external-cap kills in a row with
+the same signature → BLOCKED (early-escalation rule).
 
 ### Leave no test binary behind
 

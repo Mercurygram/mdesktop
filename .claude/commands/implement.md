@@ -35,6 +35,12 @@ TEST_ACCOUNT  = ./out/Debug/test_TelegramForcePortable   # user-prepared golden;
 MAX_ATTEMPTS  = 4
 ```
 
+The test binary is **always launched with `-testagent`** (see test-loop.md "Crashes & assertions"):
+it suppresses the Debug Abort/Retry/Ignore dialogs that would hang the run, turns any CRT/STL
+assertion (and a frozen main thread) into an immediate crash with a written `tdata/working` report,
+and writes the assertion text to a captured stderr file so a crash is diagnosable instead of a silent
+hang. Key crash detection on the report file, not the exit code.
+
 Tasks run **sequentially** in this one checkout (the build cache stays warm; app runs must
 serialize against the account anyway). To parallelize, launch `/implement` in a different
 checkout/slot (e.g. `C:\Telegram\tdesktop`, `D:\Telegram\tdesktop`, `D:\Telegram\twin`) — each run

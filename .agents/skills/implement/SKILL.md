@@ -49,6 +49,12 @@ SUBAGENT_REASONING = xhigh
 `EXE` is also the process-cleanup scope. Any autonomous kill step must match the full executable
 path for THIS checkout's built binary only; never blanket-kill all `Telegram.exe` processes.
 
+The test binary is **always launched with `-testagent`** (see test-loop.md "Crashes & assertions"):
+it suppresses the Debug Abort/Retry/Ignore dialogs that would hang the run, turns any CRT/STL
+assertion (and a frozen main thread) into an immediate crash with a written `tdata/working` report,
+and writes the assertion text to a captured stderr file so a crash is diagnosable instead of a silent
+hang. Key crash detection on the report file, not the exit code.
+
 For every subagent spawned by this skill — planner, task-runner, per-phase implementation/review
 agents, test-author agents, and impl-fix agents — request `SUBAGENT_MODEL` and
 `SUBAGENT_REASONING` when the host supports model overrides. If model names change, choose the
