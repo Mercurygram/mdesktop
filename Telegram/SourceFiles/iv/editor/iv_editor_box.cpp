@@ -1083,9 +1083,10 @@ private:
 	object_ptr<Ui::ScrollArea> _scroll = { nullptr };
 	QPointer<Widget> _editor;
 	object_ptr<Toolbar> _toolbar = { nullptr };
-	object_ptr<Ui::RoundButton> _discard = { nullptr };
-	object_ptr<Ui::RoundButton> _cancel = { nullptr };
-	object_ptr<Ui::RoundButton> _submit = { nullptr };
+	object_ptr<ToolbarPill> _discard = { nullptr };
+	object_ptr<ToolbarPill> _cancel = { nullptr };
+	object_ptr<ToolbarPill> _submit = { nullptr };
+	Ui::IconButton *_submitButton = nullptr;
 	object_ptr<ChatHelpers::TabbedSelector> _emojiColumn = { nullptr };
 	object_ptr<Ui::PlainShadow> _emojiColumnShadow = { nullptr };
 	object_ptr<ToolbarPill> _emojiColumnClose = { nullptr };
@@ -1193,32 +1194,50 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 		});
 	window->setMinimumWidth(minimalWindowWidth());
 	if (descriptor.discarded) {
-		_discard = object_ptr<Ui::RoundButton>(
+		_discard = object_ptr<ToolbarPill>(
 			_bottom.data(),
-			tr::lng_record_lock_discard(),
-			st::ivEditorDiscardButton);
-		_discard->setClickedCallback([=] {
+			st::ivEditorPillShadow);
+		const auto button = _discard->addButton(
+			st::ivEditorBottomDiscardButton,
+			&st::ivEditorBottomDiscardIcon,
+			&st::ivEditorBottomDiscardIcon,
+			ToolbarButtonState::Inactive);
+		button->setAccessibleName(tr::lng_record_lock_discard(tr::now));
+		button->setClickedCallback([=] {
 			discard();
 		});
 	}
 	if (descriptor.submitType == ShowWindowDescriptor::SubmitType::Save) {
-		_cancel = object_ptr<Ui::RoundButton>(
+		_cancel = object_ptr<ToolbarPill>(
 			_bottom.data(),
-			tr::lng_cancel(),
-			st::ivEditorCancelButton);
-		_cancel->setClickedCallback([=] {
+			st::ivEditorPillShadow);
+		const auto button = _cancel->addButton(
+			st::ivEditorBottomCancelButton,
+			&st::ivEditorBottomCancelIcon,
+			&st::ivEditorBottomCancelIcon,
+			ToolbarButtonState::Inactive);
+		button->setAccessibleName(tr::lng_cancel(tr::now));
+		button->setClickedCallback([=] {
 			if (confirmCancel()) {
 				finishClose();
 			}
 		});
 	}
-	_submit = object_ptr<Ui::RoundButton>(
+	const auto save = (descriptor.submitType
+		== ShowWindowDescriptor::SubmitType::Save);
+	_submit = object_ptr<ToolbarPill>(
 		_bottom.data(),
-		rpl::single(SubmitText(descriptor)),
-		st::ivEditorSubmitButton);
-	_submit->setClickedCallback([=] { submit(); });
+		st::ivEditorPillShadow);
+	_submitButton = _submit->addButton(
+		save ? st::ivEditorBottomSaveButton : st::ivEditorBottomSendButton,
+		save ? &st::ivEditorBottomSaveIcon : &st::ivEditorBottomSendIcon,
+		save ? &st::ivEditorBottomSaveIcon : &st::ivEditorBottomSendIcon,
+		ToolbarButtonState::Inactive);
+	_submitButton->setAccessibleName(SubmitText(descriptor));
+	_submitButton->setClickedCallback([=] { submit(); });
 	if (descriptor.setupSubmitButton) {
-		descriptor.setupSubmitButton(not_null<Ui::RpWidget*>(_submit.data()));
+		descriptor.setupSubmitButton(
+			not_null<Ui::RpWidget*>(_submitButton));
 	}
 
 	_discarded = std::move(descriptor.discarded);
@@ -1339,12 +1358,16 @@ void WindowHost::Impl::layout() {
 	const auto editorWidth = std::max(width - emojiWidth, 0);
 	_editor->setContentMaxWidth(_toolbar->contentMaxWidth());
 	const auto toolbarHeight = _toolbar->resizeGetHeight(editorWidth);
-	auto buttonsHeight = _submit->height();
+	auto buttonsHeight = _submit->naturalSize().height();
 	if (_cancel) {
-		buttonsHeight = std::max(buttonsHeight, _cancel->height());
+		buttonsHeight = std::max(
+			buttonsHeight,
+			_cancel->naturalSize().height());
 	}
 	if (_discard) {
-		buttonsHeight = std::max(buttonsHeight, _discard->height());
+		buttonsHeight = std::max(
+			buttonsHeight,
+			_discard->naturalSize().height());
 	}
 	const auto bottomHeight = padding.top() + buttonsHeight + padding.bottom();
 	const auto buttonsTop = padding.top();
@@ -1361,18 +1384,21 @@ void WindowHost::Impl::layout() {
 	if (_discard) {
 		_discard->moveToLeft(left, buttonsTop, editorWidth);
 	}
-	_submit->moveToLeft(right - _submit->width(), buttonsTop, editorWidth);
+	_submit->moveToLeft(
+		right - _submit->naturalSize().width(),
+		buttonsTop,
+		editorWidth);
 	if (_cancel) {
 		_cancel->moveToLeft(
 			right
-				- _submit->width()
+				- _submit->naturalSize().width()
 				- st::ivEditorBottomControlsButtonSkip
-				- _cancel->width(),
+				- _cancel->naturalSize().width(),
 			buttonsTop,
 			editorWidth);
 	}
 	auto bottomMask = QRegion();
-	const auto addMask = [&](Ui::RoundButton *button) {
+	const auto addMask = [&](ToolbarPill *button) {
 		if (button && !button->isHidden()) {
 			bottomMask += button->geometry();
 		}
