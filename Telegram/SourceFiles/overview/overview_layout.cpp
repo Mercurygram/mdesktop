@@ -489,7 +489,8 @@ void Photo::setPixFrom(not_null<Image*> image) {
 
 	// In case we have inline thumbnail we can unload all images and we still
 	// won't get a blank image in the media viewer when the photo is opened.
-	if (!_data->inlineThumbnailBytes().isEmpty()) {
+	if (!_data->inlineThumbnailBytes().isEmpty()
+		&& !delegate()->keepPhotoMediaLoaded()) {
 		_dataMedia = nullptr;
 		delegate()->unregisterHeavyItem(this);
 	}
@@ -700,14 +701,22 @@ void Video::paint(
 			const auto margin = st::overviewVideoStatusMargin;
 			const auto padding = st::overviewVideoStatusPadding;
 			const auto statusX = margin + padding.x(), statusY = _height - margin - padding.y() - st::normalFont->height;
-			const auto statusW = icon.width() + padding.x() + st::normalFont->width(text) + 2 * padding.x();
+			const auto fullW = icon.width()
+				+ 3 * padding.x()
+				+ st::normalFont->width(text);
+			const auto showText = (fullW <= _width - 2 * margin);
+			const auto statusW = showText
+				? fullW
+				: (icon.width() + 2 * padding.x());
 			const auto statusH = st::normalFont->height + 2 * padding.y();
 			p.setOpacity(1. - radialOpacity);
 			Ui::FillRoundRect(p, statusX - padding.x(), statusY - padding.y(), statusW, statusH, selected ? st::msgDateImgBgSelected : st::msgDateImgBg, selected ? Ui::OverviewVideoSelectedCorners : Ui::OverviewVideoCorners);
 			p.setFont(st::normalFont);
 			p.setPen(st::msgDateImgFg);
 			icon.paint(p, statusX, statusY + (st::normalFont->height - icon.height()) / 2, _width);
-			p.drawTextLeft(statusX + icon.width() + padding.x(), statusY, _width, text, statusW - 2 * padding.x());
+			if (showText) {
+				p.drawTextLeft(statusX + icon.width() + padding.x(), statusY, _width, text, statusW - 2 * padding.x());
+			}
 		}
 	}
 

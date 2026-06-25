@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/media/info_media_common.h"
 #include "info/media/info_media_provider.h"
 #include "info/media/info_media_list_section.h"
+#include "info/media/info_media_grid_zoom.h"
 #include "info/downloads/info_downloads_provider.h"
 #include "info/saved/info_saved_music_provider.h"
 #include "info/stories/info_stories_provider.h"
@@ -173,6 +174,7 @@ ListWidget::ListWidget(
 		&_controller->session(),
 		st::giftBoxHiddenMark,
 		RectPart::Center)) {
+	_zoom = std::make_unique<ListZoom>(this);
 	start();
 }
 
@@ -738,8 +740,10 @@ void ListWidget::restoreState(not_null<Memento*> memento) {
 
 int ListWidget::resizeGetHeight(int newWidth) {
 	if (newWidth > 0) {
+		const auto gridSize = _zoom->minGridSize();
 		for (auto &section : _sections) {
 			section.setCanReorder(canReorder());
+			section.setMinGridSize(gridSize);
 			section.resizeToWidth(newWidth);
 		}
 	}
@@ -918,15 +922,19 @@ void ListWidget::clearHeavyItems() {
 }
 
 ListScrollTopState ListWidget::countScrollState() const {
+	return countScrollState({ st::infoMediaSkip, _visibleTop });
+}
+
+ListScrollTopState ListWidget::countScrollState(QPoint anchor) const {
 	if (_sections.empty() || _visibleTop <= 0) {
 		return {};
 	}
-	const auto topItem = findItemByPoint({ st::infoMediaSkip, _visibleTop });
-	const auto item = topItem.layout->getItem();
+	const auto anchorItem = findItemByPoint(anchor);
+	const auto item = anchorItem.layout->getItem();
 	return {
 		.position = _provider->scrollTopStatePosition(item),
 		.item = item,
-		.shift = _visibleTop - topItem.geometry.y(),
+		.shift = _visibleTop - anchorItem.geometry.y(),
 	};
 }
 
@@ -960,6 +968,30 @@ void ListWidget::restoreScrollState() {
 	_scrollTopState = ListScrollTopState();
 }
 
+bool ListWidget::keepPhotoMediaLoaded() {
+	return _zoom->isZoomable();
+}
+
+void ListWidget::zoomIn() {
+	_zoom->zoomIn();
+}
+
+void ListWidget::zoomOut() {
+	_zoom->zoomOut();
+}
+
+bool ListWidget::canZoomIn() const {
+	return _zoom->canZoomIn();
+}
+
+bool ListWidget::canZoomOut() const {
+	return _zoom->canZoomOut();
+}
+
+bool ListWidget::processZoomWheel(not_null<QWheelEvent*> e) {
+	return _zoom->processWheel(e);
+}
+
 MsgId ListWidget::topicRootId() const {
 	const auto topic = _controller->key().topic();
 	return topic ? topic->rootId() : MsgId(0);
@@ -974,8 +1006,22 @@ QMargins ListWidget::padding() const {
 	return st::infoMediaMargin;
 }
 
+bool ListWidget::eventHook(QEvent *e) {
+	if (e->type() == QEvent::NativeGesture) {
+		const auto gesture = static_cast<QNativeGestureEvent*>(e);
+		if (_zoom->handleNativeGesture(gesture)) {
+			return true;
+		}
+	}
+	return RpWidget::eventHook(e);
+}
+
 void ListWidget::paintEvent(QPaintEvent *e) {
 	Painter p(this);
+
+	if (_zoom->paint(p)) {
+		return;
+	}
 
 	const auto outerWidth = width();
 	const auto clip = e->rect();
