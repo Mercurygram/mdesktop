@@ -187,6 +187,7 @@ public:
 	void hideShownTooltip();
 	void setEmojiColumnOpen(bool open);
 	[[nodiscard]] int minimalWidth() const;
+	[[nodiscard]] int contentMaxWidth() const;
 
 private:
 	struct PillButton {
@@ -996,26 +997,27 @@ int Toolbar::minimalWidth() const {
 		+ _emojiPill->naturalSize().width();
 }
 
+int Toolbar::contentMaxWidth() const {
+	return minimalWidth() - 2 * st::ivEditorToolbarEmojiSkip;
+}
+
 int Toolbar::resizeGetHeight(int width) {
 	const auto padding = st::ivEditorToolbarPadding;
 	const auto top = padding.top();
 	const auto skip = st::ivEditorToolbarEmojiSkip;
-	const auto rowWidth = minimalWidth();
 	const auto column = _editor
 		? _editor->articleColumnForWidth(width)
 		: Widget::ArticleColumn{ 0, width };
-	const auto fitsArticle = (column.width >= rowWidth);
+	const auto fitsArticle = (column.width >= contentMaxWidth());
 	const auto left = fitsArticle ? column.left : 0;
 	const auto right = fitsArticle ? (column.left + column.width) : width;
-	const auto undoRedoLeft = left + skip;
+	const auto undoRedoLeft = left;
 	_undoRedoPill->moveToLeft(undoRedoLeft, top, width);
 	const auto controlsLeft = undoRedoLeft
 		+ _undoRedoPill->naturalSize().width()
 		+ skip;
 	_controlsPill->moveToLeft(controlsLeft, top, width);
-	const auto emojiLeft = right
-		- skip
-		- _emojiPill->naturalSize().width();
+	const auto emojiLeft = right - _emojiPill->naturalSize().width();
 	_emojiPill->moveToLeft(emojiLeft, top, width);
 	updateInputMask();
 	return top + _controlsPill->naturalSize().height() + padding.bottom();
@@ -1338,6 +1340,7 @@ void WindowHost::Impl::layout() {
 	const auto padding = st::ivEditorBottomControlsPadding;
 	const auto emojiWidth = _emojiColumnShown ? emojiColumnWidth() : 0;
 	const auto editorWidth = std::max(width - emojiWidth, 0);
+	_editor->setContentMaxWidth(_toolbar->contentMaxWidth());
 	const auto toolbarHeight = _toolbar->resizeGetHeight(editorWidth);
 	auto buttonsHeight = _submit->height();
 	if (_cancel) {

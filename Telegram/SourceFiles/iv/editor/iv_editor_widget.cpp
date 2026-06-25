@@ -4294,6 +4294,14 @@ void Widget::setTopContentPadding(int value) {
 	update();
 }
 
+void Widget::setContentMaxWidth(int value) {
+	if (_contentMaxWidth == value) {
+		return;
+	}
+	_contentMaxWidth = value;
+	update();
+}
+
 int Widget::resizeGetHeight(int newWidth) {
 	if (!_article) {
 		return 1;
@@ -10541,7 +10549,13 @@ int Widget::articleWidth(int outerWidth) const {
 	const auto available = std::max(
 		outerWidth - padding.left() - padding.right(),
 		1);
-	return _article ? std::min(available, _article->maxWidth()) : available;
+	auto result = _article
+		? std::min(available, _article->maxWidth())
+		: available;
+	if (_contentMaxWidth > 0) {
+		result = std::min(result, _contentMaxWidth);
+	}
+	return result;
 }
 
 Widget::ArticleColumn Widget::articleColumnForWidth(int outerWidth) const {

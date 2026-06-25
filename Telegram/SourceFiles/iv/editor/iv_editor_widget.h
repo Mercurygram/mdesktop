@@ -198,6 +198,7 @@ public:
 		const Markdown::PreparedEditTableCellRange &range);
 	void setInlineFieldExternalInteractionActive(bool active);
 	void setTopContentPadding(int value);
+	void setContentMaxWidth(int value);
 
 	struct ArticleColumn {
 		int left = 0;
@@ -753,6 +754,7 @@ private:
 	State::FieldMode _fieldMode = State::FieldMode::Rich;
 	int _articleHeight = 0;
 	int _topContentPadding = 0;
+	int _contentMaxWidth = 0;
 	int _activeOrdinal = -1;
 	int _activeSegmentIndex = -1;
 	bool _activeSegmentIsDisplayMath = false;
