@@ -199,6 +199,12 @@ public:
 	void setInlineFieldExternalInteractionActive(bool active);
 	void setTopContentPadding(int value);
 
+	struct ArticleColumn {
+		int left = 0;
+		int width = 0;
+	};
+	[[nodiscard]] ArticleColumn articleColumnForWidth(int outerWidth) const;
+
 	int resizeGetHeight(int newWidth) override;
 
 protected:

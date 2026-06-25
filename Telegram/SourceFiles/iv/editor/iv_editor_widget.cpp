@@ -10432,6 +10432,16 @@ int Widget::articleWidth(int outerWidth) const {
 	return _article ? std::min(available, _article->maxWidth()) : available;
 }
 
+Widget::ArticleColumn Widget::articleColumnForWidth(int outerWidth) const {
+	const auto padding = EditorBodyPadding();
+	const auto available = std::max(
+		outerWidth - padding.left() - padding.right(),
+		1);
+	const auto width = articleWidth(outerWidth);
+	const auto left = padding.left() + std::max((available - width) / 2, 0);
+	return { left, width };
+}
+
 QRect Widget::outerEditableSegmentRect(int segmentIndex) const {
 	const auto rect = _article->logicalSegmentRect(segmentIndex);
 	return rect.isEmpty() ? rect : rect.translated(articleTopLeft());

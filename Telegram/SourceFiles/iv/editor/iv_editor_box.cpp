@@ -185,6 +185,7 @@ public:
 	int resizeGetHeight(int width) override;
 	void hideShownTooltip();
 	void setEmojiColumnOpen(bool open);
+	[[nodiscard]] int minimalWidth() const;
 
 private:
 	struct PillButton {
@@ -962,16 +963,33 @@ void Toolbar::setEmojiColumnOpen(bool open) {
 		open ? ToolbarButtonState::Active : ToolbarButtonState::Inactive);
 }
 
+int Toolbar::minimalWidth() const {
+	const auto skip = st::ivEditorToolbarEmojiSkip;
+	return 4 * skip
+		+ _undoRedoPill->naturalSize().width()
+		+ _controlsPill->naturalSize().width()
+		+ _emojiPill->naturalSize().width();
+}
+
 int Toolbar::resizeGetHeight(int width) {
 	const auto padding = st::ivEditorToolbarPadding;
 	const auto top = padding.top();
 	const auto skip = st::ivEditorToolbarEmojiSkip;
-	_controlsPill->moveToLeft(padding.left(), top, width);
-	const auto emojiLeft = padding.left()
-		+ _controlsPill->naturalSize().width()
+	const auto column = _editor
+		? _editor->articleColumnForWidth(width)
+		: Widget::ArticleColumn{ 0, width };
+	const auto articleLeft = column.left;
+	const auto articleRight = column.left + column.width;
+	const auto undoRedoLeft = articleLeft + skip;
+	_undoRedoPill->moveToLeft(undoRedoLeft, top, width);
+	const auto controlsLeft = undoRedoLeft
+		+ _undoRedoPill->naturalSize().width()
 		+ skip;
+	_controlsPill->moveToLeft(controlsLeft, top, width);
+	const auto emojiLeft = articleRight
+		- skip
+		- _emojiPill->naturalSize().width();
 	_emojiPill->moveToLeft(emojiLeft, top, width);
-	_undoRedoPill->moveToRight(padding.right(), top, width);
 	return top + _controlsPill->naturalSize().height() + padding.bottom();
 }
 
@@ -996,6 +1014,7 @@ private:
 	void updateEditorVisibleTopBottom();
 	void setEmojiColumnInteractionActive(bool active);
 	[[nodiscard]] int emojiColumnWidth() const;
+	[[nodiscard]] int minimalWindowWidth() const;
 	[[nodiscard]] int minimalWindowWidthWithEmojiColumn() const;
 	[[nodiscard]] bool handleCloseRequest();
 	void finishCloseFromAcceptedEvent();
@@ -1128,6 +1147,7 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 			_toolbar->hideShownTooltip();
 			toggleEmojiColumn();
 		});
+	window->setMinimumWidth(minimalWindowWidth());
 	if (descriptor.discarded) {
 		_discard = object_ptr<Ui::RoundButton>(
 			_bottom.data(),
@@ -1373,7 +1393,7 @@ void WindowHost::Impl::hideEmojiColumn(bool skipResize) {
 	if (_toolbar) {
 		_toolbar->setEmojiColumnOpen(false);
 	}
-	window->setMinimumWidth(st::ivEditorWindowMinSize.width());
+	window->setMinimumWidth(minimalWindowWidth());
 	setEmojiColumnInteractionActive(false);
 	if (!skipResize
 		&& _emojiColumnExtendedBy > 0
@@ -1408,8 +1428,13 @@ int WindowHost::Impl::emojiColumnWidth() const {
 	return st::emojiPanWidth;
 }
 
+int WindowHost::Impl::minimalWindowWidth() const {
+	const auto base = st::ivEditorWindowMinSize.width();
+	return _toolbar ? std::max(base, _toolbar->minimalWidth()) : base;
+}
+
 int WindowHost::Impl::minimalWindowWidthWithEmojiColumn() const {
-	return st::ivEditorWindowMinSize.width() + emojiColumnWidth();
+	return minimalWindowWidth() + emojiColumnWidth();
 }
 
 bool WindowHost::Impl::handleCloseRequest() {
