@@ -144,6 +144,7 @@ ivEditorBottomCancelButton: IconButton(ivEditorToolbarButton) {
 ivEditorBottomSendButton: IconButton(ivEditorToolbarButton) {
 	icon: ivEditorBottomSendIcon;
 	iconOver: ivEditorBottomSendIcon;
+	iconPosition: point(10px, -1px);
 	ripple: RippleAnimation(defaultRippleAnimation) {
 		color: lightButtonBgOver;
 	}
