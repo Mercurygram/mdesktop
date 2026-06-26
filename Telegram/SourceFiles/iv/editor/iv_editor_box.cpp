@@ -154,7 +154,7 @@ enum class ToolbarActionId : uchar {
 	case ToolbarActionId::Table:
 		return tr::lng_article_insert_table(tr::now);
 	case ToolbarActionId::Location:
-		return tr::lng_article_insert_map(tr::now);
+		return tr::lng_maps_point(tr::now);
 	case ToolbarActionId::Divider:
 		return tr::lng_article_insert_divider(tr::now);
 	}
@@ -785,8 +785,8 @@ void Toolbar::fillAttachMenu(not_null<Ui::PopupMenu*> menu) {
 					RequestMediaType::PhotoVideo);
 			}
 		},
-		&st::menuIconPhoto,
-		&st::menuIconPhoto);
+		&st::ivEditorToolbarAttachIcon,
+		&st::ivEditorToolbarAttachIcon);
 	menu->addAction(
 		tr::lng_in_dlg_audio_file(tr::now),
 		[=] {
@@ -796,17 +796,18 @@ void Toolbar::fillAttachMenu(not_null<Ui::PopupMenu*> menu) {
 					RequestMediaType::Audio);
 			}
 		},
-		&st::ivEditorToolbarAudioIcon,
-		&st::ivEditorToolbarAudioIcon);
+		&st::menuIconSoundOn,
+		&st::menuIconSoundOn);
 	if (_requestMap) {
 		menu->addAction(
-			tr::lng_article_insert_map(tr::now),
+			tr::lng_maps_point(tr::now),
 			[=] {
 				if (_editor) {
 					const auto parent = _tooltipParent;
 					auto closeRequests = parent
 						? static_cast<Ui::RpWidget*>(parent.data())->death()
 						: rpl::never<>();
+					Ui::PreventDelayedActivation();
 					_requestMap(
 						not_null<Widget*>(_editor.data()),
 						parent,

@@ -69,6 +69,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/attach/attach_bot_webview.h"
 #include "ui/controls/location_picker.h"
 #include "ui/controls/userpic_button.h"
+#include "ui/delayed_activation.h"
 #include "ui/effects/ripple_animation.h"
 #include "ui/painter.h"
 #include "ui/text/text_custom_emoji.h"
@@ -2983,6 +2984,7 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 	if (Data::CanSendAnyOf(peer, locationType, false)
 		&& Ui::LocationPicker::Available(config)) {
 		raw->addAction(tr::lng_maps_point(tr::now), [=] {
+			Ui::PreventDelayedActivation();
 			ChooseAndSendLocation(controller, config, actionFactory());
 		}, &st::menuIconAddress);
 	}
