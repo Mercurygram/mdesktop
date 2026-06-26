@@ -4950,6 +4950,22 @@ Widget::currentTableRangeAtCaret() const {
 		if (range.empty() || !_state->tableSelectionInfo(range).valid) {
 			return std::nullopt;
 		}
+		const auto source = Markdown::PreparedEditTableCellSource{
+			.block = activeLeaf->block,
+			.tableRowIndex = cell.rowFrom,
+			.tableCellIndex = cell.cellIndex,
+			.column = cell.columnFrom,
+			.colspan = cell.columnTill - cell.columnFrom,
+			.rowspan = cell.rowTill - cell.rowFrom,
+		};
+		if (const auto selected = _state->tableContextRangeForSelection(
+				_structuralSelection,
+				source)) {
+			if (!selected->empty()
+				&& _state->tableSelectionInfo(*selected).valid) {
+				return *selected;
+			}
+		}
 		return range;
 	}
 	return std::nullopt;
