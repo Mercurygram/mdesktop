@@ -65,6 +65,7 @@ struct PreparedMediaPasteTarget {
 	std::optional<State::LeafPath> leaf;
 	std::optional<State::InsertionAnchor> anchor;
 	std::optional<State::ActiveTextInsertContext> context;
+	std::optional<Markdown::PreparedEditBlockDropTarget> blockDrop;
 };
 
 struct WidgetServices {
@@ -213,6 +214,10 @@ protected:
 	bool eventFilter(QObject *object, QEvent *event) override;
 	bool eventHook(QEvent *e) override;
 	void contextMenuEvent(QContextMenuEvent *e) override;
+	void dragEnterEvent(QDragEnterEvent *e) override;
+	void dragMoveEvent(QDragMoveEvent *e) override;
+	void dragLeaveEvent(QDragLeaveEvent *e) override;
+	void dropEvent(QDropEvent *e) override;
 	void focusInEvent(QFocusEvent *e) override;
 	bool focusNextPrevChild(bool next) override;
 	void keyPressEvent(QKeyEvent *e) override;
@@ -306,6 +311,11 @@ private:
 		int sourceFrom = 0;
 		int sourceTo = 0;
 		std::optional<Markdown::PreparedEditDropTarget> dropTarget;
+		QRect indicatorRect;
+	};
+
+	struct ExternalMediaDrag {
+		std::optional<Markdown::PreparedEditBlockDropTarget> dropTarget;
 		QRect indicatorRect;
 	};
 
@@ -649,6 +659,11 @@ private:
 		const Markdown::PreparedEditHit &editHit);
 	void updateArticleDropTarget(QPoint articlePoint);
 	void clearArticleDropTarget();
+	void updateExternalDropTarget(QPoint articlePoint);
+	void clearExternalDropTarget();
+	void pasteBlocksAtDropTarget(
+		std::vector<RichPage::Block> blocks,
+		const Markdown::PreparedEditBlockDropTarget &target);
 	void finishArticleSelection();
 	[[nodiscard]] Ui::ScrollArea *selectionScrollArea() const;
 	[[nodiscard]] bool articleSelectionAutoScrollActive() const;
@@ -787,6 +802,7 @@ private:
 	std::optional<BoundarySelectionOrigin> _boundarySelectionOrigin;
 	Ui::VisibleRange _visibleRange;
 	ArticleSelectionDrag _articleSelectionDrag;
+	ExternalMediaDrag _externalMediaDrag;
 	Ui::DraggingScrollManager _selectScroll;
 	std::optional<Qt::Orientation> _horizontalScrollLock;
 	bool _settingField = false;

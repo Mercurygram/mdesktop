@@ -425,6 +425,9 @@ public:
 	moveStructuralSelectionToDropTarget(
 		const Markdown::PreparedEditSelection &selection,
 		const Markdown::PreparedEditDropTarget &target);
+	[[nodiscard]] bool insertPreparedBlocksAtDropTarget(
+		std::vector<RichPage::Block> blocks,
+		const Markdown::PreparedEditBlockDropTarget &target);
 	enum class TextFormattingAction : uchar {
 		Bold,
 		Italic,

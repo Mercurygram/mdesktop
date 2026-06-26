@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "main/session/session_show.h"
 #include "menu/menu_checked_action.h"
+#include "platform/platform_file_utilities.h"
 #include "spellcheck/spellcheck_highlight_syntax.h"
 #include "storage/storage_media_prepare.h"
 #include "ui/chat/attach/attach_prepare.h"
@@ -1368,13 +1369,33 @@ struct InlineFieldTrimResult {
 	return std::nullopt;
 }
 
+[[nodiscard]] bool IsAcceptableDropMedia(not_null<const QMimeData*> data) {
+	if (data->hasFormat(u"application/x-td-forward"_q)) {
+		return false;
+	} else if (data->hasImage()) {
+		return true;
+	}
+	const auto urls = Core::ReadMimeUrls(data);
+	if (urls.isEmpty()) {
+		return false;
+	}
+	for (const auto &url : urls) {
+		if (!url.isLocalFile()) {
+			return false;
+		}
+		const auto type = Core::DetectNameType(Platform::File::UrlToLocal(url));
+		if (type != Core::NameType::Image
+			&& type != Core::NameType::Video
+			&& type != Core::NameType::Audio) {
+			return false;
+		}
+	}
+	return true;
+}
+
 [[nodiscard]] bool CanPrepareMediaFromClipboard(
 		not_null<const QMimeData*> data) {
-	using State = Storage::MimeDataState;
-	const auto state = Storage::ComputeMimeDataState(data.get());
-	return (state == State::Image)
-		|| (state == State::PhotoFiles)
-		|| (state == State::MediaFiles);
+	return IsAcceptableDropMedia(data);
 }
 
 [[nodiscard]] QString ValidateInstantViewEditorLink(QString link) {
@@ -2575,6 +2596,7 @@ Widget::Widget(
 	setAttribute(Qt::WA_AcceptTouchEvents);
 	setFocusPolicy(Qt::StrongFocus);
 	setAttribute(Qt::WA_InputMethodEnabled);
+	setAcceptDrops(true);
 
 	std::move(services.imeCompositionStarts) | rpl::filter([=] {
 		return redirectImeToField();
@@ -3185,6 +3207,10 @@ void Widget::pastePreparedBlock(
 void Widget::pastePreparedBlocks(
 		std::vector<RichPage::Block> blocks,
 		PreparedMediaPasteTarget target) {
+	if (target.blockDrop) {
+		pasteBlocksAtDropTarget(std::move(blocks), *target.blockDrop);
+		return;
+	}
 	auto activation = activatePreparedMediaPasteTarget(std::move(target));
 	if (activation.resolved) {
 		insertPreparedBlocks(
@@ -3197,6 +3223,47 @@ void Widget::pastePreparedBlocks(
 			activeTextInsertContext(),
 			false);
 	}
+}
+
+void Widget::pasteBlocksAtDropTarget(
+		std::vector<RichPage::Block> blocks,
+		const Markdown::PreparedEditBlockDropTarget &target) {
+	recordMutationTransaction([&] {
+		auto committed = ApplyResult::Unchanged;
+		if (!_field->isHidden()) {
+			committed = commitInlineField();
+			if (committed == ApplyResult::Failed) {
+				return MutationTransactionResult{
+					.committed = committed,
+					.failed = true,
+				};
+			}
+		}
+		if (!_state->insertPreparedBlocksAtDropTarget(
+				std::move(blocks),
+				target)) {
+			showLastLimitToast();
+			return MutationTransactionResult{
+				.committed = committed,
+				.changed = (committed == ApplyResult::Changed),
+			};
+		}
+		_pendingOrdinal = -1;
+		_pendingCursorOffset = 0;
+		hideInlineField();
+		clearInlineFieldEditSession();
+		clearTextSelection();
+		clearStructuralSelection();
+		refreshPreparedContent();
+		const auto ordinal = _state->activeTextOrdinal();
+		if (ordinal >= 0 && ordinal < _state->textNodeCount()) {
+			activateTextOrdinal(ordinal, 0);
+		}
+		return MutationTransactionResult{
+			.committed = committed,
+			.changed = true,
+		};
+	});
 }
 
 void Widget::insertPreparedBlocks(
@@ -6322,6 +6389,13 @@ void Widget::paintEvent(QPaintEvent *e) {
 		auto color = st::windowActiveTextFg->c;
 		color.setAlphaF(color.alphaF() * 0.7);
 		auto rect = _articleSelectionDrag.indicatorRect.translated(topLeft);
+		rect.setHeight(std::max(rect.height(), st::lineWidth));
+		p.fillRect(rect, color);
+	}
+	if (!_externalMediaDrag.indicatorRect.isEmpty()) {
+		auto color = st::windowActiveTextFg->c;
+		color.setAlphaF(color.alphaF() * 0.7);
+		auto rect = _externalMediaDrag.indicatorRect.translated(topLeft);
 		rect.setHeight(std::max(rect.height(), st::lineWidth));
 		p.fillRect(rect, color);
 	}
@@ -9814,6 +9888,88 @@ void Widget::clearArticleDropTarget() {
 	if (!oldRect.isEmpty()) {
 		update();
 	}
+}
+
+void Widget::updateExternalDropTarget(QPoint articlePoint) {
+	auto target = std::optional<Markdown::PreparedEditBlockDropTarget>();
+	auto rect = QRect();
+	const auto location = _article->editDropTarget(articlePoint);
+	if (location.valid()) {
+		if (const auto block
+			= std::get_if<Markdown::PreparedEditBlockDropTarget>(
+				&*location.target)) {
+			target = *block;
+			rect = location.indicatorRect;
+		}
+	}
+	const auto oldRect = _externalMediaDrag.indicatorRect;
+	_externalMediaDrag.dropTarget = target;
+	_externalMediaDrag.indicatorRect = rect;
+	if (oldRect != rect) {
+		update();
+	}
+}
+
+void Widget::clearExternalDropTarget() {
+	const auto oldRect = _externalMediaDrag.indicatorRect;
+	_externalMediaDrag.dropTarget = std::nullopt;
+	_externalMediaDrag.indicatorRect = QRect();
+	if (!oldRect.isEmpty()) {
+		update();
+	}
+}
+
+void Widget::dragEnterEvent(QDragEnterEvent *e) {
+	if (!_article || !IsAcceptableDropMedia(e->mimeData())) {
+		clearExternalDropTarget();
+		e->ignore();
+		return;
+	}
+	updateExternalDropTarget(e->pos() - articleTopLeft());
+	e->setDropAction(Qt::CopyAction);
+	e->accept();
+}
+
+void Widget::dragMoveEvent(QDragMoveEvent *e) {
+	if (!_article || !IsAcceptableDropMedia(e->mimeData())) {
+		clearExternalDropTarget();
+		e->ignore();
+		return;
+	}
+	updateExternalDropTarget(e->pos() - articleTopLeft());
+	e->setDropAction(Qt::CopyAction);
+	e->accept();
+}
+
+void Widget::dragLeaveEvent(QDragLeaveEvent *e) {
+	clearExternalDropTarget();
+}
+
+void Widget::dropEvent(QDropEvent *e) {
+	const auto clear = gsl::finally([&] { clearExternalDropTarget(); });
+	if (!_article
+		|| !_applyPreparedMedia
+		|| !IsAcceptableDropMedia(e->mimeData())) {
+		return;
+	}
+	updateExternalDropTarget(e->pos() - articleTopLeft());
+	const auto target = _externalMediaDrag.dropTarget;
+	if (!target) {
+		return;
+	}
+	auto list = PreparedMediaFromClipboard(e->mimeData(), _session->premium());
+	if (!list) {
+		return;
+	}
+	e->setDropAction(Qt::CopyAction);
+	e->accept();
+	auto paste = PreparedMediaPasteTarget{ .blockDrop = *target };
+	crl::on_main(this, [=, list = std::move(*list)]() mutable {
+		_applyPreparedMedia(
+			not_null<Widget*>(this),
+			std::move(list),
+			std::move(paste));
+	});
 }
 
 Ui::ScrollArea *Widget::selectionScrollArea() const {

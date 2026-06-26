@@ -7597,6 +7597,33 @@ bool State::insertPreparedBlocksAtExplicitPosition(
 	return true;
 }
 
+bool State::insertPreparedBlocksAtDropTarget(
+		std::vector<Block> blocks,
+		const Markdown::PreparedEditBlockDropTarget &target) {
+	if (blocks.empty() || target.insertIndex < 0) {
+		return false;
+	}
+	return applyCheckedMutation(false, [
+			blocks = std::move(blocks),
+			target](State &candidate) mutable {
+		const auto container = candidate.convertBlockContainerPath(
+			target.container);
+		if (!container || !candidate.blockContainer(*container)) {
+			return CheckedMutationResult<bool>{ .result = false };
+		}
+		candidate.normalizeInsertedBlockAnchors(blocks);
+		auto insertAt = target.insertIndex;
+		if (!candidate.insertPreparedBlocksAtExplicitPosition(
+				std::move(blocks),
+				*container,
+				&insertAt)) {
+			return CheckedMutationResult<bool>{ .result = false };
+		}
+		candidate.rebuild();
+		return CheckedMutationResult<bool>{ .apply = true, .result = true };
+	});
+}
+
 bool State::insertPreparedListItemsAtExplicitPosition(
 		std::vector<ListItem> items,
 		const BlockPath &path,
