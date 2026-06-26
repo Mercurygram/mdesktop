@@ -836,8 +836,9 @@ void FinalizeOwnerSelection(
 		const auto depthDelta = std::max(
 			prepared.visualDepth - context.listDepth,
 			0);
-		const auto overhead = depthDelta * st.textPadding.left()
-			- context.listItemContentShift;
+		const auto markerColumn = context.listItemContentShift;
+		const auto step = std::max(st.textPadding.left(), markerColumn);
+		const auto overhead = depthDelta * step - markerColumn;
 		const auto childWidth = std::max(availableWidth - overhead, 1);
 		visibleScrollViewportWidth = childWidth;
 		auto childContext = context;
@@ -1466,8 +1467,9 @@ void FinalizeOwnerSelection(
 		const auto depthDelta = std::max(
 			prepared.visualDepth - context.listDepth,
 			0);
-		const auto overhead = depthDelta * st.textPadding.left()
-			- context.listItemContentShift;
+		const auto markerColumn = context.listItemContentShift;
+		const auto step = std::max(st.textPadding.left(), markerColumn);
+		const auto overhead = depthDelta * step - markerColumn;
 		const auto childWidth = std::max(availableWidth - overhead, 1);
 		visibleScrollViewportWidth = childWidth;
 		childContext.listDepth = prepared.visualDepth;
@@ -2953,8 +2955,9 @@ int LayoutBlocks(
 	}
 	ClearBlockGeometry(block);
 	const auto depthDelta = std::max(prepared.visualDepth - context.listDepth, 0);
-	const auto indent = depthDelta * st.textPadding.left()
-		- context.listItemContentShift;
+	const auto markerColumn = context.listItemContentShift;
+	const auto step = std::max(st.textPadding.left(), markerColumn);
+	const auto indent = depthDelta * step - markerColumn;
 	const auto listLeft = left + indent;
 	const auto listWidth = std::max(width - indent, 1);
 	const auto currentScrollOwner = NextActiveScrollOwner(
