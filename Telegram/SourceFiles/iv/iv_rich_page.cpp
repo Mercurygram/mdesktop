@@ -315,7 +315,7 @@ void AccumulateTextLength(
 		const auto &occupied = occupancy[currentRow];
 		const auto occupiedLimit = std::min(columnLimit, int(occupied.size()));
 		for (auto currentColumn = column;
-				currentColumn != occupiedLimit;
+				currentColumn < occupiedLimit;
 				++currentColumn) {
 			if (occupied[currentColumn]) {
 				return false;
