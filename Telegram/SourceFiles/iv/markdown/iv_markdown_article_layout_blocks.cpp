@@ -2203,44 +2203,71 @@ int TableBlockContentMinimumWidth(
 				cellIndex != cellCount;
 				++cellIndex) {
 			const auto &cell = row.cells[cellIndex];
-			if (cell.text.text.isEmpty()) {
+			const auto usePlaceholder = cell.text.text.isEmpty()
+				&& !cell.editPlaceholderText.isEmpty();
+			if (cell.text.text.isEmpty() && !usePlaceholder) {
 				continue;
 			}
 			const auto &textStyle = TableCellTextStyle(cell, st);
 			const auto minResizeWidth = TableCellTextMinResizeWidth(
 				textStyle,
 				st);
-			const auto leafMinimum = WithCachedTextLeaf(
-				context,
-				TableCellCachedTextLeafKey(
-					CachedTextLeafSlot::TableCellText,
-					cell,
-					context.preparedPath,
-					rowIndex,
-					cellIndex),
-				MarkedTextLeafSourceSignature(
-					cell.text,
-					textStyle,
-					minResizeWidth),
-				[&](Ui::Text::String *leaf,
-						Spellchecker::HighlightProcessId*) {
-					SetTextLeaf(
-						leaf,
+			const auto leafMinimum = usePlaceholder
+				? WithCachedTextLeaf(
+					context,
+					TableCellCachedTextLeafKey(
+						CachedTextLeafSlot::TableCellPlaceholder,
+						cell,
+						context.preparedPath,
+						rowIndex,
+						cellIndex),
+					PlainTextLeafSourceSignature(
+						cell.editPlaceholderText,
 						textStyle,
-						st,
+						minResizeWidth),
+					[&](Ui::Text::String *leaf,
+							Spellchecker::HighlightProcessId*) {
+						SetPlainTextLeaf(
+							leaf,
+							textStyle,
+							cell.editPlaceholderText,
+							minResizeWidth);
+					},
+					[](const Ui::Text::String &leaf,
+							Spellchecker::HighlightProcessId) {
+						return LeafMinimumWidth(leaf);
+					})
+				: WithCachedTextLeaf(
+					context,
+					TableCellCachedTextLeafKey(
+						CachedTextLeafSlot::TableCellText,
+						cell,
+						context.preparedPath,
+						rowIndex,
+						cellIndex),
+					MarkedTextLeafSourceSignature(
 						cell.text,
-						&formulas,
-						inlineFormulaObjects,
-						mediaRuntime,
-						minResizeWidth,
-						context.repaint,
-						context.repaintRect);
-					BindLinks(leaf, cell.links);
-				},
-				[](const Ui::Text::String &leaf,
-						Spellchecker::HighlightProcessId) {
-					return LeafMinimumWidth(leaf);
-				});
+						textStyle,
+						minResizeWidth),
+					[&](Ui::Text::String *leaf,
+							Spellchecker::HighlightProcessId*) {
+						SetTextLeaf(
+							leaf,
+							textStyle,
+							st,
+							cell.text,
+							&formulas,
+							inlineFormulaObjects,
+							mediaRuntime,
+							minResizeWidth,
+							context.repaint,
+							context.repaintRect);
+						BindLinks(leaf, cell.links);
+					},
+					[](const Ui::Text::String &leaf,
+							Spellchecker::HighlightProcessId) {
+						return LeafMinimumWidth(leaf);
+					});
 			if (leafMinimum > 0) {
 				constraints.push_back({
 					.column = std::max(cell.column, 0),

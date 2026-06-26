@@ -5092,6 +5092,8 @@ void Widget::applyListChange(Fn<bool()> change) {
 		hideInlineField();
 		if (_article) {
 			_article->clearTextLeafHeightOverride();
+			_article->clearEditableTextEmptyOverride();
+			_article->clearEditableMaxLineWidthOverride();
 		}
 		clearSelection();
 		setFocus();
