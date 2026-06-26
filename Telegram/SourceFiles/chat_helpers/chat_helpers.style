@@ -1537,6 +1537,10 @@ historySendAsFileButton: IconButton(historyAiComposeButton) {
 	icon: icon {{ "chat/text_to_file-18x18", historyComposeIconFg }};
 	iconOver: icon {{ "chat/text_to_file-18x18", historyComposeIconFgOver }};
 }
+historyExpandComposeButton: IconButton(historyAiComposeButton) {
+	icon: icon {{ "menu/expand", historyComposeIconFg }};
+	iconOver: icon {{ "menu/expand", historyComposeIconFgOver }};
+}
 historyAiComposeTooltipSkip: 8px;
 importantTooltipHide: IconButton(defaultIconButton) {
 	width: 34px;

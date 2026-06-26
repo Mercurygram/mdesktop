@@ -350,6 +350,9 @@ private:
 		Ui::InputField::MimeAction action);
 	void updateSendAsFileVisibility();
 	void updateSendAsFileGeometry();
+	void initExpandButton();
+	void updateExpandButtonVisibility();
+	void updateExpandButtonGeometry();
 	void setupSendMenu(
 		not_null<Ui::RpWidget*> button,
 		Fn<void(Api::SendOptions)> send);
@@ -481,6 +484,7 @@ private:
 	const std::shared_ptr<Ui::SendButton> _send;
 	Controls::ComposeAiButton * const _aiButton = nullptr;
 	Ui::IconButton * const _sendAsFile = nullptr;
+	Ui::IconButton * const _expand = nullptr;
 	Ui::IconButton *_editStars = nullptr;
 	Ui::IconButton *_like = nullptr;
 	rpl::variable<int> _minStarsCount;

@@ -1067,6 +1067,9 @@ ComposeControls::ComposeControls(
 		_wrap.get(),
 		st::historySendAsFileButton)
 	: nullptr)
+, _expand(Ui::CreateChild<Ui::IconButton>(
+	_wrap.get(),
+	st::historyExpandComposeButton))
 , _like(_features.likes
 	? Ui::CreateChild<Ui::IconButton>(_wrap.get(), _st.like)
 	: nullptr)
@@ -1988,6 +1991,7 @@ void ComposeControls::showFinished() {
 	if (_sendAsFile) {
 		_sendAsFile->raise();
 	}
+	_expand->raise();
 	if (_aiTooltipManager) {
 		_aiTooltipManager->raise();
 	}
@@ -2206,6 +2210,7 @@ void ComposeControls::init() {
 	initSendButton();
 	initAiButton();
 	initSendAsFileButton();
+	initExpandButton();
 	initWriteRestriction();
 	initVoiceRecordBar();
 	initKeyHandler();
@@ -2517,17 +2522,20 @@ void ComposeControls::initField() {
 		updateHeight();
 		updateAiButtonVisibility();
 		updateSendAsFileVisibility();
+		updateExpandButtonVisibility();
 	}, _field->lifetime());
 	_field->changes(
 	) | rpl::on_next([=] {
 		fieldChanged();
 		updateAiButtonVisibility();
 		updateSendAsFileVisibility();
+		updateExpandButtonVisibility();
 	}, _field->lifetime());
 	Data::AmPremiumValue(&session()) | rpl::on_next([=] {
 		checkCharsLimitation();
 		updateAiButtonVisibility();
 		updateSendAsFileVisibility();
+		updateExpandButtonVisibility();
 	}, _wrap->lifetime());
 #ifdef Q_OS_MAC
 	// Removed an ability to insert text from the menu bar
@@ -3530,6 +3538,7 @@ void ComposeControls::initVoiceRecordBar() {
 		}
 		updateAiButtonVisibility();
 		updateSendAsFileVisibility();
+		updateExpandButtonVisibility();
 	}, _wrap->lifetime());
 
 	_voiceRecordBar->setStartRecordingFilter([=] {
@@ -3675,6 +3684,24 @@ void ComposeControls::initSendAsFileButton() {
 		[=] { return _wrap->width(); });
 }
 
+void ComposeControls::initExpandButton() {
+	_expand->hide();
+	_expand->setAccessibleName(tr::lng_article_menu_item(tr::now));
+	_expand->setClickedCallback([=] {
+		if (!_regularWindow || !_history || !_sendActionFactory) {
+			return;
+		}
+		if (!Iv::Editor::CheckRichMessagesPremium(_regularWindow)) {
+			return;
+		}
+		Iv::Editor::ShowComposeBox(
+			_regularWindow,
+			_history->peer,
+			_sendActionFactory(),
+			[=] { return sendMenuDetails(); });
+	});
+}
+
 void ComposeControls::setSendAsFileConfirmed(
 		Fn<void(std::shared_ptr<Ui::PreparedBundle>, Api::SendOptions)> confirmed) {
 	_sendAsFileConfirmed = std::move(confirmed);
@@ -3746,6 +3773,7 @@ void ComposeControls::updateWrappingVisibility() {
 	updateControlsParents();
 	updateAiButtonVisibility();
 	updateSendAsFileVisibility();
+	updateExpandButtonVisibility();
 	if (!hidden && !restricted) {
 		updateControlsGeometry(_wrap->size());
 		_wrap->raise();
@@ -3960,6 +3988,7 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 	}
 	updateAiButtonGeometry();
 	updateSendAsFileGeometry();
+	updateExpandButtonGeometry();
 
 	_voiceRecordBar->resizeToWidth(size.width());
 	_voiceRecordBar->moveToLeft(
@@ -4004,6 +4033,7 @@ void ComposeControls::updateControlsVisibility() {
 	}
 	updateAiButtonVisibility();
 	updateSendAsFileVisibility();
+	updateExpandButtonVisibility();
 }
 
 void ComposeControls::updateAiButtonVisibility() {
@@ -4022,6 +4052,29 @@ void ComposeControls::updateAiButtonVisibility() {
 	if (_aiTooltipManager) {
 		_aiTooltipManager->updateVisibility(shown);
 	}
+}
+
+void ComposeControls::updateExpandButtonVisibility() {
+	const auto hidden = !_wrap->isVisible()
+		|| _recording.current()
+		|| !_field->isVisible()
+		|| textExceedsMaxSize();
+	if (_expand->isHidden() != hidden) {
+		_expand->setVisible(!hidden);
+	}
+	updateExpandButtonGeometry();
+}
+
+void ComposeControls::updateExpandButtonGeometry() {
+	if (_expand->isHidden()) {
+		return;
+	}
+	const auto aiShown = !_aiButton->isHidden();
+	const auto anchorX = aiShown
+		? (_tabbedSelectorToggle->x() + _tabbedSelectorToggle->width())
+		: (_send->x() + _send->width());
+	const auto x = anchorX - _expand->width();
+	_expand->move(QPoint(x, _field->y()) + st::historyAiComposeButtonPosition);
 }
 
 void ComposeControls::updateAiButtonGeometry() {

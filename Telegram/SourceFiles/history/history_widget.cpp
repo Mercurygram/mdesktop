@@ -288,6 +288,9 @@ HistoryWidget::HistoryWidget(
 , _sendAsFile(Ui::CreateChild<Ui::IconButton>(
 	this,
 	st::historySendAsFileButton))
+, _expand(Ui::CreateChild<Ui::IconButton>(
+	this,
+	st::historyExpandComposeButton))
 , _unblock(
 	this,
 	tr::lng_unblock_button(tr::now).toUpper(),
@@ -467,6 +470,7 @@ HistoryWidget::HistoryWidget(
 		checkCharsLimitation();
 		updateAiButtonVisibility();
 		updateSendAsFileVisibility();
+		updateExpandButtonVisibility();
 	}, lifetime());
 #ifdef Q_OS_MAC
 	// Removed an ability to insert text from the menu bar
@@ -537,6 +541,7 @@ HistoryWidget::HistoryWidget(
 	setupFastButtonMode();
 	initAiButton();
 	initSendAsFileButton();
+	initExpandButton();
 
 	_fieldCharsCountManager.limitExceeds(
 	) | rpl::on_next([=] {
@@ -1349,6 +1354,7 @@ void HistoryWidget::initVoiceRecordBar() {
 		controller()->widget()->setInnerFocus();
 		updateAiButtonVisibility();
 		updateSendAsFileVisibility();
+		updateExpandButtonVisibility();
 	}, lifetime());
 
 	_voiceRecordBar->hideFast();
@@ -1390,6 +1396,25 @@ void HistoryWidget::initSendAsFileButton() {
 		tr::lng_send_as_file_tooltip(tr::rich),
 		"send_as_file_tooltip_hidden"_cs,
 		[=] { return width(); });
+}
+
+void HistoryWidget::initExpandButton() {
+	_expand->hide();
+	_expand->setAccessibleName(tr::lng_article_menu_item(tr::now));
+	_expand->setClickedCallback([=] {
+		if (!_history) {
+			return;
+		}
+		const auto window = controller();
+		if (!Iv::Editor::CheckRichMessagesPremium(window)) {
+			return;
+		}
+		Iv::Editor::ShowComposeBox(
+			window,
+			_history->peer,
+			prepareSendAction({}),
+			[=] { return sendMenuDetails(); });
+	});
 }
 
 void HistoryWidget::sendTextAsFile(
@@ -1946,6 +1971,7 @@ void HistoryWidget::orderWidgets() {
 	_send->raise();
 	_aiButton->raise();
 	_sendAsFile->raise();
+	_expand->raise();
 	_richDraftPreview->raise();
 	_topBars->raise();
 	if (_businessBotStatus) {
@@ -2078,6 +2104,7 @@ void HistoryWidget::fieldChanged() {
 	}
 	updateAiButtonVisibility();
 	updateSendAsFileVisibility();
+	updateExpandButtonVisibility();
 
 	_saveCloudDraftTimer.cancel();
 	if (bypassNormalDraftHandling()) {
@@ -4160,6 +4187,7 @@ void HistoryWidget::updateControlsVisibility() {
 	}
 	updateAiButtonVisibility();
 	updateSendAsFileVisibility();
+	updateExpandButtonVisibility();
 	updateMouseTracking();
 }
 
@@ -6658,6 +6686,7 @@ void HistoryWidget::toggleKeyboard(bool manual) {
 	updateControlsGeometry();
 	updateAiButtonVisibility();
 	updateSendAsFileVisibility();
+	updateExpandButtonVisibility();
 	updateFieldPlaceholder();
 	if (_botKeyboardHide->isHidden()
 		&& canWriteMessage()
@@ -6847,6 +6876,29 @@ void HistoryWidget::updateAiButtonVisibility() {
 	}
 }
 
+void HistoryWidget::updateExpandButtonVisibility() {
+	const auto hidden = !_send->isVisible()
+		|| !_field->isVisible()
+		|| _voiceRecordBar->isActive()
+		|| (textExceedsMaxSize() && !editingMessage());
+	if (_expand->isHidden() != hidden) {
+		_expand->setVisible(!hidden);
+	}
+	updateExpandButtonGeometry();
+}
+
+void HistoryWidget::updateExpandButtonGeometry() {
+	if (_expand->isHidden()) {
+		return;
+	}
+	const auto aiShown = !_aiButton->isHidden();
+	const auto anchorX = aiShown
+		? (_tabbedSelectorToggle->x() + _tabbedSelectorToggle->width())
+		: (_send->x() + _send->width());
+	const auto x = anchorX - _expand->width();
+	_expand->move(QPoint(x, _field->y()) + st::historyAiComposeButtonPosition);
+}
+
 void HistoryWidget::updateAiButtonGeometry() {
 	if (_aiButton->isHidden()) {
 		return;
@@ -6957,6 +7009,7 @@ void HistoryWidget::moveFieldControls() {
 	}
 	updateAiButtonGeometry();
 	updateSendAsFileGeometry();
+	updateExpandButtonGeometry();
 
 	_fieldBarCancel->moveToRight(
 		0,
@@ -7065,6 +7118,7 @@ void HistoryWidget::fieldResized() {
 	moveFieldControls();
 	updateAiButtonVisibility();
 	updateSendAsFileVisibility();
+	updateExpandButtonVisibility();
 	updateHistoryGeometry();
 	updateField();
 }

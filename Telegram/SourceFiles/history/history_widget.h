@@ -561,6 +561,9 @@ private:
 		int restoreAnchor);
 	void updateSendAsFileVisibility();
 	void updateSendAsFileGeometry();
+	void initExpandButton();
+	void updateExpandButtonVisibility();
+	void updateExpandButtonGeometry();
 	[[nodiscard]] bool canSendAiComposeDirect() const;
 
 	[[nodiscard]] MsgId resolveReplyToTopicRootId();
@@ -880,6 +883,7 @@ private:
 	const std::shared_ptr<Ui::SendButton> _send;
 	HistoryView::Controls::ComposeAiButton * const _aiButton = nullptr;
 	Ui::IconButton * const _sendAsFile = nullptr;
+	Ui::IconButton * const _expand = nullptr;
 	object_ptr<Ui::FlatButton> _unblock;
 	object_ptr<Ui::FlatButton> _botStart;
 	object_ptr<Ui::FlatButton> _joinChannel;
