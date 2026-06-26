@@ -1687,6 +1687,67 @@ void AppendSummaryBlocks(
 	return result;
 }
 
+[[nodiscard]] bool SimpleTextEntitiesAllowed(const TextWithEntities &text) {
+	for (const auto &entity : text.entities) {
+		const auto type = entity.type();
+		if (type == EntityType::Subscript
+			|| type == EntityType::Superscript
+			|| type == EntityType::Marked
+			|| type == EntityType::CustomEmoji) {
+			return false;
+		}
+	}
+	return true;
+}
+
+void AppendSimpleBlock(
+		TextWithEntities *result,
+		TextWithEntities &&block,
+		EntityType wrap = EntityType::Invalid,
+		const QString &wrapData = QString()) {
+	TextUtilities::Trim(block);
+	if (block.empty()) {
+		return;
+	}
+	if (wrap != EntityType::Invalid) {
+		block.entities.push_back(
+			EntityInText(wrap, 0, int(block.text.size()), wrapData));
+	}
+	if (!result->empty()) {
+		result->append(QChar('\n'));
+	}
+	result->append(std::move(block));
+}
+
+[[nodiscard]] bool CollectSimpleQuote(
+		const Block &quote,
+		TextWithEntities *body) {
+	if (quote.pullquote
+		|| !quote.caption.text.text.trimmed().isEmpty()) {
+		return false;
+	}
+	auto joined = TextWithEntities();
+	if (!quote.text.text.empty()) {
+		if (!SimpleTextEntitiesAllowed(quote.text.text)) {
+			return false;
+		}
+		AppendSimpleBlock(&joined, TextWithEntities(quote.text.text));
+	}
+	for (const auto &child : quote.blocks) {
+		if (child.kind != BlockKind::Paragraph
+			|| !SimpleTextEntitiesAllowed(child.text.text)) {
+			return false;
+		}
+		AppendSimpleBlock(&joined, TextWithEntities(child.text.text));
+	}
+	TextUtilities::Trim(joined);
+	if (joined.empty()) {
+		return true;
+	}
+	*body = std::move(joined);
+	return true;
+}
+
 void AppendSummaryBlock(TextWithEntities *result, const Block &block) {
 	switch (block.kind) {
 	case BlockKind::Unsupported:
@@ -1989,6 +2050,48 @@ TextWithEntities FlattenRichPageSummary(const RichPage &page) {
 TextWithEntities FlattenRichPageSummary(
 		const std::shared_ptr<const RichPage> &page) {
 	return page ? FlattenRichPageSummary(*page) : TextWithEntities();
+}
+
+std::optional<TextWithEntities> SerializeAsSimple(const RichPage &page) {
+	auto result = TextWithEntities();
+	for (const auto &block : page.blocks) {
+		switch (block.kind) {
+		case BlockKind::Paragraph:
+			if (!SimpleTextEntitiesAllowed(block.text.text)) {
+				return std::nullopt;
+			}
+			AppendSimpleBlock(&result, TextWithEntities(block.text.text));
+			break;
+		case BlockKind::Code:
+			if (!SimpleTextEntitiesAllowed(block.text.text)) {
+				return std::nullopt;
+			}
+			AppendSimpleBlock(
+				&result,
+				TextWithEntities(block.text.text),
+				EntityType::Pre,
+				block.language);
+			break;
+		case BlockKind::Quote: {
+			auto body = TextWithEntities();
+			if (!CollectSimpleQuote(block, &body)) {
+				return std::nullopt;
+			}
+			AppendSimpleBlock(
+				&result,
+				std::move(body),
+				EntityType::Blockquote);
+			break;
+		}
+		default:
+			return std::nullopt;
+		}
+	}
+	TextUtilities::Trim(result);
+	if (result.empty()) {
+		return std::nullopt;
+	}
+	return result;
 }
 
 } // namespace Iv

@@ -284,6 +284,8 @@ struct RichPageLinkUrl {
 [[nodiscard]] std::shared_ptr<const RichPage> ParseRichPage(
 	not_null<Main::Session*> session,
 	const MTPDwebPage &webpage);
+[[nodiscard]] std::optional<TextWithEntities> SerializeAsSimple(
+	const RichPage &page);
 [[nodiscard]] TextWithEntities FlattenRichPageSummary(
 	const RichPage &page);
 [[nodiscard]] TextWithEntities FlattenRichPageSummary(

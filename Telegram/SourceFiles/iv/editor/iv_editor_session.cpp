@@ -55,6 +55,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/attach/attach_prepare.h"
 #include "ui/controls/location_picker.h"
 #include "ui/rp_widget.h"
+#include "ui/text/text_utilities.h"
 #include "ui/widgets/separate_panel.h"
 #include "window/window_session_controller.h"
 
@@ -777,6 +778,9 @@ private:
 		if (_submittedPage || _submitApiRequested) {
 			return false;
 		}
+		if (auto simple = SerializeAsSimple(_state->richPage())) {
+			return submitSimpleText(std::move(*simple));
+		}
 		if (!CanUseRichMessages(_session)) {
 			ShowRichMessagesPremiumToast(resolveShow());
 			return false;
@@ -804,6 +808,52 @@ private:
 		_submittedPage = std::move(page);
 		_backgroundHold = shared_from_this();
 		maybeContinueSubmittedRequest();
+		return true;
+	}
+
+	[[nodiscard]] bool submitSimpleText(TextWithEntities text) {
+		if (_mode == Mode::Compose) {
+			if (!_composeAction) {
+				showToast(tr::lng_edit_error(tr::now));
+				return false;
+			}
+			auto action = *_composeAction;
+			action.options = _submitOptions;
+			action.clearDraft = true;
+			action.history->clearCloudDraft(
+				action.replyTo.topicRootId,
+				action.replyTo.monoforumPeerId);
+			auto message = Api::MessageToSend(action);
+			message.textWithTags = {
+				text.text,
+				TextUtilities::ConvertEntitiesToTextTags(text.entities),
+			};
+			cancelRichDraftAutosave();
+			_session->api().sendMessage(std::move(message));
+			return true;
+		}
+		const auto item = currentSubmittedItem();
+		if (!item) {
+			showToast(tr::lng_edit_error(tr::now));
+			return false;
+		}
+		Api::EditTextMessage(
+			not_null{ item },
+			text,
+			::Data::WebPageDraft{ .removed = true },
+			_submitOptions,
+			[weak = base::make_weak(this)](mtpRequestId) {
+			},
+			[weak = base::make_weak(this)](
+					const QString &error,
+					mtpRequestId) {
+				if (const auto session = weak.get()) {
+					session->showToast(error.isEmpty()
+						? tr::lng_edit_error(tr::now)
+						: error);
+				}
+			},
+			false);
 		return true;
 	}
 
