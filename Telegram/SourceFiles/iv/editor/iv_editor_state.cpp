@@ -4963,11 +4963,11 @@ bool State::unwrapActiveCodeBlockUnchecked(
 		return false;
 	}
 	if (target) {
-		const auto selectionFrom = context.before.text.size();
+		const auto selectionFrom = int(context.before.text.size());
 		*target = {
 			.leaf = descriptor->leaf,
 			.selectionFrom = selectionFrom,
-			.selectionTo = selectionFrom + context.selected.text.size(),
+			.selectionTo = selectionFrom + int(context.selected.text.size()),
 		};
 	}
 	return true;
@@ -4998,8 +4998,8 @@ bool State::unwrapActiveBlockquoteUnchecked(
 	if (!activeText) {
 		return false;
 	}
-	const auto selectionFrom = context.before.text.size();
-	const auto selectionTo = selectionFrom + context.selected.text.size();
+	const auto selectionFrom = int(context.before.text.size());
+	const auto selectionTo = selectionFrom + int(context.selected.text.size());
 	if (owner->blocks.empty()) {
 		if (descriptor->leaf.kind != LeafKind::BlockText
 			|| descriptor->leaf.block != quote->path
@@ -7285,7 +7285,7 @@ State::ActiveTextBlockActionResult State::applyActiveTextBlockAction(
 				.result = ApplyResult::Changed,
 				.destinationLeaf = descriptor->leaf,
 				.selectionFrom = 0,
-				.selectionTo = context.selected.text.size(),
+				.selectionTo = int(context.selected.text.size()),
 			},
 		};
 	});
@@ -7442,9 +7442,9 @@ State::DisplayMathEditResult State::editActiveDisplayMath(
 			if (previousHasText) {
 				updated.append(' ');
 			}
-			selectionFrom = updated.text.size();
+			selectionFrom = int(updated.text.size());
 			updated.append(std::move(inlineMath));
-			selectionTo = updated.text.size();
+			selectionTo = int(updated.text.size());
 			if (next) {
 				if (nextHasText) {
 					updated.append(' ');

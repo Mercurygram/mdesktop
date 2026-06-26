@@ -76,8 +76,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtGui/QTextDocument>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QMenu>
-#include <QtWidgets/QShortcut>
 #include <QtWidgets/QTextEdit>
+#include <QShortcut>
 #include <QAction>
 
 #include <algorithm>
@@ -1404,7 +1404,7 @@ public:
 	void setColor(const style::color &color);
 	void setCardWidth(int cardWidth);
 
-	[[nodiscard]] rpl::producer<int> desiredHeightValue() const;
+	rpl::producer<int> desiredHeightValue() const override;
 
 protected:
 	void paintEvent(QPaintEvent *e) override;

@@ -2874,13 +2874,12 @@ void ComposeControls::registerThreadFieldBridge() {
 		[this](std::unique_ptr<Data::Draft> draft) {
 			saveThreadFieldDraft(std::move(draft));
 		});
-	std::move(
-		Iv::Editor::FieldVisibleValue(
-			_session,
-			peerId,
-			topicRootId,
-			monoforumPeerId
-		) | rpl::distinct_until_changed()
+	Iv::Editor::FieldVisibleValue(
+		_session,
+		peerId,
+		topicRootId,
+		monoforumPeerId
+	) | rpl::distinct_until_changed(
 	) | rpl::on_next([=](bool visible) {
 		_threadFieldVisible = visible;
 		if (visible && !isEditingMessage()) {

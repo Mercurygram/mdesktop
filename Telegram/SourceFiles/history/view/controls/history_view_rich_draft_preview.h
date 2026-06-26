@@ -53,6 +53,7 @@ public:
 	~RichDraftPreview();
 
 	void setDraft(const Data::Draft &draft);
+
 	[[nodiscard]] int resizeGetHeight(
 		int width,
 		int minHeight,
@@ -71,6 +72,8 @@ private:
 	[[nodiscard]] QRect translatedArticleRect(QRect articleRect) const;
 	[[nodiscard]] int contentHeightForWidth(int width);
 	void mouseReleaseEvent(QMouseEvent *e) override;
+
+	using RpWidget::resizeGetHeight;
 
 	const not_null<Main::Session*> _session;
 	const Fn<bool()> _paused;

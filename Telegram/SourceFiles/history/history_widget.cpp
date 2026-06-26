@@ -3437,13 +3437,12 @@ void HistoryWidget::registerThreadFieldBridge() {
 				widget->saveThreadFieldDraft(std::move(draft));
 			}
 		});
-	std::move(
-		Iv::Editor::FieldVisibleValue(
-			&session(),
-			peerId,
-			MsgId(),
-			PeerId()
-		) | rpl::distinct_until_changed()
+	Iv::Editor::FieldVisibleValue(
+		&session(),
+		peerId,
+		MsgId(),
+		PeerId()
+	) | rpl::distinct_until_changed(
 	) | rpl::on_next([=](bool visible) {
 		_threadFieldVisible = visible;
 		if (visible && !_editMsgId) {
