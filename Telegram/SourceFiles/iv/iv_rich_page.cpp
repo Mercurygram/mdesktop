@@ -2094,4 +2094,83 @@ std::optional<TextWithEntities> SerializeAsSimple(const RichPage &page) {
 	return result;
 }
 
+RichPage SplitTextIntoRichPage(TextWithEntities text) {
+	auto page = RichPage();
+
+	const auto emitParagraphs = [&](int from, int to) {
+		auto lineStart = from;
+		for (auto i = from; i <= to; ++i) {
+			if (i == to || text.text[i] == QChar('\n')) {
+				auto line = Ui::Text::Mid(text, lineStart, i - lineStart);
+				TextUtilities::Trim(line);
+				if (!line.empty()) {
+					page.blocks.push_back(Block{
+						.kind = BlockKind::Paragraph,
+						.text = { std::move(line) },
+					});
+				}
+				lineStart = i + 1;
+			}
+		}
+	};
+
+	struct Segment {
+		int offset = 0;
+		int length = 0;
+		EntityType type = EntityType::Invalid;
+		QString data;
+	};
+	auto segments = std::vector<Segment>();
+	for (const auto &entity : text.entities) {
+		const auto type = entity.type();
+		if (type == EntityType::Pre || type == EntityType::Blockquote) {
+			segments.push_back({
+				entity.offset(),
+				entity.length(),
+				type,
+				entity.data(),
+			});
+		}
+	}
+	ranges::sort(segments, ranges::less(), &Segment::offset);
+
+	auto cursor = 0;
+	const auto size = int(text.text.size());
+	for (const auto &segment : segments) {
+		if (segment.offset < cursor) {
+			continue;
+		}
+		emitParagraphs(cursor, segment.offset);
+		auto body = Ui::Text::Mid(text, segment.offset, segment.length);
+		const auto fullSize = int(body.text.size());
+		body.entities.erase(
+			ranges::remove_if(body.entities, [&](const EntityInText &e) {
+				return (e.type() == segment.type)
+					&& (e.offset() == 0)
+					&& (e.length() == fullSize);
+			}),
+			body.entities.end());
+		TextUtilities::Trim(body);
+		cursor = segment.offset + segment.length;
+		if (body.empty()) {
+			continue;
+		}
+		if (segment.type == EntityType::Pre) {
+			page.blocks.push_back(Block{
+				.kind = BlockKind::Code,
+				.text = { std::move(body) },
+				.language = segment.data,
+			});
+		} else {
+			page.blocks.push_back(Block{
+				.kind = BlockKind::Quote,
+				.text = { std::move(body) },
+			});
+		}
+	}
+	emitParagraphs(cursor, size);
+
+	return page;
+}
+
 } // namespace Iv

@@ -286,6 +286,7 @@ struct RichPageLinkUrl {
 	const MTPDwebPage &webpage);
 [[nodiscard]] std::optional<TextWithEntities> SerializeAsSimple(
 	const RichPage &page);
+[[nodiscard]] RichPage SplitTextIntoRichPage(TextWithEntities text);
 [[nodiscard]] TextWithEntities FlattenRichPageSummary(
 	const RichPage &page);
 [[nodiscard]] TextWithEntities FlattenRichPageSummary(

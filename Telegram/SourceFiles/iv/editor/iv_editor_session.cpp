@@ -547,9 +547,27 @@ public:
 			}
 		}
 		const auto cloudDraft = history->cloudDraft(topicRootId, monoforumPeerId);
-		const auto page = (cloudDraft && cloudDraft->hasRichMessage())
+		const auto hasRichDraft = (cloudDraft && cloudDraft->hasRichMessage());
+		const auto page = hasRichDraft
 			? std::make_shared<RichPage>(*cloudDraft->richMessage)
 			: std::make_shared<RichPage>();
+		if (!hasRichDraft) {
+			if (const auto entry = LookupComposeThreadEntry(composeKey)) {
+				if (entry->readDraft) {
+					if (const auto draft = entry->readDraft()) {
+						const auto &withTags = draft->textWithTags;
+						auto migrated = SplitTextIntoRichPage({
+							withTags.text,
+							TextUtilities::ConvertTextTagsToEntities(
+								withTags.tags),
+						});
+						if (!migrated.blocks.empty()) {
+							*page = std::move(migrated);
+						}
+					}
+				}
+			}
+		}
 		auto articleSession = std::shared_ptr<ArticleSession>(new ArticleSession(
 			session,
 			peer,
