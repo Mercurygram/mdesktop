@@ -461,6 +461,10 @@ public:
 	[[nodiscard]] bool toggleSpoilerOnBlocks(
 		const std::vector<BlockPath> &blocks,
 		std::optional<bool> enabled = std::nullopt);
+	[[nodiscard]] bool toggleSpoilerOnGroupedItem(
+		const BlockPath &path,
+		int itemIndex,
+		std::optional<bool> enabled = std::nullopt);
 	[[nodiscard]] std::optional<ReplaceTarget> replaceTargetForBlock(
 		const BlockPath &path) const;
 	[[nodiscard]] bool replaceBlockWithPreparedBlock(

@@ -699,7 +699,10 @@ private:
 	[[nodiscard]] bool clickHitsStructuralPhotoVideoSelection(
 		const Markdown::PreparedEditHit &hit) const;
 	void showSimpleMediaMenu(const State::BlockPath &path, QPoint globalPos);
-	void showGroupedMediaMenu(const State::BlockPath &path, QPoint globalPos);
+	void showGroupedMediaMenu(
+		const State::BlockPath &path,
+		int itemIndex,
+		QPoint globalPos);
 	void showStructuralPhotoVideoMenu(QPoint globalPos);
 	[[nodiscard]] bool showMediaMenuFromHit(
 		const Markdown::PreparedEditHit &hit,

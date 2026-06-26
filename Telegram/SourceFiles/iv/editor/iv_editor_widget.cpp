@@ -5426,6 +5426,7 @@ void Widget::showSimpleMediaMenu(
 
 void Widget::showGroupedMediaMenu(
 		const State::BlockPath &path,
+		int itemIndex,
 		QPoint globalPos) {
 	const auto block = BlockFromPath(_state->richPage(), path);
 	if (!block || block->kind != RichPage::BlockKind::GroupedMedia) {
@@ -5435,7 +5436,12 @@ void Widget::showGroupedMediaMenu(
 		this,
 		st::popupMenuWithIcons);
 	const auto currentIntent = block->mediaIntent;
-	const auto currentSpoiler = GroupedPhotoVideoItemsHaveSpoiler(*block);
+	const auto hasItem = (itemIndex >= 0)
+		&& (itemIndex < int(block->mediaItems.size()))
+		&& IsPhotoVideoBlockKind(block->mediaItems[itemIndex].kind);
+	const auto currentSpoiler = hasItem
+		? block->mediaItems[itemIndex].spoiler
+		: GroupedPhotoVideoItemsHaveSpoiler(*block);
 	menu->addAction(
 		tr::lng_article_media_ungroup(tr::now),
 		[=] {
@@ -5485,9 +5491,14 @@ void Widget::showGroupedMediaMenu(
 					if (!current || !GroupedMediaHasPhotoVideoItems(*current)) {
 						return false;
 					}
-					return _state->toggleSpoilerOnBlocks(
-						std::vector<State::BlockPath>{ path },
-						!currentSpoiler);
+					return hasItem
+						? _state->toggleSpoilerOnGroupedItem(
+							path,
+							itemIndex,
+							!currentSpoiler)
+						: _state->toggleSpoilerOnBlocks(
+							std::vector<State::BlockPath>{ path },
+							!currentSpoiler);
 				});
 			},
 			&st::menuIconSpoiler,
@@ -5579,6 +5590,10 @@ bool Widget::showMediaMenuFromHit(
 		showStructuralPhotoVideoMenu(globalPos);
 		return true;
 	} else if (const auto path = simpleMediaBlockPathFromHit(hit)) {
+		if (articleHit.mediaActivation.kind
+			== Markdown::MediaActivationKind::None) {
+			return false;
+		}
 		showSimpleMediaMenu(*path, globalPos);
 		return true;
 	} else if (const auto path = groupedMediaBlockPathFromHit(hit)) {
@@ -5586,7 +5601,10 @@ bool Widget::showMediaMenuFromHit(
 			== Markdown::MediaActivationKind::None) {
 			return false;
 		}
-		showGroupedMediaMenu(*path, globalPos);
+		showGroupedMediaMenu(
+			*path,
+			articleHit.mediaActivation.itemIndex,
+			globalPos);
 		return true;
 	}
 	return false;

@@ -1295,15 +1295,20 @@ MediaActivation GroupedMediaBlock::activationAt(QPoint point) const {
 			return {};
 		}
 		if (const auto item = activeItem()) {
-			return item->activation;
+			auto activation = item->activation;
+			activation.itemIndex = _activeIndex;
+			return activation;
 		}
 		return {};
 	} else if (!_useCollageLayout) {
 		return {};
 	}
-	for (const auto &item : _items) {
+	for (auto i = 0, count = int(_items.size()); i != count; ++i) {
+		const auto &item = _items[i];
 		if (item.rect.contains(point)) {
-			return item.activation;
+			auto activation = item.activation;
+			activation.itemIndex = i;
+			return activation;
 		}
 	}
 	return {};

@@ -1999,6 +1999,41 @@ bool State::toggleSpoilerOnBlocks(
 	});
 }
 
+bool State::toggleSpoilerOnGroupedItem(
+		const BlockPath &path,
+		int itemIndex,
+		std::optional<bool> enabled) {
+	if (itemIndex < 0) {
+		return false;
+	}
+	return applyCheckedMutation(false, [path, itemIndex, enabled](
+			State &candidate) {
+		const auto current = candidate.block(path);
+		if (!current
+			|| current->kind != BlockKind::GroupedMedia
+			|| itemIndex >= int(current->mediaItems.size())) {
+			return CheckedMutationResult<bool>{ .result = false };
+		}
+		auto &item = current->mediaItems[itemIndex];
+		if ((item.kind != BlockKind::Photo)
+			&& (item.kind != BlockKind::Video)
+			&& (item.kind != BlockKind::Audio)
+			&& (item.kind != BlockKind::Map)) {
+			return CheckedMutationResult<bool>{ .result = false };
+		}
+		const auto shouldEnable = enabled.value_or(!item.spoiler);
+		if (item.spoiler == shouldEnable) {
+			return CheckedMutationResult<bool>{ .result = false };
+		}
+		item.spoiler = shouldEnable;
+		candidate.rebuild();
+		return CheckedMutationResult<bool>{
+			.apply = true,
+			.result = true,
+		};
+	});
+}
+
 std::optional<State::ReplaceTarget> State::replaceTargetForBlock(
 		const BlockPath &path) const {
 	const auto current = block(path);
