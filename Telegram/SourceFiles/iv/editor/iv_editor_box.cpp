@@ -1090,9 +1090,7 @@ private:
 	object_ptr<Toolbar> _toolbar = { nullptr };
 	object_ptr<ToolbarPill> _discard = { nullptr };
 	object_ptr<ToolbarPill> _cancel = { nullptr };
-	object_ptr<ToolbarPill> _submit = { nullptr };
 	object_ptr<Ui::SendButton> _send = { nullptr };
-	Ui::IconButton *_submitButton = nullptr;
 	object_ptr<ChatHelpers::TabbedSelector> _emojiColumn = { nullptr };
 	object_ptr<Ui::PlainShadow> _emojiColumnShadow = { nullptr };
 	object_ptr<ToolbarPill> _emojiColumnClose = { nullptr };
@@ -1255,33 +1253,16 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 	}
 	const auto save = (descriptor.submitType
 		== ShowWindowDescriptor::SubmitType::Save);
-	if (save) {
-		_submit = object_ptr<ToolbarPill>(
-			_bottom.data(),
-			st::ivEditorPillShadow);
-		_submitButton = _submit->addButton(
-			st::ivEditorBottomSaveButton,
-			&st::ivEditorBottomSaveIcon,
-			&st::ivEditorBottomSaveIcon,
-			ToolbarButtonState::Inactive);
-		_submitButton->setAccessibleName(SubmitText(descriptor));
-		_submitButton->setClickedCallback([=] { submit(); });
-		if (descriptor.setupSubmitButton) {
-			descriptor.setupSubmitButton(
-				not_null<Ui::RpWidget*>(_submitButton));
-		}
-	} else {
-		_send = object_ptr<Ui::SendButton>(
-			_bottom.data(),
-			st::ivEditorBottomSend);
-		const auto raw = _send.data();
-		raw->setAccessibleName(SubmitText(descriptor));
-		raw->setClickedCallback([=] { submit(); });
-		raw->show();
-		if (descriptor.setupSubmitButton) {
-			descriptor.setupSubmitButton(
-				not_null<Ui::RpWidget*>(raw));
-		}
+	_send = object_ptr<Ui::SendButton>(
+		_bottom.data(),
+		save ? st::ivEditorBottomSaveSend : st::ivEditorBottomSend);
+	const auto raw = _send.data();
+	raw->setAccessibleName(SubmitText(descriptor));
+	raw->setClickedCallback([=] { submit(); });
+	raw->show();
+	if (descriptor.setupSubmitButton) {
+		descriptor.setupSubmitButton(
+			not_null<Ui::RpWidget*>(raw));
 	}
 
 	_discarded = std::move(descriptor.discarded);
@@ -1401,9 +1382,7 @@ void WindowHost::Impl::layout() {
 	const auto editorWidth = std::max(width - emojiWidth, 0);
 	_editor->setContentMaxWidth(_toolbar->contentMaxWidth());
 	const auto toolbarHeight = _toolbar->resizeGetHeight(editorWidth);
-	auto buttonsHeight = _send
-		? _send->height()
-		: _submit->naturalSize().height();
+	auto buttonsHeight = _send->height();
 	if (_cancel) {
 		buttonsHeight = std::max(
 			buttonsHeight,
@@ -1427,30 +1406,27 @@ void WindowHost::Impl::layout() {
 	const auto right = fitsArticle
 		? (column.left + column.width)
 		: editorWidth;
-	const auto shadowSkipRight = _discard
-		? _discard->shadowMargins().right()
+	const auto leftPill = _discard
+		? _discard.data()
+		: _cancel.data();
+	const auto shadowSkipRight = leftPill
+		? leftPill->shadowMargins().right()
 		: 0;
-	const auto shadowSkipTop = _discard
-		? _discard->shadowMargins().top()
+	const auto shadowSkipTop = leftPill
+		? leftPill->shadowMargins().top()
 		: 0;
-	if (_send) {
-		_send->moveToLeft(
-			right - shadowSkipRight - _send->width(),
-			buttonsTop + shadowSkipTop,
-			editorWidth);
-	} else {
-		_submit->moveToLeft(
-			right - _submit->naturalSize().width(),
-			buttonsTop,
-			editorWidth);
-	}
+	_send->moveToLeft(
+		right - shadowSkipRight - _send->width(),
+		buttonsTop + shadowSkipTop,
+		editorWidth);
 	if (_discard) {
 		_discard->moveToLeft(left, buttonsTop, editorWidth);
 	}
 	if (_cancel) {
 		_cancel->moveToLeft(
 			right
-				- _submit->naturalSize().width()
+				- shadowSkipRight
+				- _send->width()
 				- st::ivEditorToolbarGroupsSkip
 				- _cancel->naturalSize().width(),
 			buttonsTop,
@@ -1464,7 +1440,6 @@ void WindowHost::Impl::layout() {
 	};
 	addMask(_discard.data());
 	addMask(_cancel.data());
-	addMask(_submit.data());
 	addMask(_send.data());
 	if (bottomMask.isEmpty()) {
 		_bottom->clearMask();

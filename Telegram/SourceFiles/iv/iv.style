@@ -117,8 +117,7 @@ ivEditorToolbarMarkedIcon: icon {{ "menu/rich/marked-24x24", menuIconColor }};
 ivEditorToolbarPlainTextIcon: icon {{ "menu/rich/plain_text-24x24", menuIconColor }};
 ivEditorToolbarLinkIcon: icon {{ "menu/rich/link-24x24", menuIconColor }};
 ivEditorBottomDiscardIcon: icon {{ "menu/rich/discard", menuIconColor }};
-ivEditorBottomCancelIcon: icon {{ "box_button_close", windowActiveTextFg }};
-ivEditorBottomSaveIcon: icon {{ "chat/input_save", windowActiveTextFg }};
+ivEditorBottomCancelIcon: icon {{ "menu/rich/cancel", menuIconColor }};
 ivEditorToolbarButton: IconButton(defaultIconButton) {
 	width: ivEditorToolbarButtonSize;
 	height: ivEditorToolbarButtonSize;
@@ -135,13 +134,6 @@ ivEditorBottomCancelButton: IconButton(ivEditorToolbarButton) {
 	icon: ivEditorBottomCancelIcon;
 	iconOver: ivEditorBottomCancelIcon;
 }
-ivEditorBottomSaveButton: IconButton(ivEditorToolbarButton) {
-	icon: ivEditorBottomSaveIcon;
-	iconOver: ivEditorBottomSaveIcon;
-	ripple: RippleAnimation(defaultRippleAnimation) {
-		color: lightButtonBgOver;
-	}
-}
 ivEditorBottomSend: SendButton(historySend) {
 	sendIconPosition: point(8px, 8px);
 	sendIconFillPadding: 8px;
@@ -150,6 +142,19 @@ ivEditorBottomSend: SendButton(historySend) {
 		height: ivEditorBottomCircleSize;
 		icon: icon {{ "menu/rich/send-24x24", windowFgActive }};
 		iconOver: icon {{ "menu/rich/send-24x24", windowFgActive }};
+		rippleAreaSize: ivEditorBottomCircleSize;
+		rippleAreaPosition: point(0px, 0px);
+	}
+	sendIconFg: windowFgActive;
+}
+ivEditorBottomSaveSend: SendButton(historySend) {
+	sendIconPosition: point(8px, 8px);
+	sendIconFillPadding: 8px;
+	inner: IconButton(historyAttach) {
+		width: ivEditorBottomCircleSize;
+		height: ivEditorBottomCircleSize;
+		icon: icon {{ "menu/rich/save-24x24", windowFgActive }};
+		iconOver: icon {{ "menu/rich/save-24x24", windowFgActive }};
 		rippleAreaSize: ivEditorBottomCircleSize;
 		rippleAreaPosition: point(0px, 0px);
 	}
