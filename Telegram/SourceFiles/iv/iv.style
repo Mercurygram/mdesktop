@@ -83,7 +83,7 @@ ivEditorWindowMinSize: size(384px, 480px);
 ivEditorWindowDefaultSize: size(800px, 600px);
 ivEditorBodyPadding: margins(0px, 8px, 0px, 8px);
 ivEditorToolbarButtonSize: 36px;
-ivEditorEmojiColumnCloseSize: 22px;
+ivEditorEmojiColumnCloseSize: 30px;
 ivEditorToolbarPadding: margins(8px, defaultVerticalListSkip, 8px, defaultVerticalListSkip);
 ivEditorToolbarButtonSkip: 6px;
 ivEditorToolbarDividerSkip: 6px;
@@ -98,8 +98,7 @@ ivEditorPillShadow: BoxShadow {
 	offset: point(0px, 2px);
 	opacity: 0.18;
 }
-ivEditorEmojiColumnCloseSkip: 8px;
-ivEditorEmojiColumnCloseInset: 5px;
+ivEditorEmojiColumnCloseScrollSkip: 4px;
 ivEditorTopFadeHeight: 34px;
 ivEditorToolbarUndoIcon: icon {{ "photo_editor/undo", menuIconColor }};
 ivEditorToolbarUndoIconOver: icon {{ "photo_editor/undo", menuIconColor }};

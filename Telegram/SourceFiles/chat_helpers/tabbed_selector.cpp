@@ -530,6 +530,7 @@ TabbedSelector::TabbedSelector(
 	}
 	if (hasEmojiTab()) {
 		emoji()->refreshEmoji();
+		setSearchRightReserved(descriptor.searchRightReserved);
 	}
 	setAttribute(Qt::WA_OpaquePaintEvent, false);
 	showAll();

@@ -103,6 +103,7 @@ struct TabbedSelectorDescriptor {
 	Fn<QColor()> customTextColor;
 	ComposeFeatures features;
 	uint64 excludeStickerSetId = 0;
+	int searchRightReserved = 0;
 };
 
 enum class TabbedSearchType {

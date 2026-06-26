@@ -1281,19 +1281,6 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 
 void WindowHost::Impl::setupEmojiColumn(const ShowWindowDescriptor &descriptor) {
 	using Selector = ChatHelpers::TabbedSelector;
-	_emojiColumn = object_ptr<Selector>(
-		_window->body().get(),
-		ChatHelpers::TabbedSelectorDescriptor{
-			.show = _show,
-			.st = st::defaultEmojiPan,
-			.level = ChatHelpers::PauseReason::Layer,
-			.mode = Selector::Mode::EmojiOnly,
-			.features = {
-				.stickersSettings = false,
-				.openStickerSets = false,
-			},
-		});
-	_emojiColumn->hide();
 	_emojiColumnShadow = object_ptr<Ui::PlainShadow>(_window->body().get());
 	_emojiColumnShadow->hide();
 	_emojiColumnClose = object_ptr<ToolbarPill>(
@@ -1313,14 +1300,22 @@ void WindowHost::Impl::setupEmojiColumn(const ShowWindowDescriptor &descriptor) 
 	const auto closeVisibleWidth = closeNatural.width()
 		- closeMargins.left()
 		- closeMargins.right();
-	const auto closeReserved = std::max(
-		0,
-		closeVisibleWidth
-			+ st::ivEditorEmojiColumnCloseSkip
-			+ st::ivEditorEmojiColumnCloseInset
-			- st::emojiScroll.width
-			- st::defaultEmojiPan.searchMargin.right());
-	_emojiColumn->setSearchRightReserved(closeReserved);
+	const auto searchRightReserved = st::ivEditorEmojiColumnCloseScrollSkip
+		+ closeVisibleWidth;
+	_emojiColumn = object_ptr<Selector>(
+		_window->body().get(),
+		ChatHelpers::TabbedSelectorDescriptor{
+			.show = _show,
+			.st = st::defaultEmojiPan,
+			.level = ChatHelpers::PauseReason::Layer,
+			.mode = Selector::Mode::EmojiOnly,
+			.features = {
+				.stickersSettings = false,
+				.openStickerSets = false,
+			},
+			.searchRightReserved = searchRightReserved,
+		});
+	_emojiColumn->hide();
 	_emojiColumn->setCurrentPeer(descriptor.peer);
 	_emojiColumn->emojiChosen(
 	) | rpl::on_next([=](ChatHelpers::EmojiChosen data) {
@@ -1429,9 +1424,10 @@ void WindowHost::Impl::layout() {
 			- closeMargins.top()
 			- closeMargins.bottom();
 		const auto closeX = width
+			- st::emojiScroll.width
+			- st::ivEditorEmojiColumnCloseScrollSkip
 			- closeNatural.width()
-			+ closeMargins.right()
-			- st::ivEditorEmojiColumnCloseInset;
+			+ closeMargins.right();
 		const auto closeY = searchCenterY
 			- closeVisibleHeight / 2
 			- closeMargins.top();
