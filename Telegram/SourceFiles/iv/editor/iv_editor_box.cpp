@@ -567,6 +567,17 @@ void Toolbar::buildPills() {
 			}
 		},
 		Widget::ToolbarFormatAction::Link);
+	if (_hasRequestMedia) {
+		const auto attach = addPillButton(
+			controls,
+			ToolbarActionId::Attach,
+			&st::ivEditorToolbarAttachIcon,
+			nullptr);
+		attach->setIsMenuButton(true);
+		attach->setClickedCallback([=] {
+			showAttachMenu(attach);
+		});
+	}
 	addPillButton(
 		controls,
 		ToolbarActionId::Math,
@@ -581,17 +592,6 @@ void Toolbar::buildPills() {
 				_editor->insertBlock({ .type = State::InsertBlockType::Math });
 			}
 		});
-	if (_hasRequestMedia) {
-		const auto attach = addPillButton(
-			controls,
-			ToolbarActionId::Attach,
-			&st::ivEditorToolbarAttachIcon,
-			nullptr);
-		attach->setIsMenuButton(true);
-		attach->setClickedCallback([=] {
-			showAttachMenu(attach);
-		});
-	}
 
 	_emojiButton = addPillButton(
 		not_null<ToolbarPill*>(_emojiPill.data()),
