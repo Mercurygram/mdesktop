@@ -1050,6 +1050,7 @@ public:
 	explicit Impl(ShowWindowDescriptor descriptor);
 	~Impl();
 	void close();
+	void activateClose();
 
 private:
 	void setupWindow(ShowWindowDescriptor &&descriptor);
@@ -1116,6 +1117,12 @@ WindowHost::Impl::~Impl() {
 
 void WindowHost::Impl::close() {
 	finishClose();
+}
+
+void WindowHost::Impl::activateClose() {
+	if (confirmCancel()) {
+		finishClose();
+	}
 }
 
 void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
@@ -1695,6 +1702,10 @@ WindowHost::~WindowHost() = default;
 
 void WindowHost::close() {
 	_impl->close();
+}
+
+void WindowHost::activateClose() {
+	_impl->activateClose();
 }
 
 std::unique_ptr<WindowHost> ShowWindow(ShowWindowDescriptor descriptor) {

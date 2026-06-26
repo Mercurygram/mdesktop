@@ -2960,11 +2960,21 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 	}
 	if (Data::CanSendAnyOf(peer, ChatRestriction::SendOther, false)) {
 		raw->addAction(tr::lng_article_menu_item(tr::now), [=] {
-			Iv::Editor::ShowComposeBox(
-				controller,
-				peer,
-				actionFactory(),
-				sendMenuDetails);
+			const auto openCompose = [=] {
+				Iv::Editor::ShowComposeBox(
+					controller,
+					peer,
+					actionFactory(),
+					sendMenuDetails);
+			};
+			const auto handled
+				= Iv::Editor::RequestCloseOpenEditWindowThenCompose(
+					&controller->session(),
+					peer,
+					openCompose);
+			if (!handled) {
+				openCompose();
+			}
 		}, &st::menuIconArticle);
 	}
 	const auto session = &controller->session();

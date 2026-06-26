@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_sending.h"
 #include "api/api_editing.h"
 #include "apiwrap.h"
+#include "base/algorithm.h"
 #include "base/timer.h"
 #include "base/weak_qptr.h"
 #include "base/weak_ptr.h"
@@ -1389,6 +1390,9 @@ private:
 		if (!_submittedPage && !_submitApiRequested) {
 			_backgroundHold = nullptr;
 		}
+		if (const auto continuation = base::take(_onWindowClosedContinuation)) {
+			continuation();
+		}
 	}
 
 public:
@@ -1401,6 +1405,17 @@ public:
 			}
 		}
 	}
+
+	[[nodiscard]] static bool SaveOpenComposeDraftThen(
+		not_null<Main::Session*> session,
+		PeerId peerId,
+		MsgId topicRootId,
+		PeerId monoforumPeerId,
+		Fn<void()> onSaved);
+	[[nodiscard]] static bool RequestCloseOpenEditWindowThen(
+		not_null<Main::Session*> session,
+		not_null<PeerData*> peer,
+		Fn<void()> onClosed);
 
 private:
 	// Registry of all editor sessions that currently own a window, so that
@@ -1449,6 +1464,8 @@ private:
 		_windowHost = nullptr;
 		_editorShow = nullptr;
 		_backgroundHold = nullptr;
+		_closeDraftSaveContinuation = nullptr;
+		_onWindowClosedContinuation = nullptr;
 	}
 
 	void handleMediaDialogResult(
@@ -2502,6 +2519,7 @@ private:
 	void saveRichDraftNow();
 	void retryRichDraftAutosaveIfNeeded();
 	void startCloseWithDraftSave();
+	void startCloseWithDraftSaveThen(Fn<void()> continuation);
 	void saveRichDraftForClose(uint64 generation);
 	void retryRichDraftCloseSaveIfNeeded();
 	void closeWithDraftSaveDone(uint64 generation);
@@ -3177,6 +3195,8 @@ private:
 	QPointer<Widget> _editor;
 	std::unique_ptr<WindowHost> _windowHost;
 	std::shared_ptr<ArticleSession> _backgroundHold;
+	Fn<void()> _closeDraftSaveContinuation;
+	Fn<void()> _onWindowClosedContinuation;
 	std::shared_ptr<const RichPage> _submittedPage;
 	std::vector<AttachmentRecord> _attachments;
 	std::deque<QueuedPrepare> _prepareQueue;
@@ -3330,6 +3350,11 @@ void ArticleSession::startCloseWithDraftSave() {
 	saveRichDraftForClose(generation);
 }
 
+void ArticleSession::startCloseWithDraftSaveThen(Fn<void()> continuation) {
+	_closeDraftSaveContinuation = std::move(continuation);
+	startCloseWithDraftSave();
+}
+
 void ArticleSession::saveRichDraftForClose(uint64 generation) {
 	if (!_closeDraftSaveActive
 		|| generation != _closeDraftSaveGeneration
@@ -3408,6 +3433,9 @@ void ArticleSession::closeWithDraftSaveDone(uint64 generation) {
 	if (_windowHost) {
 		_windowHost->close();
 	}
+	if (const auto continuation = base::take(_closeDraftSaveContinuation)) {
+		continuation();
+	}
 }
 
 void ArticleSession::closeWithDraftSaveFailed(uint64 generation, QString error) {
@@ -3426,6 +3454,7 @@ void ArticleSession::closeNowWithoutDraftSave(uint64 generation) {
 	if (!_closeDraftSaveActive || generation != _closeDraftSaveGeneration) {
 		return;
 	}
+	_closeDraftSaveContinuation = nullptr;
 	_closeDraftSaveActive = false;
 	_closeDraftSaveWaiting = false;
 	_closeDraftSaveRequestId = 0;
@@ -3439,6 +3468,7 @@ void ArticleSession::cancelCloseWithDraftSave(uint64 generation) {
 	if (!_closeDraftSaveActive || generation != _closeDraftSaveGeneration) {
 		return;
 	}
+	_closeDraftSaveContinuation = nullptr;
 	_closeDraftSaveActive = false;
 	_closeDraftSaveWaiting = false;
 	_closeDraftSaveRequestId = 0;
@@ -3515,6 +3545,44 @@ void ArticleSession::showCloseDraftSaveFailedBox(
 	}));
 }
 
+bool ArticleSession::SaveOpenComposeDraftThen(
+		not_null<Main::Session*> session,
+		PeerId peerId,
+		MsgId topicRootId,
+		PeerId monoforumPeerId,
+		Fn<void()> onSaved) {
+	const auto entry = LookupComposeThreadEntry(
+		ComposeKey(session, peerId, topicRootId, monoforumPeerId));
+	const auto strong = entry
+		? entry->articleSession.lock()
+		: nullptr;
+	if (!strong) {
+		return false;
+	}
+	strong->startCloseWithDraftSaveThen(std::move(onSaved));
+	return true;
+}
+
+bool ArticleSession::RequestCloseOpenEditWindowThen(
+		not_null<Main::Session*> session,
+		not_null<PeerData*> peer,
+		Fn<void()> onClosed) {
+	for (const auto &weak : Live()) {
+		const auto strong = weak.lock();
+		if (!strong
+			|| strong->_mode != Mode::Edit
+			|| strong->_session != session
+			|| strong->_peer != peer
+			|| !strong->_windowHost) {
+			continue;
+		}
+		strong->_onWindowClosedContinuation = std::move(onClosed);
+		strong->_windowHost->activateClose();
+		return true;
+	}
+	return false;
+}
+
 } // namespace
 
 void ShowComposeBox(
@@ -3569,6 +3637,30 @@ bool IsComposeBoxOpen(
 	const auto entry = LookupComposeThreadEntry(
 		ComposeKey(session, peerId, topicRootId, monoforumPeerId));
 	return entry && !entry->articleSession.expired();
+}
+
+bool SaveOpenComposeDraftThenEdit(
+		not_null<Main::Session*> session,
+		PeerId peerId,
+		MsgId topicRootId,
+		PeerId monoforumPeerId,
+		Fn<void()> onSaved) {
+	return ArticleSession::SaveOpenComposeDraftThen(
+		session,
+		peerId,
+		topicRootId,
+		monoforumPeerId,
+		std::move(onSaved));
+}
+
+bool RequestCloseOpenEditWindowThenCompose(
+		not_null<Main::Session*> session,
+		not_null<PeerData*> peer,
+		Fn<void()> onClosed) {
+	return ArticleSession::RequestCloseOpenEditWindowThen(
+		session,
+		peer,
+		std::move(onClosed));
 }
 
 rpl::producer<bool> FieldVisibleValue(
