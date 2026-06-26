@@ -195,6 +195,7 @@ ivEditorTableAddColumnLeftIcon: icon {{ "menu/rich/table_add_column_left-24x24",
 ivEditorTableAddColumnRightIcon: icon {{ "menu/rich/table_add_column_right-24x24", menuIconColor }};
 ivEditorTableHeaderIcon: icon {{ "menu/rich/table_highlight-24x24", menuIconColor }};
 ivEditorTableHeaderOffIcon: icon {{ "menu/rich/table_highlight_off-24x24", menuIconColor }};
+ivEditorTableBorderlessIcon: icon {{ "menu/rich/table_borderless-24x24", menuIconColor }};
 ivEditorTableAlignLeftIcon: icon {{ "menu/rich/align_left-24x24", menuIconColor }};
 ivEditorTableAlignCenterIcon: icon {{ "menu/rich/align_center-24x24", menuIconColor }};
 ivEditorTableAlignRightIcon: icon {{ "menu/rich/align_right-24x24", menuIconColor }};

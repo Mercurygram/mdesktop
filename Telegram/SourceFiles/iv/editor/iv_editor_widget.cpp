@@ -5326,14 +5326,14 @@ void Widget::fillTableChangeMenu(
 	menu->addSeparator();
 	Menu::AddCheckedAction(
 		menu,
-		tr::lng_article_table_bordered(tr::now),
+		tr::lng_article_table_borderless(tr::now),
 		[=] {
 			applyTableChange([=] {
 				return _state->setTableBordered(range, !info.bordered);
 			});
 		},
-		nullptr,
-		info.bordered);
+		&st::ivEditorTableBorderlessIcon,
+		!info.bordered);
 	Menu::AddCheckedAction(
 		menu,
 		tr::lng_article_table_striped(tr::now),

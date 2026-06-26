@@ -7275,6 +7275,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_article_table_delete_columns" = "Delete Columns";
 "lng_article_table_delete_table" = "Delete Table";
 "lng_article_table_bordered" = "Bordered Table";
+"lng_article_table_borderless" = "Borderless";
 "lng_article_table_striped" = "Striped Table";
 "lng_polls_menu_item" = "Poll";
 "lng_polls_create" = "Create poll";
