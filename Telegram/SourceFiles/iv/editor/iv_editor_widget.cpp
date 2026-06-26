@@ -2591,6 +2591,10 @@ Widget::Widget(
 		}
 	}, _highlightReadyLifetime);
 
+	style::PaletteChanged() | rpl::on_next([=] {
+		refreshPalette();
+	}, lifetime());
+
 	const auto weak = QPointer<Widget>(this);
 	_article->setTextRepaintCallbacks(
 		[=] {
@@ -6733,6 +6737,30 @@ void Widget::recreateInlineField(const style::InputField &st) {
 	_fieldUndoAvailable = _field->isUndoAvailable();
 	_fieldRedoAvailable = _field->isRedoAvailable();
 	clearFieldUndoRedoNoopState();
+}
+
+void Widget::refreshPalette() {
+	_theme = CreateStandaloneChatTheme();
+	_style->apply(_theme.get());
+	_highlightColors = HighlightColors(_style.get());
+	*_articleStyle = CreateEditorMarkdownStyle();
+	if (_article) {
+		_article->invalidatePaletteCache();
+	}
+	_fieldStyles.clear();
+	_retainedLeafFields.clear();
+	_activeFieldStyleKey = std::nullopt;
+	_inlineFieldTextColorOverride.reset();
+	_inlineFieldPlaceholderColorOverride.reset();
+	if (_field && !_field->isHidden()) {
+		refreshInlineFieldTextColorOverride();
+		const auto &cached = inlineFieldStyleFor(
+			inlineFieldStyleForSegment(_activeSegmentIndex));
+		_activeFieldStyleKey = cached.key;
+		recreateInlineField(*cached.style);
+	}
+	relayoutCurrentContent();
+	update();
 }
 
 void Widget::ensureInlineFieldCreated() {

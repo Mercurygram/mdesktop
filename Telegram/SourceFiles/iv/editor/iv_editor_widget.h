@@ -410,6 +410,7 @@ private:
 	void setupInlineField();
 	void ensureInlineFieldCreated();
 	void recreateInlineField(const style::InputField &st);
+	void refreshPalette();
 	void refreshInlineFieldPlaceholder();
 	void refreshInlineFieldPlaceholderColor();
 	void refreshInlineFieldTextEmptyOverride();
