@@ -4582,6 +4582,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_emoji_remove_group_set" = "Remove group emoji set?";
 "lng_emoji_group_from_your" = "Choose from your emoji";
 "lng_emoji_group_from_featured" = "Choose from trending emoji";
+"lng_emoji_group_badge" = "Group Emoji";
 "lng_masks_archive_pack" = "Archive Masks";
 "lng_masks_has_been_archived" = "Mask pack has been archived.";
 "lng_masks_installed" = "Mask pack has been installed.";
