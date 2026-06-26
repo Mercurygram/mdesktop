@@ -74,6 +74,7 @@ struct HiddenSenderTooltip
 struct InstantViewMediaRuntime
 : RuntimeComponent<InstantViewMediaRuntime, Element> {
 	QString pageUrl;
+	QSize forcedSize;
 };
 
 struct HistoryMessageRichPage

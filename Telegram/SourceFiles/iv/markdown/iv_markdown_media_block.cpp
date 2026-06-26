@@ -10,11 +10,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "iv/markdown/iv_markdown_article.h"
 #include "iv/markdown/iv_markdown_article_layout_blocks.h"
 #include "iv/markdown/iv_markdown_prepare.h"
+#include "iv/markdown/iv_markdown_slideshow_chrome.h"
 #include "lang/lang_keys.h"
 #include "ui/dynamic_image.h"
 #include "ui/effects/spoiler_mess.h"
 #include "ui/grouped_layout.h"
-#include "ui/image/image_prepare.h"
 #include "ui/power_saving.h"
 
 #include "rpl/lifetime.h"
@@ -23,11 +23,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_iv.h"
 #include "styles/style_widgets.h"
 
-#include <QtGui/QPainterPath>
-
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <utility>
 
 namespace Iv::Markdown {
@@ -90,54 +87,6 @@ constexpr auto kMaxGroupedMediaLayoutItems = 10;
 		return previous->image(size);
 	}
 	return QImage();
-}
-
-[[nodiscard]] QImage PrepareWithBlurredBackground(
-		QSize outer,
-		QSize inner,
-		QImage large,
-		QImage blurred) {
-	const auto ratio = style::DevicePixelRatio();
-	auto background = QImage(
-		outer * ratio,
-		QImage::Format_ARGB32_Premultiplied);
-	background.setDevicePixelRatio(ratio);
-	if (blurred.isNull()) {
-		background.fill(Qt::black);
-		if (large.isNull()) {
-			return background;
-		}
-	}
-	auto p = QPainter(&background);
-	if (!blurred.isNull()) {
-		auto cover = blurred.scaled(
-			outer * ratio,
-			Qt::KeepAspectRatioByExpanding,
-			Qt::SmoothTransformation);
-		if (cover.size() != outer * ratio) {
-			cover = cover.copy(QRect(
-				QPoint(
-					(cover.width() - outer.width() * ratio) / 2,
-					(cover.height() - outer.height() * ratio) / 2),
-				outer * ratio));
-		}
-		cover = Images::Blur(std::move(cover), true);
-		cover.setDevicePixelRatio(ratio);
-		p.drawImage(QPoint(), cover);
-		p.fillRect(QRect(QPoint(), outer), QColor(0, 0, 0, 48));
-	}
-	if (!large.isNull()) {
-		auto image = large.scaled(
-			inner * ratio,
-			Qt::IgnoreAspectRatio,
-			Qt::SmoothTransformation);
-		image.setDevicePixelRatio(ratio);
-		p.drawImage(
-			(outer.width() - inner.width()) / 2,
-			(outer.height() - inner.height()) / 2,
-			image);
-	}
-	return background;
 }
 
 [[nodiscard]] const style::Markdown &PaintStyle(
@@ -235,17 +184,6 @@ void PaintPhotoProgress(
 		ring,
 		90 * 16,
 		-int(std::round(360. * 16. * std::clamp(progress, 0., 1.))));
-}
-
-[[nodiscard]] int MediaHeightForWidth(
-		int width,
-		int aspectWidth,
-		int aspectHeight) {
-	aspectWidth = std::max(aspectWidth, 1);
-	aspectHeight = std::max(aspectHeight, 1);
-	return std::max(
-		int((int64(width) * aspectHeight + aspectWidth - 1) / aspectWidth),
-		1);
 }
 
 void SetPlainTextLeaf(
@@ -389,27 +327,6 @@ void PaintCardSurface(
 			part.geometry.y() + part.geometry.height());
 	}
 	return result;
-}
-
-[[nodiscard]] QPainterPath RoundedRectPath(QRect rect, int radius) {
-	auto path = QPainterPath();
-	path.addRoundedRect(QRectF(rect), radius, radius);
-	return path;
-}
-
-void PaintRoundButton(
-		Painter &p,
-		QRect rect,
-		const style::color &bg,
-		const style::icon &icon) {
-	if (rect.isEmpty()) {
-		return;
-	}
-	auto hq = PainterHighQualityEnabler(p);
-	p.setPen(Qt::NoPen);
-	p.setBrush(bg->c);
-	p.drawEllipse(rect);
-	icon.paintInCenter(p, rect);
 }
 
 enum class ImageBackedMediaKind {
@@ -1695,28 +1612,16 @@ void GroupedMediaBlock::updateNavigationRects() {
 	}
 	const auto &style = layoutStyle().groupedMedia;
 	const auto frameHeight = slideshowNavigationFrameHeight(_geometry.width());
-	const auto availableWidth = std::max(
-		(_geometry.width() - 2 * style.navButtonSkip) / 2,
-		0);
-	const auto size = std::min({
+	const auto rects = ComputeSlideshowNavRects(
+		_geometry,
+		frameHeight,
 		style.navButtonSize,
-		std::max(frameHeight, 0),
-		availableWidth,
-	});
-	if (size <= 0) {
+		style.navButtonSkip);
+	if (rects.previous.isEmpty()) {
 		return;
 	}
-	const auto top = _geometry.y() + std::max((frameHeight - size) / 2, 0);
-	_previousRect = QRect(
-		_geometry.x() + style.navButtonSkip,
-		top,
-		size,
-		size);
-	_nextRect = QRect(
-		_geometry.x() + _geometry.width() - style.navButtonSkip - size,
-		top,
-		size,
-		size);
+	_previousRect = rects.previous;
+	_nextRect = rects.next;
 }
 
 void GroupedMediaBlock::stepActiveIndex(int delta) {
@@ -1768,21 +1673,16 @@ int GroupedMediaBlock::activeItemHeight(int width) const {
 }
 
 int GroupedMediaBlock::slideshowNavigationFrameHeight(int width) const {
-	auto result = std::numeric_limits<int>::max();
+	const auto minHeight = layoutStyle().groupedMedia.slideshowMinHeight;
+	if (_items.empty()) {
+		return std::max(fallbackHeight(width), std::max(minHeight, 1));
+	}
+	auto sizes = std::vector<QSize>();
+	sizes.reserve(_items.size());
 	for (const auto &item : _items) {
-		result = std::min(
-			result,
-			MediaHeightForWidth(
-				width,
-				item.original.width(),
-				item.original.height()));
+		sizes.push_back(item.original);
 	}
-	if (result == std::numeric_limits<int>::max()) {
-		result = fallbackHeight(width);
-	}
-	return std::max(
-		result,
-		std::max(layoutStyle().groupedMedia.slideshowMinHeight, 1));
+	return SlideshowFrameHeight(width, minHeight, sizes);
 }
 
 GroupedMediaBlock::ItemState *GroupedMediaBlock::activeItem() {

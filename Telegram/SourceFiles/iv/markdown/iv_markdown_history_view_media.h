@@ -73,6 +73,7 @@ enum class IvHistoryViewMediaKind {
 	Map,
 	Audio,
 	GroupedMedia,
+	Slideshow,
 };
 
 struct IvHistoryViewMediaDescriptor {
@@ -85,6 +86,8 @@ struct IvHistoryViewMediaDescriptor {
 	QSize layoutHint;
 	std::shared_ptr<IvHistoryViewMediaHost> host;
 	MediaFactory mediaFactory;
+	std::vector<MediaFactory> slideMediaFactories;
+	std::vector<QSize> slideOriginalSizes;
 	std::vector<std::shared_ptr<void>> keepAlive;
 	std::shared_ptr<PhotoRuntime> photo;
 	std::shared_ptr<DocumentRuntime> document;

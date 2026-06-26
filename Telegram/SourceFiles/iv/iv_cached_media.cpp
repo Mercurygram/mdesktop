@@ -1451,14 +1451,21 @@ auto CachedPageMediaRuntime::hostedMediaBlockFactory() const
 				Window::SessionController *controller,
 				const Markdown::PreparedGroupedMediaBlockData &prepared) {
 			if (!controller
-				|| (prepared.intent
-					!= Markdown::PreparedGroupedMediaIntent::Collage)
 				|| prepared.items.empty()
 				|| (int(prepared.items.size())
 					> HistoryView::GroupedMedia::kMaxSize)) {
 				return std::shared_ptr<Markdown::MediaBlock>();
 			}
+			const auto slideshow = (prepared.intent
+				== Markdown::PreparedGroupedMediaIntent::Slideshow);
 			auto descriptor = Markdown::IvHistoryViewMediaDescriptor();
+			auto slideFactories = std::vector<
+				Markdown::IvHistoryViewMediaDescriptor::MediaFactory>();
+			auto slideSizes = std::vector<QSize>();
+			if (slideshow) {
+				slideFactories.reserve(prepared.items.size());
+				slideSizes.reserve(prepared.items.size());
+			}
 			const auto medias = std::make_shared<
 				std::vector<std::unique_ptr<::Data::Media>>>();
 			medias->reserve(prepared.items.size());
@@ -1478,14 +1485,27 @@ auto CachedPageMediaRuntime::hostedMediaBlockFactory() const
 						host->item(),
 						photo,
 						item.media.spoiler));
-					descriptor.groupedPhotos.emplace(
-						photo->id,
-						std::make_shared<CachedPagePhotoRuntime>(
-							session,
-							photo,
-							origin,
-							host->item()->fullId()));
+					auto runtime = std::make_shared<CachedPagePhotoRuntime>(
+						session,
+						photo,
+						origin,
+						host->item()->fullId());
+					descriptor.groupedPhotos.emplace(photo->id, runtime);
 					descriptor.groupedItemIndices.emplace(photo->id, i);
+					if (slideshow) {
+						slideSizes.push_back(QSize(
+							std::max(item.media.width, 1),
+							std::max(item.media.height, 1)));
+						const auto spoiler = item.media.spoiler;
+						slideFactories.push_back([photo, spoiler](
+								not_null<HistoryView::Element*> view) {
+							return std::make_unique<HistoryView::Photo>(
+								view,
+								view->data(),
+								photo,
+								spoiler);
+						});
+					}
 				} else {
 					const auto document = session->data().document(
 						DocumentId(item.media.id));
@@ -1501,30 +1521,46 @@ auto CachedPageMediaRuntime::hostedMediaBlockFactory() const
 							session,
 							document,
 							item.media.spoiler)));
-					descriptor.groupedDocuments.emplace(
-						document->id,
-						std::make_shared<CachedPageDocumentRuntime>(
-							session,
-							document,
-							origin,
-							host->item()->fullId()));
+					auto runtime = std::make_shared<CachedPageDocumentRuntime>(
+						session,
+						document,
+						origin,
+						host->item()->fullId());
+					descriptor.groupedDocuments.emplace(document->id, runtime);
 					descriptor.groupedItemIndices.emplace(document->id, i);
+					if (slideshow) {
+						const auto media = medias->back().get();
+						slideSizes.push_back(QSize(
+							std::max(item.media.width, 1),
+							std::max(item.media.height, 1)));
+						slideFactories.push_back([media](
+								not_null<HistoryView::Element*> view) {
+							return media->createView(view, view->data());
+						});
+					}
 				}
 				if (!medias->back()->canBeGrouped()) {
 					return std::shared_ptr<Markdown::MediaBlock>();
 				}
 			}
 			descriptor.stableId = prepared.id.value;
-			descriptor.kind = Markdown::IvHistoryViewMediaKind::GroupedMedia;
 			descriptor.copyText = CachedPageGroupedMediaCopyText(prepared);
-			descriptor.layoutHint = QSize(st::historyGroupWidthMax, 0);
 			descriptor.host = host;
-			descriptor.mediaFactory = [medias](
-					not_null<HistoryView::Element*> view) {
-				return std::make_unique<HistoryView::GroupedMedia>(
-					view,
-					*medias);
-			};
+			if (slideshow) {
+				descriptor.kind = Markdown::IvHistoryViewMediaKind::Slideshow;
+				descriptor.slideMediaFactories = std::move(slideFactories);
+				descriptor.slideOriginalSizes = std::move(slideSizes);
+			} else {
+				descriptor.kind
+					= Markdown::IvHistoryViewMediaKind::GroupedMedia;
+				descriptor.layoutHint = QSize(st::historyGroupWidthMax, 0);
+				descriptor.mediaFactory = [medias](
+						not_null<HistoryView::Element*> view) {
+					return std::make_unique<HistoryView::GroupedMedia>(
+						view,
+						*medias);
+				};
+			}
 			descriptor.keepAlive.push_back(medias);
 			return Markdown::CreateIvHistoryViewMediaBlock(
 				std::move(descriptor));
