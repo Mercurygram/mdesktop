@@ -43,4 +43,16 @@ void PaintTopFade(QPainter &p, int outerWidth, int fadeHeight, QColor bg) {
 	p.fillRect(QRect(0, 0, outerWidth, fadeHeight), grad);
 }
 
+void PaintBottomFade(QPainter &p, int outerWidth, int fadeHeight, QColor bg) {
+	if (fadeHeight <= 0) {
+		return;
+	}
+	auto transparent = bg;
+	transparent.setAlpha(0);
+	auto grad = QLinearGradient(0, 0, 0, fadeHeight);
+	grad.setColorAt(0, transparent);
+	grad.setColorAt(1, bg);
+	p.fillRect(QRect(0, 0, outerWidth, fadeHeight), grad);
+}
+
 } // namespace Dialogs

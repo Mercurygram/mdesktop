@@ -16,5 +16,6 @@ namespace Dialogs {
 
 void PaintPillTopSheen(QPainter &p, const QRect &pill, int radius);
 void PaintTopFade(QPainter &p, int outerWidth, int fadeHeight, QColor bg);
+void PaintBottomFade(QPainter &p, int outerWidth, int fadeHeight, QColor bg);
 
 } // namespace Dialogs

@@ -99,7 +99,6 @@ ivEditorPillShadow: BoxShadow {
 	opacity: 0.18;
 }
 ivEditorEmojiColumnCloseScrollSkip: 4px;
-ivEditorTopFadeHeight: 34px;
 ivEditorToolbarUndoIcon: icon {{ "photo_editor/undo", menuIconColor }};
 ivEditorToolbarUndoIconOver: icon {{ "photo_editor/undo", menuIconColor }};
 ivEditorToolbarUndoIconDisabled: icon {{ "photo_editor/undo", windowSubTextFg }};

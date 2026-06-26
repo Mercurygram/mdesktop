@@ -26,7 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
-#include "ui/widgets/scroll_area.h"
+#include "ui/widgets/elastic_scroll.h"
 #include "ui/basic_click_handlers.h"
 #include "ui/integration.h"
 #include "ui/rect.h"
@@ -250,7 +250,7 @@ private:
 	std::vector<PreparedFootnote> _footnotes;
 	std::unique_ptr<Ui::LayerManager> _footnoteLayerManager;
 	EmbedOverlay *_embedOverlay = nullptr;
-	Ui::ScrollArea *_scroll = nullptr;
+	Ui::ElasticScroll *_scroll = nullptr;
 	Ui::RpWidget *_scrollContent = nullptr;
 	Ui::JumpDownButton *_scrollToTop = nullptr;
 	MarkdownDocumentWidget *_body = nullptr;
@@ -302,8 +302,10 @@ void MarkdownPreviewRoot::setup() {
 	_footnoteLayerManager = std::make_unique<Ui::LayerManager>(not_null{ this });
 	_footnoteLayerManager->setHideByBackgroundClick(true);
 
-	_scroll = Ui::CreateChild<Ui::ScrollArea>(this, st::boxScroll);
-	_scroll->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+	_scroll = Ui::CreateChild<Ui::ElasticScroll>(this, st::boxScroll);
+	using OverscrollType = Ui::ElasticScroll::OverscrollType;
+	_scroll->setOverscrollTypes(OverscrollType::Real, OverscrollType::Real);
+	_scroll->setOverscrollBg(st::windowBg->c);
 	_scrollContent = _scroll->setOwnedWidget(object_ptr<Ui::RpWidget>(_scroll));
 	_body = Ui::CreateChild<MarkdownDocumentWidget>(_scrollContent);
 	_scrollToTop = Ui::CreateChild<Ui::JumpDownButton>(_scroll, st::dialogsToUp);
@@ -849,7 +851,7 @@ void MarkdownPreviewRoot::scrollToYAnimated(int top) {
 	if (!_scroll) {
 		return;
 	}
-	const auto scrollTo = _scroll->computeScrollToY(top, -1);
+	const auto scrollTo = std::clamp(top, 0, _scroll->scrollTopMax());
 	_scrollToAnimation.stop();
 	auto scrollTop = _scroll->scrollTop();
 	if (scrollTop == scrollTo) {

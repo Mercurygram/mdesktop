@@ -40,7 +40,7 @@ class ChatStyle;
 class ChatTheme;
 class InputField;
 class PopupMenu;
-class ScrollArea;
+class ElasticScroll;
 struct PreparedList;
 } // namespace Ui
 
@@ -665,7 +665,7 @@ private:
 		std::vector<RichPage::Block> blocks,
 		const Markdown::PreparedEditBlockDropTarget &target);
 	void finishArticleSelection();
-	[[nodiscard]] Ui::ScrollArea *selectionScrollArea() const;
+	[[nodiscard]] Ui::ElasticScroll *selectionScrollArea() const;
 	[[nodiscard]] bool articleSelectionAutoScrollActive() const;
 	void updateArticleSelectionAutoScroll(QPoint widgetPoint);
 	void updateArticleSelectionDragAtArticlePoint(

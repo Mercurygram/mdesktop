@@ -9974,9 +9974,9 @@ void Widget::dropEvent(QDropEvent *e) {
 	});
 }
 
-Ui::ScrollArea *Widget::selectionScrollArea() const {
+Ui::ElasticScroll *Widget::selectionScrollArea() const {
 	for (auto parent = parentWidget(); parent; parent = parent->parentWidget()) {
-		if (const auto scroll = dynamic_cast<Ui::ScrollArea*>(parent)) {
+		if (const auto scroll = dynamic_cast<Ui::ElasticScroll*>(parent)) {
 			return scroll;
 		}
 	}

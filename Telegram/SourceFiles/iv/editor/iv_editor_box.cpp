@@ -42,7 +42,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
 #include "ui/widgets/popup_menu.h"
-#include "ui/widgets/scroll_area.h"
+#include "ui/widgets/elastic_scroll.h"
 #include "ui/widgets/shadow.h"
 
 #include <crl/crl_on_main.h>
@@ -1081,8 +1081,9 @@ private:
 	std::shared_ptr<State> _state;
 	RichPage _initialPage;
 	object_ptr<Ui::RpWidget> _top = { nullptr };
+	object_ptr<Ui::RpWidget> _bottomFade = { nullptr };
 	object_ptr<Ui::RpWidget> _bottom = { nullptr };
-	object_ptr<Ui::ScrollArea> _scroll = { nullptr };
+	object_ptr<Ui::ElasticScroll> _scroll = { nullptr };
 	QPointer<Widget> _editor;
 	object_ptr<Toolbar> _toolbar = { nullptr };
 	object_ptr<ToolbarPill> _discard = { nullptr };
@@ -1160,13 +1161,26 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 		Dialogs::PaintTopFade(
 			p,
 			_top->width(),
-			st::ivEditorTopFadeHeight,
+			_top->height(),
 			st::windowBg->c);
 	}, _top->lifetime());
+	_bottomFade = object_ptr<Ui::RpWidget>(window->body().get());
+	_bottomFade->setAttribute(Qt::WA_TransparentForMouseEvents);
+	_bottomFade->paintRequest() | rpl::on_next([=] {
+		auto p = QPainter(_bottomFade.data());
+		Dialogs::PaintBottomFade(
+			p,
+			_bottomFade->width(),
+			_bottomFade->height(),
+			st::windowBg->c);
+	}, _bottomFade->lifetime());
 	_bottom = object_ptr<Ui::RpWidget>(window->body().get());
 
 	const auto hasRequestMedia = static_cast<bool>(descriptor.requestMedia);
-	_scroll = object_ptr<Ui::ScrollArea>(window->body().get(), st::boxScroll);
+	_scroll = object_ptr<Ui::ElasticScroll>(window->body().get(), st::boxScroll);
+	using OverscrollType = Ui::ElasticScroll::OverscrollType;
+	_scroll->setOverscrollTypes(OverscrollType::Real, OverscrollType::Real);
+	_scroll->setOverscrollBg(st::windowBg->c);
 	_editor = _scroll->setOwnedWidget(object_ptr<Widget>(
 		_scroll.data(),
 		WidgetServices{
@@ -1277,9 +1291,11 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 
 	layout();
 	_top->show();
+	_bottomFade->show();
 	_bottom->show();
 	_scroll->show();
 	_top->raise();
+	_bottomFade->raise();
 	_toolbar->show();
 	_toolbar->raise();
 	_bottom->raise();
@@ -1352,8 +1368,8 @@ void WindowHost::Impl::setupEmojiColumn(const ShowWindowDescriptor &descriptor) 
 }
 
 void WindowHost::Impl::layout() {
-	if (!_window || !_top || !_bottom || !_toolbar || !_editor || !_emojiColumn
-		|| !_emojiColumnShadow || !_emojiColumnClose) {
+	if (!_window || !_top || !_bottomFade || !_bottom || !_toolbar || !_editor
+		|| !_emojiColumn || !_emojiColumnShadow || !_emojiColumnClose) {
 		return;
 	}
 	const auto width = _window->body()->width();
@@ -1379,6 +1395,7 @@ void WindowHost::Impl::layout() {
 	_top->setGeometry(0, 0, editorWidth, toolbarHeight);
 	_toolbar->setGeometry(0, 0, editorWidth, toolbarHeight);
 	_toolbar->raise();
+	_bottomFade->setGeometry(0, height - bottomHeight, editorWidth, bottomHeight);
 	_bottom->setGeometry(0, height - bottomHeight, editorWidth, bottomHeight);
 	const auto column = _editor->articleColumnForWidth(editorWidth);
 	const auto fitsArticle = (column.width >= _toolbar->contentMaxWidth());
@@ -1417,6 +1434,8 @@ void WindowHost::Impl::layout() {
 		_bottom->setMask(bottomMask);
 	}
 	_scroll->setGeometry(0, 0, editorWidth, std::max(height, 1));
+	_scroll->setBarTopInset(toolbarHeight);
+	_scroll->setBarBottomInset(bottomHeight);
 	if (_emojiColumnShown) {
 		_emojiColumn->setGeometry(
 			editorWidth,
