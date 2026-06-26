@@ -591,6 +591,15 @@ private:
 	void clearFieldUndoRedoNoopState();
 	[[nodiscard]] bool escapeActiveBlockBodyFromToolbar();
 	[[nodiscard]] Fn<void()> captureScrollTopRestorer() const;
+	template <typename Scroll>
+	void scrollRangeToMakeVisible(Scroll *scroll, int top, int bottom) {
+		const auto padding = effectiveBodyPadding();
+		if (padding.top() + padding.bottom() < scroll->height()) {
+			top -= padding.top();
+			bottom += padding.bottom();
+		}
+		scroll->scrollToY(top, bottom);
+	}
 	void retainActiveLeafField(
 		bool keepRetainedFieldOnCurrentHistoryEntry = false);
 	[[nodiscard]] base::unique_qptr<Ui::InputField> reviveRetainedLeafField(

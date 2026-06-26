@@ -7228,7 +7228,8 @@ void Widget::revealActiveInlineField() {
 			const auto localRect = mapFieldLocalRectToScrollContent(
 				inner,
 				activeInlineFieldRevealRect());
-			scroll->scrollToY(
+			scrollRangeToMakeVisible(
+				scroll,
 				localRect.y(),
 				localRect.y() + localRect.height());
 		}
@@ -10080,7 +10081,7 @@ void Widget::revealStructuralSelectionEdge(bool forward) {
 	if (const auto inner = scroll->widget()) {
 		rect.translate(articleTopLeft());
 		rect.moveTopLeft(mapTo(inner, rect.topLeft()));
-		scroll->scrollToY(rect.y(), rect.y() + rect.height());
+		scrollRangeToMakeVisible(scroll, rect.y(), rect.y() + rect.height());
 	}
 }
 
