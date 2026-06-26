@@ -1301,7 +1301,9 @@ void WindowHost::Impl::setupEmojiColumn(const ShowWindowDescriptor &descriptor) 
 		- closeMargins.left()
 		- closeMargins.right();
 	const auto searchRightReserved = st::ivEditorEmojiColumnCloseScrollSkip
-		+ closeVisibleWidth;
+		+ closeVisibleWidth
+		+ st::emojiPanRadius
+		+ st::defaultEmojiPan.searchMargin.left();
 	_emojiColumn = object_ptr<Selector>(
 		_window->body().get(),
 		ChatHelpers::TabbedSelectorDescriptor{
