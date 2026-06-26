@@ -399,6 +399,7 @@ void MarkdownPreviewRoot::setup() {
 	}, lifetime());
 
 	style::PaletteChanged() | rpl::on_next([=] {
+		_scroll->setOverscrollBg(st::windowBg->c);
 		if (_body && !_body->isHidden()) {
 			_body->refreshPalette();
 		}

@@ -1180,7 +1180,12 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 	_scroll = object_ptr<Ui::ElasticScroll>(window->body().get(), st::boxScroll);
 	using OverscrollType = Ui::ElasticScroll::OverscrollType;
 	_scroll->setOverscrollTypes(OverscrollType::Real, OverscrollType::Real);
-	_scroll->setOverscrollBg(st::windowBg->c);
+	const auto scroll = _scroll.data();
+	scroll->setOverscrollBg(st::windowBg->c);
+	style::PaletteChanged(
+	) | rpl::on_next([=] {
+		scroll->setOverscrollBg(st::windowBg->c);
+	}, scroll->lifetime());
 	_editor = _scroll->setOwnedWidget(object_ptr<Widget>(
 		_scroll.data(),
 		WidgetServices{

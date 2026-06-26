@@ -68,7 +68,6 @@ public:
 	void setLoading(bool loading);
 	void stealFocus();
 	void returnFocus();
-	void setRightReserved(int value);
 
 	[[nodiscard]] static int IconSizeOverride();
 
@@ -102,7 +101,6 @@ private:
 	QPointer<RpWidget> _rightEdge;
 	rpl::variable<float64> _fadeOpacity = 0.;
 	int _fadeLeftStart = 0;
-	int _rightReserved = 0;
 
 	rpl::variable<int> _fieldPlaceholderWidth;
 	rpl::variable<bool> _fieldEmpty = true;
@@ -141,8 +139,12 @@ public:
 	void setRightReserved(int value);
 
 private:
+	void updateSearchGeometry();
+
 	const style::EmojiPan &_st;
 	SearchWithGroups _search;
+	int _outerWidth = 0;
+	int _rightReserved = 0;
 
 };
 

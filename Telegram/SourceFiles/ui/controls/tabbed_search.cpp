@@ -430,9 +430,7 @@ void SearchWithGroups::scrollGroupsTo(int left) {
 
 void SearchWithGroups::initEdges() {
 	paintRequest() | rpl::on_next([=](QRect clip) {
-		const auto usable = std::max(width() - _rightReserved, 0);
-		const auto fill = clip.intersected(QRect(0, 0, usable, height()));
-		QPainter(this).fillRect(fill, _st.bg);
+		QPainter(this).fillRect(clip, _st.bg);
 	}, lifetime());
 
 	const auto makeEdge = [&](bool left) {
@@ -576,30 +574,20 @@ int SearchWithGroups::resizeGetHeight(int newWidth) {
 	if (!newWidth) {
 		return _st.height;
 	}
-	const auto usable = std::max(newWidth - _rightReserved, 0);
 	_back->moveToLeft(0, 0, newWidth);
 	_search->moveToLeft(0, 0, newWidth);
-	_cancel->moveToRight(0, 0, usable);
+	_cancel->moveToRight(0, 0, newWidth);
 	if (_rightEdge) {
-		_rightEdge->move(usable - _rightEdge->width(), 0);
+		_rightEdge->move(newWidth - _rightEdge->width(), 0);
 	}
 
-	moveGroupsBy(usable, 0);
+	moveGroupsBy(newWidth, 0);
 
 	const auto fadeWidth = _fadeLeftStart + _st.fadeLeft.width();
 	const auto fade = QRect(0, 0, fadeWidth, _st.height);
 	_fade->setGeometry(fade);
 
 	return _st.height;
-}
-
-void SearchWithGroups::setRightReserved(int value) {
-	if (_rightReserved == value) {
-		return;
-	}
-	_rightReserved = value;
-	resizeToWidth(width());
-	update();
 }
 
 void SearchWithGroups::wheelEvent(QWheelEvent *e) {
@@ -660,8 +648,16 @@ TabbedSearch::TabbedSearch(
 
 	parent->widthValue(
 	) | rpl::on_next([=](int width) {
-		_search.resizeToWidth(width - rect::m::sum::h(_st.searchMargin));
+		_outerWidth = width;
+		updateSearchGeometry();
 	}, _search.lifetime());
+}
+
+void TabbedSearch::updateSearchGeometry() {
+	const auto inner = _outerWidth
+		- rect::m::sum::h(_st.searchMargin)
+		- _rightReserved;
+	_search.resizeToWidth(std::max(inner, 0));
 }
 
 int TabbedSearch::height() const {
@@ -689,7 +685,11 @@ void TabbedSearch::returnFocus() {
 }
 
 void TabbedSearch::setRightReserved(int value) {
-	_search.setRightReserved(value);
+	if (_rightReserved == value) {
+		return;
+	}
+	_rightReserved = value;
+	updateSearchGeometry();
 }
 
 rpl::producer<> TabbedSearch::escapes() const {
