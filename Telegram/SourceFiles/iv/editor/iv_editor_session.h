@@ -34,6 +34,8 @@ namespace Iv::Editor {
 using ThreadFieldDraftReader = Fn<std::unique_ptr<::Data::Draft>()>;
 using ThreadFieldDraftSaver = Fn<void(std::unique_ptr<::Data::Draft>)>;
 
+[[nodiscard]] bool CheckRichMessagesPremium(
+	not_null<Window::SessionController*> controller);
 void ShowComposeBox(
 	not_null<Window::SessionController*> controller,
 	not_null<PeerData*> peer,

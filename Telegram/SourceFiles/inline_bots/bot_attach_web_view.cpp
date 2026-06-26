@@ -2961,6 +2961,9 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 	}
 	if (Data::CanSendAnyOf(peer, ChatRestriction::SendOther, false)) {
 		raw->addAction(tr::lng_article_menu_item(tr::now), [=] {
+			if (!Iv::Editor::CheckRichMessagesPremium(controller)) {
+				return;
+			}
 			const auto openCompose = [=] {
 				Iv::Editor::ShowComposeBox(
 					controller,

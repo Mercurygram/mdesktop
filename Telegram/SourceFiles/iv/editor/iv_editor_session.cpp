@@ -3585,15 +3585,20 @@ bool ArticleSession::RequestCloseOpenEditWindowThen(
 
 } // namespace
 
+bool CheckRichMessagesPremium(
+		not_null<Window::SessionController*> controller) {
+	if (CanUseRichMessages(&controller->session())) {
+		return true;
+	}
+	ShowRichMessagesPremiumToast(controller->uiShow());
+	return false;
+}
+
 void ShowComposeBox(
 		not_null<Window::SessionController*> controller,
 		not_null<PeerData*> peer,
 		Api::SendAction action,
 		Fn<SendMenu::Details()> sendMenuDetails) {
-	if (!CanUseRichMessages(&controller->session())) {
-		ShowRichMessagesPremiumToast(controller->uiShow());
-		return;
-	}
 	ArticleSession::ShowCompose(
 		&controller->session(),
 		peer,
