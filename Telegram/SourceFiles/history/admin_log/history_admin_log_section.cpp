@@ -27,6 +27,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_session_controller.h"
 #include "ui/boxes/confirm_box.h"
 #include "base/timer.h"
+#include "base/invoke_queued.h"
 #include "data/data_channel.h"
 #include "data/data_session.h"
 #include "lang/lang_keys.h"
@@ -150,7 +151,11 @@ void FixedBar::applyFilter(const FilterValue &value) {
 }
 
 void FixedBar::goBack() {
-	_controller->showBackFromStack();
+	// The back button fires its click from AbstractButton::setDown() while
+	// still inside the mouse-press event. showBackFromStack() destroys this
+	// section (and the button) synchronously, so setDown() would return into
+	// a freed button. Post the navigation to run after the event unwinds.
+	InvokeQueued(this, [=] { _controller->showBackFromStack(); });
 }
 
 void FixedBar::showSearch() {
