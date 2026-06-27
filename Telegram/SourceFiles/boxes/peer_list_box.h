@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/userpic_view.h"
 #include "ui/layers/box_content.h"
 #include "base/timer.h"
+#include "boxes/peer_list_scroll_cache.h"
 
 namespace style {
 struct PeerList;
@@ -870,6 +871,12 @@ private:
 		Fn<void(not_null<Ui::PopupMenu*>)> destroyed = nullptr);
 
 	crl::time paintRow(Painter &p, crl::time now, RowIndex index);
+	void paintRowContent(
+		Painter &p,
+		crl::time now,
+		RowIndex index,
+		bool selected,
+		int activeElement);
 
 	[[nodiscard]] bool sectionsShown() const;
 	void refreshSectionHeaders();
@@ -950,6 +957,8 @@ private:
 	std::vector<std::unique_ptr<PeerListRow>> _searchRows;
 	base::Timer _repaintByStatus;
 	base::unique_qptr<Ui::PopupMenu> _contextMenu;
+
+	PeerListRowsScrollCache _rowsScrollCache;
 
 };
 

@@ -1135,7 +1135,8 @@ PeerListContent::PeerListContent(
 : RpWidget(parent)
 , _st(controller->computeListSt())
 , _controller(controller)
-, _rowHeight(_st.item.height) {
+, _rowHeight(_st.item.height)
+, _rowsScrollCache([this] { update(); }) {
 	_controller->session().downloaderTaskFinished(
 	) | rpl::on_next([=] {
 		update();
@@ -1968,7 +1969,6 @@ crl::time PeerListContent::paintRow(
 		? std::max(refreshStatusAt - now, crl::time(1))
 		: 0;
 
-	const auto peer = row->special() ? nullptr : row->peer().get();
 	const auto active = (_contexted.index.value >= 0)
 		? _contexted
 		: (_pressed.index.value >= 0)
@@ -1981,6 +1981,41 @@ crl::time PeerListContent::paintRow(
 		_controller->customRowPaint(p, now, row, selected);
 		return refreshStatusIn;
 	}
+
+	const auto activeElement = (active.index == index) ? active.element : 0;
+	if (_rowsScrollCache.scrolling()
+		&& !selected
+		&& !activeElement
+		&& width() > 0
+		&& row->opacity() == 1.) {
+		const auto ratio = style::DevicePixelRatio();
+		_rowsScrollCache.paintRow(
+			p,
+			row->id(),
+			QSize(width(), _rowHeight) * ratio,
+			ratio,
+			[&](QImage &image) {
+				auto q = Painter(&image);
+				paintRowContent(q, now, index, false, 0);
+			});
+		return refreshStatusIn;
+	}
+	paintRowContent(p, now, index, selected, activeElement);
+	return refreshStatusIn;
+}
+
+void PeerListContent::paintRowContent(
+		Painter &p,
+		crl::time now,
+		RowIndex index,
+		bool selected,
+		int activeElement) {
+	const auto row = getRow(index);
+	Assert(row != nullptr);
+
+	const auto &st = row->computeSt(_st.item);
+	const auto outerWidth = width();
+	const auto peer = row->special() ? nullptr : row->peer().get();
 
 	const auto opacity = row->opacity();
 	const auto &bg = selected
@@ -2093,9 +2128,7 @@ crl::time PeerListContent::paintRow(
 		p,
 		width(),
 		selected,
-		(active.index == index) ? active.element : 0);
-
-	return refreshStatusIn;
+		activeElement);
 }
 
 PeerListContent::SkipResult PeerListContent::selectSkip(int direction) {
@@ -2424,6 +2457,10 @@ void PeerListContent::setIgnoreHiddenRowsOnSearch(bool value) {
 void PeerListContent::visibleTopBottomUpdated(
 		int visibleTop,
 		int visibleBottom) {
+	if ((_visibleTop != visibleTop || _visibleBottom != visibleBottom)
+		&& _mode != Mode::Custom) {
+		_rowsScrollCache.markScrolling();
+	}
 	_visibleTop = visibleTop;
 	_visibleBottom = visibleBottom;
 	loadProfilePhotos();
