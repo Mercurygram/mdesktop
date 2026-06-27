@@ -4499,6 +4499,14 @@ void HistoryInner::changeItemsRevealHeight(int revealHeight) {
 	updateSize();
 }
 
+void HistoryInner::setPullBottomInset(int inset) {
+	if (_pullBottomInset == inset) {
+		return;
+	}
+	_pullBottomInset = inset;
+	updateSize();
+}
+
 void HistoryInner::updateSize() {
 	const auto visibleHeight = _scroll->height();
 	auto collapseGapTotal = 0;
@@ -4543,7 +4551,8 @@ void HistoryInner::updateSize() {
 
 	const auto newHeight = _historyMarginTop
 		+ itemsHeight
-		+ _historyMarginBottom;
+		+ _historyMarginBottom
+		+ _pullBottomInset;
 	if (width() != _scroll->width() || height() != newHeight) {
 		resize(_scroll->width(), newHeight);
 
