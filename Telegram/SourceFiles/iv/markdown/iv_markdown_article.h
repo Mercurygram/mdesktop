@@ -357,6 +357,8 @@ public:
 	[[nodiscard]] PreparedEditHit editHitTest(QPoint point) const;
 	[[nodiscard]] MarkdownArticleDropLocation editDropTarget(
 		QPoint point) const;
+	[[nodiscard]] MarkdownArticleDropLocation editBlockDropTarget(
+		QPoint point) const;
 	[[nodiscard]] MarkdownArticleDropLocation editStructuralDropTarget(
 		QPoint point,
 		const PreparedEditSelection &selection) const;

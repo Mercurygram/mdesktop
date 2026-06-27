@@ -3296,6 +3296,8 @@ public:
 		mediaBlockGeometries() const;
 	[[nodiscard]] MarkdownArticleDropLocation editDropTarget(
 		QPoint point) const;
+	[[nodiscard]] MarkdownArticleDropLocation editBlockDropTarget(
+		QPoint point) const;
 	[[nodiscard]] MarkdownArticleDropLocation editStructuralDropTarget(
 		QPoint point,
 		const PreparedEditSelection &selection) const;
@@ -4013,6 +4015,15 @@ MarkdownArticleDropLocation MarkdownArticle::Impl::editDropTarget(
 			}
 		}
 	}
+	return EditDropLocationForBlockContainer(
+		_blocks,
+		point,
+		PreparedEditBlockContainerPath(),
+		QRect());
+}
+
+MarkdownArticleDropLocation MarkdownArticle::Impl::editBlockDropTarget(
+		QPoint point) const {
 	return EditDropLocationForBlockContainer(
 		_blocks,
 		point,
@@ -5802,6 +5813,11 @@ PreparedEditHit MarkdownArticle::editHitTest(QPoint point) const {
 MarkdownArticleDropLocation MarkdownArticle::editDropTarget(
 		QPoint point) const {
 	return _impl->editDropTarget(point);
+}
+
+MarkdownArticleDropLocation MarkdownArticle::editBlockDropTarget(
+		QPoint point) const {
+	return _impl->editBlockDropTarget(point);
 }
 
 MarkdownArticleDropLocation MarkdownArticle::editStructuralDropTarget(

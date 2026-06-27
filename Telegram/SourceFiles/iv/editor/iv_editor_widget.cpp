@@ -10363,7 +10363,7 @@ void Widget::clearArticleDropTarget() {
 void Widget::updateExternalDropTarget(QPoint articlePoint) {
 	auto target = std::optional<Markdown::PreparedEditBlockDropTarget>();
 	auto rect = QRect();
-	const auto location = _article->editDropTarget(articlePoint);
+	const auto location = _article->editBlockDropTarget(articlePoint);
 	if (location.valid()) {
 		if (const auto block
 			= std::get_if<Markdown::PreparedEditBlockDropTarget>(
