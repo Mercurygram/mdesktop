@@ -86,6 +86,10 @@ struct ShowWindowDescriptor {
 	Fn<QImage(uint64 /*photoId*/)> requestPhotoEditSource;
 	Fn<void(not_null<Widget*>, Ui::PreparedList, State::ReplaceTarget)>
 		replacePhotoWithList;
+	Fn<MediaUploadState(uint64 /*mediaId*/)> mediaUploadState;
+	Fn<void(not_null<Widget*>, uint64 /*mediaId*/)> cancelMediaUpload;
+	Fn<void(not_null<Widget*>, State::BlockPath, QPointer<QWidget>)>
+		addMediaAndGroupWithBlock;
 	Fn<void(not_null<Widget*>, QPointer<QWidget>, rpl::producer<>)> requestMap;
 	Fn<void()> closed;
 	Fn<void(RichMessageLimitError)> showLimitToast;

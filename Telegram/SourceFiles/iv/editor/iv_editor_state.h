@@ -488,6 +488,8 @@ public:
 	[[nodiscard]] bool setGroupedMediaIntent(
 		const BlockPath &path,
 		RichPage::GroupedMediaIntent intent);
+	[[nodiscard]] Markdown::PreparedEditSelection preparedSelectionForBlock(
+		const BlockPath &path) const;
 
 private:
 	struct StructuralBlockRange {
@@ -826,8 +828,6 @@ private:
 		const BlockPath &path,
 		int itemIndex,
 		std::vector<BoundaryTarget> *steps) const;
-	[[nodiscard]] Markdown::PreparedEditSelection preparedSelectionForBlock(
-		const BlockPath &path) const;
 	[[nodiscard]] Markdown::PreparedEditSelection preparedSelectionForListItem(
 		const BlockPath &path,
 		int itemIndex) const;
@@ -892,6 +892,11 @@ enum class RequestMediaType : uchar {
 	PhotoVideo,
 	Audio,
 	PhotoVideoAudio,
+};
+
+struct MediaUploadState {
+	bool uploading = false;
+	float64 progress = 0.;
 };
 
 [[nodiscard]] bool CanEditRichPage(const RichPage &page);

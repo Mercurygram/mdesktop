@@ -26,6 +26,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <optional>
 #include <vector>
 
+class Painter;
 class QEvent;
 class QContextMenuEvent;
 class QInputMethodEvent;
@@ -42,6 +43,7 @@ class ChatTheme;
 class InputField;
 class PopupMenu;
 class ElasticScroll;
+class RadialAnimation;
 struct PreparedList;
 } // namespace Ui
 
@@ -84,6 +86,10 @@ struct WidgetServices {
 	Fn<QImage(uint64 /*photoId*/)> requestPhotoEditSource;
 	Fn<void(not_null<Widget*>, Ui::PreparedList, State::ReplaceTarget)>
 		replacePhotoWithList;
+	Fn<MediaUploadState(uint64 /*mediaId*/)> mediaUploadState;
+	Fn<void(not_null<Widget*>, uint64 /*mediaId*/)> cancelMediaUpload;
+	Fn<void(not_null<Widget*>, State::BlockPath, QPointer<QWidget>)>
+		addMediaAndGroupWithBlock;
 	rpl::producer<> imeCompositionStarts;
 };
 
@@ -120,6 +126,7 @@ public:
 	void pastePreparedBlocks(
 		std::vector<RichPage::Block> blocks,
 		PreparedMediaPasteTarget target);
+	void groupBlocksIntoCollage(State::BlockPath anchor, int insertedCount);
 	void insertHeading1();
 	void insertBlockquote();
 	void insertEmoji(EmojiPtr emoji);
@@ -238,6 +245,22 @@ protected:
 	void requestRelayout(QRect articleRect) override;
 
 private:
+	enum class MediaControl : uchar {
+		None,
+		ThreeDots,
+		Plus,
+		MediaPixels,
+		UploadRadial,
+	};
+	struct PressedMediaControl {
+		MediaControl control = MediaControl::None;
+		State::BlockPath path;
+
+		[[nodiscard]] bool valid() const {
+			return control != MediaControl::None;
+		}
+	};
+
 	struct InlineFieldStyleData {
 		const style::TextStyle *textStyle = nullptr;
 		int lineHeight = 0;
@@ -743,6 +766,20 @@ private:
 	[[nodiscard]] bool applyMediaBlockChange(Fn<bool()> change);
 	void requestReplaceMedia(State::BlockPath path);
 	void editPhotoBlock(State::BlockPath path);
+	void paintMediaControls(Painter &p, QPoint topLeft);
+	struct MediaControlLayout {
+		QRect threeDots;
+		QRect plus;
+		QRect radial;
+	};
+	[[nodiscard]] MediaControlLayout mediaControlLayout(
+		QRect mediaRect) const;
+	[[nodiscard]] PressedMediaControl mediaControlHitTest(
+		QPoint articlePoint) const;
+	void cancelMediaUploadForBlock(const State::BlockPath &path);
+	void addToCollageFromBlock(const State::BlockPath &path);
+	[[nodiscard]] MediaUploadState mediaUploadStateForBlock(
+		const State::BlockPath &path) const;
 	[[nodiscard]] Markdown::PreparedEditSelection structuralSelectionFromHits(
 		const Markdown::PreparedEditHit &anchor,
 		const Markdown::PreparedEditHit &focus) const;
@@ -771,6 +808,10 @@ private:
 	const Fn<QImage(uint64)> _requestPhotoEditSource;
 	const Fn<void(not_null<Widget*>, Ui::PreparedList, State::ReplaceTarget)>
 		_replacePhotoWithList;
+	const Fn<MediaUploadState(uint64)> _mediaUploadState;
+	const Fn<void(not_null<Widget*>, uint64)> _cancelMediaUpload;
+	const Fn<void(not_null<Widget*>, State::BlockPath, QPointer<QWidget>)>
+		_addMediaAndGroupWithBlock;
 	const not_null<PeerData*> _peer;
 	const std::shared_ptr<State> _state;
 	const Fn<void(RichMessageLimitError)> _showLimitToast;
@@ -828,6 +869,9 @@ private:
 	bool _keyboardStructuralSelectionActive = false;
 	Markdown::MarkdownArticleEditControlHit _pressedControl;
 	std::optional<QPoint> _pressedControlPoint;
+	PressedMediaControl _pressedMediaControl;
+	std::optional<QPoint> _pressedMediaControlPoint;
+	std::unique_ptr<Ui::RadialAnimation> _mediaUploadRadial;
 	HorizontalScrollDrag _horizontalScrollDrag = HorizontalScrollDrag::None;
 	std::optional<QPoint> _pendingTouchHorizontalScrollPoint;
 	bool _syncingInlineFieldGeometry = false;

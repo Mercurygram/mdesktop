@@ -36,6 +36,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/chat_style.h"
 #include "ui/chat/chat_theme.h"
 #include "ui/click_handler.h"
+#include "ui/effects/radial_animation.h"
 #include "ui/image/image.h"
 #include "ui/image/image_location.h"
 #include "ui/layers/generic_box.h"
@@ -57,6 +58,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/palette.h"
 #include "styles/style_boxes.h"
 #include "styles/style_chat.h"
+#include "styles/style_chat_helpers.h"
 #include "styles/style_iv.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
@@ -1099,6 +1101,18 @@ template <typename Range>
 		return true;
 	default:
 		return false;
+	}
+}
+
+[[nodiscard]] uint64 MediaIdForBlock(const RichPage::Block &block) {
+	switch (block.kind) {
+	case RichPage::BlockKind::Photo:
+		return block.photoId;
+	case RichPage::BlockKind::Video:
+	case RichPage::BlockKind::Audio:
+		return block.documentId;
+	default:
+		return uint64(0);
 	}
 }
 
@@ -2596,6 +2610,9 @@ Widget::Widget(
 , _applyPreparedMedia(std::move(services.applyPreparedMedia))
 , _requestPhotoEditSource(std::move(services.requestPhotoEditSource))
 , _replacePhotoWithList(std::move(services.replacePhotoWithList))
+, _mediaUploadState(std::move(services.mediaUploadState))
+, _cancelMediaUpload(std::move(services.cancelMediaUpload))
+, _addMediaAndGroupWithBlock(std::move(services.addMediaAndGroupWithBlock))
 , _peer(peer)
 , _state(std::move(state))
 , _showLimitToast(std::move(showLimitToast))
@@ -5838,6 +5855,174 @@ void Widget::editPhotoBlock(State::BlockPath path) {
 	_show->showLayer(std::move(layer), Ui::LayerOption::KeepOther);
 }
 
+MediaUploadState Widget::mediaUploadStateForBlock(
+		const State::BlockPath &path) const {
+	const auto block = BlockFromPath(_state->richPage(), path);
+	if (!block) {
+		return {};
+	}
+	const auto mediaId = MediaIdForBlock(*block);
+	return _mediaUploadState ? _mediaUploadState(mediaId) : MediaUploadState();
+}
+
+Widget::MediaControlLayout Widget::mediaControlLayout(
+		QRect mediaRect) const {
+	const auto d = st::ivEditorMediaCornerSize;
+	const auto skip = st::ivEditorMediaCornerSkip;
+	const auto &r = mediaRect;
+	const auto threeDots = QRect(r.left() + skip, r.top() + skip, d, d);
+	const auto plus = QRect(r.right() - skip - d + 1, r.top() + skip, d, d);
+	const auto rs = st::ivEditorMediaUploadRadialSize;
+	const auto radial = QRect(
+		r.center().x() - rs / 2,
+		r.center().y() - rs / 2,
+		rs,
+		rs);
+	return { threeDots, plus, radial };
+}
+
+void Widget::paintMediaControls(Painter &p, QPoint topLeft) {
+	auto anyUploading = false;
+	for (const auto &geo : _article->mediaBlockGeometries()) {
+		if (geo.grouped || geo.visibleMediaRect.isEmpty()) {
+			continue;
+		}
+		const auto path = _state->convertBlockPath(geo.block);
+		if (!path) {
+			continue;
+		}
+		const auto block = BlockFromPath(_state->richPage(), *path);
+		if (!block || !IsSimpleMediaBlockKind(block->kind)) {
+			continue;
+		}
+		const auto layout = mediaControlLayout(geo.visibleMediaRect);
+		const auto uploadState = mediaUploadStateForBlock(*path);
+		if (uploadState.uploading) {
+			anyUploading = true;
+			if (!_mediaUploadRadial) {
+				_mediaUploadRadial = std::make_unique<Ui::RadialAnimation>(
+					[=] { update(); });
+			}
+			if (!_mediaUploadRadial->animating()) {
+				_mediaUploadRadial->start(uploadState.progress);
+			} else {
+				_mediaUploadRadial->update(
+					uploadState.progress,
+					false,
+					crl::now());
+			}
+			const auto radial = layout.radial.translated(topLeft);
+			auto hq = PainterHighQualityEnabler(p);
+			p.setPen(Qt::NoPen);
+			p.setBrush(st::roundedBg);
+			p.drawEllipse(radial);
+			_mediaUploadRadial->draw(
+				p,
+				QRectF(radial),
+				st::ivEditorMediaUploadRadialWidth,
+				st::roundedFg);
+		} else {
+			const auto threeDots = layout.threeDots.translated(topLeft);
+			const auto plus = layout.plus.translated(topLeft);
+			auto hq = PainterHighQualityEnabler(p);
+			p.setPen(Qt::NoPen);
+			p.setBrush(st::roundedBg);
+			p.drawEllipse(threeDots);
+			p.drawEllipse(plus);
+			st::sendBoxAlbumButtonMediaMore.paintInCenter(p, threeDots);
+			st::ivEditorMediaAddIcon.paintInCenter(p, plus);
+		}
+	}
+	if (!anyUploading && _mediaUploadRadial && _mediaUploadRadial->animating()) {
+		_mediaUploadRadial->stop();
+	}
+}
+
+Widget::PressedMediaControl Widget::mediaControlHitTest(
+		QPoint articlePoint) const {
+	for (const auto &geo : _article->mediaBlockGeometries()) {
+		if (geo.grouped || geo.visibleMediaRect.isEmpty()) {
+			continue;
+		}
+		const auto path = _state->convertBlockPath(geo.block);
+		if (!path) {
+			continue;
+		}
+		const auto block = BlockFromPath(_state->richPage(), *path);
+		if (!block || !IsSimpleMediaBlockKind(block->kind)) {
+			continue;
+		}
+		const auto layout = mediaControlLayout(geo.visibleMediaRect);
+		if (mediaUploadStateForBlock(*path).uploading) {
+			if (layout.radial.contains(articlePoint)) {
+				return { MediaControl::UploadRadial, *path };
+			}
+		} else if (layout.threeDots.contains(articlePoint)) {
+			return { MediaControl::ThreeDots, *path };
+		} else if (layout.plus.contains(articlePoint)) {
+			return { MediaControl::Plus, *path };
+		} else if ((block->kind == RichPage::BlockKind::Photo)
+			&& geo.visibleMediaRect.contains(articlePoint)) {
+			return { MediaControl::MediaPixels, *path };
+		}
+	}
+	return {};
+}
+
+void Widget::addToCollageFromBlock(const State::BlockPath &path) {
+	if (_addMediaAndGroupWithBlock) {
+		_addMediaAndGroupWithBlock(
+			this,
+			path,
+			QPointer<QWidget>(_outer.get()));
+	}
+}
+
+void Widget::groupBlocksIntoCollage(
+		State::BlockPath anchor,
+		int insertedCount) {
+	if (insertedCount < 1) {
+		return;
+	}
+	auto selection = _state->preparedSelectionForBlock(anchor);
+	selection.blocks.till += insertedCount;
+	if (!_state->canGroupPhotoVideoBlocks(selection)) {
+		return;
+	}
+	[[maybe_unused]] const auto changed = applyMediaBlockChange([&] {
+		return _state->groupPhotoVideoBlocks(
+			selection,
+			RichPage::GroupedMediaIntent::Collage);
+	});
+}
+
+void Widget::cancelMediaUploadForBlock(const State::BlockPath &path) {
+	const auto block = BlockFromPath(_state->richPage(), path);
+	if (!block) {
+		return;
+	}
+	const auto mediaId = MediaIdForBlock(*block);
+	if (_cancelMediaUpload) {
+		_cancelMediaUpload(this, mediaId);
+	}
+	auto target = std::optional<int>();
+	const auto changed = applyMediaBlockChange([=, &target] {
+		const auto current = BlockFromPath(_state->richPage(), path);
+		if (!current || !IsSimpleMediaBlockKind(current->kind)) {
+			return false;
+		}
+		target = _state->removeBlock(path, true);
+		return true;
+	});
+	if (!changed) {
+		return;
+	} else if (target) {
+		activateTextOrdinal(*target, 0);
+	} else {
+		activateInitialNode();
+	}
+}
+
 void Widget::touchEvent(QTouchEvent *e) {
 	if (e->type() == QEvent::TouchCancel) {
 		_pendingTouchHorizontalScrollPoint = std::nullopt;
@@ -6032,6 +6217,8 @@ void Widget::mousePressEvent(QMouseEvent *e) {
 	_selectScroll.cancel();
 	_pressedControl = {};
 	_pressedControlPoint = std::nullopt;
+	_pressedMediaControl = {};
+	_pressedMediaControlPoint = std::nullopt;
 	auto articlePoint = e->pos() - articleTopLeft();
 	const auto horizontalScrollHit = _article->horizontalScrollHit(
 		articlePoint);
@@ -6046,6 +6233,13 @@ void Widget::mousePressEvent(QMouseEvent *e) {
 	if (controlHit.valid()) {
 		_pressedControl = controlHit;
 		_pressedControlPoint = articlePoint;
+		e->accept();
+		return;
+	}
+	const auto mediaControl = mediaControlHitTest(articlePoint);
+	if (mediaControl.valid()) {
+		_pressedMediaControl = mediaControl;
+		_pressedMediaControlPoint = articlePoint;
 		e->accept();
 		return;
 	}
@@ -6227,6 +6421,38 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 				}
 				break;
 			case Markdown::MarkdownArticleEditControlHitKind::None:
+				break;
+			}
+		}
+		e->accept();
+		return;
+	}
+	if (_pressedMediaControl.valid()) {
+		const auto pressed = _pressedMediaControl;
+		const auto pressedPoint = _pressedMediaControlPoint;
+		_pressedMediaControl = {};
+		_pressedMediaControlPoint = std::nullopt;
+		const auto current = mediaControlHitTest(articlePoint);
+		const auto matched = pressedPoint
+			&& ((articlePoint - *pressedPoint).manhattanLength()
+				< QApplication::startDragDistance())
+			&& (current.control == pressed.control)
+			&& (current.path == pressed.path);
+		if (matched) {
+			switch (pressed.control) {
+			case MediaControl::ThreeDots:
+				showSimpleMediaMenu(pressed.path, e->globalPos());
+				break;
+			case MediaControl::Plus:
+				addToCollageFromBlock(pressed.path);
+				break;
+			case MediaControl::MediaPixels:
+				editPhotoBlock(pressed.path);
+				break;
+			case MediaControl::UploadRadial:
+				cancelMediaUploadForBlock(pressed.path);
+				break;
+			case MediaControl::None:
 				break;
 			}
 		}
@@ -6491,6 +6717,7 @@ void Widget::paintEvent(QPaintEvent *e) {
 		p,
 		textPaintContext(e->rect().translated(-topLeft.x(), -topLeft.y())));
 	p.restore();
+	paintMediaControls(p, topLeft);
 	if (!_articleSelectionDrag.indicatorRect.isEmpty()) {
 		auto color = st::windowActiveTextFg->c;
 		color.setAlphaF(color.alphaF() * 0.7);

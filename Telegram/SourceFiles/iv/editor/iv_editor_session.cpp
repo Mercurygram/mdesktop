@@ -676,6 +676,8 @@ private:
 		std::optional<PreparedMediaPasteTarget> insertTarget;
 		std::vector<MediaBatchItem> items;
 		int nextIndex = 0;
+		std::optional<State::BlockPath> groupAnchor;
+		int insertedTopLevel = 0;
 	};
 
 	struct QueuedPrepare {
@@ -1442,6 +1444,24 @@ private:
 					std::move(list),
 					std::move(replaceTarget));
 			},
+			.mediaUploadState = [session = shared_from_this()](
+					uint64 mediaId) {
+				return session->mediaUploadStateForMedia(mediaId);
+			},
+			.cancelMediaUpload = [session = shared_from_this()](
+					not_null<Widget*> editor,
+					uint64 mediaId) {
+				session->cancelMediaUploadByMediaId(mediaId);
+			},
+			.addMediaAndGroupWithBlock = [session = shared_from_this()](
+					not_null<Widget*> editor,
+					State::BlockPath path,
+					QPointer<QWidget> parent) {
+				session->addMediaAndGroupWithBlock(
+					editor,
+					std::move(path),
+					std::move(parent));
+			},
 			.requestMap = [session = shared_from_this()](
 					not_null<Widget*> editor,
 					QPointer<QWidget> parent,
@@ -1645,13 +1665,102 @@ private:
 		return QImage();
 	}
 
+	[[nodiscard]] MediaUploadState mediaUploadStateForMedia(uint64 mediaId) {
+		for (const auto &attachment : _attachments) {
+			if (mediaIdMatchesAttachment(mediaId, attachment)) {
+				const auto uploading
+					= (attachment.state == AttachmentState::Uploading)
+						|| (attachment.state == AttachmentState::Finalizing);
+				return {
+					.uploading = uploading,
+					.progress = attachment.progress,
+				};
+			}
+		}
+		return {};
+	}
+
+	void cancelMediaUploadByMediaId(uint64 mediaId) {
+		for (const auto &attachment : _attachments) {
+			if (mediaIdMatchesAttachment(mediaId, attachment)) {
+				eraseAttachment(attachment.uploadId);
+				return;
+			}
+		}
+	}
+
+	void addMediaAndGroupWithBlock(
+			not_null<Widget*> editor,
+			State::BlockPath anchor,
+			QPointer<QWidget> parent) {
+		if (!parent) {
+			return;
+		}
+		_editor = editor;
+		const auto weak = base::make_weak(this);
+		const auto editorPointer = QPointer<Widget>(editor.get());
+		auto callback = [weak, editorPointer, anchor = std::move(anchor)](
+				FileDialog::OpenResult &&result) mutable {
+			if (const auto session = weak.get()) {
+				session->applyAddToCollageList(
+					editorPointer,
+					std::move(result),
+					std::move(anchor));
+			}
+		};
+		FileDialog::GetOpenPaths(
+			std::move(parent),
+			tr::lng_choose_files(tr::now),
+			FileDialog::PhotoVideoFilesFilter(),
+			std::move(callback));
+	}
+
+	void applyAddToCollageList(
+			QPointer<Widget> editor,
+			FileDialog::OpenResult &&result,
+			State::BlockPath anchor) {
+		if (!editor) {
+			return;
+		}
+		auto showError = [=](tr::phrase<> phrase) {
+			showToast(phrase(tr::now));
+		};
+		auto list = Storage::PreparedFileFromFilesDialog(
+			std::move(result),
+			[](const PreparedList &) {
+				return true;
+			},
+			showError,
+			st::sendMediaPreviewSize,
+			_session->premium());
+		if (!list) {
+			return;
+		}
+		const auto selection = _state->preparedSelectionForBlock(anchor);
+		auto target = PreparedMediaPasteTarget{
+			.blockDrop = Markdown::PreparedEditBlockDropTarget{
+				.container = selection.blocks.container,
+				.insertIndex = anchor.index + 1,
+			},
+		};
+		applyPreparedList(
+			editor,
+			std::move(*list),
+			++_prepareBatchId,
+			AttachmentInsertMode::ClipboardPaste,
+			std::move(target),
+			std::nullopt,
+			anchor);
+	}
+
 	void applyPreparedList(
 		QPointer<Widget> editor,
 		PreparedList list,
 		uint64 batchId,
 		AttachmentInsertMode insertMode = AttachmentInsertMode::Normal,
 		std::optional<PreparedMediaPasteTarget> insertTarget = std::nullopt,
-		std::optional<State::ReplaceTarget> replaceTarget = std::nullopt) {
+		std::optional<State::ReplaceTarget> replaceTarget = std::nullopt,
+		std::optional<State::BlockPath> groupAnchor = std::nullopt) {
 		const auto effectiveInsertMode = replaceTarget
 			? AttachmentInsertMode::ReplaceBlock
 			: insertMode;
@@ -1692,6 +1801,7 @@ private:
 				.insertMode = effectiveInsertMode,
 				.insertTarget = insertTarget,
 				.items = std::vector<MediaBatchItem>(totalCount),
+				.groupAnchor = std::move(groupAnchor),
 			});
 		}
 		auto order = 0;
@@ -2844,9 +2954,11 @@ private:
 			if (uploadIds.empty()) {
 				return;
 			}
-			if (uploadIds.size() == 1) {
-				if (const auto attachment = findAttachment(uploadIds.front())) {
-					blocks.push_back(makeAttachmentBlock(*attachment));
+			if (batch->groupAnchor || uploadIds.size() == 1) {
+				for (const auto &uploadId : uploadIds) {
+					if (const auto attachment = findAttachment(uploadId)) {
+						blocks.push_back(makeAttachmentBlock(*attachment));
+					}
 				}
 			} else {
 				blocks.push_back(makeGroupedAttachmentBlock(uploadIds));
@@ -2956,6 +3068,7 @@ private:
 			batch->nextIndex = cursor;
 		}
 		if (blocks.empty()) {
+			groupBatchIntoCollageIfFinished(batchId);
 			if (eraseFinishedMediaBatch(batchId)) {
 				maybeContinueDeferredSubmit();
 			}
@@ -2963,6 +3076,7 @@ private:
 		}
 		const auto editor = batch->editor;
 		_editor = editor;
+		batch->insertedTopLevel += int(blocks.size());
 		if (batch->insertMode == AttachmentInsertMode::ClipboardPaste
 			&& batch->insertTarget) {
 			auto target = std::move(*batch->insertTarget);
@@ -2996,9 +3110,31 @@ private:
 			}
 		}
 		requestEditorUpdate();
+		groupBatchIntoCollageIfFinished(batchId);
 		if (eraseFinishedMediaBatch(batchId)) {
 			maybeContinueDeferredSubmit();
 		}
+	}
+
+	void groupBatchIntoCollageIfFinished(uint64 batchId) {
+		const auto batch = findMediaBatch(batchId);
+		if (!batch || !batch->groupAnchor || !batch->editor) {
+			return;
+		}
+		const auto finished = std::all_of(
+			batch->items.begin(),
+			batch->items.end(),
+			[](const MediaBatchItem &item) {
+				return (item.state == MediaBatchItemState::Inserted)
+					|| (item.state == MediaBatchItemState::Skipped);
+			});
+		if (!finished) {
+			return;
+		}
+		const auto anchor = *batch->groupAnchor;
+		const auto insertedCount = batch->insertedTopLevel;
+		batch->groupAnchor = std::nullopt;
+		batch->editor->groupBlocksIntoCollage(anchor, insertedCount);
 	}
 
 	[[nodiscard]] bool mediaIdMatchesAttachment(

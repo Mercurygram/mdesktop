@@ -301,6 +301,13 @@ struct MarkdownArticleAnchorExpansion {
 	bool changed = false;
 };
 
+struct MarkdownArticleMediaGeometry {
+	PreparedEditBlockSource block;
+	QRect mediaRect;
+	QRect visibleMediaRect;
+	bool grouped = false;
+};
+
 class MarkdownArticle {
 public:
 	MarkdownArticle(
@@ -386,6 +393,8 @@ public:
 	[[nodiscard]] QRect textSegmentRect(int segmentIndex) const;
 	[[nodiscard]] QRect logicalSegmentRect(int segmentIndex) const;
 	[[nodiscard]] QRect segmentRect(int segmentIndex) const;
+	[[nodiscard]] std::vector<MarkdownArticleMediaGeometry>
+		mediaBlockGeometries() const;
 	[[nodiscard]] QRect displayMathEditRect(int segmentIndex) const;
 	[[nodiscard]] QRect displayMathBlockRect(int segmentIndex) const;
 	[[nodiscard]] int pullquoteAvailableTextWidthForEditableLeaf(

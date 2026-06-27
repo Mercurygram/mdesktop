@@ -1202,6 +1202,10 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 				= std::move(descriptor.requestPhotoEditSource),
 			.replacePhotoWithList
 				= std::move(descriptor.replacePhotoWithList),
+			.mediaUploadState = std::move(descriptor.mediaUploadState),
+			.cancelMediaUpload = std::move(descriptor.cancelMediaUpload),
+			.addMediaAndGroupWithBlock
+				= std::move(descriptor.addMediaAndGroupWithBlock),
 			.imeCompositionStarts = window->imeCompositionStarts(),
 		},
 		descriptor.peer,

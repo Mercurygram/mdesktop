@@ -1843,6 +1843,29 @@ void ApplyOwnerContentGeometry(
 	return fallback;
 }
 
+void CollectMediaBlockGeometries(
+		std::vector<MarkdownArticleMediaGeometry> *out,
+		const std::vector<LaidOutBlock> &blocks) {
+	for (const auto &block : blocks) {
+		const auto media = (block.kind == PreparedBlockKind::Photo)
+			|| (block.kind == PreparedBlockKind::Video)
+			|| (block.kind == PreparedBlockKind::Audio)
+			|| (block.kind == PreparedBlockKind::Map)
+			|| (block.kind == PreparedBlockKind::GroupedMedia);
+		if (media && block.editBlock) {
+			out->push_back({
+				.block = *block.editBlock,
+				.mediaRect = block.mediaRect,
+				.visibleMediaRect = block.visibleMediaRect,
+				.grouped = (block.kind == PreparedBlockKind::GroupedMedia),
+			});
+		}
+		if (!block.children.empty()) {
+			CollectMediaBlockGeometries(out, block.children);
+		}
+	}
+}
+
 [[nodiscard]] PreparedEditHit EditFallbackHitForBlock(
 		const LaidOutBlock &block) {
 	if (block.editListItem) {
@@ -3259,6 +3282,8 @@ public:
 		Ui::Text::StateRequest::Flags flags) const;
 
 	[[nodiscard]] PreparedEditHit editHitTest(QPoint point) const;
+	[[nodiscard]] std::vector<MarkdownArticleMediaGeometry>
+		mediaBlockGeometries() const;
 	[[nodiscard]] MarkdownArticleDropLocation editDropTarget(
 		QPoint point) const;
 	[[nodiscard]] MarkdownArticleDropLocation editStructuralDropTarget(
@@ -3947,6 +3972,13 @@ MarkdownArticleHitTestResult MarkdownArticle::Impl::hitTest(
 
 PreparedEditHit MarkdownArticle::Impl::editHitTest(QPoint point) const {
 	return EditHitForBlocks(_blocks, point);
+}
+
+std::vector<MarkdownArticleMediaGeometry>
+MarkdownArticle::Impl::mediaBlockGeometries() const {
+	auto result = std::vector<MarkdownArticleMediaGeometry>();
+	CollectMediaBlockGeometries(&result, _blocks);
+	return result;
 }
 
 MarkdownArticleDropLocation MarkdownArticle::Impl::editDropTarget(
@@ -5879,6 +5911,11 @@ QRect MarkdownArticle::logicalSegmentRect(int segmentIndex) const {
 
 QRect MarkdownArticle::segmentRect(int segmentIndex) const {
 	return _impl->segmentRect(segmentIndex);
+}
+
+std::vector<MarkdownArticleMediaGeometry>
+MarkdownArticle::mediaBlockGeometries() const {
+	return _impl->mediaBlockGeometries();
 }
 
 QRect MarkdownArticle::displayMathEditRect(int segmentIndex) const {
