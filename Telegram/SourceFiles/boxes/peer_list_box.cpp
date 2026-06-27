@@ -2004,7 +2004,14 @@ crl::time PeerListContent::paintRow(
 			[&](QImage &image) {
 				auto q = Painter(&image);
 				paintRowContent(q, now, index, false, 0);
+				const auto statusRect = row->statusIconRect();
+				if (!statusRect.isEmpty()) {
+					q.fillRect(statusRect, st.button.textBg);
+				}
 			});
+		if (!row->statusIconRect().isEmpty()) {
+			row->paintStatusIcon(p, now, false);
+		}
 		return refreshStatusIn;
 	}
 	paintRowContent(p, now, index, selected, activeElement);
@@ -2090,7 +2097,7 @@ void PeerListContent::paintRowContent(
 	namew -= leading;
 	namew -= row->paintNameIconGetWidth(
 		p,
-		[=] { updateRow(row); },
+		[=] { updateRowStatus(row); },
 		now,
 		namex + leading,
 		namey,
@@ -2678,6 +2685,19 @@ void PeerListContent::updateRow(RowIndex index) {
 		}
 	}
 	update(0, getRowTop(index), width(), _rowHeight);
+}
+
+void PeerListContent::updateRowStatus(not_null<PeerListRow*> row) {
+	const auto index = findRowIndex(row);
+	if (index.value < 0) {
+		return;
+	}
+	const auto rect = row->statusIconRect();
+	if (_rowsScrollCache.scrolling() && !rect.isEmpty()) {
+		update(rect.translated(0, getRowTop(index)));
+	} else {
+		updateRow(index);
+	}
 }
 
 template <typename Callback>

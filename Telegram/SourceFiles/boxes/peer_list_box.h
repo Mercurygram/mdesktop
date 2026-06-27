@@ -859,6 +859,7 @@ private:
 
 	void updateRow(not_null<PeerListRow*> row, RowIndex hint);
 	void updateRow(RowIndex row);
+	void updateRowStatus(not_null<PeerListRow*> row);
 	int getRowTop(RowIndex row) const;
 	PeerListRow *getRow(RowIndex element);
 	RowIndex findRowIndex(
