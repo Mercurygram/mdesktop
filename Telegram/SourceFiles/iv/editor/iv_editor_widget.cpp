@@ -10,12 +10,16 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/qthelp_url.h"
 #include "base/qt/qt_common_adapters.h"
 #include "base/random.h"
+#include "base/weak_qptr.h"
 #include "chat_helpers/emoji_suggestions_widget.h"
 #include "chat_helpers/message_field.h"
 #include "core/mime_type.h"
 #include "data/data_msg_id.h"
 #include "data/data_types.h"
 #include "data/stickers/data_custom_emoji.h"
+#include "editor/editor_layer_widget.h"
+#include "editor/photo_editor.h"
+#include "editor/photo_editor_common.h"
 #include "iv/editor/iv_editor_text_entities.h"
 #include "iv/markdown/iv_markdown_article_paint.h"
 #include "iv/markdown/iv_markdown_microtex.h"
@@ -32,6 +36,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/chat_style.h"
 #include "ui/chat/chat_theme.h"
 #include "ui/click_handler.h"
+#include "ui/image/image.h"
 #include "ui/image/image_location.h"
 #include "ui/layers/generic_box.h"
 #include "ui/painter.h"
@@ -2589,6 +2594,8 @@ Widget::Widget(
 , _customEmojiPaused(std::move(services.customEmojiPaused))
 , _requestMedia(std::move(services.requestMedia))
 , _applyPreparedMedia(std::move(services.applyPreparedMedia))
+, _requestPhotoEditSource(std::move(services.requestPhotoEditSource))
+, _replacePhotoWithList(std::move(services.replacePhotoWithList))
 , _peer(peer)
 , _state(std::move(state))
 , _showLimitToast(std::move(showLimitToast))
@@ -5464,6 +5471,14 @@ void Widget::showSimpleMediaMenu(
 			requestReplaceMedia(path);
 		},
 		&st::menuIconReplace);
+	if (block->kind == RichPage::BlockKind::Photo) {
+		menu->addAction(
+			tr::lng_context_draw(tr::now),
+			[=] {
+				editPhotoBlock(path);
+			},
+			&st::menuIconPalette);
+	}
 	if (IsPhotoVideoBlockKind(block->kind)) {
 		const auto currentSpoiler = block->spoiler;
 		Menu::AddCheckedAction(
@@ -5759,6 +5774,68 @@ void Widget::requestReplaceMedia(State::BlockPath path) {
 		return;
 	}
 	requestMedia(std::move(target));
+}
+
+void Widget::editPhotoBlock(State::BlockPath path) {
+	const auto block = BlockFromPath(_state->richPage(), path);
+	if (!block || block->kind != RichPage::BlockKind::Photo) {
+		return;
+	}
+	auto target = _state->replaceTargetForBlock(path);
+	if (!target) {
+		return;
+	}
+	if (!_requestPhotoEditSource) {
+		return;
+	}
+	auto source = _requestPhotoEditSource(block->photoId);
+	if (source.isNull()) {
+		return;
+	}
+	const auto spoiler = block->spoiler;
+	const auto previewWidth = st::sendMediaPreviewSize;
+	const auto sourceShared = std::make_shared<QImage>(std::move(source));
+	const auto replaceTarget = std::make_shared<State::ReplaceTarget>(
+		std::move(*target));
+	auto fileImage = std::make_shared<Image>(QImage(*sourceShared));
+	auto editor = base::make_unique_q<::Editor::PhotoEditor>(
+		_outer,
+		_show,
+		nullptr,
+		std::move(fileImage),
+		::Editor::PhotoModifications());
+	const auto raw = editor.get();
+	auto layer = std::make_unique<::Editor::LayerWidget>(
+		_outer,
+		std::move(editor));
+	const auto weak = base::make_weak(this);
+	::Editor::InitEditorLayer(layer.get(), raw, [=](
+			::Editor::PhotoModifications mods) {
+		const auto strong = weak.get();
+		if (!strong || !mods || !strong->_replacePhotoWithList) {
+			return;
+		}
+		auto copy = QImage(*sourceShared);
+		auto list = Storage::PrepareMediaFromImage(
+			std::move(copy),
+			QByteArray(),
+			previewWidth);
+		if (list.files.empty()) {
+			return;
+		}
+		using ImageInfo = Ui::PreparedFileInformation::Image;
+		auto &file = list.files.front();
+		file.spoiler = spoiler;
+		if (const auto image = std::get_if<ImageInfo>(
+				&file.information->media)) {
+			image->modifications = std::move(mods);
+		}
+		strong->_replacePhotoWithList(
+			not_null<Widget*>(strong),
+			std::move(list),
+			*replaceTarget);
+	});
+	_show->showLayer(std::move(layer), Ui::LayerOption::KeepOther);
 }
 
 void Widget::touchEvent(QTouchEvent *e) {

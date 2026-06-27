@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <QtCore/QPointer>
 #include <QtCore/QString>
+#include <QtGui/QImage>
 
 #include <memory>
 #include <optional>
@@ -82,6 +83,9 @@ struct ShowWindowDescriptor {
 		RequestMediaType)> requestMedia;
 	Fn<void(not_null<Widget*>, Ui::PreparedList, PreparedMediaPasteTarget)>
 		applyPreparedMedia;
+	Fn<QImage(uint64 /*photoId*/)> requestPhotoEditSource;
+	Fn<void(not_null<Widget*>, Ui::PreparedList, State::ReplaceTarget)>
+		replacePhotoWithList;
 	Fn<void(not_null<Widget*>, QPointer<QWidget>, rpl::producer<>)> requestMap;
 	Fn<void()> closed;
 	Fn<void(RichMessageLimitError)> showLimitToast;

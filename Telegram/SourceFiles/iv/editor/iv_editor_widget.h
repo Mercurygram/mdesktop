@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <rpl/event_stream.h>
 
 #include <QtCore/QPointer>
+#include <QtGui/QImage>
 
 #include <array>
 #include <memory>
@@ -80,6 +81,9 @@ struct WidgetServices {
 		RequestMediaType)> requestMedia;
 	Fn<void(not_null<Widget*>, Ui::PreparedList, PreparedMediaPasteTarget)>
 		applyPreparedMedia;
+	Fn<QImage(uint64 /*photoId*/)> requestPhotoEditSource;
+	Fn<void(not_null<Widget*>, Ui::PreparedList, State::ReplaceTarget)>
+		replacePhotoWithList;
 	rpl::producer<> imeCompositionStarts;
 };
 
@@ -738,6 +742,7 @@ private:
 		Qt::MouseButton button);
 	[[nodiscard]] bool applyMediaBlockChange(Fn<bool()> change);
 	void requestReplaceMedia(State::BlockPath path);
+	void editPhotoBlock(State::BlockPath path);
 	[[nodiscard]] Markdown::PreparedEditSelection structuralSelectionFromHits(
 		const Markdown::PreparedEditHit &anchor,
 		const Markdown::PreparedEditHit &focus) const;
@@ -763,6 +768,9 @@ private:
 		RequestMediaType)> _requestMedia;
 	const Fn<void(not_null<Widget*>, Ui::PreparedList, PreparedMediaPasteTarget)>
 		_applyPreparedMedia;
+	const Fn<QImage(uint64)> _requestPhotoEditSource;
+	const Fn<void(not_null<Widget*>, Ui::PreparedList, State::ReplaceTarget)>
+		_replacePhotoWithList;
 	const not_null<PeerData*> _peer;
 	const std::shared_ptr<State> _state;
 	const Fn<void(RichMessageLimitError)> _showLimitToast;

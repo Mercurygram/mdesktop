@@ -1198,6 +1198,10 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 			},
 			.requestMedia = std::move(descriptor.requestMedia),
 			.applyPreparedMedia = std::move(descriptor.applyPreparedMedia),
+			.requestPhotoEditSource
+				= std::move(descriptor.requestPhotoEditSource),
+			.replacePhotoWithList
+				= std::move(descriptor.replacePhotoWithList),
 			.imeCompositionStarts = window->imeCompositionStarts(),
 		},
 		descriptor.peer,

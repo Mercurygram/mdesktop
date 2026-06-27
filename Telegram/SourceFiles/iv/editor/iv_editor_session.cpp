@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_editing.h"
 #include "apiwrap.h"
 #include "base/algorithm.h"
+#include "base/flat_map.h"
 #include "base/timer.h"
 #include "base/weak_qptr.h"
 #include "base/weak_ptr.h"
@@ -30,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_document.h"
 #include "data/data_location.h"
 #include "data/data_photo.h"
+#include "data/data_photo_media.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
 #include "history/history.h"
@@ -54,6 +56,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/boxes/confirm_box.h"
 #include "ui/chat/attach/attach_prepare.h"
 #include "ui/controls/location_picker.h"
+#include "ui/image/image.h"
 #include "ui/rp_widget.h"
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/separate_panel.h"
@@ -1426,6 +1429,19 @@ private:
 					std::move(list),
 					std::move(target));
 			},
+			.requestPhotoEditSource = [session = shared_from_this()](
+					uint64 photoId) {
+				return session->photoEditSource(photoId);
+			},
+			.replacePhotoWithList = [session = shared_from_this()](
+					not_null<Widget*> editor,
+					PreparedList list,
+					State::ReplaceTarget replaceTarget) {
+				session->replaceMediaWithPreparedList(
+					QPointer<Widget>(editor.get()),
+					std::move(list),
+					std::move(replaceTarget));
+			},
 			.requestMap = [session = shared_from_this()](
 					not_null<Widget*> editor,
 					QPointer<QWidget> parent,
@@ -1586,6 +1602,47 @@ private:
 			++_prepareBatchId,
 			AttachmentInsertMode::ClipboardPaste,
 			std::move(target));
+	}
+
+	void replaceMediaWithPreparedList(
+			QPointer<Widget> editor,
+			PreparedList list,
+			State::ReplaceTarget replaceTarget) {
+		if (!editor) {
+			return;
+		}
+		if (list.error != PreparedList::Error::None) {
+			showToast(tr::lng_send_media_invalid_files(tr::now));
+			return;
+		}
+		if (!list.files.empty()) {
+			Storage::UpdateImageDetails(
+				list.files.front(),
+				st::sendMediaPreviewSize,
+				PhotoSideLimit(true));
+		}
+		applyPreparedList(
+			editor,
+			std::move(list),
+			++_prepareBatchId,
+			AttachmentInsertMode::ReplaceBlock,
+			std::nullopt,
+			std::move(replaceTarget));
+	}
+
+	[[nodiscard]] QImage photoEditSource(uint64 photoId) {
+		if (const auto i = _originalMediaImages.find(photoId);
+			i != end(_originalMediaImages)) {
+			return i->second;
+		}
+		const auto photo = _session->data().photo(PhotoId(photoId));
+		const auto media = photo->createMediaView();
+		const auto origin = composeDraftOrigin();
+		media->wanted(::Data::PhotoSize::Large, origin);
+		if (const auto large = media->image(::Data::PhotoSize::Large)) {
+			return large->original();
+		}
+		return QImage();
 	}
 
 	void applyPreparedList(
@@ -1753,12 +1810,21 @@ private:
 		AttachmentInsertMode insertMode,
 		std::optional<State::ReplaceTarget> replaceTarget) {
 		const auto meta = BuildAttachmentMeta(file);
+		auto originalImage = QImage();
+		if (file.information) {
+			using ImageInfo = Ui::PreparedFileInformation::Image;
+			if (const auto image = std::get_if<ImageInfo>(
+					&file.information->media)) {
+				originalImage = image->data;
+			}
+		}
 		const auto weak = base::make_weak(this);
 		++_pendingAttachmentPrepareCount;
 		_attachmentPrepareQueue.addTask(
 			std::make_unique<PrepareAttachmentTask>(
 				BuildPrepareTaskArgs(_session, _peer->id, std::move(file)),
-				[weak, editor, meta, batchId, order, insertMode, replaceTarget](
+				[weak, editor, meta, batchId, order, insertMode, replaceTarget,
+						originalImage = std::move(originalImage)](
 						std::shared_ptr<FilePrepareResult> prepared) mutable {
 					if (const auto session = weak.get()) {
 						session->attachmentPrepared(
@@ -1768,7 +1834,8 @@ private:
 							batchId,
 							order,
 							insertMode,
-							std::move(replaceTarget));
+							std::move(replaceTarget),
+							std::move(originalImage));
 					}
 				}));
 	}
@@ -1780,7 +1847,8 @@ private:
 		uint64 batchId,
 		int order,
 		AttachmentInsertMode insertMode,
-		std::optional<State::ReplaceTarget> replaceTarget) {
+		std::optional<State::ReplaceTarget> replaceTarget,
+		QImage originalImage) {
 		_pendingAttachmentPrepareCount = std::max(
 			_pendingAttachmentPrepareCount - 1,
 			0);
@@ -1827,7 +1895,8 @@ private:
 			batchId,
 			order,
 			insertMode,
-			std::move(replaceTarget));
+			std::move(replaceTarget),
+			std::move(originalImage));
 		maybeContinueDeferredSubmit();
 	}
 
@@ -1838,7 +1907,8 @@ private:
 		uint64 batchId,
 		int order,
 		AttachmentInsertMode insertMode,
-		std::optional<State::ReplaceTarget> replaceTarget) {
+		std::optional<State::ReplaceTarget> replaceTarget,
+		QImage originalImage) {
 		if (!editor) {
 			return;
 		}
@@ -1847,7 +1917,8 @@ private:
 		const auto blockKind = meta.blockKind;
 		const auto uploadId = createAttachmentUpload(
 			std::move(meta),
-			std::move(prepared));
+			std::move(prepared),
+			std::move(originalImage));
 		if (!uploadId) {
 			return;
 		}
@@ -1880,7 +1951,8 @@ private:
 
 	[[nodiscard]] std::optional<FullMsgId> createAttachmentUpload(
 		AttachmentMeta meta,
-		std::shared_ptr<FilePrepareResult> prepared) {
+		std::shared_ptr<FilePrepareResult> prepared,
+		QImage originalImage) {
 		if (!prepared) {
 			return std::nullopt;
 		}
@@ -1938,6 +2010,12 @@ private:
 				record.autoplay = record.autoplay || info.animation;
 				record.loop = record.loop || info.animation;
 			}
+		}
+
+		if (record.blockKind == RichPage::BlockKind::Photo
+			&& !originalImage.isNull()
+			&& record.localMediaId) {
+			_originalMediaImages[record.localMediaId] = std::move(originalImage);
 		}
 
 		_attachments.push_back(std::move(record));
@@ -3269,6 +3347,7 @@ private:
 	Fn<void()> _onWindowClosedContinuation;
 	std::shared_ptr<const RichPage> _submittedPage;
 	std::vector<AttachmentRecord> _attachments;
+	base::flat_map<uint64, QImage> _originalMediaImages;
 	std::deque<QueuedPrepare> _prepareQueue;
 	std::vector<MediaBatch> _mediaBatches;
 	TaskQueue _attachmentPrepareQueue;
