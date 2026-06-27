@@ -126,7 +126,7 @@ public:
 	void pastePreparedBlocks(
 		std::vector<RichPage::Block> blocks,
 		PreparedMediaPasteTarget target);
-	void groupBlocksIntoCollage(State::BlockPath anchor, int insertedCount);
+	void groupBlocksIntoGroup(State::BlockPath anchor, int insertedCount);
 	void insertHeading1();
 	void insertBlockquote();
 	void insertEmoji(EmojiPtr emoji);
@@ -251,10 +251,12 @@ private:
 		Plus,
 		MediaPixels,
 		UploadRadial,
+		LayoutSwitch,
 	};
 	struct PressedMediaControl {
 		MediaControl control = MediaControl::None;
 		State::BlockPath path;
+		int itemIndex = -1;
 
 		[[nodiscard]] bool valid() const {
 			return control != MediaControl::None;
@@ -771,15 +773,23 @@ private:
 		QRect threeDots;
 		QRect plus;
 		QRect radial;
+		QRect layoutSwitch;
 	};
 	[[nodiscard]] MediaControlLayout mediaControlLayout(
 		QRect mediaRect) const;
 	[[nodiscard]] PressedMediaControl mediaControlHitTest(
 		QPoint articlePoint) const;
 	void cancelMediaUploadForBlock(const State::BlockPath &path);
+	void cancelMediaUploadForGroupedItem(
+		const State::BlockPath &path,
+		int itemIndex);
 	void addToCollageFromBlock(const State::BlockPath &path);
+	void toggleGroupedMediaIntent(const State::BlockPath &path);
 	[[nodiscard]] MediaUploadState mediaUploadStateForBlock(
 		const State::BlockPath &path) const;
+	[[nodiscard]] MediaUploadState mediaUploadStateForGroupedItem(
+		const State::BlockPath &path,
+		int itemIndex) const;
 	[[nodiscard]] Markdown::PreparedEditSelection structuralSelectionFromHits(
 		const Markdown::PreparedEditHit &anchor,
 		const Markdown::PreparedEditHit &focus) const;

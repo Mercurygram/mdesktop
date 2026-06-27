@@ -1853,11 +1853,21 @@ void CollectMediaBlockGeometries(
 			|| (block.kind == PreparedBlockKind::Map)
 			|| (block.kind == PreparedBlockKind::GroupedMedia);
 		if (media && block.editBlock) {
+			const auto grouped
+				= (block.kind == PreparedBlockKind::GroupedMedia);
+			auto itemRects = std::vector<QRect>();
+			auto activeItemIndex = -1;
+			if (grouped && block.mediaBlock) {
+				itemRects = block.mediaBlock->itemRects();
+				activeItemIndex = block.mediaBlock->activeItemIndex();
+			}
 			out->push_back({
 				.block = *block.editBlock,
 				.mediaRect = block.mediaRect,
 				.visibleMediaRect = block.visibleMediaRect,
-				.grouped = (block.kind == PreparedBlockKind::GroupedMedia),
+				.grouped = grouped,
+				.itemRects = std::move(itemRects),
+				.activeItemIndex = activeItemIndex,
 			});
 		}
 		if (!block.children.empty()) {

@@ -306,6 +306,8 @@ struct MarkdownArticleMediaGeometry {
 	QRect mediaRect;
 	QRect visibleMediaRect;
 	bool grouped = false;
+	std::vector<QRect> itemRects;
+	int activeItemIndex = -1;
 };
 
 class MarkdownArticle {

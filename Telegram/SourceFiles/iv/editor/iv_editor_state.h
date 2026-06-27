@@ -485,6 +485,9 @@ public:
 	[[nodiscard]] bool removeGroupedItem(
 		const BlockPath &path,
 		int itemIndex);
+	[[nodiscard]] bool addItemsToGroupedMedia(
+		const BlockPath &path,
+		int insertedCount);
 	[[nodiscard]] bool setGroupedMediaIntent(
 		const BlockPath &path,
 		RichPage::GroupedMediaIntent intent);

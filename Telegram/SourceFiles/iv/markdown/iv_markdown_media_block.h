@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_entity.h"
 
 #include <memory>
+#include <vector>
 
 #include <QtCore/QPoint>
 #include <QtCore/QRect>
@@ -68,6 +69,12 @@ public:
 	[[nodiscard]] virtual bool hasHeavyPart() const;
 	virtual void unloadHeavyPart();
 	virtual void hideSpoilers();
+	[[nodiscard]] virtual std::vector<QRect> itemRects() const {
+		return {};
+	}
+	[[nodiscard]] virtual int activeItemIndex() const {
+		return -1;
+	}
 
 protected:
 	void requestRepaint(QRect articleRect) const;

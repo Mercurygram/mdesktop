@@ -1116,6 +1116,19 @@ template <typename Range>
 	}
 }
 
+[[nodiscard]] uint64 MediaIdForGroupedItem(
+		const RichPage::GroupedMediaItem &item) {
+	switch (item.kind) {
+	case RichPage::BlockKind::Photo:
+		return item.photoId;
+	case RichPage::BlockKind::Video:
+	case RichPage::BlockKind::Audio:
+		return item.documentId;
+	default:
+		return uint64(0);
+	}
+}
+
 [[nodiscard]] bool IsPhotoVideoBlockKind(RichPage::BlockKind kind) {
 	return (kind == RichPage::BlockKind::Photo)
 		|| (kind == RichPage::BlockKind::Video);
@@ -5560,7 +5573,6 @@ void Widget::showGroupedMediaMenu(
 	const auto menu = Ui::CreateChild<Ui::PopupMenu>(
 		this,
 		st::popupMenuWithIcons);
-	const auto currentIntent = block->mediaIntent;
 	const auto hasItem = (itemIndex >= 0)
 		&& (itemIndex < int(block->mediaItems.size()))
 		&& IsPhotoVideoBlockKind(block->mediaItems[itemIndex].kind);
@@ -5582,28 +5594,6 @@ void Widget::showGroupedMediaMenu(
 			});
 		},
 		&st::menuIconExpand);
-	const auto switchToCollage
-		= (currentIntent == RichPage::GroupedMediaIntent::Slideshow);
-	const auto nextIntent = switchToCollage
-		? RichPage::GroupedMediaIntent::Collage
-		: RichPage::GroupedMediaIntent::Slideshow;
-	menu->addAction(
-		switchToCollage
-			? tr::lng_article_media_collage(tr::now)
-			: tr::lng_article_media_slideshow(tr::now),
-		[=] {
-			[[maybe_unused]] const auto changed = applyMediaBlockChange([=] {
-				const auto current = BlockFromPath(
-					_state->richPage(),
-					path);
-				if (!current
-					|| current->kind != RichPage::BlockKind::GroupedMedia) {
-					return false;
-				}
-				return _state->setGroupedMediaIntent(path, nextIntent);
-			});
-		},
-		switchToCollage ? &st::menuIconShowAll : &st::menuIconPhotoSet);
 	if (GroupedMediaHasPhotoVideoItems(*block)) {
 		Menu::AddCheckedAction(
 			menu,
@@ -5865,6 +5855,20 @@ MediaUploadState Widget::mediaUploadStateForBlock(
 	return _mediaUploadState ? _mediaUploadState(mediaId) : MediaUploadState();
 }
 
+MediaUploadState Widget::mediaUploadStateForGroupedItem(
+		const State::BlockPath &path,
+		int itemIndex) const {
+	const auto block = BlockFromPath(_state->richPage(), path);
+	if (!block
+		|| block->kind != RichPage::BlockKind::GroupedMedia
+		|| itemIndex < 0
+		|| itemIndex >= int(block->mediaItems.size())) {
+		return {};
+	}
+	const auto mediaId = MediaIdForGroupedItem(block->mediaItems[itemIndex]);
+	return _mediaUploadState ? _mediaUploadState(mediaId) : MediaUploadState();
+}
+
 Widget::MediaControlLayout Widget::mediaControlLayout(
 		QRect mediaRect) const {
 	const auto d = st::ivEditorMediaCornerSize;
@@ -5872,19 +5876,20 @@ Widget::MediaControlLayout Widget::mediaControlLayout(
 	const auto &r = mediaRect;
 	const auto threeDots = QRect(r.left() + skip, r.top() + skip, d, d);
 	const auto plus = QRect(r.right() - skip - d + 1, r.top() + skip, d, d);
+	const auto layoutSwitch = plus.translated(-(d + skip), 0);
 	const auto rs = st::ivEditorMediaUploadRadialSize;
 	const auto radial = QRect(
 		r.center().x() - rs / 2,
 		r.center().y() - rs / 2,
 		rs,
 		rs);
-	return { threeDots, plus, radial };
+	return { threeDots, plus, radial, layoutSwitch };
 }
 
 void Widget::paintMediaControls(Painter &p, QPoint topLeft) {
 	auto anyUploading = false;
 	for (const auto &geo : _article->mediaBlockGeometries()) {
-		if (geo.grouped || geo.visibleMediaRect.isEmpty()) {
+		if (geo.visibleMediaRect.isEmpty()) {
 			continue;
 		}
 		const auto path = _state->convertBlockPath(geo.block);
@@ -5892,26 +5897,24 @@ void Widget::paintMediaControls(Painter &p, QPoint topLeft) {
 			continue;
 		}
 		const auto block = BlockFromPath(_state->richPage(), *path);
-		if (!block || !IsSimpleMediaBlockKind(block->kind)) {
+		if (!block) {
 			continue;
 		}
-		const auto layout = mediaControlLayout(geo.visibleMediaRect);
-		const auto uploadState = mediaUploadStateForBlock(*path);
-		if (uploadState.uploading) {
-			anyUploading = true;
+		const auto ensureRadial = [&] {
 			if (!_mediaUploadRadial) {
 				_mediaUploadRadial = std::make_unique<Ui::RadialAnimation>(
 					[=] { update(); });
 			}
+		};
+		const auto paintRadial = [&](QRect radialRect, float64 progress) {
+			anyUploading = true;
+			ensureRadial();
 			if (!_mediaUploadRadial->animating()) {
-				_mediaUploadRadial->start(uploadState.progress);
+				_mediaUploadRadial->start(progress);
 			} else {
-				_mediaUploadRadial->update(
-					uploadState.progress,
-					false,
-					crl::now());
+				_mediaUploadRadial->update(progress, false, crl::now());
 			}
-			const auto radial = layout.radial.translated(topLeft);
+			const auto radial = radialRect.translated(topLeft);
 			auto hq = PainterHighQualityEnabler(p);
 			p.setPen(Qt::NoPen);
 			p.setBrush(st::roundedBg);
@@ -5921,16 +5924,56 @@ void Widget::paintMediaControls(Painter &p, QPoint topLeft) {
 				QRectF(radial),
 				st::ivEditorMediaUploadRadialWidth,
 				st::roundedFg);
-		} else {
-			const auto threeDots = layout.threeDots.translated(topLeft);
-			const auto plus = layout.plus.translated(topLeft);
+		};
+		const auto paintCircleIcon = [&](QRect circle, const style::icon &icon) {
+			const auto target = circle.translated(topLeft);
 			auto hq = PainterHighQualityEnabler(p);
 			p.setPen(Qt::NoPen);
 			p.setBrush(st::roundedBg);
-			p.drawEllipse(threeDots);
-			p.drawEllipse(plus);
-			st::sendBoxAlbumButtonMediaMore.paintInCenter(p, threeDots);
-			st::ivEditorMediaAddIcon.paintInCenter(p, plus);
+			p.drawEllipse(target);
+			icon.paintInCenter(p, target);
+		};
+		if (block->kind == RichPage::BlockKind::GroupedMedia) {
+			const auto active = geo.activeItemIndex;
+			for (auto i = 0, count = int(geo.itemRects.size())
+				; i != count
+				; ++i) {
+				const auto &itemRect = geo.itemRects[i];
+				if (itemRect.isEmpty()) {
+					continue;
+				}
+				const auto itemIndex = (active >= 0) ? active : i;
+				const auto layout = mediaControlLayout(itemRect);
+				const auto uploadState = mediaUploadStateForGroupedItem(
+					*path,
+					itemIndex);
+				if (uploadState.uploading) {
+					paintRadial(layout.radial, uploadState.progress);
+				} else {
+					paintCircleIcon(
+						layout.threeDots,
+						st::sendBoxAlbumButtonMediaMore);
+				}
+			}
+			const auto group = mediaControlLayout(geo.visibleMediaRect);
+			const auto switchIcon = (block->mediaIntent
+					== RichPage::GroupedMediaIntent::Slideshow)
+				? &st::ivEditorMediaToCollageIcon
+				: &st::ivEditorMediaToSlideshowIcon;
+			paintCircleIcon(group.layoutSwitch, *switchIcon);
+			paintCircleIcon(group.plus, st::ivEditorMediaAddIcon);
+			continue;
+		}
+		if (!IsSimpleMediaBlockKind(block->kind)) {
+			continue;
+		}
+		const auto layout = mediaControlLayout(geo.visibleMediaRect);
+		const auto uploadState = mediaUploadStateForBlock(*path);
+		if (uploadState.uploading) {
+			paintRadial(layout.radial, uploadState.progress);
+		} else {
+			paintCircleIcon(layout.threeDots, st::sendBoxAlbumButtonMediaMore);
+			paintCircleIcon(layout.plus, st::ivEditorMediaAddIcon);
 		}
 	}
 	if (!anyUploading && _mediaUploadRadial && _mediaUploadRadial->animating()) {
@@ -5941,7 +5984,7 @@ void Widget::paintMediaControls(Painter &p, QPoint topLeft) {
 Widget::PressedMediaControl Widget::mediaControlHitTest(
 		QPoint articlePoint) const {
 	for (const auto &geo : _article->mediaBlockGeometries()) {
-		if (geo.grouped || geo.visibleMediaRect.isEmpty()) {
+		if (geo.visibleMediaRect.isEmpty()) {
 			continue;
 		}
 		const auto path = _state->convertBlockPath(geo.block);
@@ -5949,7 +5992,37 @@ Widget::PressedMediaControl Widget::mediaControlHitTest(
 			continue;
 		}
 		const auto block = BlockFromPath(_state->richPage(), *path);
-		if (!block || !IsSimpleMediaBlockKind(block->kind)) {
+		if (!block) {
+			continue;
+		}
+		if (block->kind == RichPage::BlockKind::GroupedMedia) {
+			const auto active = geo.activeItemIndex;
+			for (auto i = 0, count = int(geo.itemRects.size())
+				; i != count
+				; ++i) {
+				const auto &itemRect = geo.itemRects[i];
+				if (itemRect.isEmpty()) {
+					continue;
+				}
+				const auto itemIndex = (active >= 0) ? active : i;
+				const auto layout = mediaControlLayout(itemRect);
+				if (mediaUploadStateForGroupedItem(*path, itemIndex).uploading) {
+					if (layout.radial.contains(articlePoint)) {
+						return { MediaControl::UploadRadial, *path, itemIndex };
+					}
+				} else if (layout.threeDots.contains(articlePoint)) {
+					return { MediaControl::ThreeDots, *path, itemIndex };
+				}
+			}
+			const auto group = mediaControlLayout(geo.visibleMediaRect);
+			if (group.layoutSwitch.contains(articlePoint)) {
+				return { MediaControl::LayoutSwitch, *path };
+			} else if (group.plus.contains(articlePoint)) {
+				return { MediaControl::Plus, *path };
+			}
+			continue;
+		}
+		if (!IsSimpleMediaBlockKind(block->kind)) {
 			continue;
 		}
 		const auto layout = mediaControlLayout(geo.visibleMediaRect);
@@ -5978,10 +6051,32 @@ void Widget::addToCollageFromBlock(const State::BlockPath &path) {
 	}
 }
 
-void Widget::groupBlocksIntoCollage(
+void Widget::toggleGroupedMediaIntent(const State::BlockPath &path) {
+	[[maybe_unused]] const auto changed = applyMediaBlockChange([=] {
+		const auto current = BlockFromPath(_state->richPage(), path);
+		if (!current
+			|| current->kind != RichPage::BlockKind::GroupedMedia) {
+			return false;
+		}
+		const auto next = (current->mediaIntent
+				== RichPage::GroupedMediaIntent::Slideshow)
+			? RichPage::GroupedMediaIntent::Collage
+			: RichPage::GroupedMediaIntent::Slideshow;
+		return _state->setGroupedMediaIntent(path, next);
+	});
+}
+
+void Widget::groupBlocksIntoGroup(
 		State::BlockPath anchor,
 		int insertedCount) {
 	if (insertedCount < 1) {
+		return;
+	}
+	const auto block = BlockFromPath(_state->richPage(), anchor);
+	if (block && block->kind == RichPage::BlockKind::GroupedMedia) {
+		[[maybe_unused]] const auto changed = applyMediaBlockChange([&] {
+			return _state->addItemsToGroupedMedia(anchor, insertedCount);
+		});
 		return;
 	}
 	auto selection = _state->preparedSelectionForBlock(anchor);
@@ -6021,6 +6116,30 @@ void Widget::cancelMediaUploadForBlock(const State::BlockPath &path) {
 	} else {
 		activateInitialNode();
 	}
+}
+
+void Widget::cancelMediaUploadForGroupedItem(
+		const State::BlockPath &path,
+		int itemIndex) {
+	const auto block = BlockFromPath(_state->richPage(), path);
+	if (!block
+		|| block->kind != RichPage::BlockKind::GroupedMedia
+		|| itemIndex < 0
+		|| itemIndex >= int(block->mediaItems.size())) {
+		return;
+	}
+	const auto mediaId = MediaIdForGroupedItem(block->mediaItems[itemIndex]);
+	if (_cancelMediaUpload) {
+		_cancelMediaUpload(this, mediaId);
+	}
+	[[maybe_unused]] const auto changed = applyMediaBlockChange([=] {
+		const auto current = BlockFromPath(_state->richPage(), path);
+		if (!current
+			|| current->kind != RichPage::BlockKind::GroupedMedia) {
+			return false;
+		}
+		return _state->removeGroupedItem(path, itemIndex);
+	});
 }
 
 void Widget::touchEvent(QTouchEvent *e) {
@@ -6437,11 +6556,19 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 			&& ((articlePoint - *pressedPoint).manhattanLength()
 				< QApplication::startDragDistance())
 			&& (current.control == pressed.control)
-			&& (current.path == pressed.path);
+			&& (current.path == pressed.path)
+			&& (current.itemIndex == pressed.itemIndex);
 		if (matched) {
 			switch (pressed.control) {
 			case MediaControl::ThreeDots:
-				showSimpleMediaMenu(pressed.path, e->globalPos());
+				if (pressed.itemIndex >= 0) {
+					showGroupedMediaMenu(
+						pressed.path,
+						pressed.itemIndex,
+						e->globalPos());
+				} else {
+					showSimpleMediaMenu(pressed.path, e->globalPos());
+				}
 				break;
 			case MediaControl::Plus:
 				addToCollageFromBlock(pressed.path);
@@ -6450,7 +6577,16 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 				editPhotoBlock(pressed.path);
 				break;
 			case MediaControl::UploadRadial:
-				cancelMediaUploadForBlock(pressed.path);
+				if (pressed.itemIndex >= 0) {
+					cancelMediaUploadForGroupedItem(
+						pressed.path,
+						pressed.itemIndex);
+				} else {
+					cancelMediaUploadForBlock(pressed.path);
+				}
+				break;
+			case MediaControl::LayoutSwitch:
+				toggleGroupedMediaIntent(pressed.path);
 				break;
 			case MediaControl::None:
 				break;

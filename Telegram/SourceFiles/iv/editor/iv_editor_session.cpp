@@ -3134,7 +3134,7 @@ private:
 		const auto anchor = *batch->groupAnchor;
 		const auto insertedCount = batch->insertedTopLevel;
 		batch->groupAnchor = std::nullopt;
-		batch->editor->groupBlocksIntoCollage(anchor, insertedCount);
+		batch->editor->groupBlocksIntoGroup(anchor, insertedCount);
 	}
 
 	[[nodiscard]] bool mediaIdMatchesAttachment(

@@ -296,6 +296,8 @@ public:
 
 	void hideSpoilers() override;
 
+	[[nodiscard]] std::vector<QRect> itemRects() const override;
+
 private:
 	[[nodiscard]] IvHistoryViewHit resolveHit(QPoint point) const;
 
@@ -457,6 +459,22 @@ void IvHistoryViewBlock::hideSpoilers() {
 	if (_media) {
 		_media->hideSpoilers();
 	}
+}
+
+std::vector<QRect> IvHistoryViewBlock::itemRects() const {
+	const auto grouped = dynamic_cast<HistoryView::GroupedMedia*>(
+		_media.get());
+	if (!grouped) {
+		return {};
+	}
+	auto result = std::vector<QRect>();
+	const auto count = int(_groupedItemIndices.size());
+	result.reserve(count);
+	for (auto i = 0; i != count; ++i) {
+		result.push_back(
+			grouped->groupItemRect(i).translated(_geometry.topLeft()));
+	}
+	return result;
 }
 
 IvHistoryViewHit IvHistoryViewBlock::resolveHit(QPoint point) const {
@@ -671,6 +689,10 @@ public:
 
 	void hideSpoilers() override;
 
+	[[nodiscard]] std::vector<QRect> itemRects() const override;
+
+	[[nodiscard]] int activeItemIndex() const override;
+
 private:
 	[[nodiscard]] HistoryView::Media *activeMedia() const;
 
@@ -859,6 +881,19 @@ void IvHistoryViewSlideshowBlock::hideSpoilers() {
 			media->hideSpoilers();
 		}
 	}
+}
+
+std::vector<QRect> IvHistoryViewSlideshowBlock::itemRects() const {
+	if (_geometry.isEmpty() || _slides.empty()) {
+		return {};
+	}
+	return { _geometry };
+}
+
+int IvHistoryViewSlideshowBlock::activeItemIndex() const {
+	return (_activeIndex >= 0 && _activeIndex < int(_slides.size()))
+		? _activeIndex
+		: -1;
 }
 
 void IvHistoryViewSlideshowBlock::ensureNavigationLinks() {

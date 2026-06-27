@@ -2253,6 +2253,50 @@ bool State::removeGroupedItem(
 	});
 }
 
+bool State::addItemsToGroupedMedia(
+		const BlockPath &path,
+		int insertedCount) {
+	if (insertedCount < 1) {
+		return false;
+	}
+	return applyCheckedMutation(false, [path, insertedCount](State &candidate) {
+		auto *blocks = candidate.blockContainer(path.container);
+		if (!blocks
+			|| path.index < 0
+			|| path.index >= int(blocks->size())) {
+			return CheckedMutationResult<bool>{ .result = false };
+		}
+		const auto from = path.index + 1;
+		const auto till = from + insertedCount;
+		if (till > int(blocks->size())) {
+			return CheckedMutationResult<bool>{ .result = false };
+		}
+		auto &group = (*blocks)[path.index];
+		if (group.kind != BlockKind::GroupedMedia) {
+			return CheckedMutationResult<bool>{ .result = false };
+		}
+		auto appended = std::vector<RichPage::GroupedMediaItem>();
+		appended.reserve(insertedCount);
+		for (auto i = from; i != till; ++i) {
+			const auto item = GroupedItemFromPhotoVideoBlock((*blocks)[i]);
+			if (!item) {
+				return CheckedMutationResult<bool>{ .result = false };
+			}
+			appended.push_back(*item);
+		}
+		group.mediaItems.insert(
+			group.mediaItems.end(),
+			std::make_move_iterator(appended.begin()),
+			std::make_move_iterator(appended.end()));
+		blocks->erase(blocks->begin() + from, blocks->begin() + till);
+		candidate.rebuild();
+		return CheckedMutationResult<bool>{
+			.apply = true,
+			.result = true,
+		};
+	});
+}
+
 bool State::setGroupedMediaIntent(
 		const BlockPath &path,
 		RichPage::GroupedMediaIntent intent) {
