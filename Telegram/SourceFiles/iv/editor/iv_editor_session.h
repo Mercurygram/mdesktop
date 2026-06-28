@@ -33,6 +33,7 @@ namespace Iv::Editor {
 
 using ThreadFieldDraftReader = Fn<std::unique_ptr<::Data::Draft>()>;
 using ThreadFieldDraftSaver = Fn<void(std::unique_ptr<::Data::Draft>)>;
+using ThreadFieldMigratedAway = Fn<void()>;
 
 [[nodiscard]] bool CheckRichMessagesPremium(
 	not_null<Window::SessionController*> controller);
@@ -70,7 +71,8 @@ void RegisterThreadFieldBridge(
 	MsgId topicRootId,
 	PeerId monoforumPeerId,
 	ThreadFieldDraftReader readDraft,
-	ThreadFieldDraftSaver saveDraft);
+	ThreadFieldDraftSaver saveDraft,
+	ThreadFieldMigratedAway migratedAway);
 void UnregisterThreadFieldBridge(
 	not_null<Main::Session*> session,
 	PeerId peerId,

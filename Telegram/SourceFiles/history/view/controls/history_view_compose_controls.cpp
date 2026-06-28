@@ -2163,6 +2163,31 @@ void ComposeControls::saveThreadFieldDraft(std::unique_ptr<Data::Draft> draft) {
 	applyDraft(Ui::InputField::HistoryAction::NewEntry);
 }
 
+void ComposeControls::migrateFieldToRichEditor() {
+	if (!_history) {
+		return;
+	}
+	if (isEditingMessage()) {
+		cancelEditMessage();
+	} else {
+		clearFieldText();
+		saveThreadFieldDraft(nullptr);
+		_history->clearCloudDraft(_topicRootId, _monoforumPeerId);
+		if (const auto thread = _history->threadFor(
+				_topicRootId,
+				_monoforumPeerId)) {
+			if (const auto cloudDraft = _history->createCloudDraft(
+					_topicRootId,
+					_monoforumPeerId,
+					nullptr)) {
+				session().api().saveDraftToCloud(
+					not_null{ thread },
+					*cloudDraft);
+			}
+		}
+	}
+}
+
 void ComposeControls::clearFieldText(
 		TextUpdateEvents events,
 		FieldHistoryAction fieldHistoryAction) {
@@ -2881,6 +2906,9 @@ void ComposeControls::registerThreadFieldBridge() {
 		},
 		[this](std::unique_ptr<Data::Draft> draft) {
 			saveThreadFieldDraft(std::move(draft));
+		},
+		[this] {
+			migrateFieldToRichEditor();
 		});
 	Iv::Editor::FieldVisibleValue(
 		_session,

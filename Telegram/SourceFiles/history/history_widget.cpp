@@ -2243,6 +2243,27 @@ void HistoryWidget::saveThreadFieldDraft(std::unique_ptr<Data::Draft> draft) {
 	applyDraft(Ui::InputField::HistoryAction::NewEntry);
 }
 
+void HistoryWidget::migrateFieldToRichEditor() {
+	if (!_history) {
+		return;
+	}
+	if (editingMessage()) {
+		cancelEdit();
+	} else {
+		clearFieldText();
+		saveThreadFieldDraft(nullptr);
+		_history->clearCloudDraft(MsgId(), PeerId());
+		if (const auto cloudDraft = _history->createCloudDraft(
+				MsgId(),
+				PeerId(),
+				nullptr)) {
+			session().api().saveDraftToCloud(
+				not_null{ _history },
+				*cloudDraft);
+		}
+	}
+}
+
 void HistoryWidget::fileChosen(ChatHelpers::FileChosen &&data) {
 	controller()->hideLayer(anim::type::normal);
 	if (const auto info = data.document->sticker()
@@ -3462,6 +3483,11 @@ void HistoryWidget::registerThreadFieldBridge() {
 		[weak](std::unique_ptr<Data::Draft> draft) {
 			if (const auto widget = weak.get()) {
 				widget->saveThreadFieldDraft(std::move(draft));
+			}
+		},
+		[weak] {
+			if (const auto widget = weak.get()) {
+				widget->migrateFieldToRichEditor();
 			}
 		});
 	Iv::Editor::FieldVisibleValue(

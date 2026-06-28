@@ -448,6 +448,7 @@ private:
 	[[nodiscard]] bool shouldShowRichDraftPreview() const;
 	[[nodiscard]] std::unique_ptr<Data::Draft> readThreadFieldDraft() const;
 	void saveThreadFieldDraft(std::unique_ptr<Data::Draft> draft);
+	void migrateFieldToRichEditor();
 
 	const style::ComposeControls &_st;
 	ChatHelpers::ComposeFeatures _features;

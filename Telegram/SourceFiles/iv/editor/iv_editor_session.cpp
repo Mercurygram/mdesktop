@@ -96,6 +96,7 @@ struct ComposeThreadEntry {
 	rpl::variable<bool> fieldVisible = false;
 	ThreadFieldDraftReader readDraft;
 	ThreadFieldDraftSaver saveDraft;
+	ThreadFieldMigratedAway migratedAway;
 };
 
 [[nodiscard]] ComposeThreadKey ComposeKey(
@@ -566,6 +567,9 @@ public:
 						});
 						if (!migrated.blocks.empty()) {
 							*page = std::move(migrated);
+							if (entry->migratedAway) {
+								entry->migratedAway();
+							}
 						}
 					}
 				}
@@ -3969,11 +3973,13 @@ void RegisterThreadFieldBridge(
 		MsgId topicRootId,
 		PeerId monoforumPeerId,
 		ThreadFieldDraftReader readDraft,
-		ThreadFieldDraftSaver saveDraft) {
+		ThreadFieldDraftSaver saveDraft,
+		ThreadFieldMigratedAway migratedAway) {
 	auto &entry = ComposeThreadEntryFor(
 		ComposeKey(session, peerId, topicRootId, monoforumPeerId));
 	entry.readDraft = std::move(readDraft);
 	entry.saveDraft = std::move(saveDraft);
+	entry.migratedAway = std::move(migratedAway);
 }
 
 void UnregisterThreadFieldBridge(
@@ -3985,6 +3991,7 @@ void UnregisterThreadFieldBridge(
 		ComposeKey(session, peerId, topicRootId, monoforumPeerId));
 	entry.readDraft = nullptr;
 	entry.saveDraft = nullptr;
+	entry.migratedAway = nullptr;
 }
 
 void CloseAllWindows() {

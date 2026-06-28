@@ -702,6 +702,7 @@ private:
 	[[nodiscard]] bool shouldShowRichDraftPreview() const;
 	[[nodiscard]] std::unique_ptr<Data::Draft> readThreadFieldDraft() const;
 	void saveThreadFieldDraft(std::unique_ptr<Data::Draft> draft);
+	void migrateFieldToRichEditor();
 	void setHistory(History *history);
 	void setEditMsgId(MsgId msgId);
 
