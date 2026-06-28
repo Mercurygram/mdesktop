@@ -2320,15 +2320,15 @@ LiftPreparedEditBlocksToCommonContainer(
 		PreparedOrderedListType type) {
 	switch (type) {
 	case PreparedOrderedListType::LowerAlpha:
-		return &st::menuIconListLowercaseLetters;
+		return &st::ivEditorToolbarOrderedListAlphaLowerIcon;
 	case PreparedOrderedListType::UpperAlpha:
-		return &st::menuIconListUppercaseLetters;
+		return &st::ivEditorToolbarOrderedListAlphaUpperIcon;
 	case PreparedOrderedListType::LowerRoman:
-		return &st::menuIconListLowercaseRoman;
+		return &st::ivEditorToolbarOrderedListRomanLowerIcon;
 	case PreparedOrderedListType::UpperRoman:
-		return &st::menuIconListUppercaseRoman;
+		return &st::ivEditorToolbarOrderedListRomanUpperIcon;
 	case PreparedOrderedListType::Decimal:
-		return &st::menuIconListNumbers;
+		return &st::ivEditorToolbarOrderedListIcon;
 	}
 	return nullptr;
 }
