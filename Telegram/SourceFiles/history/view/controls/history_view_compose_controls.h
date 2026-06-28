@@ -392,6 +392,7 @@ private:
 	[[nodiscard]] bool hasSendableContent() const;
 	[[nodiscard]] bool hideExtraButtons() const;
 	[[nodiscard]] bool hasEnoughLinesForAi() const;
+	[[nodiscard]] bool hasEnoughLinesForExpand() const;
 	[[nodiscard]] bool textExceedsMaxSize() const;
 
 	void cancelInlineBot();

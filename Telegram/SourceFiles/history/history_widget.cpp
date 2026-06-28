@@ -6878,6 +6878,12 @@ bool HistoryWidget::hasEnoughLinesForAi() const {
 		&& Ui::HasEnoughLinesForAi(&session(), _field);
 }
 
+bool HistoryWidget::hasEnoughLinesForExpand() const {
+	return _history
+		&& !_voiceRecordBar->isActive()
+		&& Ui::HasEnoughLinesForExpand(_field);
+}
+
 bool HistoryWidget::textExceedsMaxSize() const {
 	return _history
 		&& !_voiceRecordBar->isActive()
@@ -6906,6 +6912,7 @@ void HistoryWidget::updateExpandButtonVisibility() {
 	const auto hidden = !_send->isVisible()
 		|| !_field->isVisible()
 		|| _voiceRecordBar->isActive()
+		|| !hasEnoughLinesForExpand()
 		|| (textExceedsMaxSize() && !editingMessage());
 	if (_expand->isHidden() != hidden) {
 		_expand->setVisible(!hidden);

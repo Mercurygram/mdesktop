@@ -570,6 +570,7 @@ private:
 	[[nodiscard]] Data::ForumTopic *resolveReplyToTopic();
 	[[nodiscard]] bool canWriteMessage() const;
 	[[nodiscard]] bool hasEnoughLinesForAi() const;
+	[[nodiscard]] bool hasEnoughLinesForExpand() const;
 	[[nodiscard]] bool textExceedsMaxSize() const;
 	void orderWidgets();
 

@@ -4086,6 +4086,7 @@ void ComposeControls::updateExpandButtonVisibility() {
 	const auto hidden = !_wrap->isVisible()
 		|| _recording.current()
 		|| !_field->isVisible()
+		|| !hasEnoughLinesForExpand()
 		|| textExceedsMaxSize();
 	if (_expand->isHidden() != hidden) {
 		_expand->setVisible(!hidden);
@@ -4227,6 +4228,12 @@ bool ComposeControls::hasEnoughLinesForAi() const {
 	return _history
 		&& !_recording.current()
 		&& Ui::HasEnoughLinesForAi(&session(), _field);
+}
+
+bool ComposeControls::hasEnoughLinesForExpand() const {
+	return _history
+		&& !_recording.current()
+		&& Ui::HasEnoughLinesForExpand(_field);
 }
 
 bool ComposeControls::textExceedsMaxSize() const {
