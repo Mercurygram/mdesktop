@@ -206,50 +206,6 @@ struct IvHistoryViewHit {
 	return result;
 }
 
-[[nodiscard]] IvHistoryViewHit ClassifyGroupedSpoiler(
-		HistoryView::Media *partMedia,
-		const base::flat_map<
-			uint64,
-			std::shared_ptr<PhotoRuntime>> &photos,
-		const base::flat_map<
-			uint64,
-			std::shared_ptr<DocumentRuntime>> &documents,
-		const base::flat_map<uint64, int> &indices,
-		const base::flat_set<uint64> &spoileredIds) {
-	auto result = IvHistoryViewHit();
-	if (!partMedia) {
-		return result;
-	}
-	if (const auto photo = partMedia->getPhoto()) {
-		if (!spoileredIds.contains(photo->id)) {
-			return result;
-		}
-		const auto i = photos.find(photo->id);
-		if (i != end(photos)) {
-			result.activation.kind = MediaActivationKind::Photo;
-			result.activation.photo = i->second;
-			const auto j = indices.find(photo->id);
-			if (j != end(indices)) {
-				result.activation.itemIndex = j->second;
-			}
-		}
-	} else if (const auto document = partMedia->getDocument()) {
-		if (!spoileredIds.contains(document->id)) {
-			return result;
-		}
-		const auto i = documents.find(document->id);
-		if (i != end(documents)) {
-			result.activation.kind = MediaActivationKind::Document;
-			result.activation.document = i->second;
-			const auto j = indices.find(document->id);
-			if (j != end(indices)) {
-				result.activation.itemIndex = j->second;
-			}
-		}
-	}
-	return result;
-}
-
 [[nodiscard]] not_null<HistoryItem*> CreateIvHostMessage(
 		not_null<History*> history,
 		QString pageUrl) {
@@ -544,19 +500,6 @@ IvHistoryViewHit IvHistoryViewBlock::classifyHandler(
 			result.activation.kind = MediaActivationKind::Document;
 			result.activation.document = _documentRuntime;
 			return result;
-		}
-		if (_kind == IvHistoryViewMediaKind::GroupedMedia) {
-			const auto grouped = dynamic_cast<HistoryView::GroupedMedia*>(
-				_media.get());
-			auto spoiler = ClassifyGroupedSpoiler(
-				grouped ? grouped->partMediaAt(localPoint) : nullptr,
-				_groupedPhotoRuntimes,
-				_groupedDocumentRuntimes,
-				_groupedItemIndices,
-				_groupedSpoileredIds);
-			if (spoiler.activation.kind != MediaActivationKind::None) {
-				return spoiler;
-			}
 		}
 	}
 	if (IsSupportedInteractionHandler(handler)) {
@@ -954,18 +897,6 @@ IvHistoryViewHit IvHistoryViewSlideshowBlock::classifyState(
 	const auto &handler = state.link;
 	if (!handler) {
 		return result;
-	}
-	if (std::dynamic_pointer_cast<LambdaClickHandler>(handler) && media) {
-		auto spoiler = ClassifyGroupedSpoiler(
-			media,
-			_groupedPhotoRuntimes,
-			_groupedDocumentRuntimes,
-			_groupedItemIndices,
-			_groupedSpoileredIds);
-		if (spoiler.activation.kind != MediaActivationKind::None) {
-			spoiler.activation.itemIndex = index;
-			return spoiler;
-		}
 	}
 	if (IsSupportedInteractionHandler(handler)) {
 		result.link = handler;
