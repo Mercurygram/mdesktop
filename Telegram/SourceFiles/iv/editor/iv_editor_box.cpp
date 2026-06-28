@@ -1410,7 +1410,6 @@ void WindowHost::Impl::layout() {
 	_bottom->setGeometry(0, height - bottomHeight, editorWidth, bottomHeight);
 	const auto column = _editor->articleColumnForWidth(editorWidth);
 	const auto fitsArticle = (column.width >= _toolbar->contentMaxWidth());
-	const auto left = fitsArticle ? column.left : 0;
 	const auto right = fitsArticle
 		? (column.left + column.width)
 		: editorWidth;
@@ -1427,16 +1426,13 @@ void WindowHost::Impl::layout() {
 		right - shadowSkipRight - _send->width(),
 		buttonsTop + shadowSkipTop,
 		editorWidth);
-	if (_discard) {
-		_discard->moveToLeft(left, buttonsTop, editorWidth);
-	}
-	if (_cancel) {
-		_cancel->moveToLeft(
+	if (leftPill) {
+		leftPill->moveToLeft(
 			right
 				- shadowSkipRight
 				- _send->width()
 				- st::ivEditorToolbarGroupsSkip
-				- _cancel->naturalSize().width(),
+				- leftPill->naturalSize().width(),
 			buttonsTop,
 			editorWidth);
 	}

@@ -116,8 +116,8 @@ ivEditorToolbarSuperscriptIcon: icon {{ "menu/rich/superscript-24x24", menuIconC
 ivEditorToolbarMarkedIcon: icon {{ "menu/rich/marked-24x24", menuIconColor }};
 ivEditorToolbarPlainTextIcon: icon {{ "menu/rich/plain_text-24x24", menuIconColor }};
 ivEditorToolbarLinkIcon: icon {{ "menu/rich/link-24x24", menuIconColor }};
-ivEditorBottomDiscardIcon: icon {{ "menu/rich/discard", menuIconColor }};
-ivEditorBottomCancelIcon: icon {{ "menu/rich/cancel", menuIconColor }};
+ivEditorBottomDiscardIcon: icon {{ "menu/rich/discard-24x24", menuIconColor }};
+ivEditorBottomCancelIcon: icon {{ "menu/rich/cancel-24x24", menuIconColor }};
 ivEditorToolbarButton: IconButton(defaultIconButton) {
 	width: ivEditorToolbarButtonSize;
 	height: ivEditorToolbarButtonSize;
