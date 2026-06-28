@@ -5837,6 +5837,7 @@ void Widget::editPhotoBlock(State::BlockPath path) {
 				&file.information->media)) {
 			image->modifications = std::move(mods);
 		}
+		Storage::ApplyModifications(list);
 		strong->_replacePhotoWithList(
 			not_null<Widget*>(strong),
 			std::move(list),
