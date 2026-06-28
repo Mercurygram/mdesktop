@@ -3294,6 +3294,9 @@ public:
 	[[nodiscard]] PreparedEditHit editHitTest(QPoint point) const;
 	[[nodiscard]] std::vector<MarkdownArticleMediaGeometry>
 		mediaBlockGeometries() const;
+	void setGroupedActiveIndex(
+		const PreparedEditBlockSource &source,
+		int index);
 	[[nodiscard]] MarkdownArticleDropLocation editDropTarget(
 		QPoint point) const;
 	[[nodiscard]] MarkdownArticleDropLocation editBlockDropTarget(
@@ -3991,6 +3994,15 @@ MarkdownArticle::Impl::mediaBlockGeometries() const {
 	auto result = std::vector<MarkdownArticleMediaGeometry>();
 	CollectMediaBlockGeometries(&result, _blocks);
 	return result;
+}
+
+void MarkdownArticle::Impl::setGroupedActiveIndex(
+		const PreparedEditBlockSource &source,
+		int index) {
+	const auto block = FindLaidOutArticleBlockByPath(&_blocks, source.path);
+	if (block && block->mediaBlock) {
+		block->mediaBlock->setActiveItemIndex(index);
+	}
 }
 
 MarkdownArticleDropLocation MarkdownArticle::Impl::editDropTarget(
@@ -5942,6 +5954,12 @@ QRect MarkdownArticle::segmentRect(int segmentIndex) const {
 std::vector<MarkdownArticleMediaGeometry>
 MarkdownArticle::mediaBlockGeometries() const {
 	return _impl->mediaBlockGeometries();
+}
+
+void MarkdownArticle::setGroupedActiveIndex(
+		const PreparedEditBlockSource &source,
+		int index) {
+	_impl->setGroupedActiveIndex(source, index);
 }
 
 QRect MarkdownArticle::displayMathEditRect(int segmentIndex) const {

@@ -5599,22 +5599,24 @@ void Widget::showGroupedMediaMenu(
 			menu,
 			tr::lng_context_spoiler_effect(tr::now),
 			[=] {
-				[[maybe_unused]] const auto changed = applyMediaBlockChange([=] {
-					const auto current = BlockFromPath(
-						_state->richPage(),
-						path);
-					if (!current || !GroupedMediaHasPhotoVideoItems(*current)) {
-						return false;
-					}
-					return hasItem
-						? _state->toggleSpoilerOnGroupedItem(
-							path,
-							itemIndex,
-							!currentSpoiler)
-						: _state->toggleSpoilerOnBlocks(
-							std::vector<State::BlockPath>{ path },
-							!currentSpoiler);
-				});
+				[[maybe_unused]] const auto changed
+					= applyGroupedMediaChangePreservingActiveIndex(path, [=] {
+						const auto current = BlockFromPath(
+							_state->richPage(),
+							path);
+						if (!current
+							|| !GroupedMediaHasPhotoVideoItems(*current)) {
+							return false;
+						}
+						return hasItem
+							? _state->toggleSpoilerOnGroupedItem(
+								path,
+								itemIndex,
+								!currentSpoiler)
+							: _state->toggleSpoilerOnBlocks(
+								std::vector<State::BlockPath>{ path },
+								!currentSpoiler);
+					});
 			},
 			&st::menuIconSpoiler,
 			currentSpoiler);
@@ -5623,20 +5625,22 @@ void Widget::showGroupedMediaMenu(
 		.text = tr::lng_box_remove(tr::now),
 		.handler = [=] {
 			auto target = std::optional<int>();
-			const auto changed = applyMediaBlockChange([=, &target] {
-				const auto current = BlockFromPath(
-					_state->richPage(),
-					path);
-				if (!current
-					|| current->kind != RichPage::BlockKind::GroupedMedia) {
-					return false;
-				}
-				if (hasItem) {
-					return _state->removeGroupedItem(path, itemIndex);
-				}
-				target = _state->removeBlock(path, true);
-				return true;
-			});
+			const auto changed = applyGroupedMediaChangePreservingActiveIndex(
+				path,
+				[=, &target] {
+					const auto current = BlockFromPath(
+						_state->richPage(),
+						path);
+					if (!current
+						|| current->kind != RichPage::BlockKind::GroupedMedia) {
+						return false;
+					}
+					if (hasItem) {
+						return _state->removeGroupedItem(path, itemIndex);
+					}
+					target = _state->removeBlock(path, true);
+					return true;
+				});
 			if (!changed) {
 				return;
 			} else if (target) {
@@ -5740,6 +5744,48 @@ bool Widget::activateGroupedMediaLinkFromHit(
 	}
 	ActivateClickHandler(this, articleHit.state.link, button);
 	return true;
+}
+
+int Widget::groupedActiveIndexForPath(const State::BlockPath &path) const {
+	for (const auto &geo : _article->mediaBlockGeometries()) {
+		if (!geo.grouped) {
+			continue;
+		}
+		const auto geoPath = _state->convertBlockPath(geo.block);
+		if (geoPath && (*geoPath == path)) {
+			return geo.activeItemIndex;
+		}
+	}
+	return -1;
+}
+
+void Widget::restoreGroupedActiveIndexForPath(
+		const State::BlockPath &path,
+		int activeIndex) {
+	if (activeIndex < 0) {
+		return;
+	}
+	for (const auto &geo : _article->mediaBlockGeometries()) {
+		if (!geo.grouped) {
+			continue;
+		}
+		const auto geoPath = _state->convertBlockPath(geo.block);
+		if (geoPath && (*geoPath == path)) {
+			_article->setGroupedActiveIndex(geo.block, activeIndex);
+			return;
+		}
+	}
+}
+
+bool Widget::applyGroupedMediaChangePreservingActiveIndex(
+		const State::BlockPath &path,
+		Fn<bool()> change) {
+	const auto savedActiveIndex = groupedActiveIndexForPath(path);
+	const auto changed = applyMediaBlockChange(std::move(change));
+	if (changed) {
+		restoreGroupedActiveIndexForPath(path, savedActiveIndex);
+	}
+	return changed;
 }
 
 bool Widget::applyMediaBlockChange(Fn<bool()> change) {
@@ -6075,9 +6121,10 @@ void Widget::groupBlocksIntoGroup(
 	}
 	const auto block = BlockFromPath(_state->richPage(), anchor);
 	if (block && block->kind == RichPage::BlockKind::GroupedMedia) {
-		[[maybe_unused]] const auto changed = applyMediaBlockChange([&] {
-			return _state->addItemsToGroupedMedia(anchor, insertedCount);
-		});
+		[[maybe_unused]] const auto changed
+			= applyGroupedMediaChangePreservingActiveIndex(anchor, [&] {
+				return _state->addItemsToGroupedMedia(anchor, insertedCount);
+			});
 		return;
 	}
 	auto selection = _state->preparedSelectionForBlock(anchor);

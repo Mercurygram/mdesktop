@@ -766,6 +766,14 @@ private:
 		const Markdown::MarkdownArticleHitTestResult &articleHit,
 		Qt::MouseButton button);
 	[[nodiscard]] bool applyMediaBlockChange(Fn<bool()> change);
+	[[nodiscard]] int groupedActiveIndexForPath(
+		const State::BlockPath &path) const;
+	void restoreGroupedActiveIndexForPath(
+		const State::BlockPath &path,
+		int activeIndex);
+	bool applyGroupedMediaChangePreservingActiveIndex(
+		const State::BlockPath &path,
+		Fn<bool()> change);
 	void requestReplaceMedia(State::BlockPath path);
 	void editPhotoBlock(State::BlockPath path);
 	void paintMediaControls(Painter &p, QPoint topLeft);

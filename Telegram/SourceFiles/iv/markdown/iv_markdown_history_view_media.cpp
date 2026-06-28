@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtWidgets/QApplication>
+#include <algorithm>
 #include <array>
 #include <unordered_set>
 
@@ -693,6 +694,8 @@ public:
 
 	[[nodiscard]] int activeItemIndex() const override;
 
+	void setActiveItemIndex(int index) override;
+
 private:
 	[[nodiscard]] HistoryView::Media *activeMedia() const;
 
@@ -894,6 +897,20 @@ int IvHistoryViewSlideshowBlock::activeItemIndex() const {
 	return (_activeIndex >= 0 && _activeIndex < int(_slides.size()))
 		? _activeIndex
 		: -1;
+}
+
+void IvHistoryViewSlideshowBlock::setActiveItemIndex(int index) {
+	const auto count = int(_slides.size());
+	if (count < 1) {
+		return;
+	}
+	const auto next = std::clamp(index, 0, count - 1);
+	if (next == _activeIndex) {
+		return;
+	}
+	_activeIndex = next;
+	applyForcedSize();
+	requestRepaint(_geometry);
 }
 
 void IvHistoryViewSlideshowBlock::ensureNavigationLinks() {

@@ -399,6 +399,9 @@ public:
 	[[nodiscard]] QRect segmentRect(int segmentIndex) const;
 	[[nodiscard]] std::vector<MarkdownArticleMediaGeometry>
 		mediaBlockGeometries() const;
+	void setGroupedActiveIndex(
+		const PreparedEditBlockSource &source,
+		int index);
 	[[nodiscard]] QRect displayMathEditRect(int segmentIndex) const;
 	[[nodiscard]] QRect displayMathBlockRect(int segmentIndex) const;
 	[[nodiscard]] int pullquoteAvailableTextWidthForEditableLeaf(

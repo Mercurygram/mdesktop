@@ -75,6 +75,8 @@ public:
 	[[nodiscard]] virtual int activeItemIndex() const {
 		return -1;
 	}
+	virtual void setActiveItemIndex(int index) {
+	}
 
 protected:
 	void requestRepaint(QRect articleRect) const;
