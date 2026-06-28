@@ -2097,20 +2097,14 @@ std::optional<TextWithEntities> SerializeAsSimple(const RichPage &page) {
 RichPage SplitTextIntoRichPage(TextWithEntities text) {
 	auto page = RichPage();
 
-	const auto emitParagraphs = [&](int from, int to) {
-		auto lineStart = from;
-		for (auto i = from; i <= to; ++i) {
-			if (i == to || text.text[i] == QChar('\n')) {
-				auto line = Ui::Text::Mid(text, lineStart, i - lineStart);
-				TextUtilities::Trim(line);
-				if (!line.empty()) {
-					page.blocks.push_back(Block{
-						.kind = BlockKind::Paragraph,
-						.text = { std::move(line) },
-					});
-				}
-				lineStart = i + 1;
-			}
+	const auto emitParagraph = [&](int from, int to) {
+		auto paragraph = Ui::Text::Mid(text, from, to - from);
+		TextUtilities::Trim(paragraph);
+		if (!paragraph.empty()) {
+			page.blocks.push_back(Block{
+				.kind = BlockKind::Paragraph,
+				.text = { std::move(paragraph) },
+			});
 		}
 	};
 
@@ -2140,7 +2134,7 @@ RichPage SplitTextIntoRichPage(TextWithEntities text) {
 		if (segment.offset < cursor) {
 			continue;
 		}
-		emitParagraphs(cursor, segment.offset);
+		emitParagraph(cursor, segment.offset);
 		auto source = text;
 		for (auto i = 0; i != int(source.entities.size()); ++i) {
 			const auto &e = source.entities[i];
@@ -2170,7 +2164,7 @@ RichPage SplitTextIntoRichPage(TextWithEntities text) {
 			});
 		}
 	}
-	emitParagraphs(cursor, size);
+	emitParagraph(cursor, size);
 
 	return page;
 }
