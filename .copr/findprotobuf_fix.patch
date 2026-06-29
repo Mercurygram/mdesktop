@@ -1,0 +1,15 @@
+diff -uNdr tdesktop-5.14.1-full_orig/cmake/external/cld3/CMakeLists.txt tdesktop-5.14.1-full_new/cmake/external/cld3/CMakeLists.txt
+--- tdesktop-5.14.1-full_orig/cmake/external/cld3/CMakeLists.txt	2025-05-01 10:59:09.000000000 +0300
++++ tdesktop-5.14.1-full_new/cmake/external/cld3/CMakeLists.txt	2025-05-05 09:45:00.668094060 +0300
+@@ -29,7 +29,10 @@
+ set(gen_dst ${gen_loc}/cld_3/protos)
+ 
+ if (DESKTOP_APP_USE_PACKAGED OR LINUX)
+-    find_package(protobuf REQUIRED CONFIG)
++    find_package(protobuf CONFIG)
++    if (NOT protobuf_FOUND)
++        find_package(Protobuf MODULE REQUIRED)
++    endif()
+     set(protoc_executable protobuf::protoc)
+     set(protobuf_lib protobuf::libprotobuf-lite)
+ elseif (WIN32)
