@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "menu/menu_checked_action.h"
 
 #include "base/unique_qptr.h"
+#include "ui/effects/premium_graphics.h"
 #include "ui/widgets/menu/menu_action.h"
 #include "ui/widgets/menu/menu_common.h"
 #include "ui/widgets/popup_menu.h"
@@ -17,7 +18,26 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_widgets.h"
 #include "styles/palette.h"
 
+#include <QtSvg/QSvgRenderer>
+
 namespace {
+
+[[nodiscard]] QImage PremiumStarImage(int size) {
+	const auto factor = style::DevicePixelRatio();
+	const auto side = QSize(size, size);
+	auto image = QImage(
+		side * factor,
+		QImage::Format_ARGB32_Premultiplied);
+	image.setDevicePixelRatio(factor);
+	image.fill(Qt::transparent);
+	{
+		auto p = QPainter(&image);
+		auto svg = QSvgRenderer(
+			Ui::Premium::ColorizedSvg(Ui::Premium::ButtonGradientStops()));
+		svg.render(&p, QRectF(QPointF(), QSizeF(side)));
+	}
+	return image;
+}
 
 [[nodiscard]] style::Menu PatchedActiveStyle(
 		const style::Menu &base,
@@ -50,13 +70,15 @@ public:
 		const style::Menu &st,
 		not_null<QAction*> action,
 		const style::icon *icon,
-		bool active);
+		bool active,
+		int premiumStarSize);
 
 private:
 	void paintEvent(QPaintEvent *e) override;
 
 	const style::icon *_activeIcon = nullptr;
 	const bool _active = false;
+	QImage _premiumStar;
 
 };
 
@@ -65,25 +87,43 @@ ActiveColorAction::ActiveColorAction(
 	const style::Menu &st,
 	not_null<QAction*> action,
 	const style::icon *icon,
-	bool active)
+	bool active,
+	int premiumStarSize)
 : OwnedMenuStyle(PatchedActiveStyle(st, active))
 , Ui::Menu::Action(parent, OwnedMenuStyle::value, action, icon, icon)
 , _activeIcon(icon)
-, _active(active) {
+, _active(active)
+, _premiumStar((premiumStarSize > 0)
+	? PremiumStarImage(premiumStarSize)
+	: QImage()) {
+	if (premiumStarSize > 0) {
+		setMinWidth(minWidth()
+			+ OwnedMenuStyle::value.itemRightSkip
+			+ premiumStarSize);
+	}
 }
 
 void ActiveColorAction::paintEvent(QPaintEvent *e) {
 	Ui::Menu::Action::paintEvent(e);
 
-	if (!_active || !_activeIcon) {
-		return;
-	}
 	Painter p(this);
-	_activeIcon->paint(
-		p,
-		OwnedMenuStyle::value.itemIconPosition,
-		width(),
-		st::windowActiveTextFg->c);
+	if (_active && _activeIcon) {
+		_activeIcon->paint(
+			p,
+			OwnedMenuStyle::value.itemIconPosition,
+			width(),
+			st::windowActiveTextFg->c);
+	}
+	if (!_premiumStar.isNull()) {
+		const auto factor = style::DevicePixelRatio();
+		const auto starWidth = _premiumStar.width() / factor;
+		const auto starHeight = _premiumStar.height() / factor;
+		const auto left = width()
+			- OwnedMenuStyle::value.itemRightSkip
+			- starWidth;
+		const auto top = (height() - starHeight) / 2;
+		p.drawImage(left, top, _premiumStar);
+	}
 }
 
 class CheckedAction final : public Ui::Menu::Action {
@@ -154,7 +194,8 @@ not_null<QAction*> AddActiveColorAction(
 		const QString &text,
 		Fn<void()> callback,
 		const style::icon *icon,
-		bool active) {
+		bool active,
+		int premiumStarSize) {
 	auto item = base::make_unique_q<ActiveColorAction>(
 		menu->menu(),
 		menu->st().menu,
@@ -163,7 +204,8 @@ not_null<QAction*> AddActiveColorAction(
 			text,
 			std::move(callback)),
 		icon,
-		active);
+		active,
+		premiumStarSize);
 	return menu->addAction(std::move(item));
 }
 

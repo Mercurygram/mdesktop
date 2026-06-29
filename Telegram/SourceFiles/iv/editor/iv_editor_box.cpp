@@ -754,7 +754,14 @@ void Toolbar::fillBlockStyleMenu(not_null<Ui::PopupMenu*> menu) {
 			_editor->insertBlock({ .type = type });
 		}
 	};
-	const auto withShortcut = [](const QString &label, QKeySequence seq) {
+	const auto premium = _session->premium();
+	const auto starSize = premium
+		? 0
+		: st::ivEditorStyleMenuPremiumStarSize;
+	const auto withShortcut = [&](const QString &label, QKeySequence seq) {
+		if (!premium) {
+			return label;
+		}
 		const auto shortcut = seq.toString(QKeySequence::NativeText);
 		return shortcut.isEmpty()
 			? label
@@ -782,13 +789,15 @@ void Toolbar::fillBlockStyleMenu(not_null<Ui::PopupMenu*> menu) {
 			Ui::kBlockquoteSequence),
 		[=] { insertType(State::InsertBlockType::Blockquote); },
 		&st::ivEditorToolbarBlockquoteIcon,
-		(kind == Kind::Quote && !info.pullquote));
+		(kind == Kind::Quote && !info.pullquote),
+		starSize);
 	Menu::AddActiveColorAction(
 		menu,
 		tr::lng_article_insert_pullquote(tr::now),
 		[=] { insertType(State::InsertBlockType::Pullquote); },
 		&st::ivEditorToolbarPullquoteIcon,
-		(kind == Kind::Quote && info.pullquote));
+		(kind == Kind::Quote && info.pullquote),
+		starSize);
 	Menu::AddActiveColorAction(
 		menu,
 		withShortcut(
@@ -796,7 +805,8 @@ void Toolbar::fillBlockStyleMenu(not_null<Ui::PopupMenu*> menu) {
 			Ui::kMonospaceSequence),
 		[=] { insertType(State::InsertBlockType::Code); },
 		&st::ivEditorToolbarCodeIcon,
-		(kind == Kind::Code));
+		(kind == Kind::Code),
+		starSize);
 	menu->addAction(
 		tr::lng_article_insert_divider(tr::now),
 		[=] { insertType(State::InsertBlockType::Divider); },
@@ -841,7 +851,14 @@ void Toolbar::showBlockStyleMenu(not_null<Ui::IconButton*> button) {
 
 void Toolbar::fillTextStyleMenu(not_null<Ui::PopupMenu*> menu) {
 	using Action = Widget::ToolbarFormatAction;
-	const auto withShortcut = [](const QString &label, QKeySequence seq) {
+	const auto premium = _session->premium();
+	const auto starSize = premium
+		? 0
+		: st::ivEditorStyleMenuPremiumStarSize;
+	const auto withShortcut = [&](const QString &label, QKeySequence seq) {
+		if (!premium) {
+			return label;
+		}
 		const auto shortcut = seq.toString(QKeySequence::NativeText);
 		return shortcut.isEmpty()
 			? label
@@ -865,7 +882,8 @@ void Toolbar::fillTextStyleMenu(not_null<Ui::PopupMenu*> menu) {
 				}
 			},
 			icon,
-			state.active);
+			state.active,
+			starSize);
 	};
 	add(Action::Bold,
 		tr::lng_menu_formatting_bold(tr::now),
