@@ -32,6 +32,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_location.h"
 #include "data/data_photo.h"
 #include "data/data_photo_media.h"
+#include "data/data_premium_limits.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
 #include "history/history.h"
@@ -43,6 +44,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "iv/editor/iv_editor_widget.h"
 #include "iv/iv_instance.h"
 #include "iv/iv_rich_message_serializer.h"
+#include "iv/iv_rich_page.h"
 #include "lang/lang_keys.h"
 #include "main/main_app_config.h"
 #include "main/main_session.h"
@@ -57,8 +59,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/attach/attach_prepare.h"
 #include "ui/controls/location_picker.h"
 #include "ui/image/image.h"
+#include "ui/layers/generic_box.h"
+#include "ui/painter.h"
 #include "ui/rp_widget.h"
 #include "ui/text/text_utilities.h"
+#include "ui/widgets/labels.h"
 #include "ui/widgets/separate_panel.h"
 #include "window/window_session_controller.h"
 
@@ -70,6 +75,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <vector>
 
 #include "styles/style_boxes.h"
+#include "styles/style_iv.h"
 #include "styles/style_layers.h"
 
 namespace Iv::Editor {
@@ -822,7 +828,19 @@ private:
 			return submitSimpleText(std::move(*simple));
 		}
 		if (!CanUseRichMessages(_session)) {
-			ShowRichMessagesPremiumToast(resolveShow());
+			const auto page = _state->richPage();
+			const auto weak = base::make_weak(this);
+			OfferRichMessagePremiumChoice(
+				resolveShow(),
+				_session,
+				page,
+				[=] {
+					if (const auto strong = weak.get()) {
+						auto plain = FlattenRichPageSummary(page);
+						plain.entities.clear();
+						(void)strong->submitSimpleText(std::move(plain));
+					}
+				});
 			return false;
 		}
 		auto page = std::shared_ptr<const RichPage>(
@@ -3907,6 +3925,84 @@ bool ArticleSession::RequestCloseOpenEditWindowThen(
 }
 
 } // namespace
+
+void OfferRichMessagePremiumChoice(
+		std::shared_ptr<ChatHelpers::Show> show,
+		not_null<Main::Session*> session,
+		const RichPage &page,
+		Fn<void()> sendWithoutFormatting) {
+	if (!show) {
+		return;
+	}
+	const auto flattened = FlattenRichPageSummary(page);
+	const auto lengthLimit = ::Data::PremiumLimits(session)
+		.messageLengthCurrent();
+	const auto sendable = (CountRichPageMedia(page) == 0)
+		&& !flattened.text.isEmpty()
+		&& (int(flattened.text.size()) <= lengthLimit);
+	if (!sendable) {
+		ShowRichMessagesPremiumToast(std::move(show));
+		return;
+	}
+	show->showBox(Box([=](not_null<Ui::GenericBox*> box) {
+		box->setWidth(st::boxWideWidth);
+
+		const auto icon = box->addRow(
+			object_ptr<Ui::RpWidget>(box),
+			st::ivEditorPremiumChoiceIconPadding,
+			style::al_top);
+		const auto size = st::ivEditorPremiumChoiceIconCircle;
+		icon->resize(size, size);
+		icon->paintRequest(
+		) | rpl::on_next([=] {
+			auto p = QPainter(icon);
+			auto hq = PainterHighQualityEnabler(p);
+			const auto left = (icon->width() - size) / 2;
+			p.setPen(Qt::NoPen);
+			p.setBrush(st::windowBgActive);
+			p.drawEllipse(left, 0, size, size);
+			const auto &glyph = st::ivEditorPremiumChoiceIcon;
+			glyph.paint(
+				p,
+				left + (size - glyph.width()) / 2,
+				(size - glyph.height()) / 2,
+				icon->width());
+		}, icon->lifetime());
+
+		box->addRow(
+			object_ptr<Ui::FlatLabel>(
+				box,
+				tr::lng_article_premium_choice_title(),
+				st::boxTitle),
+			st::boxRowPadding,
+			style::al_top);
+
+		box->addRow(
+			object_ptr<Ui::FlatLabel>(
+				box,
+				tr::lng_article_premium_choice_about(
+					lt_link,
+					tr::lng_article_premium_choice_about_link(tr::bold),
+					tr::marked),
+				st::boxLabel),
+			st::boxRowPadding,
+			style::al_top);
+
+		box->addButton(tr::lng_posts_subscribe(), [=] {
+			Settings::ShowPremium(session, u"rich_message"_q);
+			box->closeBox();
+		});
+		box->addButton(tr::lng_article_premium_choice_plain(), [=] {
+			box->closeBox();
+			if (sendWithoutFormatting) {
+				sendWithoutFormatting();
+			}
+		});
+		box->addButton(tr::lng_cancel(), [=] {
+			box->closeBox();
+		});
+	}));
+}
 
 bool CheckRichMessagesPremium(
 		not_null<Window::SessionController*> controller) {

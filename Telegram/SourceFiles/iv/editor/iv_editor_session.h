@@ -29,6 +29,14 @@ namespace Window {
 class SessionController;
 } // namespace Window
 
+namespace ChatHelpers {
+class Show;
+} // namespace ChatHelpers
+
+namespace Iv {
+struct RichPage;
+} // namespace Iv
+
 namespace Iv::Editor {
 
 using ThreadFieldDraftReader = Fn<std::unique_ptr<::Data::Draft>()>;
@@ -37,6 +45,11 @@ using ThreadFieldMigratedAway = Fn<void()>;
 
 [[nodiscard]] bool CheckRichMessagesPremium(
 	not_null<Window::SessionController*> controller);
+void OfferRichMessagePremiumChoice(
+	std::shared_ptr<ChatHelpers::Show> show,
+	not_null<Main::Session*> session,
+	const RichPage &page,
+	Fn<void()> sendWithoutFormatting);
 void ShowComposeBox(
 	not_null<Window::SessionController*> controller,
 	not_null<PeerData*> peer,

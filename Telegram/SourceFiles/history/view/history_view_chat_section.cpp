@@ -29,6 +29,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_item_components.h"
 #include "history/history_item_helpers.h" // GetErrorForSending.
 #include "iv/iv_rich_message_serializer.h"
+#include "iv/iv_rich_page.h"
 #include "ui/chat/pinned_bar.h"
 #include "ui/chat/chat_style.h"
 #include "ui/controls/swipe_handler.h"
@@ -1481,6 +1482,21 @@ void ChatWidget::sendRichDraft(
 	} else if (serialized.status != Iv::SerializeInputRichMessageStatus::Success
 		|| !serialized.value) {
 		controller()->showToast(tr::lng_attach_failed(tr::now));
+		return;
+	}
+	if (!session().premium()
+		&& Iv::RichPageUsesPremiumFormatting(*page)) {
+		const auto sendPlain = crl::guard(this, [=, this] {
+			auto text = Iv::FlattenRichPageSummary(page);
+			auto tags = TextWithTags{ text.text };
+			sendTextWithTags(std::move(tags), false, options, nullptr);
+			_composeControls->applyCloudDraft();
+		});
+		Iv::Editor::OfferRichMessagePremiumChoice(
+			controller()->uiShow(),
+			&session(),
+			*page,
+			sendPlain);
 		return;
 	}
 	if (!options.scheduled) {

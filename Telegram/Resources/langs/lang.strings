@@ -7265,6 +7265,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_article_submit_empty" = "The article can't be empty.";
 "lng_article_premium_required" = "Subscribe to {link} to be able to send rich articles.";
 "lng_article_premium_required_link" = "Telegram Premium";
+"lng_article_premium_choice_title" = "Remove Formatting";
+"lng_article_premium_choice_about" = "This message uses rich formatting, which requires {link}.";
+"lng_article_premium_choice_about_link" = "Telegram Premium";
+"lng_article_premium_choice_plain" = "Send Without Formatting";
 "lng_article_table_change" = "Change Table";
 "lng_article_table_add_row" = "Add Row";
 "lng_article_table_add_column" = "Add Column";
