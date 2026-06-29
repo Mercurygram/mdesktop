@@ -1082,7 +1082,7 @@ void TrimEmptyParagraphEdges(std::vector<Block> *blocks) {
 			|| RichTextHasVisibleText(normalized.caption);
 		result.hasRealContent = result.hasRealContent
 			|| RichTextHasVisibleText(normalized.text);
-		if (normalized.blocks.empty() && !result.hasMeaningfulContent) {
+		if (normalized.blocks.empty() && !result.hasRealContent) {
 			result.value.reset();
 		}
 		return result;
