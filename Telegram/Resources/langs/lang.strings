@@ -6760,7 +6760,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_rights_chat_add_members" = "Add members";
 "lng_rights_chat_photos" = "Photos";
 "lng_rights_chat_videos" = "Video files";
-"lng_rights_chat_stickers" = "Stickers & GIFs";
+"lng_rights_chat_stickers" = "Stickers";
+"lng_rights_chat_gifs" = "GIFs";
+"lng_rights_chat_games" = "Games";
+"lng_rights_chat_inline" = "Inline bots";
 "lng_rights_chat_music" = "Music";
 "lng_rights_chat_files" = "Files";
 "lng_rights_chat_voice_messages" = "Voice messages";
