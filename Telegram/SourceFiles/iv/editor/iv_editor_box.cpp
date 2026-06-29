@@ -677,6 +677,11 @@ void Toolbar::fillBlockStyleMenu(not_null<Ui::PopupMenu*> menu) {
 		[=] { insertType(State::InsertBlockType::Code); },
 		&st::ivEditorToolbarCodeIcon,
 		(kind == Kind::Code));
+	menu->addAction(
+		tr::lng_article_insert_divider(tr::now),
+		[=] { insertType(State::InsertBlockType::Divider); },
+		&st::ivEditorToolbarDividerIcon,
+		&st::ivEditorToolbarDividerIcon);
 }
 
 void Toolbar::applyBlockText() {
