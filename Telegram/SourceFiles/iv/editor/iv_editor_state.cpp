@@ -3423,6 +3423,30 @@ State::BoundaryTarget State::boundaryTargetForLeaf(
 	if (ordinal < 0) {
 		return {};
 	}
+	if (!forward) {
+		const auto owner = block(leaf.block);
+		if (owner && owner->kind == BlockKind::Table) {
+			if (leaf.kind == LeafKind::BlockText && CanEditBlock(*owner)) {
+				return {
+					.action = BoundaryAction::StructuralSelection,
+					.structuralSelection = preparedSelectionForBlock(leaf.block),
+				};
+			} else if (leaf.kind == LeafKind::TableCellText
+				&& leaf.tableRowIndex == 0
+				&& leaf.tableCellIndex == 0) {
+				const auto titleOrdinal = textNodeOrdinal(LeafPath{
+					.kind = LeafKind::BlockText,
+					.block = leaf.block,
+				});
+				if (titleOrdinal >= 0) {
+					return {
+						.action = BoundaryAction::Text,
+						.textOrdinal = titleOrdinal,
+					};
+				}
+			}
+		}
+	}
 	const auto prioritizeStructuralStep = [&](const BoundaryTarget &target) {
 		if (target.action != BoundaryAction::StructuralSelection) {
 			return false;
