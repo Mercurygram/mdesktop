@@ -831,13 +831,21 @@ private:
 			showRichMessageLimitToast(*error);
 			return false;
 		}
+		_submittedPage = page;
+		if (submittedAttachmentsReady()
+			&& serializeSubmittedPage().status
+				== SerializeInputRichMessageStatus::EmptyContent) {
+			_submittedPage = nullptr;
+			showEmptySubmittedPageToast();
+			return false;
+		}
 		if (!applySubmittedLocalState(page)) {
+			_submittedPage = nullptr;
 			showToast(tr::lng_edit_error(tr::now));
 			return false;
 		}
 		_submitDeferred = false;
 		cancelRichDraftAutosave();
-		_submittedPage = std::move(page);
 		_backgroundHold = shared_from_this();
 		maybeContinueSubmittedRequest();
 		return true;
@@ -1034,6 +1042,14 @@ private:
 		finishSubmittedWork();
 	}
 
+	void discardSubmittedLocalItem() {
+		if (_mode == Mode::Edit) {
+			restoreEditedItem();
+		} else if (const auto item = currentSubmittedItem()) {
+			item->destroy();
+		}
+	}
+
 	[[nodiscard]] SerializeInputRichMessageMode submittedSerializeMode() const {
 		switch (_submitType) {
 		case ShowWindowDescriptor::SubmitType::Send:
@@ -1211,7 +1227,9 @@ private:
 		const auto richMessage = serializeSubmittedPage();
 		if (richMessage.status == SerializeInputRichMessageStatus::EmptyContent) {
 			showEmptySubmittedPageToast();
-			failSubmittedWork(false);
+			discardSubmittedLocalItem();
+			finishSubmittedWork();
+			restartRichDraftAutosave();
 			return;
 		} else if (richMessage.status != SerializeInputRichMessageStatus::Success
 			|| !richMessage.value) {

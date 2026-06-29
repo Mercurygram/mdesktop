@@ -44,6 +44,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/scheduled_messages.h"
 #include "data/notify/data_notify_settings.h"
 #include "data/data_changes.h"
+#include "data/data_drafts.h"
 #include "data/data_media_types.h"
 #include "data/data_web_page.h"
 #include "data/data_folder.h"
@@ -4422,6 +4423,28 @@ void ApiWrap::sendRichMessage(
 			? std::make_optional(std::move(*serialized.value))
 			: std::nullopt;
 	};
+	const auto recoverRichFailure = [=](const QString &type) {
+		const auto show = ShowForPeer(peer);
+		if (const auto failed = _session->data().message(item->fullId())) {
+			if (const auto page = failed->richPage()) {
+				auto draft = std::make_unique<Data::Draft>();
+				draft->reply.topicRootId = draftTopicRootId;
+				draft->reply.monoforumPeerId = draftMonoforumPeerId;
+				draft->richMessage = page;
+				draft->richMessageSummary = failed->originalText();
+				history->setLocalDraft(std::move(draft));
+			}
+			if (randomId) {
+				_session->data().unregisterMessageRandomId(randomId);
+			}
+			failed->destroy();
+		}
+		if (show) {
+			show->showToast(type.isEmpty()
+				? tr::lng_edit_error(tr::now)
+				: type);
+		}
+	};
 	const auto performRequest = [=](
 			const auto &repeatRequest,
 			MTPInputRichMessage currentRichMessage,
@@ -4462,13 +4485,13 @@ void ApiWrap::sendRichMessage(
 								*refreshedRichMessage,
 								true);
 						} else {
-							sendMessageFail(error, peer, randomId, item->fullId());
+							recoverRichFailure(error.type());
 							finishCloudDraft(response);
 						}
 					});
 					return;
 				}
-				sendMessageFail(error, peer, randomId, item->fullId());
+				recoverRichFailure(error.type());
 				finishCloudDraft(response);
 			});
 	};
