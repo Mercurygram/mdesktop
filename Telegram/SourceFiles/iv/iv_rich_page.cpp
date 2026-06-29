@@ -1748,6 +1748,30 @@ void AppendSimpleBlock(
 	return true;
 }
 
+[[nodiscard]] bool RichBlockIsPlain(const Block &block) {
+	const auto hasEntities = [](const TextWithEntities &text) {
+		return !text.entities.isEmpty();
+	};
+	if (block.kind == BlockKind::Paragraph) {
+		return !hasEntities(block.text.text);
+	} else if (block.kind == BlockKind::Quote) {
+		if (block.pullquote
+			|| !block.author.trimmed().isEmpty()
+			|| !block.caption.text.text.trimmed().isEmpty()
+			|| hasEntities(block.text.text)) {
+			return false;
+		}
+		for (const auto &child : block.blocks) {
+			if (child.kind != BlockKind::Paragraph
+				|| hasEntities(child.text.text)) {
+				return false;
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
 void AppendSummaryBlock(TextWithEntities *result, const Block &block) {
 	switch (block.kind) {
 	case BlockKind::Unsupported:
@@ -2092,6 +2116,15 @@ std::optional<TextWithEntities> SerializeAsSimple(const RichPage &page) {
 		return std::nullopt;
 	}
 	return result;
+}
+
+bool RichPageUsesPremiumFormatting(const RichPage &page) {
+	for (const auto &block : page.blocks) {
+		if (!RichBlockIsPlain(block)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 RichPage SplitTextIntoRichPage(TextWithEntities text) {

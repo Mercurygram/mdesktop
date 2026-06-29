@@ -40,6 +40,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/controls/send_button.h"
 #include "ui/delayed_activation.h"
 #include "ui/rp_widget.h"
+#include "data/data_peer_values.h"
 #include "ui/ui_utility.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/fields/input_field.h"
@@ -1424,6 +1425,38 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 	if (descriptor.setupSubmitButton) {
 		descriptor.setupSubmitButton(
 			not_null<Ui::RpWidget*>(raw));
+	}
+	{
+		const auto lock = Ui::CreateChild<Ui::RpWidget>(raw);
+		lock->setAttribute(Qt::WA_TransparentForMouseEvents);
+		lock->resize(st::emojiPremiumLock.size());
+		lock->move(st::ivEditorSendLockBadgePosition);
+		lock->paintRequest() | rpl::on_next([=] {
+			auto p = QPainter(lock);
+			st::emojiPremiumLock.paint(p, 0, 0, lock->width());
+		}, lock->lifetime());
+		lock->hide();
+		const auto session = descriptor.session;
+		const auto state = _state;
+		const auto editor = not_null<Widget*>(_editor.data());
+		const auto premium = lock->lifetime().make_state<bool>(true);
+		const auto refresh = [=] {
+			const auto locked = !*premium
+				&& Iv::RichPageUsesPremiumFormatting(state->richPage());
+			lock->setVisible(locked);
+			if (locked) {
+				lock->raise();
+			}
+		};
+		Data::AmPremiumValue(
+			session
+		) | rpl::on_next([=](bool value) {
+			*premium = value;
+			refresh();
+		}, lock->lifetime());
+		editor->toolbarStateChanges() | rpl::on_next([=] {
+			refresh();
+		}, lock->lifetime());
 	}
 
 	_discarded = std::move(descriptor.discarded);
