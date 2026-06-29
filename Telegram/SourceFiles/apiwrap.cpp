@@ -4426,13 +4426,18 @@ void ApiWrap::sendRichMessage(
 	const auto recoverRichFailure = [=](const QString &type) {
 		const auto show = ShowForPeer(peer);
 		if (const auto failed = _session->data().message(item->fullId())) {
-			if (const auto page = failed->richPage()) {
-				auto draft = std::make_unique<Data::Draft>();
-				draft->reply.topicRootId = draftTopicRootId;
-				draft->reply.monoforumPeerId = draftMonoforumPeerId;
-				draft->richMessage = page;
-				draft->richMessageSummary = failed->originalText();
-				history->setLocalDraft(std::move(draft));
+			const auto fullPage = failed->fullRichPage();
+			if (const auto page = fullPage ? fullPage : failed->richPage()) {
+				auto draft = Data::Draft();
+				draft.reply.topicRootId = draftTopicRootId;
+				draft.reply.monoforumPeerId = draftMonoforumPeerId;
+				draft.richMessage = page;
+				draft.richMessageSummary = failed->originalText();
+				history->createCloudDraft(
+					draftTopicRootId,
+					draftMonoforumPeerId,
+					&draft);
+				history->applyCloudDraft(draftTopicRootId, draftMonoforumPeerId);
 			}
 			if (randomId) {
 				_session->data().unregisterMessageRandomId(randomId);
