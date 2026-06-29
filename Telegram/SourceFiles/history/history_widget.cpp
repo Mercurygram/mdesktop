@@ -3867,7 +3867,9 @@ void HistoryWidget::updateControlsVisibility() {
 	};
 	const auto showPreview = [&] {
 		if (const auto draft = cloudDraft()) {
-			_richDraftPreview->setDraft(*draft);
+			_richDraftPreview->setDraft(*draft, Data::FileOriginCloudDraft{
+				.peerId = _history->peer->id,
+			});
 		}
 		if (_richDraftPreview->isHidden()) {
 			_richDraftPreview->show();

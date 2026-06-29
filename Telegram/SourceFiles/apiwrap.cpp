@@ -2487,12 +2487,13 @@ void ApiWrap::saveDraftsToCloud() {
 		if (!thread) {
 			i = _draftsSaveRequestIds.erase(i);
 			continue;
+		} else if (i->second) {
+			++i;
+			continue; // sent already - keep in-flight saves tracked so
+			          // quit prevention waits for their done/fail handler.
 		} else if (ShouldSkipPlainDraftCloudSave(_session, thread)) {
 			i = _draftsSaveRequestIds.erase(i);
 			continue;
-		} else if (i->second) {
-			++i;
-			continue; // sent already
 		}
 
 		const auto history = thread->owningHistory();

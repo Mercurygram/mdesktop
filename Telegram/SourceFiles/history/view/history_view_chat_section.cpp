@@ -1464,6 +1464,7 @@ void ChatWidget::sendRichDraft(
 		.ignoreSlowmodeCountdown = (options.scheduled != 0),
 		.richMessage = true,
 	};
+	request.messagesCount = ComputeSendingMessagesCount(_history, request);
 	const auto error = GetErrorForSending(_peer, request);
 	if (error) {
 		Data::ShowSendErrorToast(controller(), _peer, error);
@@ -1489,7 +1490,7 @@ void ChatWidget::sendRichDraft(
 			sendRichDraft(page, copy);
 		};
 		const auto checked = checkSendPayment(
-			1,
+			request.messagesCount,
 			options,
 			withPaymentApproved);
 		if (!checked) {

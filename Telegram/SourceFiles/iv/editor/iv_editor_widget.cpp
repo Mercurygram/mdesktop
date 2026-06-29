@@ -3593,10 +3593,11 @@ bool Widget::handleClipboardKey(QKeyEvent *e) {
 			pasteStructuredClipboardData(*data);
 			e->accept();
 			return true;
-		} else if (auto list = PreparedMediaFromClipboard(
-				not_null<const QMimeData*>(mimeData),
-				_session->premium())) {
-			if (_applyPreparedMedia) {
+		}
+		if (mimeData && _applyPreparedMedia) {
+			if (auto list = PreparedMediaFromClipboard(
+					not_null<const QMimeData*>(mimeData),
+					_session->premium())) {
 				_applyPreparedMedia(
 					not_null<Widget*>(this),
 					std::move(*list),
@@ -3604,7 +3605,8 @@ bool Widget::handleClipboardKey(QKeyEvent *e) {
 				e->accept();
 				return true;
 			}
-		} else if (prepareFieldForInput()) {
+		}
+		if (prepareFieldForInput()) {
 			_field->setFocusFast();
 			QCoreApplication::sendEvent(_field->rawTextEdit(), e);
 			e->accept();
@@ -5934,7 +5936,7 @@ Widget::MediaControlLayout Widget::mediaControlLayout(
 }
 
 void Widget::paintMediaControls(Painter &p, QPoint topLeft) {
-	auto anyUploading = false;
+	auto activeRadials = std::vector<uint64>();
 	for (const auto &geo : _article->mediaBlockGeometries()) {
 		if (geo.visibleMediaRect.isEmpty()) {
 			continue;
@@ -5947,26 +5949,30 @@ void Widget::paintMediaControls(Painter &p, QPoint topLeft) {
 		if (!block) {
 			continue;
 		}
-		const auto ensureRadial = [&] {
-			if (!_mediaUploadRadial) {
-				_mediaUploadRadial = std::make_unique<Ui::RadialAnimation>(
-					[=] { update(); });
+		const auto paintRadial = [&](
+				uint64 mediaId,
+				QRect radialRect,
+				float64 progress) {
+			activeRadials.push_back(mediaId);
+			auto i = _mediaUploadRadials.find(mediaId);
+			if (i == _mediaUploadRadials.end()) {
+				i = _mediaUploadRadials.emplace(
+					mediaId,
+					std::make_unique<Ui::RadialAnimation>(
+						[=] { update(); })).first;
 			}
-		};
-		const auto paintRadial = [&](QRect radialRect, float64 progress) {
-			anyUploading = true;
-			ensureRadial();
-			if (!_mediaUploadRadial->animating()) {
-				_mediaUploadRadial->start(progress);
+			const auto radialPtr = i->second.get();
+			if (!radialPtr->animating()) {
+				radialPtr->start(progress);
 			} else {
-				_mediaUploadRadial->update(progress, false, crl::now());
+				radialPtr->update(progress, false, crl::now());
 			}
 			const auto radial = radialRect.translated(topLeft);
 			auto hq = PainterHighQualityEnabler(p);
 			p.setPen(Qt::NoPen);
 			p.setBrush(st::roundedBg);
 			p.drawEllipse(radial);
-			_mediaUploadRadial->draw(
+			radialPtr->draw(
 				p,
 				QRectF(radial),
 				st::ivEditorMediaUploadRadialWidth,
@@ -5995,7 +6001,10 @@ void Widget::paintMediaControls(Painter &p, QPoint topLeft) {
 					*path,
 					itemIndex);
 				if (uploadState.uploading) {
-					paintRadial(layout.radial, uploadState.progress);
+					paintRadial(
+						MediaIdForGroupedItem(block->mediaItems[itemIndex]),
+						layout.radial,
+						uploadState.progress);
 				} else {
 					paintCircleIcon(
 						layout.threeDots,
@@ -6017,14 +6026,30 @@ void Widget::paintMediaControls(Painter &p, QPoint topLeft) {
 		const auto layout = mediaControlLayout(geo.visibleMediaRect);
 		const auto uploadState = mediaUploadStateForBlock(*path);
 		if (uploadState.uploading) {
-			paintRadial(layout.radial, uploadState.progress);
+			paintRadial(
+				MediaIdForBlock(*block),
+				layout.radial,
+				uploadState.progress);
 		} else {
 			paintCircleIcon(layout.threeDots, st::sendBoxAlbumButtonMediaMore);
 			paintCircleIcon(layout.plus, st::ivEditorMediaAddIcon);
 		}
 	}
-	if (!anyUploading && _mediaUploadRadial && _mediaUploadRadial->animating()) {
-		_mediaUploadRadial->stop();
+	for (auto i = _mediaUploadRadials.begin()
+		; i != _mediaUploadRadials.end()
+		;) {
+		auto active = false;
+		for (const auto id : activeRadials) {
+			if (id == i->first) {
+				active = true;
+				break;
+			}
+		}
+		if (active) {
+			++i;
+		} else {
+			i = _mediaUploadRadials.erase(i);
+		}
 	}
 }
 
@@ -10744,20 +10769,6 @@ bool Widget::applyInlineSelectionDrop() {
 			hideInlineField();
 			clearInlineFieldEditSession(true);
 		}
-		const auto sourceSpans = _articleSelectionDrag.fromField
-			? (_articleSelectionDrag.sourceLeaf
-				? _state->resolveTextSpansForPreparedLeafRange(
-					*_articleSelectionDrag.sourceLeaf,
-					_articleSelectionDrag.sourceFrom,
-					_articleSelectionDrag.sourceTo)
-				: std::vector<TextNodeSpan>())
-			: std::vector<TextNodeSpan>{ *_articleSelectionDrag.inlineSource };
-		if (sourceSpans.empty()) {
-			return MutationTransactionResult{
-				.committed = committed,
-				.changed = (committed == ApplyResult::Changed),
-			};
-		}
 		auto restore = restoreField;
 		const auto restoreInlineField = gsl::finally([&] {
 			if (!restore) {
@@ -10799,6 +10810,20 @@ bool Widget::applyInlineSelectionDrop() {
 			_field->setFocusFast();
 			notifyToolbarStateChanged();
 		});
+		const auto sourceSpans = _articleSelectionDrag.fromField
+			? (_articleSelectionDrag.sourceLeaf
+				? _state->resolveTextSpansForPreparedLeafRange(
+					*_articleSelectionDrag.sourceLeaf,
+					_articleSelectionDrag.sourceFrom,
+					_articleSelectionDrag.sourceTo)
+				: std::vector<TextNodeSpan>())
+			: std::vector<TextNodeSpan>{ *_articleSelectionDrag.inlineSource };
+		if (sourceSpans.empty()) {
+			return MutationTransactionResult{
+				.committed = committed,
+				.changed = (committed == ApplyResult::Changed),
+			};
+		}
 		const auto moved = _state->moveTextSelectionToDropTarget(
 			sourceSpans,
 			target);

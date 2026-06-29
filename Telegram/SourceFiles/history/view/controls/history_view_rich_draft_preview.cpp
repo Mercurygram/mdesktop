@@ -142,8 +142,10 @@ RichDraftPreview::~RichDraftPreview() {
 	detachArticleBindings();
 }
 
-void RichDraftPreview::setDraft(const Data::Draft &draft) {
-	rebuildPreparedContent(draft);
+void RichDraftPreview::setDraft(
+		const Data::Draft &draft,
+		Data::FileOrigin draftOrigin) {
+	rebuildPreparedContent(draft, std::move(draftOrigin));
 }
 
 int RichDraftPreview::resizeGetHeight(
@@ -240,7 +242,9 @@ void RichDraftPreview::clearPreparedContent() {
 	_clippedBottom = false;
 }
 
-void RichDraftPreview::rebuildPreparedContent(const Data::Draft &draft) {
+void RichDraftPreview::rebuildPreparedContent(
+		const Data::Draft &draft,
+		Data::FileOrigin draftOrigin) {
 	const auto next = draft.hasRichMessage()
 		? draft.richMessage
 		: std::shared_ptr<const Iv::RichPage>();
@@ -266,7 +270,8 @@ void RichDraftPreview::rebuildPreparedContent(const Data::Draft &draft) {
 		_session,
 		FullMsgId(),
 		[](QString) {},
-		[](QString) {});
+		[](QString) {},
+		std::move(draftOrigin));
 	auto prepared = Iv::Markdown::TryPrepareNativeInstantView({
 		.richPage = next,
 		.mediaRuntime = mediaRuntime,

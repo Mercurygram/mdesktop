@@ -4820,8 +4820,14 @@ bool State::normalizeTextOnlyContainerForInsertion(
 	if (!insertAt || *insertAt < 0) {
 		return false;
 	}
-	(void)normalizeTextOnlyListItemForInsertion(container);
-	(void)normalizeTextOnlyQuoteForInsertion(container);
+	if (const auto normalized = normalizeTextOnlyListItemForInsertion(
+			container); normalized && (*normalized >= 0)) {
+		++*insertAt;
+	}
+	if (const auto normalized = normalizeTextOnlyQuoteForInsertion(
+			container); normalized && (*normalized >= 0)) {
+		++*insertAt;
+	}
 	const auto blocks = blockContainer(container);
 	return blocks && *insertAt <= int(blocks->size());
 }

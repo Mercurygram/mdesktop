@@ -806,19 +806,23 @@ private:
 		if (_submittedPage || _submitApiRequested) {
 			return false;
 		}
-		if (auto simple = SerializeAsSimple(_state->richPage())) {
-			return submitSimpleText(std::move(*simple));
-		}
-		if (!CanUseRichMessages(_session)) {
-			ShowRichMessagesPremiumToast(resolveShow());
-			return false;
-		}
 		if (hasPendingPreparation()) {
+			// Media is still being prepared/uploaded and is not yet part of
+			// the rich page, so SerializeAsSimple() would wrongly treat the
+			// page as text-only and drop the in-flight media. Defer until the
+			// media block lands, then the submit re-fires.
 			_submitDeferred = true;
 			return false;
 		}
 		if (hasVisibleFailedAttachments()) {
 			showAttachmentFailedToast();
+			return false;
+		}
+		if (auto simple = SerializeAsSimple(_state->richPage())) {
+			return submitSimpleText(std::move(*simple));
+		}
+		if (!CanUseRichMessages(_session)) {
+			ShowRichMessagesPremiumToast(resolveShow());
 			return false;
 		}
 		auto page = std::shared_ptr<const RichPage>(
@@ -3081,8 +3085,19 @@ private:
 		}
 		const auto editor = batch->editor;
 		_editor = editor;
-		batch->insertedTopLevel += int(blocks.size());
+		const auto addedTopLevel = int(blocks.size());
+		batch->insertedTopLevel += addedTopLevel;
 		if (batch->insertMode == AttachmentInsertMode::ClipboardPaste
+			&& batch->insertTarget
+			&& batch->insertTarget->blockDrop) {
+			auto target = *batch->insertTarget;
+			editor->pastePreparedBlocks(std::move(blocks), std::move(target));
+			// A batch can flush more than once as its items become ready at
+			// different times. Keep the drop position and advance it past the
+			// blocks we just inserted so later flushes land contiguously here
+			// instead of falling back to the current text cursor.
+			batch->insertTarget->blockDrop->insertIndex += addedTopLevel;
+		} else if (batch->insertMode == AttachmentInsertMode::ClipboardPaste
 			&& batch->insertTarget) {
 			auto target = std::move(*batch->insertTarget);
 			batch->insertTarget = std::nullopt;

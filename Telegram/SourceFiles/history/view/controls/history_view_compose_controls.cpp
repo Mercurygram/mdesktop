@@ -2939,7 +2939,11 @@ void ComposeControls::updateFieldVisibility() {
 	if (_richDraftPreview) {
 		if (showPreview && !_recording.current()) {
 			if (const auto draft = cloudDraft()) {
-				_richDraftPreview->setDraft(*draft);
+				_richDraftPreview->setDraft(*draft, Data::FileOriginCloudDraft{
+					.peerId = _history->peer->id,
+					.topicRootId = _topicRootId,
+					.monoforumPeerId = _monoforumPeerId,
+				});
 			}
 			_richDraftPreview->show();
 		} else {

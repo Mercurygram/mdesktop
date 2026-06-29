@@ -21,6 +21,7 @@ class QWidget;
 
 namespace Data {
 struct Draft;
+struct FileOrigin;
 } // namespace Data
 
 namespace Iv {
@@ -52,7 +53,7 @@ public:
 		Fn<void()> relayout = nullptr);
 	~RichDraftPreview();
 
-	void setDraft(const Data::Draft &draft);
+	void setDraft(const Data::Draft &draft, Data::FileOrigin draftOrigin);
 
 	[[nodiscard]] int resizeGetHeight(
 		int width,
@@ -62,7 +63,9 @@ public:
 private:
 	void paint(QRect clip);
 	void clearPreparedContent();
-	void rebuildPreparedContent(const Data::Draft &draft);
+	void rebuildPreparedContent(
+		const Data::Draft &draft,
+		Data::FileOrigin draftOrigin);
 	void refreshPaletteDependentCaches();
 	void regenerateFadePixmap();
 	void requestArticleRepaint(QRect articleRect);

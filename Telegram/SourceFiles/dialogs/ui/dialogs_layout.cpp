@@ -650,13 +650,6 @@ void PaintRow(
 						tr::now,
 						lt_from,
 						tr::lng_from_draft(tr::now)));
-				const auto draftPreview = draft->hasRichMessage()
-					? DialogsPreviewText(draft->richMessageSummary)
-					: DialogsPreviewText({
-						.text = draft->textWithTags.text,
-						.entities = ConvertTextTagsToEntities(
-							draft->textWithTags.tags),
-					});
 				auto draftText = supportMode
 					? Text::Colorized(
 						Support::ChatOccupiedString(history))
@@ -665,7 +658,13 @@ void PaintRow(
 						lt_from_part,
 						std::move(draftWrapped),
 						lt_message,
-						std::move(draftPreview),
+						(draft->hasRichMessage()
+							? DialogsPreviewText(draft->richMessageSummary)
+							: DialogsPreviewText({
+								.text = draft->textWithTags.text,
+								.entities = ConvertTextTagsToEntities(
+									draft->textWithTags.tags),
+							})),
 						tr::marked);
 				if (draft && draft->reply) {
 					draftText = Ui::Text::Colorized(

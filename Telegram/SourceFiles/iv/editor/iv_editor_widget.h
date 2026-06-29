@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "base/unique_qptr.h"
+#include "base/flat_map.h"
 #include "iv/editor/iv_editor_state.h"
 #include "iv/markdown/iv_markdown_article.h"
 #include "ui/style/style_core_types.h"
@@ -889,7 +890,9 @@ private:
 	std::optional<QPoint> _pressedControlPoint;
 	PressedMediaControl _pressedMediaControl;
 	std::optional<QPoint> _pressedMediaControlPoint;
-	std::unique_ptr<Ui::RadialAnimation> _mediaUploadRadial;
+	base::flat_map<
+		uint64,
+		std::unique_ptr<Ui::RadialAnimation>> _mediaUploadRadials;
 	HorizontalScrollDrag _horizontalScrollDrag = HorizontalScrollDrag::None;
 	std::optional<QPoint> _pendingTouchHorizontalScrollPoint;
 	bool _syncingInlineFieldGeometry = false;
