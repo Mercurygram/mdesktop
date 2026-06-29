@@ -4902,7 +4902,50 @@ std::optional<PreparedListItemRange> Widget::fullListRangeForSource(
 	};
 }
 
+std::optional<Markdown::PreparedEditBlockPath> Widget::selectedBlockPath() const {
+	switch (_structuralSelection.kind) {
+	case PreparedEditSelectionKind::Blocks: {
+		const auto &range = _structuralSelection.blocks;
+		if (range.empty() || (range.till - range.from != 1)) {
+			return std::nullopt;
+		}
+		return PreparedEditBlockPath{
+			.container = range.container,
+			.index = range.from,
+		};
+	}
+	case PreparedEditSelectionKind::ListItems:
+		return _structuralSelection.listItems.empty()
+			? std::nullopt
+			: std::make_optional(_structuralSelection.listItems.block);
+	case PreparedEditSelectionKind::TableRows:
+		return _structuralSelection.tableRows.empty()
+			? std::nullopt
+			: std::make_optional(_structuralSelection.tableRows.block);
+	case PreparedEditSelectionKind::TableCells:
+		return _structuralSelection.tableCells.empty()
+			? std::nullopt
+			: std::make_optional(_structuralSelection.tableCells.block);
+	case PreparedEditSelectionKind::None:
+		return std::nullopt;
+	}
+	return std::nullopt;
+}
+
 Widget::ActiveBlockInfo Widget::activeBlockInfo() const {
+	if (const auto path = selectedBlockPath()) {
+		const auto statePath = _state->convertBlockPath(*path);
+		const auto block = statePath
+			? BlockFromPath(_state->richPage(), *statePath)
+			: nullptr;
+		if (block) {
+			return {
+				.kind = block->kind,
+				.pullquote = block->pullquote,
+				.headingLevel = block->headingLevel,
+			};
+		}
+	}
 	const auto leaf = _state->activeLeafPath();
 	if (!leaf) {
 		return {};
@@ -4919,6 +4962,22 @@ Widget::ActiveBlockInfo Widget::activeBlockInfo() const {
 }
 
 std::optional<PreparedListItemRange> Widget::currentListRangeAtCaret() const {
+	if (_structuralSelection.kind == PreparedEditSelectionKind::ListItems
+		&& !_structuralSelection.listItems.empty()
+		&& _state->listSelectionInfo(_structuralSelection.listItems).valid) {
+		const auto source = PreparedEditListItemSource{
+			.block = _structuralSelection.listItems.block,
+			.listItemIndex = _structuralSelection.listItems.from,
+		};
+		if (const auto selected = _state->listContextRangeForSelection(
+				_structuralSelection,
+				source)) {
+			if (!selected->empty()
+				&& _state->listSelectionInfo(*selected).valid) {
+				return *selected;
+			}
+		}
+	}
 	const auto activeLeaf = _state->activePreparedLeafSource();
 	const auto listSource = activeLeaf
 		? ListItemSourceFromLeaf(*activeLeaf)
@@ -4959,6 +5018,11 @@ State::ListSelectionInfo Widget::listSelectionInfo(
 
 std::optional<PreparedEditTableCellRange>
 Widget::currentTableRangeAtCaret() const {
+	if (_structuralSelection.kind == PreparedEditSelectionKind::TableCells
+		&& !_structuralSelection.tableCells.empty()
+		&& _state->tableSelectionInfo(_structuralSelection.tableCells).valid) {
+		return _structuralSelection.tableCells;
+	}
 	const auto activeLeaf = _state->activePreparedLeafSource();
 	if (!activeLeaf
 		|| activeLeaf->kind != PreparedEditLeafKind::TableCellText
@@ -9819,6 +9883,16 @@ void Widget::syncInlineFieldGeometry(int width) {
 void Widget::setStructuralSelection(
 		Markdown::PreparedEditSelection selection,
 		std::optional<BoundarySelectionOrigin> origin) {
+	if (_structuralSelection.empty()
+		&& !selection.empty()
+		&& !_field->isHidden()) {
+		const auto committed = recordMutationTransaction([&] {
+			return commitInlineField();
+		});
+		if (committed != ApplyResult::Failed) {
+			refreshAfterInlineFieldCommit(committed);
+		}
+	}
 	_structuralSelection = std::move(selection);
 	_boundarySelectionOrigin = std::move(origin);
 	const auto keyboardSelection = !_structuralSelection.empty()

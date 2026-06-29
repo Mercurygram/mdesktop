@@ -191,6 +191,8 @@ public:
 		bool pullquote = false;
 		int headingLevel = 0;
 	};
+	[[nodiscard]] std::optional<Markdown::PreparedEditBlockPath>
+		selectedBlockPath() const;
 	[[nodiscard]] ActiveBlockInfo activeBlockInfo() const;
 	[[nodiscard]] std::optional<Markdown::PreparedEditListItemRange>
 		currentListRangeAtCaret() const;
