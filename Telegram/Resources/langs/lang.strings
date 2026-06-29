@@ -7235,6 +7235,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_article_insert_task_list" = "Task List";
 "lng_article_list_change" = "Change List";
 "lng_article_list_insert" = "Insert List";
+"lng_article_tooltip_text_style" = "Text Style";
+"lng_article_tooltip_list_style" = "List Style";
+"lng_article_tooltip_table_insert" = "Insert Table";
+"lng_article_tooltip_table_style" = "Table Style";
+"lng_article_tooltip_link" = "Insert Link";
+"lng_article_tooltip_media" = "Insert Media";
+"lng_article_tooltip_formula" = "Insert Formula";
+"lng_article_tooltip_emoji" = "Emoji Panel";
 "lng_article_list_item_change" = "Change List Item";
 "lng_article_list_numbers" = "Numbers";
 "lng_article_list_lowercase_letters" = "Lowercase Letters";
@@ -7274,7 +7282,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_article_table_delete_column" = "Delete Column";
 "lng_article_table_delete_columns" = "Delete Columns";
 "lng_article_table_delete_table" = "Delete Table";
-"lng_article_table_bordered" = "Bordered Table";
 "lng_article_table_borderless" = "Borderless";
 "lng_article_table_striped" = "Striped Table";
 "lng_polls_menu_item" = "Poll";

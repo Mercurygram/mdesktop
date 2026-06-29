@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/algorithm.h"
 #include "base/event_filter.h"
+#include "base/flat_map.h"
 #include "base/unique_qptr.h"
 #include "base/weak_qptr.h"
 #include "boxes/premium_preview_box.h"
@@ -46,6 +47,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/popup_menu.h"
 #include "ui/widgets/elastic_scroll.h"
 #include "ui/widgets/shadow.h"
+#include "ui/widgets/tooltip.h"
+#include "ui/rect_part.h"
 
 #include <crl/crl_on_main.h>
 #include <rpl/never.h>
@@ -101,6 +104,15 @@ enum class ToolbarActionId : uchar {
 	Location,
 	Divider,
 };
+
+[[nodiscard]] QString WithParenShortcut(
+		const QString &label,
+		QKeySequence seq) {
+	const auto shortcut = seq.toString(QKeySequence::NativeText);
+	return shortcut.isEmpty()
+		? label
+		: (label + u" ("_q + shortcut + u")"_q);
+}
 
 [[nodiscard]] QString ToolbarActionLabel(
 		ToolbarActionId action,
@@ -186,6 +198,7 @@ public:
 		Fn<void()> toggleEmoji);
 
 	int resizeGetHeight(int width) override;
+	bool eventFilter(QObject *object, QEvent *event) override;
 	void hideShownTooltip();
 	void setEmojiColumnOpen(bool open);
 	[[nodiscard]] int minimalWidth() const;
@@ -202,8 +215,12 @@ private:
 		ToolbarActionId action,
 		const style::icon *icon,
 		Fn<void()> callback,
-		std::optional<Widget::ToolbarFormatAction> format = std::nullopt);
+		std::optional<Widget::ToolbarFormatAction> format = std::nullopt,
+		Fn<QString()> tooltip = nullptr);
 	void buildPills();
+	void showTooltip(not_null<Ui::IconButton*> button);
+	void hideTooltip();
+	void updateTooltipGeometry();
 	void fillHeadingMenu(not_null<Ui::PopupMenu*> menu);
 	void showHeadingMenu(not_null<Ui::IconButton*> button);
 	void fillBlockStyleMenu(not_null<Ui::PopupMenu*> menu);
@@ -234,6 +251,9 @@ private:
 	Ui::IconButton *_emojiButton = nullptr;
 	Ui::IconButton *_listButton = nullptr;
 	Ui::IconButton *_tableButton = nullptr;
+	base::flat_map<Ui::IconButton*, Fn<QString()>> _tooltipFactories;
+	base::unique_qptr<Ui::ImportantTooltip> _tooltip;
+	Ui::IconButton *_hovered = nullptr;
 	base::unique_qptr<Ui::PopupMenu> _menu;
 
 };
@@ -471,7 +491,8 @@ not_null<Ui::IconButton*> Toolbar::addPillButton(
 		ToolbarActionId action,
 		const style::icon *icon,
 		Fn<void()> callback,
-		std::optional<Widget::ToolbarFormatAction> format) {
+		std::optional<Widget::ToolbarFormatAction> format,
+		Fn<QString()> tooltip) {
 	const auto raw = pill->addButton(
 		st::ivEditorToolbarButton,
 		icon,
@@ -485,6 +506,10 @@ not_null<Ui::IconButton*> Toolbar::addPillButton(
 	});
 	if (format) {
 		_stateButtons.push_back({ raw.get(), *format });
+	}
+	if (tooltip) {
+		_tooltipFactories.emplace(raw.get(), std::move(tooltip));
+		raw->installEventFilter(this);
 	}
 	return raw;
 }
@@ -504,7 +529,12 @@ void Toolbar::buildPills() {
 				_editor->performToolbarUndoRedo(false);
 			}
 		},
-		Widget::ToolbarFormatAction::Undo);
+		Widget::ToolbarFormatAction::Undo,
+		[] {
+			return WithParenShortcut(
+				tr::lng_wnd_menu_undo(tr::now),
+				QKeySequence(QKeySequence::Undo));
+		});
 	addPillButton(
 		not_null<ToolbarPill*>(_undoRedoPill.data()),
 		ToolbarActionId::Redo,
@@ -514,14 +544,21 @@ void Toolbar::buildPills() {
 				_editor->performToolbarUndoRedo(true);
 			}
 		},
-		Widget::ToolbarFormatAction::Redo);
+		Widget::ToolbarFormatAction::Redo,
+		[] {
+			return WithParenShortcut(
+				tr::lng_wnd_menu_redo(tr::now),
+				QKeySequence(QKeySequence::Redo));
+		});
 
 	const auto controls = not_null<ToolbarPill*>(_controlsPill.data());
 	const auto heading = addPillButton(
 		controls,
 		ToolbarActionId::Heading,
 		&st::ivEditorToolbarTextStyleIcon,
-		nullptr);
+		nullptr,
+		std::nullopt,
+		[] { return tr::lng_menu_formatting(tr::now); });
 	heading->setIsMenuButton(true);
 	heading->setClickedCallback([=] {
 		showBlockStyleMenu(heading);
@@ -530,7 +567,9 @@ void Toolbar::buildPills() {
 		controls,
 		ToolbarActionId::Bold,
 		&st::ivEditorToolbarBoldIcon,
-		nullptr);
+		nullptr,
+		std::nullopt,
+		[] { return tr::lng_article_tooltip_text_style(tr::now); });
 	textStyle->setIsMenuButton(true);
 	textStyle->setClickedCallback([=] {
 		showTextStyleMenu(textStyle);
@@ -539,7 +578,15 @@ void Toolbar::buildPills() {
 		controls,
 		ToolbarActionId::BulletList,
 		&st::ivEditorToolbarBulletListIcon,
-		nullptr);
+		nullptr,
+		std::nullopt,
+		[=] {
+			const auto active = _editor
+				&& _editor->currentListRangeAtCaret().has_value();
+			return active
+				? tr::lng_article_tooltip_list_style(tr::now)
+				: tr::lng_article_list_insert(tr::now);
+		});
 	listStyle->setIsMenuButton(true);
 	listStyle->setClickedCallback([=] {
 		showListStyleMenu(listStyle);
@@ -549,7 +596,15 @@ void Toolbar::buildPills() {
 		controls,
 		ToolbarActionId::Table,
 		&st::ivEditorToolbarTableIcon,
-		nullptr);
+		nullptr,
+		std::nullopt,
+		[=] {
+			const auto active = _editor
+				&& _editor->currentTableRangeAtCaret().has_value();
+			return active
+				? tr::lng_article_tooltip_table_style(tr::now)
+				: tr::lng_article_tooltip_table_insert(tr::now);
+		});
 	tableStyle->setIsMenuButton(true);
 	tableStyle->setClickedCallback([=] {
 		if (_editor && _editor->currentTableRangeAtCaret()) {
@@ -568,13 +623,20 @@ void Toolbar::buildPills() {
 				_editor->editLinkFromToolbar();
 			}
 		},
-		Widget::ToolbarFormatAction::Link);
+		Widget::ToolbarFormatAction::Link,
+		[] {
+			return WithParenShortcut(
+				tr::lng_article_tooltip_link(tr::now),
+				QKeySequence(Ui::kEditLinkSequence));
+		});
 	if (_hasRequestMedia) {
 		const auto attach = addPillButton(
 			controls,
 			ToolbarActionId::Attach,
 			&st::ivEditorToolbarAttachIcon,
-			nullptr);
+			nullptr,
+			std::nullopt,
+			[] { return tr::lng_article_tooltip_media(tr::now); });
 		attach->setIsMenuButton(true);
 		attach->setClickedCallback([=] {
 			showAttachMenu(attach);
@@ -593,7 +655,9 @@ void Toolbar::buildPills() {
 			} else {
 				_editor->insertBlock({ .type = State::InsertBlockType::Math });
 			}
-		});
+		},
+		std::nullopt,
+		[] { return tr::lng_article_tooltip_formula(tr::now); });
 
 	_emojiButton = addPillButton(
 		not_null<ToolbarPill*>(_emojiPill.data()),
@@ -603,7 +667,9 @@ void Toolbar::buildPills() {
 			if (_toggleEmoji) {
 				_toggleEmoji();
 			}
-		});
+		},
+		std::nullopt,
+		[] { return tr::lng_article_tooltip_emoji(tr::now); });
 	_emojiButton->setAccessibleName(tr::lng_article_insert_emoji(tr::now));
 }
 
@@ -1051,6 +1117,10 @@ int Toolbar::resizeGetHeight(int width) {
 	const auto emojiLeft = right - _emojiPill->naturalSize().width();
 	_emojiPill->moveToLeft(emojiLeft, top, width);
 	updateInputMask();
+	if (_hovered && _hovered->isHidden()) {
+		hideTooltip();
+	}
+	updateTooltipGeometry();
 	return top + _controlsPill->naturalSize().height() + padding.bottom();
 }
 
@@ -1072,6 +1142,61 @@ void Toolbar::updateInputMask() {
 }
 
 void Toolbar::hideShownTooltip() {
+	hideTooltip();
+}
+
+bool Toolbar::eventFilter(QObject *object, QEvent *event) {
+	const auto button = static_cast<Ui::IconButton*>(object);
+	if (_tooltipFactories.contains(button)) {
+		if (event->type() == QEvent::Enter) {
+			showTooltip(not_null<Ui::IconButton*>(button));
+		} else if (event->type() == QEvent::Leave && _hovered == button) {
+			hideTooltip();
+		}
+	}
+	return Ui::RpWidget::eventFilter(object, event);
+}
+
+void Toolbar::showTooltip(not_null<Ui::IconButton*> button) {
+	hideTooltip();
+	const auto i = _tooltipFactories.find(button.get());
+	if (i == end(_tooltipFactories) || !i->second) {
+		return;
+	}
+	_hovered = button;
+	const auto parent = _tooltipParent
+		? _tooltipParent.data()
+		: (parentWidget() ? parentWidget() : this);
+	_tooltip.reset(Ui::CreateChild<Ui::ImportantTooltip>(
+		parent,
+		Ui::MakeNiceTooltipLabel(
+			parent,
+			rpl::single(TextWithEntities::Simple(i->second())),
+			st::boxWideWidth,
+			st::defaultImportantTooltipLabel),
+		st::defaultImportantTooltip));
+	_tooltip->setAttribute(Qt::WA_TransparentForMouseEvents);
+	_tooltip->toggleFast(false);
+	updateTooltipGeometry();
+	_tooltip->raise();
+	_tooltip->toggleAnimated(true);
+}
+
+void Toolbar::hideTooltip() {
+	_hovered = nullptr;
+	if (_tooltip) {
+		_tooltip->toggleFast(false);
+		_tooltip = nullptr;
+	}
+}
+
+void Toolbar::updateTooltipGeometry() {
+	if (!_tooltip || !_hovered) {
+		return;
+	}
+	const auto parent = _tooltip->parentWidget();
+	const auto geometry = Ui::MapFrom(parent, _hovered, _hovered->rect());
+	_tooltip->pointAt(geometry, RectPart::Top | RectPart::Center);
 }
 
 } // namespace
