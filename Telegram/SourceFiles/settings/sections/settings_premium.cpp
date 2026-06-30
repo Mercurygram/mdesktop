@@ -258,6 +258,7 @@ using Order = std::vector<QString>;
 		u"business"_q,
 		u"effects"_q,
 		u"ai_compose"_q,
+		u"rich_formatting"_q,
 	};
 }
 
@@ -477,6 +478,16 @@ using Order = std::vector<QString>;
 				tr::lng_premium_summary_subtitle_ai_compose(),
 				tr::lng_premium_summary_about_ai_compose(),
 				PremiumFeature::AiCompose,
+				true,
+			},
+		},
+		{
+			u"rich_formatting"_q,
+			Entry{
+				&st::settingsPremiumIconRich,
+				tr::lng_premium_summary_subtitle_rich_formatting(),
+				tr::lng_premium_summary_about_rich_formatting(),
+				PremiumFeature::RichFormatting,
 				true,
 			},
 		},
