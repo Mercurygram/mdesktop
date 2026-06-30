@@ -4256,7 +4256,7 @@ void HistoryItem::setRichPage(std::shared_ptr<const Iv::RichPage> page) {
 			++source->fullPageVersion;
 		}
 		source->fullPage = nullptr;
-		source->canEdit = Iv::Editor::RichMessagesEditorEnabled()
+		source->canEdit = Iv::Editor::CanAuthorRichMessages(&history()->session())
 			&& Iv::Editor::CanEditRichPage(source->page);
 		media->url = QString();
 		media->documents.clear();
@@ -4279,7 +4279,7 @@ void HistoryItem::setFullRichPage(std::shared_ptr<const Iv::RichPage> page) {
 		AddComponents(HistoryMessageRichPageSource::Bit());
 		const auto source = Get<HistoryMessageRichPageSource>();
 		source->fullPage = std::move(page);
-		source->canEdit = Iv::Editor::RichMessagesEditorEnabled()
+		source->canEdit = Iv::Editor::CanAuthorRichMessages(&history()->session())
 			&& Iv::Editor::CanEditRichPage(BestRichPage(source));
 	} else {
 		clearFullRichPage();
@@ -4294,7 +4294,7 @@ void HistoryItem::clearFullRichPage() {
 	++source->fullPageVersion;
 	source->fullPage = nullptr;
 	if (source->page) {
-		source->canEdit = Iv::Editor::RichMessagesEditorEnabled()
+		source->canEdit = Iv::Editor::CanAuthorRichMessages(&history()->session())
 			&& Iv::Editor::CanEditRichPage(source->page);
 	} else {
 		RemoveComponents(HistoryMessageRichPageSource::Bit());

@@ -2959,7 +2959,7 @@ std::unique_ptr<Ui::DropdownMenu> MakeAttachBotsMenu(
 				sendMenuDetails());
 		}, &st::menuIconCreateTodoList);
 	}
-	if (Iv::Editor::RichMessagesEditorEnabled()
+	if (Iv::Editor::CanAuthorRichMessages(&controller->session())
 		&& Data::CanSendAnyOf(peer, ChatRestriction::SendOther, false)) {
 		raw->addAction(tr::lng_article_menu_item(tr::now), [=] {
 			const auto openCompose = [=] {

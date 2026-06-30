@@ -20,7 +20,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "base/algorithm.h"
 #include "base/flat_map.h"
-#include "base/options.h"
 #include "base/timer.h"
 #include "base/weak_qptr.h"
 #include "base/weak_ptr.h"
@@ -89,14 +88,6 @@ using PreparedFileType = Ui::PreparedFile::Type;
 using PreparedList = Ui::PreparedList;
 
 constexpr auto kRichDraftAutosaveTimeout = crl::time(10 * 1000);
-
-base::options::toggle RichMessagesEditor({
-	.id = kOptionRichMessagesEditor,
-	.name = "Rich messages editor",
-	.description = "Enable composing, editing and forwarding rich messages "
-		"(requires server-side support for sending them).",
-	.restartRequired = true,
-});
 
 class ArticleSession;
 
@@ -3954,12 +3945,6 @@ bool ArticleSession::RequestCloseOpenEditWindowThen(
 }
 
 } // namespace
-
-const char kOptionRichMessagesEditor[] = "rich-messages-editor";
-
-bool RichMessagesEditorEnabled() {
-	return RichMessagesEditor.value();
-}
 
 void OfferRichMessagePremiumChoice(
 		std::shared_ptr<ChatHelpers::Show> show,

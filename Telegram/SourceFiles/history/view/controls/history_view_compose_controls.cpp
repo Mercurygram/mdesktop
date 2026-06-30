@@ -4091,8 +4091,7 @@ void ComposeControls::updateAiButtonVisibility() {
 }
 
 void ComposeControls::updateExpandButtonVisibility() {
-	const auto hidden = !Iv::Editor::RichMessagesEditorEnabled()
-		|| !_wrap->isVisible()
+	const auto hidden = !_wrap->isVisible()
 		|| _recording.current()
 		|| !_field->isVisible()
 		|| !hasEnoughLinesForExpand()
