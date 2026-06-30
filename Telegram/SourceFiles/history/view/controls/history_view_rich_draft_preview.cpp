@@ -219,7 +219,9 @@ void RichDraftPreview::paint(QRect clip) {
 		|| _fadePixmap.isNull()) {
 		return;
 	}
-	const auto fadeHeight = std::min(st::historyComposeFieldFadeHeight, height());
+	const auto fadeHeight = std::min(
+		st::historyRichMessagePreviewFadeHeight,
+		height());
 	if (fadeHeight <= 0) {
 		return;
 	}
@@ -311,7 +313,7 @@ void RichDraftPreview::refreshPaletteDependentCaches() {
 }
 
 void RichDraftPreview::regenerateFadePixmap() {
-	const auto height = st::historyComposeFieldFadeHeight;
+	const auto height = st::historyRichMessagePreviewFadeHeight;
 	if (height <= 0) {
 		_fadePixmap = QPixmap();
 		return;
