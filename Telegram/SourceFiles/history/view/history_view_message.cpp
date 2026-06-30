@@ -586,6 +586,12 @@ void Message::requestRichPageRelayout(QRect articleRect) {
 	if (const auto rich = const_cast<Message*>(this)->richpage()) {
 		rich->article.invalidateLayout();
 	}
+	// The article layout was just invalidated, but textHeightFor() caches by
+	// _textWidth and would short-circuit when re-queried at the same (constant)
+	// max width, leaving the bubble sized from a stale, now-zeroed
+	// lastLayoutWidth(). Drop the text-size cache too so the article is really
+	// laid out again, the same way blockquoteExpandChanged() does for quotes.
+	invalidateTextSizeCache();
 	setPendingResize();
 	history()->owner().requestViewResize(this);
 }
