@@ -43,6 +43,15 @@ using ThreadFieldDraftReader = Fn<std::unique_ptr<::Data::Draft>()>;
 using ThreadFieldDraftSaver = Fn<void(std::unique_ptr<::Data::Draft>)>;
 using ThreadFieldMigratedAway = Fn<void()>;
 
+// Experimental option that gates the still-unreleased rich messages editor
+// entry points (article attach action, compose field expand button, editing
+// of existing rich messages, hiding sender name when forwarding them).
+// Opening the editor from an existing rich message draft is intentionally
+// not gated, so drafts remain accessible regardless of this option.
+extern const char kOptionRichMessagesEditor[];
+
+[[nodiscard]] bool RichMessagesEditorEnabled();
+
 [[nodiscard]] bool CheckRichMessagesPremium(
 	not_null<Window::SessionController*> controller);
 void OfferRichMessagePremiumChoice(

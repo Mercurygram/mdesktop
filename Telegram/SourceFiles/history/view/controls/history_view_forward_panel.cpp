@@ -17,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_media_types.h"
 #include "data/data_forum_topic.h"
 #include "data/data_user.h"
+#include "iv/editor/iv_editor_session.h"
 #include "main/main_session.h"
 #include "ui/chat/forward_options_box.h"
 #include "ui/effects/spoiler_mess.h"
@@ -493,18 +494,17 @@ bool CanHideForwardAuthor(
 	if (HasOnlyForcedForwardedInfo(list)) {
 		return false;
 	}
-#ifndef _DEBUG
-	if (HasRichPage(list)) {
+	if (!Iv::Editor::RichMessagesEditorEnabled() && HasRichPage(list)) {
 		return false;
 	}
-#endif
 	return session->premium() || !HasRichPage(list);
 }
 
 bool HideForwardAuthorPremiumRequired(
 		not_null<Main::Session*> session,
 		const HistoryItemsList &list) {
-	return !list.empty()
+	return Iv::Editor::RichMessagesEditorEnabled()
+		&& !list.empty()
 		&& !session->premium()
 		&& !HasOnlyForcedForwardedInfo(list)
 		&& HasRichPage(list)

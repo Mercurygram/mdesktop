@@ -39,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/controls/compose_controls_common.h"
 #include "history/view/history_view_message.h"
 #include "info/profile/info_profile_actions.h"
+#include "iv/editor/iv_editor_session.h"
 #include "lang/lang_keys.h"
 #include "mainwindow.h"
 #include "mainwidget.h"
@@ -313,6 +314,7 @@ void SetupExperimental(
 	addToggle(HistoryView::Controls::kOptionMacCmdReplyImmediately);
 	addToggle(Ui::kOptionQScroller);
 	addToggle(FFmpeg::kOptionFFmpegMultiThread);
+	addToggle(Iv::Editor::kOptionRichMessagesEditor);
 }
 
 } // namespace
