@@ -3534,7 +3534,6 @@ Data::ReactionId HistoryItem::lookupUnreadReaction(
 	if (!_reactions) {
 		return {};
 	}
-	const auto recent = _reactions->recent();
 	for (const auto &[id, list] : _reactions->recent()) {
 		const auto i = ranges::find(
 			list,
