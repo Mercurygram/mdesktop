@@ -382,6 +382,9 @@ HistoryWidget::HistoryWidget(
 	_scroll->scrolls() | rpl::on_next([=] {
 		handleScroll();
 	}, lifetime());
+	_scroll->setOverscrollEdges(
+		[=] { return historyLoadedAtTop(); },
+		[=] { return historyLoadedAtBottom(); });
 	_scroll->geometryChanged(
 	) | rpl::on_next(crl::guard(_list, [=] {
 		_list->onParentGeometryChanged();
@@ -4749,6 +4752,30 @@ void HistoryWidget::loadMessages() {
 			finish();
 		}).send();
 	});
+}
+
+bool HistoryWidget::historyLoadedAtTop() const {
+	if (!_history) {
+		return true;
+	}
+	const auto loadMigrated = _migrated
+		&& (_history->isEmpty()
+			|| _history->loadedAtTop()
+			|| (!_migrated->isEmpty() && !_migrated->loadedAtBottom()));
+	const auto from = loadMigrated ? _migrated : _history;
+	return from->loadedAtTop();
+}
+
+bool HistoryWidget::historyLoadedAtBottom() const {
+	if (!_history) {
+		return true;
+	}
+	const auto loadMigrated = _migrated
+		&& !(_migrated->isEmpty()
+			|| _migrated->loadedAtBottom()
+			|| (!_history->isEmpty() && !_history->loadedAtTop()));
+	const auto from = loadMigrated ? _migrated : _history;
+	return from->loadedAtBottom();
 }
 
 void HistoryWidget::loadMessagesDown() {

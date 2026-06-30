@@ -180,6 +180,13 @@ public:
 	void loadMessages();
 	void loadMessagesDown();
 	void firstLoadMessages();
+
+	// Whether the top / bottom edge is a genuine boundary (nothing more to
+	// load there). Mirrors the early-return conditions in loadMessages() /
+	// loadMessagesDown(); used to disable overscroll bounce on an edge that
+	// can still page in content.
+	[[nodiscard]] bool historyLoadedAtTop() const;
+	[[nodiscard]] bool historyLoadedAtBottom() const;
 	void delayedShowAt(MsgId showAtMsgId, const Window::SectionShow &params);
 
 	bool updateReplaceMediaButton();
