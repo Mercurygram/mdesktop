@@ -5664,6 +5664,9 @@ void InnerWidget::setSwipeContextData(
 		return;
 	}
 	const auto context = ensureQuickAction(key);
+	if (!context->icon) {
+		prepareQuickAction(key, Core::App().settings().quickDialogAction());
+	}
 
 	context->data = base::take(*data);
 	if (context->data.msgBareId) {
