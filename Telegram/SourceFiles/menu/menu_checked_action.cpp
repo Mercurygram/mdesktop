@@ -22,6 +22,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace {
 
+// Extra room to the right of the premium star in menu actions.
+constexpr auto kPremiumStarRightSkip = 10;
+
 [[nodiscard]] QImage PremiumStarImage(int size) {
 	const auto factor = style::DevicePixelRatio();
 	const auto side = QSize(size, size);
@@ -99,6 +102,7 @@ ActiveColorAction::ActiveColorAction(
 	if (premiumStarSize > 0) {
 		setMinWidth(minWidth()
 			+ OwnedMenuStyle::value.itemRightSkip
+			+ style::ConvertScale(kPremiumStarRightSkip)
 			+ premiumStarSize);
 	}
 }
@@ -120,6 +124,7 @@ void ActiveColorAction::paintEvent(QPaintEvent *e) {
 		const auto starHeight = _premiumStar.height() / factor;
 		const auto left = width()
 			- OwnedMenuStyle::value.itemRightSkip
+			- style::ConvertScale(kPremiumStarRightSkip)
 			- starWidth;
 		const auto top = (height() - starHeight) / 2;
 		p.drawImage(left, top, _premiumStar);

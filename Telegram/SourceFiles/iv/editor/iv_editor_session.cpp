@@ -64,6 +64,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "ui/rp_widget.h"
 #include "ui/text/text_utilities.h"
+#include "ui/vertical_list.h"
+#include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
 #include "ui/widgets/separate_panel.h"
 #include "window/window_session_controller.h"
@@ -3991,6 +3993,9 @@ void OfferRichMessagePremiumChoice(
 			st::boxRowPadding,
 			style::al_top);
 
+		Ui::AddSkip(
+			box->verticalLayout(),
+			st::ivEditorPremiumChoiceAboutSkip);
 		box->addRow(
 			object_ptr<Ui::FlatLabel>(
 				box,
@@ -4002,19 +4007,45 @@ void OfferRichMessagePremiumChoice(
 			st::boxRowPadding,
 			style::al_top);
 
-		box->addButton(tr::lng_posts_subscribe(), [=] {
+		Ui::AddSkip(box->verticalLayout());
+		Ui::AddSkip(box->verticalLayout());
+		const auto subscribe = box->addRow(
+			object_ptr<Ui::RoundButton>(
+				box,
+				tr::lng_posts_subscribe(),
+				st::defaultLightButton),
+			st::boxRowPadding,
+			style::al_justify);
+		subscribe->setClickedCallback([=] {
 			Settings::ShowPremium(session, u"rich_message"_q);
 			box->closeBox();
 		});
-		box->addButton(tr::lng_article_premium_choice_plain(), [=] {
+		Ui::AddSkip(box->verticalLayout());
+		const auto plain = box->addRow(
+			object_ptr<Ui::RoundButton>(
+				box,
+				tr::lng_article_premium_choice_plain(),
+				st::defaultLightButton),
+			st::boxRowPadding,
+			style::al_justify);
+		plain->setClickedCallback([=] {
 			box->closeBox();
 			if (sendWithoutFormatting) {
 				sendWithoutFormatting();
 			}
 		});
-		box->addButton(tr::lng_cancel(), [=] {
+		Ui::AddSkip(box->verticalLayout());
+		const auto cancel = box->addRow(
+			object_ptr<Ui::RoundButton>(
+				box,
+				tr::lng_cancel(),
+				st::defaultLightButton),
+			st::boxRowPadding,
+			style::al_justify);
+		cancel->setClickedCallback([=] {
 			box->closeBox();
 		});
+		Ui::AddSkip(box->verticalLayout());
 	}));
 }
 

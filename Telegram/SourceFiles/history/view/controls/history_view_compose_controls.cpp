@@ -3723,9 +3723,6 @@ void ComposeControls::initExpandButton() {
 		if (!_regularWindow || !_history || !_sendActionFactory) {
 			return;
 		}
-		if (!Iv::Editor::CheckRichMessagesPremium(_regularWindow)) {
-			return;
-		}
 		Iv::Editor::ShowComposeBox(
 			_regularWindow,
 			_history->peer,

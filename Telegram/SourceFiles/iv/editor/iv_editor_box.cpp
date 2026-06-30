@@ -719,9 +719,13 @@ void Toolbar::buildPills() {
 }
 
 void Toolbar::fillHeadingMenu(not_null<Ui::PopupMenu*> menu) {
+	const auto starSize = _session->premium()
+		? 0
+		: st::ivEditorStyleMenuPremiumStarSize;
 	for (const auto level : std::array{ 1, 2, 3, 4, 5, 6 }) {
 		const auto icon = HeadingIcon(level);
-		menu->addAction(
+		Menu::AddActiveColorAction(
+			menu,
 			HeadingLabel(level),
 			[=] {
 				if (_editor) {
@@ -732,7 +736,8 @@ void Toolbar::fillHeadingMenu(not_null<Ui::PopupMenu*> menu) {
 				}
 			},
 			icon,
-			icon);
+			false,
+			starSize);
 	}
 }
 
@@ -791,8 +796,7 @@ void Toolbar::fillBlockStyleMenu(not_null<Ui::PopupMenu*> menu) {
 			Ui::kBlockquoteSequence),
 		[=] { insertType(State::InsertBlockType::Blockquote); },
 		&st::ivEditorToolbarBlockquoteIcon,
-		(kind == Kind::Quote && !info.pullquote),
-		starSize);
+		(kind == Kind::Quote && !info.pullquote));
 	Menu::AddActiveColorAction(
 		menu,
 		tr::lng_article_insert_pullquote(tr::now),
@@ -807,13 +811,14 @@ void Toolbar::fillBlockStyleMenu(not_null<Ui::PopupMenu*> menu) {
 			Ui::kMonospaceSequence),
 		[=] { insertType(State::InsertBlockType::Code); },
 		&st::ivEditorToolbarCodeIcon,
-		(kind == Kind::Code),
-		starSize);
-	menu->addAction(
+		(kind == Kind::Code));
+	Menu::AddActiveColorAction(
+		menu,
 		tr::lng_article_insert_divider(tr::now),
 		[=] { insertType(State::InsertBlockType::Divider); },
 		&st::ivEditorToolbarDividerIcon,
-		&st::ivEditorToolbarDividerIcon);
+		false,
+		starSize);
 }
 
 void Toolbar::applyBlockText() {
@@ -934,7 +939,11 @@ void Toolbar::showTextStyleMenu(not_null<Ui::IconButton*> button) {
 }
 
 void Toolbar::fillAttachMenu(not_null<Ui::PopupMenu*> menu) {
-	menu->addAction(
+	const auto starSize = _session->premium()
+		? 0
+		: st::ivEditorStyleMenuPremiumStarSize;
+	Menu::AddActiveColorAction(
+		menu,
 		tr::lng_attach_photo_or_video(tr::now),
 		[=] {
 			if (_editor) {
@@ -944,8 +953,10 @@ void Toolbar::fillAttachMenu(not_null<Ui::PopupMenu*> menu) {
 			}
 		},
 		&st::ivEditorToolbarAttachIcon,
-		&st::ivEditorToolbarAttachIcon);
-	menu->addAction(
+		false,
+		starSize);
+	Menu::AddActiveColorAction(
+		menu,
 		tr::lng_in_dlg_audio_file(tr::now),
 		[=] {
 			if (_editor) {
@@ -955,9 +966,11 @@ void Toolbar::fillAttachMenu(not_null<Ui::PopupMenu*> menu) {
 			}
 		},
 		&st::menuIconSoundOn,
-		&st::menuIconSoundOn);
+		false,
+		starSize);
 	if (_requestMap) {
-		menu->addAction(
+		Menu::AddActiveColorAction(
+			menu,
 			tr::lng_maps_point(tr::now),
 			[=] {
 				if (_editor) {
@@ -973,7 +986,8 @@ void Toolbar::fillAttachMenu(not_null<Ui::PopupMenu*> menu) {
 				}
 			},
 			&st::ivEditorToolbarLocationIcon,
-			&st::ivEditorToolbarLocationIcon);
+			false,
+			starSize);
 	}
 }
 
@@ -995,27 +1009,38 @@ void Toolbar::fillListStyleMenu(not_null<Ui::PopupMenu*> menu) {
 			_editor->insertBlock({ .type = type });
 		}
 	};
+	const auto starSize = _session->premium()
+		? 0
+		: st::ivEditorStyleMenuPremiumStarSize;
 	const auto addInserts = [=](not_null<Ui::PopupMenu*> target) {
-		target->addAction(
+		Menu::AddActiveColorAction(
+			target,
 			tr::lng_article_insert_ordered_list(tr::now),
 			[=] { insertType(State::InsertBlockType::OrderedList); },
 			&st::ivEditorToolbarOrderedListIcon,
-			&st::ivEditorToolbarOrderedListIcon);
-		target->addAction(
+			false,
+			starSize);
+		Menu::AddActiveColorAction(
+			target,
 			tr::lng_article_insert_bullet_list(tr::now),
 			[=] { insertType(State::InsertBlockType::BulletList); },
 			&st::ivEditorToolbarBulletListIcon,
-			&st::ivEditorToolbarBulletListIcon);
-		target->addAction(
+			false,
+			starSize);
+		Menu::AddActiveColorAction(
+			target,
 			tr::lng_article_insert_task_list(tr::now),
 			[=] { insertType(State::InsertBlockType::TaskList); },
 			&st::ivEditorToolbarTaskListIcon,
-			&st::ivEditorToolbarTaskListIcon);
-		target->addAction(
+			false,
+			starSize);
+		Menu::AddActiveColorAction(
+			target,
 			tr::lng_article_insert_details(tr::now),
 			[=] { insertType(State::InsertBlockType::Details); },
 			&st::ivEditorToolbarDetailsIcon,
-			&st::ivEditorToolbarDetailsIcon);
+			false,
+			starSize);
 	};
 
 	const auto range = _editor
@@ -1515,13 +1540,26 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 			not_null<Ui::RpWidget*>(raw));
 	}
 	{
+		const auto lockIcon = &st::ivEditorSendLockIcon;
+		const auto lockPadding = st::ivEditorSendLockBadgePadding;
 		const auto lock = Ui::CreateChild<Ui::RpWidget>(raw);
 		lock->setAttribute(Qt::WA_TransparentForMouseEvents);
-		lock->resize(st::emojiPremiumLock.size());
+		lock->resize(
+			lockIcon->width() + 2 * lockPadding,
+			lockIcon->height() + 2 * lockPadding);
 		lock->move(st::ivEditorSendLockBadgePosition);
 		lock->paintRequest() | rpl::on_next([=] {
 			auto p = QPainter(lock);
-			st::emojiPremiumLock.paint(p, 0, 0, lock->width());
+			auto hq = PainterHighQualityEnabler(p);
+			const auto border = st::lineWidth;
+			auto pen = QPen(st::windowBg);
+			pen.setWidth(border);
+			p.setPen(pen);
+			p.setBrush(st::windowBgActive);
+			const auto half = border / 2.;
+			p.drawEllipse(QRectF(lock->rect()).marginsRemoved(
+				QMarginsF(half, half, half, half)));
+			lockIcon->paint(p, lockPadding, lockPadding, lock->width());
 		}, lock->lifetime());
 		lock->hide();
 		const auto session = descriptor.session;

@@ -1409,9 +1409,6 @@ void HistoryWidget::initExpandButton() {
 			return;
 		}
 		const auto window = controller();
-		if (!Iv::Editor::CheckRichMessagesPremium(window)) {
-			return;
-		}
 		Iv::Editor::ShowComposeBox(
 			window,
 			_history->peer,
