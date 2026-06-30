@@ -31,6 +31,12 @@ Launcher::Launcher(int argc, char *argv[])
 }
 
 int Launcher::exec() {
+	// WebKitGTK's DMA-BUF/EGL renderer aborts the web process when it cannot
+	// create an EGL display (EGL_BAD_PARAMETER), which happens with newer
+	// webkitgtk on some GPU/driver/sandbox combinations. Force the legacy
+	// renderer so the web process inherits it and does not crash on launch.
+	qputenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+
 	for (auto i = arguments().begin(), e = arguments().end(); i != e; ++i) {
 		if (*i == u"-webviewhelper"_q && std::distance(i, e) > 1) {
 			Webview::WebKitGTK::SetSocketPath((i + 1)->toStdString());
