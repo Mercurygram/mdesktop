@@ -223,6 +223,7 @@ private:
 		Fn<QString()> tooltip = nullptr);
 	void addPremiumStar(not_null<Ui::IconButton*> button);
 	void buildPills();
+	void scheduleTooltip(not_null<Ui::IconButton*> button);
 	void showTooltip(not_null<Ui::IconButton*> button);
 	void hideTooltip();
 	void updateTooltipGeometry();
@@ -260,6 +261,7 @@ private:
 	base::flat_map<Ui::IconButton*, Fn<QString()>> _tooltipFactories;
 	base::unique_qptr<Ui::ImportantTooltip> _tooltip;
 	Ui::IconButton *_hovered = nullptr;
+	Ui::IconButton *_scheduledTooltip = nullptr;
 	base::unique_qptr<Ui::PopupMenu> _menu;
 
 };
@@ -1210,12 +1212,36 @@ bool Toolbar::eventFilter(QObject *object, QEvent *event) {
 	const auto button = static_cast<Ui::IconButton*>(object);
 	if (_tooltipFactories.contains(button)) {
 		if (event->type() == QEvent::Enter) {
-			showTooltip(not_null<Ui::IconButton*>(button));
-		} else if (event->type() == QEvent::Leave && _hovered == button) {
-			hideTooltip();
+			scheduleTooltip(not_null<Ui::IconButton*>(button));
+		} else if (event->type() == QEvent::Leave) {
+			if (_scheduledTooltip == button) {
+				_scheduledTooltip = nullptr;
+			}
+			if (_hovered == button) {
+				hideTooltip();
+			}
 		}
 	}
 	return Ui::RpWidget::eventFilter(object, event);
+}
+
+void Toolbar::scheduleTooltip(not_null<Ui::IconButton*> button) {
+	// Showing the tooltip synchronously grabs the widget to build an
+	// animation cache, which crashes if we're inside a widget-tree
+	// destructor (an Enter event synthesized while a layer is destroyed
+	// and the mouse ends up over one of the toolbar buttons). Offload the
+	// actual show to the next event loop iteration, guarded by the button
+	// still being hovered (cleared on Leave) and by not queuing twice.
+	const auto already = (_scheduledTooltip != nullptr);
+	_scheduledTooltip = button;
+	if (already) {
+		return;
+	}
+	crl::on_main(this, [=] {
+		if (const auto button = base::take(_scheduledTooltip)) {
+			showTooltip(not_null<Ui::IconButton*>(button));
+		}
+	});
 }
 
 void Toolbar::showTooltip(not_null<Ui::IconButton*> button) {
@@ -1245,6 +1271,7 @@ void Toolbar::showTooltip(not_null<Ui::IconButton*> button) {
 
 void Toolbar::hideTooltip() {
 	_hovered = nullptr;
+	_scheduledTooltip = nullptr;
 	if (_tooltip) {
 		_tooltip->toggleFast(false);
 		_tooltip = nullptr;
