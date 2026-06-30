@@ -836,8 +836,7 @@ private:
 				page,
 				[=] {
 					if (const auto strong = weak.get()) {
-						auto plain = FlattenRichPageSummary(page);
-						plain.entities.clear();
+						auto plain = FlattenRichPageToSimpleText(page);
 						(void)strong->submitSimpleText(std::move(plain));
 					}
 				});
@@ -3934,7 +3933,7 @@ void OfferRichMessagePremiumChoice(
 	if (!show) {
 		return;
 	}
-	const auto flattened = FlattenRichPageSummary(page);
+	const auto flattened = FlattenRichPageToSimpleText(page);
 	const auto lengthLimit = ::Data::PremiumLimits(session)
 		.messageLengthCurrent();
 	const auto sendable = (CountRichPageMedia(page) == 0)

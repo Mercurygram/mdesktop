@@ -1700,6 +1700,24 @@ void AppendSummaryBlocks(
 	return true;
 }
 
+// Drops the inline entities that a normal (non-premium) message can't carry.
+// Math formulas are already expanded to plain text by ExpandInlineTextObjects
+// (in AppendSummaryLine), so only Subscript/Superscript/Marked remain to strip;
+// real custom emoji are kept (they're allowed in normal messages).
+void RemovePremiumOnlyInlineEntities(TextWithEntities *text) {
+	auto &list = text->entities;
+	for (auto i = list.begin(); i != list.end();) {
+		const auto type = i->type();
+		if (type == EntityType::Subscript
+			|| type == EntityType::Superscript
+			|| type == EntityType::Marked) {
+			i = list.erase(i);
+		} else {
+			++i;
+		}
+	}
+}
+
 void AppendSimpleBlock(
 		TextWithEntities *result,
 		TextWithEntities &&block,
@@ -2074,6 +2092,58 @@ TextWithEntities FlattenRichPageSummary(const RichPage &page) {
 TextWithEntities FlattenRichPageSummary(
 		const std::shared_ptr<const RichPage> &page) {
 	return page ? FlattenRichPageSummary(*page) : TextWithEntities();
+}
+
+TextWithEntities FlattenRichPageToSimpleText(const RichPage &page) {
+	auto result = TextWithEntities();
+	for (const auto &block : page.blocks) {
+		switch (block.kind) {
+		case BlockKind::Code: {
+			// Code blocks are allowed at the top level as a Pre entity, but
+			// their content is sent as plain text without any inline entities.
+			auto inner = block.text.text;
+			ExpandInlineTextObjects(&inner);
+			inner.entities.clear();
+			AppendSimpleBlock(
+				&result,
+				std::move(inner),
+				EntityType::Pre,
+				block.language);
+			break;
+		}
+		case BlockKind::Quote: {
+			// Blockquotes are allowed at the top level as a Blockquote entity;
+			// the author is dropped and the inner content is flattened into a
+			// single TextWithEntities (keeping allowed inline formatting, no
+			// nested block formatting).
+			auto inner = TextWithEntities();
+			AppendSummaryLine(&inner, block.text);
+			AppendSummaryBlocks(&inner, block.blocks);
+			AppendSummaryLine(&inner, block.caption);
+			RemovePremiumOnlyInlineEntities(&inner);
+			AppendSimpleBlock(
+				&result,
+				std::move(inner),
+				EntityType::Blockquote);
+			break;
+		}
+		default: {
+			// Every other block (heading, list, table, math, paragraph, ...)
+			// is flattened to plain text lines, keeping the inline formatting a
+			// normal message can carry.
+			auto piece = TextWithEntities();
+			AppendSummaryBlock(&piece, block);
+			RemovePremiumOnlyInlineEntities(&piece);
+			AppendSummaryLine(&result, std::move(piece));
+			break;
+		}
+		}
+	}
+	TextUtilities::Trim(result);
+	if (result.empty()) {
+		result = TextWithEntities::Simple(tr::lng_message_empty(tr::now));
+	}
+	return result;
 }
 
 std::optional<TextWithEntities> SerializeAsSimple(const RichPage &page) {

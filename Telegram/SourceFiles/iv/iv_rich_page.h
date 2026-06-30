@@ -292,5 +292,7 @@ struct RichPageLinkUrl {
 	const RichPage &page);
 [[nodiscard]] TextWithEntities FlattenRichPageSummary(
 	const std::shared_ptr<const RichPage> &page);
+[[nodiscard]] TextWithEntities FlattenRichPageToSimpleText(
+	const RichPage &page);
 
 } // namespace Iv
