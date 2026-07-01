@@ -58,6 +58,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/boxes/confirm_box.h"
 #include "ui/chat/attach/attach_prepare.h"
 #include "ui/controls/location_picker.h"
+#include "ui/controls/send_button.h"
 #include "ui/image/image.h"
 #include "ui/layers/generic_box.h"
 #include "ui/painter.h"
@@ -3991,6 +3992,40 @@ bool ArticleSession::RequestCloseOpenEditWindowThen(
 }
 
 } // namespace
+
+void SetupSendLockBadge(
+		not_null<Ui::SendButton*> button,
+		QPoint position,
+		rpl::producer<bool> locked) {
+	const auto lockIcon = &st::ivEditorSendLockIcon;
+	const auto lockPadding = st::ivEditorSendLockBadgePadding;
+	const auto lock = Ui::CreateChild<Ui::RpWidget>(button.get());
+	lock->setAttribute(Qt::WA_TransparentForMouseEvents);
+	lock->resize(
+		lockIcon->width() + 2 * lockPadding,
+		lockIcon->height() + 2 * lockPadding);
+	lock->move(position);
+	lock->paintRequest() | rpl::on_next([=] {
+		auto p = QPainter(lock);
+		auto hq = PainterHighQualityEnabler(p);
+		const auto border = st::lineWidth;
+		auto pen = QPen(st::windowBg);
+		pen.setWidth(border);
+		p.setPen(pen);
+		p.setBrush(st::windowBgActive);
+		const auto half = border / 2.;
+		p.drawEllipse(QRectF(lock->rect()).marginsRemoved(
+			QMarginsF(half, half, half, half)));
+		lockIcon->paint(p, lockPadding, lockPadding, lock->width());
+	}, lock->lifetime());
+	lock->hide();
+	std::move(locked) | rpl::on_next([=](bool shown) {
+		lock->setVisible(shown);
+		if (shown) {
+			lock->raise();
+		}
+	}, lock->lifetime());
+}
 
 void OfferRichMessagePremiumChoice(
 		std::shared_ptr<ChatHelpers::Show> show,

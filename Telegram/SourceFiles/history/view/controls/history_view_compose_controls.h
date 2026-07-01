@@ -332,6 +332,7 @@ private:
 	void updateControlsParents();
 	void updateSubmitSettings();
 	void updateSendButtonType();
+	void updateSendLockBadge();
 	void updateMessagesTTLShown();
 	bool updateSendAsButton(std::shared_ptr<Data::GroupCall> videoStream);
 	void updateAttachBotsMenu();
@@ -484,6 +485,7 @@ private:
 	std::optional<Ui::RoundRect> _backgroundRect;
 
 	const std::shared_ptr<Ui::SendButton> _send;
+	rpl::event_stream<bool> _sendLockBadge;
 	Controls::ComposeAiButton * const _aiButton = nullptr;
 	Ui::IconButton * const _sendAsFile = nullptr;
 	Ui::IconButton * const _expand = nullptr;

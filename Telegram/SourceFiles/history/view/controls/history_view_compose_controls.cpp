@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/weak_ptr.h"
 #include "boxes/compose_ai_box.h"
 #include "boxes/edit_caption_box.h"
+#include "boxes/premium_preview_box.h"
 #include "boxes/send_files_box.h"
 #include "boxes/send_gif_with_caption_box.h"
 #include "calls/group/ui/calls_group_stars_coloring.h"
@@ -83,6 +84,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "inline_bots/inline_results_widget.h"
 #include "inline_bots/inline_bot_result.h"
 #include "iv/editor/iv_editor_session.h"
+#include "iv/iv_rich_page.h"
 #include "lang/lang_keys.h"
 #include "main/main_app_config.h"
 #include "main/main_session.h"
@@ -118,6 +120,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h"
 #include "styles/style_credits.h"
+#include "styles/style_iv.h"
 #include "styles/style_menu_icons.h"
 
 namespace HistoryView {
@@ -2568,6 +2571,7 @@ void ComposeControls::initField() {
 		updateAiButtonVisibility();
 		updateSendAsFileVisibility();
 		updateExpandButtonVisibility();
+		updateSendLockBadge();
 	}, _wrap->lifetime());
 #ifdef Q_OS_MAC
 	// Removed an ability to insert text from the menu bar
@@ -2959,6 +2963,7 @@ void ComposeControls::updateFieldVisibility() {
 	}
 	updateBotCommandShown();
 	updateLikeShown();
+	updateSendLockBadge();
 }
 
 void ComposeControls::writeDrafts() {
@@ -3243,6 +3248,11 @@ void ComposeControls::initTabbedSelector() {
 }
 
 void ComposeControls::initSendButton() {
+	Iv::Editor::SetupSendLockBadge(
+		_send.get(),
+		st::ivComposeSendLockBadgePosition,
+		_sendLockBadge.events());
+
 	rpl::combine(
 		_slowmodeSecondsLeft.value(),
 		_sendDisabledBySlowmode.value()
@@ -3900,6 +3910,14 @@ void ComposeControls::updateSendButtonType() {
 		&& (type == Type::Send
 			|| type == Type::Record
 			|| type == Type::Round));
+	updateSendLockBadge();
+}
+
+void ComposeControls::updateSendLockBadge() {
+	const auto page = shownRichMessage();
+	_sendLockBadge.fire(page
+		&& !session().premium()
+		&& Iv::RichPageUsesPremiumFormatting(*page));
 }
 
 void ComposeControls::finishAnimating() {

@@ -33,6 +33,10 @@ namespace ChatHelpers {
 class Show;
 } // namespace ChatHelpers
 
+namespace Ui {
+class SendButton;
+} // namespace Ui
+
 namespace Iv {
 struct RichPage;
 } // namespace Iv
@@ -51,6 +55,10 @@ void OfferRichMessagePremiumChoice(
 	not_null<Main::Session*> session,
 	const RichPage &page,
 	Fn<void()> sendWithoutFormatting);
+void SetupSendLockBadge(
+	not_null<Ui::SendButton*> button,
+	QPoint position,
+	rpl::producer<bool> locked);
 void ShowComposeBox(
 	not_null<Window::SessionController*> controller,
 	not_null<PeerData*> peer,

@@ -54,6 +54,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/delete_messages_box.h"
 #include "boxes/send_files_box.h"
 #include "boxes/premium_limits_box.h"
+#include "boxes/premium_preview_box.h"
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
 #include "window/window_peer_menu.h"
@@ -1491,17 +1492,9 @@ void ChatWidget::sendRichDraft(
 	}
 	if (!session().premium()
 		&& Iv::RichPageUsesPremiumFormatting(*page)) {
-		const auto sendPlain = crl::guard(this, [=, this] {
-			auto text = Iv::FlattenRichPageSummary(page);
-			auto tags = TextWithTags{ text.text };
-			sendTextWithTags(std::move(tags), false, options, nullptr);
-			_composeControls->applyCloudDraft();
-		});
-		Iv::Editor::OfferRichMessagePremiumChoice(
-			controller()->uiShow(),
-			&session(),
-			*page,
-			sendPlain);
+		ShowPremiumPreviewToBuy(
+			controller(),
+			PremiumFeature::RichFormatting);
 		return;
 	}
 	if (!options.scheduled) {

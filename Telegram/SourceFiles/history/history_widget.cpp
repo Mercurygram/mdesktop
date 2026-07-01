@@ -145,6 +145,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/media/history_view_media.h"
 #include "iv/editor/iv_editor_session.h"
 #include "iv/iv_rich_message_serializer.h"
+#include "iv/iv_rich_page.h"
 #include "core/click_handler_types.h"
 #include "chat_helpers/field_autocomplete.h"
 #include "chat_helpers/tabbed_panel.h"
@@ -206,6 +207,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_window.h"
 #include "styles/style_chat_helpers.h"
 #include "styles/style_info.h"
+#include "styles/style_iv.h"
 
 #include <QtGui/QWindow>
 #include <QtCore/QMimeData>
@@ -412,6 +414,11 @@ HistoryWidget::HistoryWidget(
 	_fieldBarCancel->addClickHandler([=] { cancelFieldAreaState(); });
 	_send->addClickHandler([=] { sendButtonClicked(); });
 
+	Iv::Editor::SetupSendLockBadge(
+		_send.get(),
+		st::ivComposeSendLockBadgePosition,
+		_sendLockBadge.events());
+
 	_mediaEditManager.updateRequests() | rpl::on_next([this] {
 		updateOverStates(mapFromGlobal(QCursor::pos()));
 	}, lifetime());
@@ -469,6 +476,7 @@ HistoryWidget::HistoryWidget(
 		updateAiButtonVisibility();
 		updateSendAsFileVisibility();
 		updateExpandButtonVisibility();
+		updateSendButtonType();
 	}, lifetime());
 #ifdef Q_OS_MAC
 	// Removed an ability to insert text from the menu bar
@@ -5480,6 +5488,13 @@ void HistoryWidget::sendRichDraft(
 			return;
 		}
 	}
+	if (!session().premium()
+		&& Iv::RichPageUsesPremiumFormatting(*page)) {
+		ShowPremiumPreviewToBuy(
+			controller(),
+			PremiumFeature::RichFormatting);
+		return;
+	}
 
 	auto action = prepareSendAction(options);
 	auto withPaymentApproved = Fn<void(int)>();
@@ -6446,7 +6461,11 @@ void HistoryWidget::updateSendButtonType() {
 			: 0;
 	}();
 	const auto perMessage = _peer ? _peer->starsPerMessageChecked() : 0;
-	const auto richMessage = (shownRichMessage() != nullptr);
+	const auto richPage = shownRichMessage();
+	const auto richMessage = (richPage != nullptr);
+	_sendLockBadge.fire(richMessage
+		&& !session().premium()
+		&& Iv::RichPageUsesPremiumFormatting(*richPage));
 	const auto messages = !_peer
 		? 0
 		: _voiceRecordBar->isListenState()
