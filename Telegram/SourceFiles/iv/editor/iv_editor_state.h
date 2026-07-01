@@ -751,6 +751,9 @@ private:
 		std::vector<RichPage::Block> blocks,
 		const BlockContainerPath &container,
 		int *insertAt);
+	[[nodiscard]] bool insertPreparedBlocksAtRemovedBlockRange(
+		std::vector<RichPage::Block> blocks,
+		const StructuralBlockRange &range);
 	[[nodiscard]] bool wrapStructuralBlockSelection(
 		const Markdown::PreparedEditSelection &selection,
 		InsertAction action,

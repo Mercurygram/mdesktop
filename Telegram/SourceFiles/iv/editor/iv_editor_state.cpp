@@ -6642,13 +6642,21 @@ bool State::replaceStructuralSelectionWithPreparedBlocks(
 	candidate._activeTextOrdinal = _activeTextOrdinal;
 	candidate._lastLimitError = std::nullopt;
 	candidate._temporaryDownParagraph = _temporaryDownParagraph;
+	const auto blocksRange = (selection.kind == PreparedEditSelectionKind::Blocks)
+		? candidate.validateBlockRange(selection.blocks)
+		: std::nullopt;
 	if (!candidate.removeStructuralSelection(selection, true)) {
 		_lastLimitError = candidate._lastLimitError;
 		return false;
 	}
-	if (!candidate.insertPreparedBlocksAfterActive(
+	const auto inserted = blocksRange
+		? candidate.insertPreparedBlocksAtRemovedBlockRange(
 			std::move(blocks),
-			std::move(context))) {
+			*blocksRange)
+		: candidate.insertPreparedBlocksAfterActive(
+			std::move(blocks),
+			std::move(context));
+	if (!inserted) {
 		_lastLimitError = candidate._lastLimitError;
 		return false;
 	}
@@ -7718,6 +7726,30 @@ bool State::insertPreparedBlocksAtExplicitPosition(
 		std::make_move_iterator(blocks.begin()),
 		std::make_move_iterator(blocks.end()));
 	return true;
+}
+
+bool State::insertPreparedBlocksAtRemovedBlockRange(
+		std::vector<Block> blocks,
+		const StructuralBlockRange &range) {
+	if (blocks.empty()) {
+		return false;
+	}
+	return applyCheckedMutation(false, [
+			blocks = std::move(blocks),
+			range](State &candidate) mutable {
+		candidate.normalizeInsertedBlockAnchors(blocks);
+		auto insertAt = range.from;
+		const auto count = int(blocks.size());
+		if (!candidate.insertPreparedBlocksAtExplicitPosition(
+				std::move(blocks),
+				range.container,
+				&insertAt)) {
+			return CheckedMutationResult<bool>{ .result = false };
+		}
+		candidate.rebuild();
+		candidate.focusInsertedBlocks(range.container, insertAt, count);
+		return CheckedMutationResult<bool>{ .apply = true, .result = true };
+	});
 }
 
 bool State::insertPreparedBlocksAtDropTarget(
