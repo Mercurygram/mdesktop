@@ -532,7 +532,7 @@ defaultMarkdownTableHeaderStyle: TextStyle(defaultMarkdownBodyStyle) {
 	lineHeight: 24px;
 }
 defaultMarkdownQuoteAuthorStyle: TextStyle(defaultMarkdownBodyStyle) {
-	font: font(16px semibold);
+	font: semiboldFont;
 	lineHeight: 24px;
 }
 defaultMarkdownBlockSkips: MarkdownBlockSkips {
