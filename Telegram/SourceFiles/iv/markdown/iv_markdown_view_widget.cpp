@@ -854,11 +854,19 @@ MarkdownArticleSelection MarkdownDocumentWidget::selectionFromHit(
 	if (_selectionType != TextSelectType::Letters
 		&& !_dragExpandedSelection.empty()
 		&& result.segmentIndex != _dragSegment) {
-		first = (CompareSelectionPositions(
+		const auto targetBeforeAnchor = CompareSelectionPositions(
 			MarkdownArticleSelectionPosition{ result.segmentIndex, second },
-			MarkdownArticleSelectionPosition{ _dragSegment, _dragSymbol }) < 0)
+			MarkdownArticleSelectionPosition{ _dragSegment, _dragSymbol }) < 0;
+		first = targetBeforeAnchor
 			? _dragExpandedSelection.to
 			: _dragExpandedSelection.from;
+		if (_article->segmentIsText(result.segmentIndex)) {
+			const auto expanded = _article->adjustSelection(
+				result.segmentIndex,
+				TextSelection(uint16(second), uint16(second)),
+				_selectionType);
+			second = targetBeforeAnchor ? expanded.from : expanded.to;
+		}
 	}
 	if (result.segmentIndex == _dragSegment
 		&& _article->segmentIsText(_dragSegment)) {
