@@ -1286,6 +1286,9 @@ void Element::clearSpecialOnlyEmoji() {
 }
 
 void Element::checkSpecialOnlyEmoji() {
+	if (data()->richPage()) {
+		return;
+	}
 	if (history()->session().emojiStickersPack().add(this)) {
 		_flags |= Flag::SpecialOnlyEmoji;
 	}
