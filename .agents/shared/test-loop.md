@@ -249,6 +249,41 @@ highest level that still exercises the change (often a direct data-layer call li
   app never hangs holding a lock on the exe — independent of the runner's own timeout.
 - End every path (success or assertion failure) by logging `TEST_COMPLETE` then `Core::Quit()`.
 
+### Finding widgets in an overlay (CRITICAL — avoids a guaranteed crash)
+
+Telegram's custom widgets (`Ui::InputField`, `Ui::FlatLabel`, `Ui::RpWidget`, boxes, buttons, …)
+do **NOT** declare `Q_OBJECT` — they have no own meta-object. So `QObject::findChildren<T*>()` does
+**not** filter by type for them: with no distinct meta-object it matches the nearest moc'd base
+(`QWidget`), i.e. it returns **every** child widget blindly cast to `T*`. The moment you use one as
+`T` (e.g. call `InputField::setFocused()` / `rawTextEdit()` on what is really a `VerticalLayout`) you
+get a raw SIGSEGV — the debugger shows `this` with the *wrong* dynamic type. A clean rebuild does NOT
+fix it; it is a real bug in the overlay, not a stale build.
+
+- **Never** `findChildren<Ui::SomeCustomWidget*>()`. Instead enumerate `findChildren<QWidget*>()`
+  (`QWidget` *is* `Q_OBJECT`, so that call is sound and returns all descendants) and
+  `dynamic_cast<Ui::SomeCustomWidget*>()` each, keeping the non-null results — C++ RTTI identifies the
+  real type regardless of `Q_OBJECT`. A reusable helper:
+  ```cpp
+  template <typename T>
+  [[nodiscard]] std::vector<T*> FindWidgets(QWidget *root) {
+      auto out = std::vector<T*>();
+      for (const auto w : root->findChildren<QWidget*>()) {
+          if (const auto t = dynamic_cast<T*>(w)) out.push_back(t);
+      }
+      return out;
+  }
+  ```
+- Only genuine Qt `Q_OBJECT` types (`QWidget`, `QLabel`, `QLineEdit`, …) are safe to pass directly to
+  `findChildren<T*>()`.
+
+### Log to an ABSOLUTE path (the launcher chdir's)
+
+The Windows launcher changes the working directory to the exe folder before the app runs, so a
+**relative** overlay log path (`<TASK_DIR>/test_log.txt`) silently fails to write (`QFile` won't
+create missing parents) — the run looks "clean" but produces no evidence. Resolve `<TASK_DIR>` to an
+absolute path up front (e.g. `QDir::current().absoluteFilePath(...)` computed at inject time, or an
+absolute path baked into the overlay) so flushes actually land; likewise for screenshots.
+
 ### Git mechanics for the overlay (no stash)
 
 - After building, save the overlay as a patch: `git diff > <TASK_DIR>/test-overlay.patch`.
