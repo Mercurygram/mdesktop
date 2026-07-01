@@ -495,9 +495,6 @@ void MarkdownDocumentWidget::contextMenuEvent(QContextMenuEvent *e) {
 	const auto uponSelection = !selection.empty()
 		&& ((e->reason() != QContextMenuEvent::Mouse)
 			|| selectionContains(selection, state));
-	const auto contextText = uponSelection
-		? TextForMimeData()
-		: (_article ? _article->textForContext(state) : TextForMimeData());
 	const auto link = state.preparedLink;
 
 	_contextMenu = base::make_unique_q<Ui::PopupMenu>(
@@ -507,14 +504,6 @@ void MarkdownDocumentWidget::contextMenuEvent(QContextMenuEvent *e) {
 		_contextMenu->addAction(
 			Ui::Integration::Instance().phraseContextCopySelected(),
 			[=] { copySelectedText(); },
-			&st::menuIconCopy);
-	} else if (!contextText.empty()) {
-		_contextMenu->addAction(
-			tr::lng_context_copy_text(tr::now),
-			[text = contextText, this] {
-				TextUtilities::SetClipboardText(text);
-				showToast(tr::lng_text_copied(tr::now));
-			},
 			&st::menuIconCopy);
 	}
 
@@ -531,26 +520,6 @@ void MarkdownDocumentWidget::contextMenuEvent(QContextMenuEvent *e) {
 					QGuiApplication::clipboard()->setText(text);
 				},
 				&st::menuIconCopy);
-		}
-		switch (link->kind) {
-		case PreparedLinkKind::RejectedRelative:
-		case PreparedLinkKind::ToggleDetails:
-			break;
-		case PreparedLinkKind::External:
-		case PreparedLinkKind::InstantViewPage:
-		case PreparedLinkKind::Anchor:
-		case PreparedLinkKind::Footnote:
-		case PreparedLinkKind::FootnoteBacklink:
-		case PreparedLinkKind::LocalFile:
-			_contextMenu->addAction(
-				tr::lng_open_link(tr::now),
-				[=, prepared = *link] {
-					if (_activateLink) {
-						_activateLink(prepared, Qt::LeftButton);
-					}
-				},
-				&st::menuIconAddress);
-			break;
 		}
 	}
 
