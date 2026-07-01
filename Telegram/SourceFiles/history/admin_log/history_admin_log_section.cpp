@@ -319,6 +319,7 @@ Widget::Widget(
 		updateAdaptiveLayout();
 	}, lifetime());
 
+	_scroll->lockWheelDirection();
 	_inner = _scroll->setOwnedWidget(
 		object_ptr<InnerWidget>(this, controller, channel));
 	_inner->showSearchSignal(

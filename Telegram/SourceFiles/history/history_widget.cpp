@@ -370,14 +370,9 @@ HistoryWidget::HistoryWidget(
 		update();
 	}, lifetime());
 
-	base::install_event_filter(_scroll.data(), [=](not_null<QEvent*> e) {
-		const auto consumed = (e->type() == QEvent::Wheel)
-			&& _list
-			&& _list->consumeScrollAction(
-				Ui::ScrollDelta(static_cast<QWheelEvent*>(e.get())));
-		return consumed
-			? base::EventFilterResult::Cancel
-			: base::EventFilterResult::Continue;
+	_scroll->lockWheelDirection();
+	_scroll->setCrossAxisWheelProcess([=](QPoint delta) {
+		return _list && _list->consumeScrollAction(delta);
 	});
 	_scroll->scrolls() | rpl::on_next([=] {
 		handleScroll();

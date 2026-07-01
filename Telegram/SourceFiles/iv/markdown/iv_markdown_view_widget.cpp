@@ -563,40 +563,25 @@ void MarkdownDocumentWidget::contextMenuEvent(QContextMenuEvent *e) {
 }
 
 void MarkdownDocumentWidget::wheelEvent(QWheelEvent *e) {
-	const auto phase = e->phase();
-	if (phase == Qt::NoScrollPhase) {
-		_horizontalScrollLock = std::nullopt;
-	} else if (phase == Qt::ScrollBegin) {
-		_horizontalScrollLock = std::nullopt;
-	}
 	if (!_article) {
+		(void)_scrollDirectionLock.update(e->phase(), {});
 		e->ignore();
 		return;
 	}
 	const auto delta = Ui::ScrollDeltaF(e);
-	const auto horizontal = (std::abs(delta.x()) > std::abs(delta.y()));
-	if (phase != Qt::NoScrollPhase
-		&& phase != Qt::ScrollBegin
-		&& !_horizontalScrollLock) {
-		_horizontalScrollLock = horizontal ? Qt::Horizontal : Qt::Vertical;
-	}
+	const auto locked = _scrollDirectionLock.update(e->phase(), delta);
+	const auto horizontal = locked
+		? (*locked == Qt::Horizontal)
+		: (std::abs(delta.x()) > std::abs(delta.y()));
 	const auto local = ArticlePointFromWidget(LocalPosition(e), zoomScale());
 	if (!_article->horizontalScrollHit(local).scrollable) {
 		e->ignore();
 		return;
 	}
 	if (horizontal) {
-		if (_horizontalScrollLock == Qt::Vertical) {
-			e->ignore();
-			return;
-		}
 		(void)_article->consumeHorizontalScroll(
 			local,
 			int(std::round(delta.x())));
-		e->accept();
-		return;
-	}
-	if (_horizontalScrollLock == Qt::Horizontal) {
 		e->accept();
 	} else {
 		e->ignore();

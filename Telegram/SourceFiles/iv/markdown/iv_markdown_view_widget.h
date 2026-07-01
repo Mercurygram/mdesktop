@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/click_handler.h"
 #include "ui/rp_widget.h"
 #include "ui/style/style_core_types.h"
+#include "ui/ui_utility.h"
 
 #include <functional>
 #include <memory>
@@ -166,7 +167,7 @@ private:
 	int _lastRelayoutMs = 0;
 	int _zoom = 100;
 	Ui::VisibleRange _visibleRange;
-	std::optional<Qt::Orientation> _horizontalScrollLock;
+	Ui::ScrollDirectionLock _scrollDirectionLock;
 	base::unique_qptr<Ui::PopupMenu> _contextMenu;
 	bool _activeHorizontalScrollDrag = false;
 	bool _articlePainted = false;
