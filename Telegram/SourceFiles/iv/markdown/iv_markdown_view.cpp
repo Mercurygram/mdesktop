@@ -50,6 +50,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Iv::Markdown {
 namespace {
 
+constexpr auto kZoomStep = 10;
+
 #ifndef NDEBUG
 [[nodiscard]] QString PrepareTerminalFailureName(
 		PrepareTerminalFailure failure) {
@@ -370,7 +372,11 @@ void MarkdownPreviewRoot::setup() {
 				: false;
 		});
 		if (_options.delegate) {
-			_body->setZoom(_options.delegate->ivZoom());
+			const auto delegate = _options.delegate;
+			_body->setZoom(delegate->ivZoom());
+			_body->setZoomStepCallback([=](int steps) {
+				delegate->ivSetZoom(delegate->ivZoom() + steps * kZoomStep);
+			});
 		}
 		_body->heightValue(
 		) | rpl::on_next([=](int) {

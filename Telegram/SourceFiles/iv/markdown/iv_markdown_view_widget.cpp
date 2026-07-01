@@ -210,6 +210,11 @@ void MarkdownDocumentWidget::setMediaActivationCallback(
 	_activateMedia = std::move(callback);
 }
 
+void MarkdownDocumentWidget::setZoomStepCallback(
+		std::function<void(int)> callback) {
+	_zoomStepCallback = std::move(callback);
+}
+
 void MarkdownDocumentWidget::setClickHandlerContext(
 		QVariant context,
 		std::shared_ptr<QVariant> contextRef) {
@@ -535,6 +540,30 @@ void MarkdownDocumentWidget::wheelEvent(QWheelEvent *e) {
 	if (!_article) {
 		(void)_scrollDirectionLock.update(e->phase(), {});
 		e->ignore();
+		return;
+	}
+	if (e->modifiers().testFlag(Qt::ControlModifier)) {
+		(void)_scrollDirectionLock.update(e->phase(), {});
+		const auto angle = e->angleDelta().y();
+		const auto wheel = angle ? angle : e->pixelDelta().y();
+		if (wheel) {
+			constexpr auto step = int(QWheelEvent::DefaultDeltasPerStep);
+			_wheelZoomAccumulated += wheel;
+			while (std::abs(_wheelZoomAccumulated) >= step) {
+				if (_wheelZoomAccumulated < 0) {
+					_wheelZoomAccumulated += step;
+					if (_zoomStepCallback) {
+						_zoomStepCallback(-1);
+					}
+				} else {
+					_wheelZoomAccumulated -= step;
+					if (_zoomStepCallback) {
+						_zoomStepCallback(1);
+					}
+				}
+			}
+		}
+		e->accept();
 		return;
 	}
 	const auto delta = Ui::ScrollDeltaF(e);

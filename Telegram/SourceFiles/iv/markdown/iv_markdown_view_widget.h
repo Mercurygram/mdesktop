@@ -50,6 +50,7 @@ public:
 		std::function<void(const PreparedLink &, Qt::MouseButton)> callback);
 	void setMediaActivationCallback(
 		std::function<bool(const MediaActivation &, Qt::MouseButton)> callback);
+	void setZoomStepCallback(std::function<void(int)> callback);
 	void setClickHandlerContext(
 		QVariant context,
 		std::shared_ptr<QVariant> contextRef = nullptr);
@@ -149,6 +150,7 @@ private:
 	rpl::lifetime _highlightReadyLifetime;
 	std::function<void(const PreparedLink &, Qt::MouseButton)> _activateLink;
 	std::function<bool(const MediaActivation &, Qt::MouseButton)> _activateMedia;
+	std::function<void(int)> _zoomStepCallback;
 	QVariant _clickHandlerContext;
 	std::shared_ptr<QVariant> _clickHandlerContextRef;
 	MarkdownArticleSelection _selection;
@@ -169,6 +171,7 @@ private:
 	bool _dragStartHadSelection = false;
 	int _lastRelayoutMs = 0;
 	int _zoom = 100;
+	int _wheelZoomAccumulated = 0;
 	Ui::VisibleRange _visibleRange;
 	Ui::ScrollDirectionLock _scrollDirectionLock;
 	base::unique_qptr<Ui::PopupMenu> _contextMenu;
