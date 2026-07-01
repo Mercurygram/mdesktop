@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/spellchecker_common.h"
 #include "data/data_drafts.h"
 #include "iv/iv_cached_media.h"
+#include "iv/markdown/iv_markdown_article_layout_blocks.h"
 #include "iv/markdown/iv_markdown_prepare.h"
 #include "iv/iv_rich_page.h"
 #include "main/main_session.h"
@@ -61,6 +62,10 @@ private:
 	const Fn<void(QRect)> _relayout;
 
 };
+
+[[nodiscard]] int PreviewBottomFadeHeight() {
+	return 2 * Iv::Markdown::TextLineHeight(st::messageMarkdown.body);
+}
 
 } // namespace
 
@@ -220,7 +225,7 @@ void RichDraftPreview::paint(QRect clip) {
 		return;
 	}
 	const auto fadeHeight = std::min(
-		st::historyRichMessagePreviewFadeHeight,
+		PreviewBottomFadeHeight(),
 		height());
 	if (fadeHeight <= 0) {
 		return;
@@ -313,7 +318,7 @@ void RichDraftPreview::refreshPaletteDependentCaches() {
 }
 
 void RichDraftPreview::regenerateFadePixmap() {
-	const auto height = st::historyRichMessagePreviewFadeHeight;
+	const auto height = PreviewBottomFadeHeight();
 	if (height <= 0) {
 		_fadePixmap = QPixmap();
 		return;
