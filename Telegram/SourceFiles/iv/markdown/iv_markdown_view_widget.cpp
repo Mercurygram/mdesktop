@@ -1174,8 +1174,12 @@ MarkdownArticlePaintContext MarkdownDocumentWidget::textPaintContext(
 			});
 		},
 	};
-	context.selectionState.selection = _selection;
-	context.selectionState.endpoints = &_selectionEndpoints;
+	context.selectionState.selection = !_selection.empty()
+		? _selection
+		: _savedSelection;
+	context.selectionState.endpoints = !_selection.empty()
+		? &_selectionEndpoints
+		: &_savedSelectionEndpoints;
 	return context;
 }
 
