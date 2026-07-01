@@ -1962,6 +1962,44 @@ std::shared_ptr<const RichPage> ParsePage(
 	});
 }
 
+[[nodiscard]] bool RichBlockIsFlattenSafe(const RichPage::Block &block) {
+	switch (block.kind) {
+	case BlockKind::Table:
+	case BlockKind::Math:
+	case BlockKind::Photo:
+	case BlockKind::Video:
+	case BlockKind::Audio:
+	case BlockKind::GroupedMedia:
+	case BlockKind::Map:
+		return false;
+	default:
+		break;
+	}
+	for (const auto &item : block.mediaItems) {
+		switch (item.kind) {
+		case BlockKind::Photo:
+		case BlockKind::Video:
+		case BlockKind::Audio:
+			return false;
+		default:
+			break;
+		}
+	}
+	for (const auto &child : block.blocks) {
+		if (!RichBlockIsFlattenSafe(child)) {
+			return false;
+		}
+	}
+	for (const auto &listItem : block.listItems) {
+		for (const auto &child : listItem.blocks) {
+			if (!RichBlockIsFlattenSafe(child)) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 } // namespace
 
 bool RichPagesEqual(
@@ -2200,6 +2238,15 @@ bool RichPageUsesPremiumFormatting(const RichPage &page) {
 		}
 	}
 	return false;
+}
+
+bool RichPageIsFlattenSafe(const RichPage &page) {
+	for (const auto &block : page.blocks) {
+		if (!RichBlockIsFlattenSafe(block)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 RichPage SplitTextIntoRichPage(TextWithEntities text) {

@@ -1492,9 +1492,24 @@ void ChatWidget::sendRichDraft(
 	}
 	if (!session().premium()
 		&& Iv::RichPageUsesPremiumFormatting(*page)) {
-		ShowPremiumPreviewToBuy(
-			controller(),
-			PremiumFeature::RichFormatting);
+		if (Iv::RichPageIsFlattenSafe(*page)) {
+			const auto weak = base::make_weak(this);
+			Iv::Editor::OfferRichMessagePremiumChoice(
+				controller()->uiShow(),
+				&session(),
+				*page,
+				[=] {
+					if (const auto strong = weak.get()) {
+						strong->sendRichDraftWithoutFormatting(
+							page,
+							options);
+					}
+				});
+		} else {
+			ShowPremiumPreviewToBuy(
+				controller(),
+				PremiumFeature::RichFormatting);
+		}
 		return;
 	}
 	if (!options.scheduled) {
@@ -1527,6 +1542,24 @@ void ChatWidget::sendRichDraft(
 			-1);
 	}
 	finishSending();
+}
+
+void ChatWidget::sendRichDraftWithoutFormatting(
+		std::shared_ptr<const Iv::RichPage> page,
+		Api::SendOptions options) {
+	if (!page) {
+		return;
+	}
+	const auto flattened = Iv::FlattenRichPageToSimpleText(*page);
+	sendTextWithTags(
+		{
+			flattened.text,
+			TextUtilities::ConvertEntitiesToTextTags(flattened.entities),
+		},
+		false,
+		options,
+		nullptr);
+	_composeControls->applyCloudDraft();
 }
 
 void ChatWidget::sendTextWithTags(

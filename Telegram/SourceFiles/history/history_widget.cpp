@@ -5490,9 +5490,24 @@ void HistoryWidget::sendRichDraft(
 	}
 	if (!session().premium()
 		&& Iv::RichPageUsesPremiumFormatting(*page)) {
-		ShowPremiumPreviewToBuy(
-			controller(),
-			PremiumFeature::RichFormatting);
+		if (Iv::RichPageIsFlattenSafe(*page)) {
+			const auto weak = base::make_weak(this);
+			Iv::Editor::OfferRichMessagePremiumChoice(
+				controller()->uiShow(),
+				&session(),
+				*page,
+				[=] {
+					if (const auto strong = weak.get()) {
+						strong->sendRichDraftWithoutFormatting(
+							page,
+							options);
+					}
+				});
+		} else {
+			ShowPremiumPreviewToBuy(
+				controller(),
+				PremiumFeature::RichFormatting);
+		}
 		return;
 	}
 
@@ -5553,6 +5568,24 @@ void HistoryWidget::sendRichDraft(
 		_history,
 		Api::SendProgressType::Typing,
 		-1);
+}
+
+void HistoryWidget::sendRichDraftWithoutFormatting(
+		std::shared_ptr<const Iv::RichPage> page,
+		Api::SendOptions options) {
+	if (!page || !_history) {
+		return;
+	}
+	const auto flattened = Iv::FlattenRichPageToSimpleText(*page);
+	sendTextWithTags(
+		{
+			flattened.text,
+			TextUtilities::ConvertEntitiesToTextTags(flattened.entities),
+		},
+		false,
+		options,
+		nullptr);
+	applyCloudDraft(_history);
 }
 
 void HistoryWidget::sendTextWithTags(

@@ -23,6 +23,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer.h"
 #include "base/weak_qptr.h"
 #include "base/weak_ptr.h"
+#include "boxes/premium_preview_box.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "core/application.h"
 #include "data/data_file_origin.h"
@@ -897,6 +898,15 @@ private:
 		}
 		if (!CanUseRichMessages(_session)) {
 			const auto page = _state->richPage();
+			if (!RichPageIsFlattenSafe(page)) {
+				if (const auto window = _session->tryResolveWindow(
+						_peer)) {
+					ShowPremiumPreviewToBuy(
+						window,
+						PremiumFeature::RichFormatting);
+				}
+				return false;
+			}
 			const auto weak = base::make_weak(this);
 			OfferRichMessagePremiumChoice(
 				resolveShow(),

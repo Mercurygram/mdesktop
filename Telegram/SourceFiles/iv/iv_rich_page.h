@@ -287,6 +287,7 @@ struct RichPageLinkUrl {
 [[nodiscard]] std::optional<TextWithEntities> SerializeAsSimple(
 	const RichPage &page);
 [[nodiscard]] bool RichPageUsesPremiumFormatting(const RichPage &page);
+[[nodiscard]] bool RichPageIsFlattenSafe(const RichPage &page);
 [[nodiscard]] RichPage SplitTextIntoRichPage(TextWithEntities text);
 [[nodiscard]] TextWithEntities FlattenRichPageSummary(
 	const RichPage &page,
