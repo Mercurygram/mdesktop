@@ -903,9 +903,14 @@ void MarkdownPreviewRoot::updateScrollToTopVisibility() {
 	if (_scrollToAnimation.animating()) {
 		return;
 	}
+	const auto scrollTop = _scroll->scrollTop();
+	const auto scrollTopMax = _scroll->scrollTopMax();
+	const auto nearBottom = (scrollTop + st::historyToDownShownAfter / 2)
+		>= scrollTopMax;
 	startScrollToTopButtonAnimation(
 		!_scroll->isHidden()
-		&& (_scroll->scrollTop() > (st::historyToDownShownAfter / 2)));
+		&& (scrollTop > (st::historyToDownShownAfter / 2))
+		&& !nearBottom);
 }
 
 void MarkdownPreviewRoot::startScrollToTopButtonAnimation(bool shown) {
