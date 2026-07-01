@@ -131,6 +131,15 @@ void PaintImageSpoiler(Painter &p, QRect rect) {
 	return true;
 }
 
+[[nodiscard]] QSize ScaledRequestSize(QSize size, double scale) {
+	if (scale <= 1. || size.isEmpty()) {
+		return size;
+	}
+	return QSize(
+		int(std::ceil(size.width() * scale)),
+		int(std::ceil(size.height() * scale)));
+}
+
 template <typename Runtime, typename SubscribeCallback>
 void RefreshResolvedImages(
 		const std::shared_ptr<Runtime> &runtime,
@@ -595,15 +604,16 @@ void ImageBackedMediaBlock::ensureVideoResolved(QSize size) {
 }
 
 void ImageBackedMediaBlock::ensureMapResolved(QSize size) {
-	if (!_mapRuntimeResolved || (_mapRuntimeSize != size)) {
+	const auto requestSize = ScaledRequestSize(size, mediaPixelScale());
+	if (!_mapRuntimeResolved || (_mapRuntimeSize != requestSize)) {
 		_mapRuntimeResolved = true;
-		_mapRuntimeSize = size;
+		_mapRuntimeSize = requestSize;
 		if (_mediaRuntime) {
 			_mapRuntime = _mediaRuntime->resolveMap(
 				_map.latitude,
 				_map.longitude,
 				_map.accessHash,
-				size,
+				requestSize,
 				_map.zoom);
 		}
 	}
@@ -616,7 +626,7 @@ void ImageBackedMediaBlock::resolveImages(
 		QSize size) {
 	RefreshResolvedImages(
 		runtime,
-		size,
+		ScaledRequestSize(size, mediaPixelScale()),
 		&_requestedImageSize,
 		&_thumbnailImage,
 		&_previousThumbnailImage,
@@ -1370,10 +1380,13 @@ void GroupedMediaBlock::resolveImages(ItemState &item) {
 	if (item.rect.isEmpty()) {
 		return;
 	}
+	const auto requestSize = ScaledRequestSize(
+		item.rect.size(),
+		mediaPixelScale());
 	if (item.photoRuntime) {
 		RefreshResolvedImages(
 			item.photoRuntime,
-			item.rect.size(),
+			requestSize,
 			&item.requestedSize,
 			&item.thumbnailImage,
 			&item.previousThumbnailImage,
@@ -1385,7 +1398,7 @@ void GroupedMediaBlock::resolveImages(ItemState &item) {
 	} else if (item.documentRuntime) {
 		RefreshResolvedImages(
 			item.documentRuntime,
-			item.rect.size(),
+			requestSize,
 			&item.requestedSize,
 			&item.thumbnailImage,
 			&item.previousThumbnailImage,
@@ -1733,6 +1746,14 @@ void MediaBlock::setLayoutStyle(const style::Markdown &st) {
 
 const style::Markdown &MediaBlock::layoutStyle() const {
 	return *_st;
+}
+
+void MediaBlock::setMediaPixelScale(double scale) {
+	_mediaPixelScale = std::max(scale, 1.);
+}
+
+double MediaBlock::mediaPixelScale() const {
+	return _mediaPixelScale;
 }
 
 void MediaBlock::requestRepaint(QRect articleRect) const {

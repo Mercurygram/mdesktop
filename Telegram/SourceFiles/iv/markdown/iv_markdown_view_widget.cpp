@@ -355,6 +355,7 @@ int MarkdownDocumentWidget::resizeGetHeight(int newWidth) {
 	}
 	const auto scale = zoomScale();
 	const auto layoutWidth = std::max(int(std::floor(newWidth / scale)), 1);
+	_article->setMediaPixelScale(scale);
 	auto timer = QElapsedTimer();
 	timer.start();
 	const auto layoutHeight = _article->resizeGetHeight(layoutWidth);
@@ -385,6 +386,7 @@ void MarkdownDocumentWidget::requestRelayout(QRect articleRect) {
 		const auto previousHeight = height();
 		const auto scale = zoomScale();
 		const auto layoutWidth = std::max(int(std::floor(width() / scale)), 1);
+		_article->setMediaPixelScale(scale);
 		auto timer = QElapsedTimer();
 		timer.start();
 		const auto articleHeight = _article->resizeGetHeight(layoutWidth);
@@ -1002,6 +1004,7 @@ void MarkdownDocumentWidget::relayoutCurrentWidth(bool clearSelection) {
 	}
 	const auto scale = zoomScale();
 	const auto layoutWidth = std::max(int(std::floor(width() / scale)), 1);
+	_article->setMediaPixelScale(scale);
 	auto timer = QElapsedTimer();
 	timer.start();
 	const auto articleHeight = _article->resizeGetHeight(layoutWidth);

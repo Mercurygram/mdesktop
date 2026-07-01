@@ -3244,6 +3244,8 @@ public:
 
 	void setMediaBlockHost(MediaBlockHost *host);
 
+	void setMediaPixelScale(double scale);
+
 	void setTextRepaintCallbacks(
 		Fn<void()> repaint,
 		Fn<void(QRect)> repaintRect,
@@ -3559,6 +3561,7 @@ private:
 	int _laidOutWidth = 0;
 	int _height = 0;
 	int _layoutGeneration = 0;
+	double _mediaPixelScale = 1.;
 	MarkdownArticleRevealLineCountsCache _revealLineCounts;
 	CachedTextLeafPool _cachedTextLeafs;
 	std::vector<LaidOutBlock> _blocks;
@@ -3620,6 +3623,15 @@ void MarkdownArticle::Impl::setMediaBlockHost(MediaBlockHost *host) {
 	}
 	_mediaBlockHost = host;
 	refreshMediaBlockHosts();
+}
+
+void MarkdownArticle::Impl::setMediaPixelScale(double scale) {
+	scale = std::max(scale, 1.);
+	if (_mediaPixelScale == scale) {
+		return;
+	}
+	_mediaPixelScale = scale;
+	invalidateLayout();
 }
 
 void MarkdownArticle::Impl::setTextRepaintCallbacks(
@@ -5554,6 +5566,7 @@ void MarkdownArticle::Impl::relayout(int width) {
 	auto context = LayoutContext{
 		.articleLeft = page.left(),
 		.articleWidth = innerWidth,
+		.mediaPixelScale = _mediaPixelScale,
 		.useArticleBands = true,
 		.editMode = _content.editMode,
 		.syntaxHighlightTracker = this,
@@ -5635,6 +5648,7 @@ void MarkdownArticle::Impl::relayoutRetained(int width) {
 	auto context = LayoutContext{
 		.articleLeft = page.left(),
 		.articleWidth = innerWidth,
+		.mediaPixelScale = _mediaPixelScale,
 		.useArticleBands = true,
 		.editMode = _content.editMode,
 		.syntaxHighlightTracker = this,
@@ -5713,6 +5727,10 @@ void MarkdownArticle::setRenderer(std::shared_ptr<MathRenderer> renderer) {
 
 void MarkdownArticle::setMediaBlockHost(MediaBlockHost *host) {
 	_impl->setMediaBlockHost(host);
+}
+
+void MarkdownArticle::setMediaPixelScale(double scale) {
+	_impl->setMediaPixelScale(scale);
 }
 
 void MarkdownArticle::setTextRepaintCallbacks(

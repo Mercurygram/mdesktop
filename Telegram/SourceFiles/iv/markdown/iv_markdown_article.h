@@ -322,6 +322,7 @@ public:
 
 	void setRenderer(std::shared_ptr<MathRenderer> renderer);
 	void setMediaBlockHost(MediaBlockHost *host);
+	void setMediaPixelScale(double scale);
 	void setTextRepaintCallbacks(
 		Fn<void()> repaint,
 		Fn<void(QRect)> repaintRect,

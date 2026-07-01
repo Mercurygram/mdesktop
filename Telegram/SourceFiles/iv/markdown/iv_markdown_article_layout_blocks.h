@@ -312,6 +312,7 @@ struct LayoutContext {
 	int quoteDepth = 0;
 	int articleLeft = 0;
 	int articleWidth = 0;
+	double mediaPixelScale = 1.;
 	bool tightList = false;
 	bool useArticleBands = false;
 	bool editMode = false;

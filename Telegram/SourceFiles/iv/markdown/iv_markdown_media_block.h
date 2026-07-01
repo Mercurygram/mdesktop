@@ -53,6 +53,7 @@ public:
 
 	void setHost(MediaBlockHost *host);
 	[[nodiscard]] MediaBlockHost *host() const;
+	void setMediaPixelScale(double scale);
 
 	[[nodiscard]] virtual uint64 stableId() const = 0;
 	[[nodiscard]] virtual int resizeGetHeight(int width) = 0;
@@ -82,12 +83,15 @@ protected:
 	void requestRepaint(QRect articleRect) const;
 	void requestRelayout(QRect articleRect) const;
 	[[nodiscard]] const style::Markdown &layoutStyle() const;
+	[[nodiscard]] double mediaPixelScale() const;
 	virtual void layoutStyleUpdated();
 	virtual void hostUpdated();
 
 private:
 	MediaBlockHost *_host = nullptr;
 	const style::Markdown *_st = nullptr;
+	double _mediaPixelScale = 1.;
+
 };
 
 [[nodiscard]] std::shared_ptr<MediaBlock> CreatePhotoMediaBlock(

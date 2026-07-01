@@ -735,10 +735,12 @@ void PopulateCodeBlockLeaf(
 void ApplyMediaBlockGeometry(
 		LaidOutBlock *block,
 		QRect geometry,
-		const style::Markdown &st) {
+		const style::Markdown &st,
+		double mediaPixelScale) {
 	if (!block->mediaBlock) {
 		return;
 	}
+	block->mediaBlock->setMediaPixelScale(mediaPixelScale);
 	block->mediaBlock->setGeometry(geometry);
 	auto actual = block->mediaBlock->geometry();
 	if (actual.width() < geometry.width() && actual.x() == geometry.x()) {
@@ -4458,7 +4460,11 @@ LaidOutBlock LayoutGroupedMediaBlock(
 	block->mediaRect = QRect(mediaLeft, mediaTop, mediaWidth, mediaHeight);
 	block->visibleMediaRect = block->mediaRect;
 	if (block->mediaBlock) {
-		ApplyMediaBlockGeometry(block, block->mediaRect, st);
+		ApplyMediaBlockGeometry(
+			block,
+			block->mediaRect,
+			st,
+			context.mediaPixelScale);
 	}
 	auto bottom = block->mediaRect.y() + block->mediaRect.height()
 		+ padding.bottom();
@@ -4509,7 +4515,11 @@ LaidOutBlock LayoutGroupedMediaBlock(
 	block->mediaRect = QRect(left, top, blockWidth, cardHeight);
 	block->visibleMediaRect = block->mediaRect;
 	if (block->mediaBlock) {
-		ApplyMediaBlockGeometry(block, block->mediaRect, st);
+		ApplyMediaBlockGeometry(
+			block,
+			block->mediaRect,
+			st,
+			context.mediaPixelScale);
 	}
 	auto bottom = top + cardHeight;
 	if (!LayoutMediaCaptionGeometry(
