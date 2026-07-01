@@ -643,6 +643,52 @@ public:
 		articleSession->showWindow();
 	}
 
+	static void ShowEditFromField(
+			not_null<HistoryItem*> item,
+			Api::SendAction action,
+			Fn<SendMenu::Details()> sendMenuDetails) {
+		const auto session = &item->history()->session();
+		const auto topicRootId = action.replyTo.topicRootId;
+		const auto monoforumPeerId = action.replyTo.monoforumPeerId;
+		const auto composeKey = ComposeKey(
+			session,
+			item->history()->peer->id,
+			topicRootId,
+			monoforumPeerId);
+		auto page = std::make_shared<RichPage>();
+		if (const auto entry = LookupComposeThreadEntry(composeKey)) {
+			if (entry->readDraft) {
+				if (const auto draft = entry->readDraft()) {
+					const auto &withTags = draft->textWithTags;
+					*page = SplitTextIntoRichPage({
+						withTags.text,
+						TextUtilities::ConvertTextTagsToEntities(
+							withTags.tags),
+					});
+				}
+			}
+			if (entry->migratedAway) {
+				entry->migratedAway();
+			}
+		}
+		auto articleSession = std::shared_ptr<ArticleSession>(new ArticleSession(
+			session,
+			item->history()->peer,
+			Mode::Edit,
+			item->fullId(),
+			std::move(page),
+			std::move(action),
+			std::move(sendMenuDetails),
+			EditedItemSnapshot{
+				.item = item,
+				.inlinePage = item->richPage(),
+				.summary = item->originalText(),
+				.fullPage = item->fullRichPage(),
+			},
+			std::nullopt));
+		articleSession->showWindow();
+	}
+
 	~ArticleSession() {
 		_submitDeferred = false;
 		for (const auto &attachment : _attachments) {
@@ -4110,6 +4156,17 @@ void ShowEditBox(
 			not_null{ current },
 			std::move(page));
 	});
+}
+
+void ShowEditFromFieldBox(
+		not_null<Window::SessionController*> controller,
+		not_null<HistoryItem*> item,
+		Api::SendAction action,
+		Fn<SendMenu::Details()> sendMenuDetails) {
+	ArticleSession::ShowEditFromField(
+		item,
+		std::move(action),
+		std::move(sendMenuDetails));
 }
 
 bool IsComposeBoxOpen(

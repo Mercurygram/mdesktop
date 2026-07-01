@@ -3730,6 +3730,18 @@ void ComposeControls::initExpandButton() {
 		if (!_regularWindow || !_history || !_sendActionFactory) {
 			return;
 		}
+		if (isEditingMessage()) {
+			const auto item = _history->owner().message(
+				_header->editMsgId());
+			if (item && Iv::Editor::CheckRichMessagesPremium(_regularWindow)) {
+				Iv::Editor::ShowEditFromFieldBox(
+					_regularWindow,
+					item,
+					_sendActionFactory(),
+					[=] { return sendMenuDetails(); });
+			}
+			return;
+		}
 		Iv::Editor::ShowComposeBox(
 			_regularWindow,
 			_history->peer,

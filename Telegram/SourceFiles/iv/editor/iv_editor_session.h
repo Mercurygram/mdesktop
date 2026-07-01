@@ -59,6 +59,11 @@ void ShowComposeBox(
 void ShowEditBox(
 	not_null<Window::SessionController*> controller,
 	not_null<HistoryItem*> item);
+void ShowEditFromFieldBox(
+	not_null<Window::SessionController*> controller,
+	not_null<HistoryItem*> item,
+	Api::SendAction action,
+	Fn<SendMenu::Details()> sendMenuDetails);
 [[nodiscard]] bool IsComposeBoxOpen(
 	not_null<Main::Session*> session,
 	PeerId peerId,

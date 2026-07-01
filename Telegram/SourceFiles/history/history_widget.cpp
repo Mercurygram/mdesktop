@@ -1404,6 +1404,19 @@ void HistoryWidget::initExpandButton() {
 			return;
 		}
 		const auto window = controller();
+		if (editingMessage()) {
+			const auto item = session().data().message(
+				_history->peer,
+				_editMsgId);
+			if (item && Iv::Editor::CheckRichMessagesPremium(window)) {
+				Iv::Editor::ShowEditFromFieldBox(
+					window,
+					item,
+					prepareSendAction({}),
+					[=] { return sendMenuDetails(); });
+			}
+			return;
+		}
 		Iv::Editor::ShowComposeBox(
 			window,
 			_history->peer,
