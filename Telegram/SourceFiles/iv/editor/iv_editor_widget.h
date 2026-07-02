@@ -567,6 +567,14 @@ private:
 		not_null<const QMimeData*> data,
 		Ui::InputField::MimeAction action);
 	[[nodiscard]] bool moveBoundary(bool forward, bool allowTrailing);
+
+	// At the very first text node with no editable node above, inserts an
+	// empty top-level paragraph before everything (so content can be added
+	// above a non-trivial first block, like a table), unless the active node
+	// already is a top-level paragraph or heading. Focuses the inserted
+	// paragraph (Up) or keeps the currently edited node focused (Enter).
+	[[nodiscard]] bool insertLeadingParagraphFromField(bool focusInserted);
+
 	[[nodiscard]] bool moveBoundaryAfterCommit(
 		State::ApplyResult committed,
 		bool forward,

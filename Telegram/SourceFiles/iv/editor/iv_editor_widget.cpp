@@ -8873,7 +8873,8 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 					} else if (down) {
 						handled = moveVerticalDownBoundary();
 					} else {
-						handled = moveBoundary(false, false);
+						handled = moveBoundary(false, false)
+							|| insertLeadingParagraphFromField(true);
 					}
 				}
 			} else if (!fieldCursorLeavesVisibleRow(down)) {
@@ -8895,7 +8896,8 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 				if (!handled) {
 					handled = down
 						? moveVerticalDownBoundary()
-						: moveBoundary(false, false);
+						: (moveBoundary(false, false)
+							|| insertLeadingParagraphFromField(true));
 				}
 			}
 		} else if (modifiers == Qt::ShiftModifier) {
@@ -8937,11 +8939,30 @@ bool Widget::handleFieldKey(QKeyEvent *e) {
 	} else if (key == Qt::Key_Return || key == Qt::Key_Enter) {
 		recordMutationTransaction([&] {
 			const auto committed = commitInlineField();
+			// At the very start of the very first text node of a block that
+			// is not a top-level paragraph or heading (a table, a list, ...)
+			// Enter inserts a paragraph above everything, so content can
+			// always be added at the very top of the article. The focus
+			// stays in the initially edited node.
+			const auto insertLeading = (committed != ApplyResult::Failed)
+				&& atStart
+				&& !_state->previousEditableOrdinal().has_value()
+				&& !_state->isActiveTopLevelParagraphOrHeading();
+			const auto leadingTarget = insertLeading
+				? _state->insertLeadingParagraphActive(false)
+				: std::optional<int>();
 			if (committed == ApplyResult::Failed) {
 				handled = true;
 				return MutationTransactionResult{
 					.committed = committed,
 					.failed = true,
+				};
+			} else if (leadingTarget) {
+				refreshPreparedContentAndActivate(*leadingTarget, 0);
+				handled = true;
+				return MutationTransactionResult{
+					.committed = committed,
+					.changed = true,
 				};
 			} else if (const auto target = _state->handleActiveListEnter()) {
 				refreshPreparedContentAndActivate(*target, 0);
@@ -9049,6 +9070,48 @@ bool Widget::moveBoundary(bool forward, bool allowTrailing) {
 			handled = forward
 				&& allowTrailing
 				&& _state->lastLimitError().has_value();
+			return MutationTransactionResult{
+				.committed = committed,
+				.changed = (committed == ApplyResult::Changed),
+			};
+		}
+		refreshPreparedContent();
+		activateTextOrdinal(*ordinal, 0);
+		handled = true;
+		return MutationTransactionResult{
+			.committed = committed,
+			.changed = true,
+		};
+	});
+	return handled;
+}
+
+bool Widget::insertLeadingParagraphFromField(bool focusInserted) {
+	if (_state->previousEditableOrdinal().has_value()
+		|| _state->isActiveTopLevelParagraphOrHeading()) {
+		return false;
+	}
+	auto handled = false;
+	beginArticleRelayoutDeferral();
+	const auto relayoutGuard = gsl::finally([&] {
+		endArticleRelayoutDeferral();
+	});
+	recordMutationTransaction([&] {
+		const auto committed = commitInlineField();
+		if (committed == ApplyResult::Failed) {
+			handled = true;
+			return MutationTransactionResult{
+				.committed = committed,
+				.failed = true,
+			};
+		}
+		const auto ordinal = _state->insertLeadingParagraphActive(
+			focusInserted);
+		if (!ordinal) {
+			if (_state->lastLimitError()) {
+				showLastLimitToast();
+				handled = true;
+			}
 			return MutationTransactionResult{
 				.committed = committed,
 				.changed = (committed == ApplyResult::Changed),

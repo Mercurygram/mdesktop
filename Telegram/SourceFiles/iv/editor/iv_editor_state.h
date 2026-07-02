@@ -274,6 +274,7 @@ public:
 	[[nodiscard]] std::vector<BoundaryTarget> boundarySteps(
 		bool forward) const;
 	[[nodiscard]] bool isActiveTopLevelParagraph() const;
+	[[nodiscard]] bool isActiveTopLevelParagraphOrHeading() const;
 	[[nodiscard]] bool activeSurfaceAllowsSeparateLineFormula() const;
 	[[nodiscard]] bool activeLeafUsesQuoteCaptionColor() const;
 	[[nodiscard]] bool activeLeafUsesQuotePlaceholderColor() const;
@@ -358,6 +359,13 @@ public:
 		const Markdown::PreparedEditTableCellRange &range,
 		bool striped);
 	[[nodiscard]] std::optional<int> ensureTrailingParagraphActive();
+
+	// Inserts an empty paragraph at the very start of the top-level blocks
+	// list, so content can always be added above a non-trivial first block
+	// (a table, a list, ...). Returns the ordinal of the inserted paragraph
+	// when focusInserted, otherwise the new ordinal of the still-active leaf.
+	[[nodiscard]] std::optional<int> insertLeadingParagraphActive(
+		bool focusInserted);
 	void resyncAfterExternalRichPageMutation();
 	void insertHeading1AfterActive();
 	void insertBlockquoteAfterActive();
@@ -724,6 +732,8 @@ private:
 		const Markdown::PreparedEditTableCellRange &range,
 		bool after);
 	[[nodiscard]] std::optional<int> ensureTrailingParagraphActiveUnchecked();
+	[[nodiscard]] std::optional<int> insertLeadingParagraphActiveUnchecked(
+		bool focusInserted);
 	[[nodiscard]] std::optional<int> moveActiveSpecialBlockDownUnchecked();
 	[[nodiscard]] std::optional<int> submitActiveSingleLineFieldUnchecked();
 	[[nodiscard]] std::optional<int> escapeActiveBlockBodyUnchecked();

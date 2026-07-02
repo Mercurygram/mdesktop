@@ -3513,6 +3513,17 @@ bool State::isActiveTopLevelParagraph() const {
 	return owner && owner->kind == BlockKind::Paragraph;
 }
 
+bool State::isActiveTopLevelParagraphOrHeading() const {
+	const auto descriptor = textNode(_activeTextOrdinal);
+	if (!descriptor || !descriptor->leaf.block.container.steps.empty()) {
+		return false;
+	}
+	const auto owner = block(descriptor->leaf.block);
+	return owner
+		&& ((owner->kind == BlockKind::Paragraph)
+			|| (owner->kind == BlockKind::Heading));
+}
+
 bool State::activeSurfaceAllowsSeparateLineFormula() const {
 	const auto descriptor = textNode(_activeTextOrdinal);
 	if (!descriptor || descriptor->leaf.kind == LeafKind::MathFormula) {
@@ -5391,6 +5402,51 @@ std::optional<int> State::ensureTrailingParagraphActiveUnchecked() {
 			.block = path,
 		});
 	if (!setActiveTextByOrdinal(ordinal)) {
+		ensureActiveTextOrdinal();
+	}
+	return (_activeTextOrdinal >= 0)
+		? std::make_optional(_activeTextOrdinal)
+		: std::nullopt;
+}
+
+std::optional<int> State::insertLeadingParagraphActive(bool focusInserted) {
+	return applyCheckedMutation(std::optional<int>(), [=](State &candidate) {
+		const auto result = candidate.insertLeadingParagraphActiveUnchecked(
+			focusInserted);
+		return CheckedMutationResult<std::optional<int>>{
+			.apply = result.has_value(),
+			.result = result,
+		};
+	});
+}
+
+std::optional<int> State::insertLeadingParagraphActiveUnchecked(
+		bool focusInserted) {
+	auto restore = std::optional<LeafPath>();
+	if (!focusInserted) {
+		if (const auto descriptor = textNode(_activeTextOrdinal)) {
+			restore = descriptor->leaf;
+			// The paragraph is prepended to the top-level blocks list,
+			// so the active leaf's root-level index shifts by one.
+			if (restore->block.container.steps.empty()) {
+				++restore->block.index;
+			} else {
+				++restore->block.container.steps.front().blockIndex;
+			}
+		}
+	}
+	clearTemporaryDownParagraph();
+	_richPage->blocks.insert(_richPage->blocks.begin(), MakeParagraphBlock());
+	rebuild();
+	const auto inserted = LeafPath{
+		.kind = LeafKind::BlockText,
+		.block = {
+			.container = BlockContainerPath(),
+			.index = 0,
+		},
+	};
+	const auto target = restore.value_or(inserted);
+	if (!setActiveTextByOrdinal(textNodeOrdinal(target))) {
 		ensureActiveTextOrdinal();
 	}
 	return (_activeTextOrdinal >= 0)
