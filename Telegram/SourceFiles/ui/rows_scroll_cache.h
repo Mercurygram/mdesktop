@@ -41,6 +41,7 @@ public:
 	}
 
 	void invalidate(uint64 rowId);
+	void clear();
 
 private:
 	static constexpr auto kLimit = 256;

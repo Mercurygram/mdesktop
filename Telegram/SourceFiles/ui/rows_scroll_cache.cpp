@@ -33,4 +33,8 @@ void RowsScrollCache::invalidate(uint64 rowId) {
 	}
 }
 
+void RowsScrollCache::clear() {
+	_images.clear();
+}
+
 } // namespace Ui

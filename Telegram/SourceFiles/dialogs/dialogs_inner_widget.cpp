@@ -107,6 +107,10 @@ constexpr auto kStartDragToFilterThresholdY = 75;
 constexpr auto kQueryPreviewLimit = 32;
 constexpr auto kPreviewPostsLimit = 3;
 
+[[nodiscard]] uint64 RowsCacheKey(Entry *entry) {
+	return uint64(reinterpret_cast<quintptr>(entry));
+}
+
 [[nodiscard]] InnerWidget::ChatsFilterTagsKey SerializeFilterTagsKey(
 		FilterId filterId,
 		uint8 more,
@@ -983,7 +987,32 @@ void InnerWidget::paintEvent(QPaintEvent *e) {
 		context.topicJumpSelected = selected
 			&& _selectedTopicJump
 			&& (!_pressed || _pressedTopicJump);
-		Ui::RowPainter::Paint(p, row, validateVideoUserpic(row), context);
+		const auto videoUserpic = validateVideoUserpic(row);
+		const auto cache = _rowsScrollCache.scrolling()
+			&& !videoUserpic
+			&& !active
+			&& !context.selected
+			&& !context.quickActionContext
+			&& !context.rightButton
+			&& !expanding
+			&& (context.topicsExpanded == 0.)
+			&& !childListShown.shown
+			&& (fullWidth > 0);
+		if (cache) {
+			const auto ratio = style::DevicePixelRatio();
+			_rowsScrollCache.paintRow(
+				p,
+				RowsCacheKey(row->entry()),
+				QSize(fullWidth, row->height()) * ratio,
+				ratio,
+				[&](QImage &image) {
+					auto q = Painter(&image);
+					q.setInactive(p.inactive());
+					Ui::RowPainter::Paint(q, row, nullptr, context);
+				});
+		} else {
+			Ui::RowPainter::Paint(p, row, videoUserpic, context);
+		}
 		if (context.quickActionContext) {
 			context.quickActionContext = nullptr;
 		}
@@ -2844,6 +2873,12 @@ void InnerWidget::moveSearchIn() {
 void InnerWidget::dialogRowReplaced(
 		Row *oldRow,
 		Row *newRow) {
+	if (oldRow) {
+		_rowsScrollCache.invalidate(RowsCacheKey(oldRow->entry()));
+	}
+	if (newRow) {
+		_rowsScrollCache.invalidate(RowsCacheKey(newRow->entry()));
+	}
 	if (_activeSubItemsRow == oldRow) {
 		_activeSubItemsRow = nullptr;
 	}
@@ -2977,6 +3012,7 @@ int InnerWidget::defaultRowTop(not_null<Row*> row) const {
 void InnerWidget::repaintDialogRow(
 		FilterId filterId,
 		not_null<Row*> row) {
+	_rowsScrollCache.invalidate(RowsCacheKey(row->entry()));
 	if (_state == WidgetState::Default) {
 		if (_filterId == filterId) {
 			if (const auto folder = row->folder()) {
@@ -3050,6 +3086,9 @@ void InnerWidget::updateDialogRow(
 		}
 	}
 
+	if (row.key) {
+		_rowsScrollCache.invalidate(RowsCacheKey(row.key.entry()));
+	}
 	const auto updateRow = [&](int rowTop, int rowHeight) {
 		if (!updateRect.isEmpty()) {
 			rtlupdate(updateRect.translated(0, rowTop));
@@ -3146,6 +3185,11 @@ Row *InnerWidget::shownRowByKey(Key key) {
 }
 
 void InnerWidget::updateSelectedRow(Key key) {
+	if (key) {
+		_rowsScrollCache.invalidate(RowsCacheKey(key.entry()));
+	} else if (_selected) {
+		_rowsScrollCache.invalidate(RowsCacheKey(_selected->entry()));
+	}
 	if (_state == WidgetState::Default) {
 		if (key) {
 			const auto row = shownRowByKey(key);
@@ -3972,6 +4016,10 @@ rpl::producer<> InnerWidget::refreshHashtagsRequests() const {
 void InnerWidget::visibleTopBottomUpdated(
 		int visibleTop,
 		int visibleBottom) {
+	if ((_visibleTop != visibleTop || _visibleBottom != visibleBottom)
+		&& (_state == WidgetState::Default)) {
+		_rowsScrollCache.markScrolling();
+	}
 	_visibleTop = visibleTop;
 	_visibleBottom = visibleBottom;
 	preloadRowsData();
@@ -4185,6 +4233,7 @@ void InnerWidget::editOpenedFilter() {
 }
 
 void InnerWidget::refresh(bool toTop) {
+	_rowsScrollCache.clear();
 	_activeSubItemsRow = nullptr;
 	if (!_geometryInited) {
 		return;
@@ -5347,6 +5396,7 @@ void InnerWidget::setupOnlineStatusCheck() {
 }
 
 void InnerWidget::repaintDialogRowCornerStatus(not_null<History*> history) {
+	_rowsScrollCache.invalidate(RowsCacheKey(history));
 	const auto user = history->peer->isUser();
 	const auto size = user
 		? st::dialogsOnlineBadgeSize

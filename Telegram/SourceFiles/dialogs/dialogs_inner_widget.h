@@ -17,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "ui/effects/animations.h"
 #include "ui/dragging_scroll_manager.h"
+#include "ui/rows_scroll_cache.h"
 #include "ui/rp_widget.h"
 #include "ui/userpic_view.h"
 
@@ -581,6 +582,7 @@ private:
 	std::vector<std::unique_ptr<CollapsedRow>> _collapsedRows;
 	not_null<const style::DialogRow*> _st;
 	mutable std::unique_ptr<Ui::TopicJumpCache> _topicJumpCache;
+	Ui::RowsScrollCache _rowsScrollCache{[this] { update(); }};
 	bool _selectedChatTypeFilter = false;
 	bool _pressedChatTypeFilter = false;
 	bool _selectedMorePosts = false;
