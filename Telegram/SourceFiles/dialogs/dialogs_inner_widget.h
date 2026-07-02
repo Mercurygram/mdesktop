@@ -302,6 +302,7 @@ private:
 		QRect preview;
 		QRect badge;
 		QImage band;
+		std::pair<uint64, uint64> userpic;
 		bool bandDirty = true;
 		bool video = false;
 	};
@@ -400,6 +401,7 @@ private:
 
 	[[nodiscard]] bool animatedPreviewCached(not_null<Row*> row);
 	void invalidateCachedRow(uint64 rowId);
+	void invalidateLoadedUserpics();
 	void paintCachedRowOverlays(
 		Painter &p,
 		not_null<Row*> row,

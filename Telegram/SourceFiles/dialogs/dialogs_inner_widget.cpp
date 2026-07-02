@@ -321,6 +321,7 @@ InnerWidget::InnerWidget(
 
 	session().downloaderTaskFinished(
 	) | rpl::on_next([=] {
+		invalidateLoadedUserpics();
 		update();
 	}, lifetime());
 
@@ -490,6 +491,9 @@ InnerWidget::InnerWidget(
 				| UpdateFlag::Photo
 				| UpdateFlag::FullInfo
 				| UpdateFlag::EmojiStatus)) {
+			if (update.flags & UpdateFlag::Photo) {
+				invalidateLoadedUserpics();
+			}
 			const auto peer = update.peer;
 			const auto history = peer->owner().historyLoaded(peer);
 			if (_state == WidgetState::Default) {
@@ -1046,16 +1050,14 @@ void InnerWidget::paintEvent(QPaintEvent *e) {
 						? view->lastPaintGeometry()
 						: QRect();
 					cached.video = (videoUserpic != nullptr);
+					cached.userpic = history
+						? history->peer->userpicUniqueKey(
+							row->userpicView())
+						: std::pair<uint64, uint64>();
 					if (!cached.badge.isEmpty()) {
 						q.fillRect(cached.badge, st::dialogsBg);
 					}
-					if (cached.badge.isEmpty()
-						&& cached.preview.isEmpty()
-						&& !cached.video) {
-						_cachedRows.erase(cacheKey);
-					} else {
-						_cachedRows[cacheKey] = std::move(cached);
-					}
+					_cachedRows[cacheKey] = std::move(cached);
 				});
 			paintCachedRowOverlays(p, row, cacheKey, context);
 		} else {
@@ -3275,6 +3277,38 @@ bool InnerWidget::animatedPreviewCached(not_null<Row*> row) {
 void InnerWidget::invalidateCachedRow(uint64 rowId) {
 	_rowsScrollCache.invalidate(rowId);
 	_cachedRows.erase(rowId);
+}
+
+void InnerWidget::invalidateLoadedUserpics() {
+	if (!_rowsScrollCache.scrolling()
+		|| (_state != WidgetState::Default)) {
+		return;
+	}
+	const auto skip = dialogsOffset();
+	const auto &list = _shownList->all();
+	const auto till = _visibleBottom - skip;
+	for (auto i = list.findByY(_visibleTop - skip), e = list.cend()
+		; i != e
+		; ++i) {
+		const auto row = (*i).get();
+		if (row->top() >= till) {
+			break;
+		}
+		const auto history = row->history();
+		if (!history) {
+			continue;
+		}
+		const auto key = RowsCacheKey(row->entry());
+		const auto it = _cachedRows.find(key);
+		if (it == end(_cachedRows)) {
+			continue;
+		}
+		const auto userpicKey = history->peer->userpicUniqueKey(
+			row->userpicView());
+		if (userpicKey != it->second.userpic) {
+			invalidateCachedRow(key);
+		}
+	}
 }
 
 void InnerWidget::paintCachedRowOverlays(
