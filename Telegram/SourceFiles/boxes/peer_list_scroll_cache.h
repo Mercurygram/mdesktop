@@ -26,12 +26,11 @@ public:
 			QSize physicalSize,
 			int ratio,
 			PaintToImage &&paintToImage) {
+		if (_images.size() > kLimit && !_images.contains(rowId)) {
+			_images.clear();
+		}
 		auto &image = _images[rowId];
 		if (image.size() != physicalSize) {
-			if (_images.size() > kLimit) {
-				_images.clear();
-				image = _images[rowId];
-			}
 			image = QImage(physicalSize, QImage::Format_RGB32);
 			image.setDevicePixelRatio(ratio);
 			paintToImage(image);
