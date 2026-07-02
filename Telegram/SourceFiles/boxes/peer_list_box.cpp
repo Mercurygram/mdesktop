@@ -1994,7 +1994,6 @@ crl::time PeerListContent::paintRow(
 	const auto &st = row->computeSt(_st.item);
 
 	row->lazyInitialize(st);
-	const auto outerWidth = width();
 
 	auto refreshStatusAt = row->refreshStatusTime();
 	if (refreshStatusAt > 0 && now >= refreshStatusAt) {
