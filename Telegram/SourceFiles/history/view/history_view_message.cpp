@@ -701,6 +701,7 @@ void Message::activateRichPagePreparedLink(
 }
 
 QRect Message::richPageRect(QRect trect) const {
+	trect.setTop(trect.top() + st::mediaInBubbleSkip);
 	return trect.marginsAdded(
 		{ st::msgPadding.left(), 0, st::msgPadding.right(), 0 });
 }
