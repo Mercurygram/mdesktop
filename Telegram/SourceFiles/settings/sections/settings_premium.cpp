@@ -1809,12 +1809,10 @@ void ShowPremium(not_null<::Main::Session*> session, const QString &ref) {
 		: nullptr;
 	if (controller && session == &controller->session()) {
 		ShowPremium(controller, ref);
-		active->activate();
 	} else {
 		for (const auto &controller : session->windows()) {
 			if (controller->window().isPrimary()) {
 				ShowPremium(controller, ref);
-				controller->window().activate();
 			}
 		}
 	}
@@ -1823,6 +1821,7 @@ void ShowPremium(not_null<::Main::Session*> session, const QString &ref) {
 void ShowPremium(
 		not_null<Window::SessionController*> controller,
 		const QString &ref) {
+	controller->window().activate();
 	if (!controller->session().premiumPossible()) {
 		controller->show(Box(PremiumUnavailableBox));
 		return;

@@ -5504,9 +5504,8 @@ void HistoryWidget::sendRichDraft(
 					}
 				});
 		} else {
-			ShowPremiumPreviewToBuy(
-				controller(),
-				PremiumFeature::RichFormatting);
+			Iv::Editor::ShowRichMessagesPremiumToast(
+				controller()->uiShow());
 		}
 		return;
 	}

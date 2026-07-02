@@ -54,7 +54,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/delete_messages_box.h"
 #include "boxes/send_files_box.h"
 #include "boxes/premium_limits_box.h"
-#include "boxes/premium_preview_box.h"
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
 #include "window/window_peer_menu.h"
@@ -1506,9 +1505,8 @@ void ChatWidget::sendRichDraft(
 					}
 				});
 		} else {
-			ShowPremiumPreviewToBuy(
-				controller(),
-				PremiumFeature::RichFormatting);
+			Iv::Editor::ShowRichMessagesPremiumToast(
+				controller()->uiShow());
 		}
 		return;
 	}

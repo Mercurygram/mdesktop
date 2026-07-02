@@ -23,7 +23,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer.h"
 #include "base/weak_qptr.h"
 #include "base/weak_ptr.h"
-#include "boxes/premium_preview_box.h"
 #include "chat_helpers/compose/compose_show.h"
 #include "core/application.h"
 #include "data/data_file_origin.h"
@@ -260,21 +259,6 @@ enum class RichMessagePosting {
 		return RichMessagePosting::Premium;
 	}
 	return RichMessagePosting::Disabled;
-}
-
-void ShowRichMessagesPremiumToast(std::shared_ptr<ChatHelpers::Show> show) {
-	if (!show) {
-		return;
-	}
-	Settings::ShowPremiumPromoToast(
-		std::move(show),
-		tr::lng_article_premium_required(
-			tr::now,
-			lt_link,
-			tr::link(tr::bold(
-				tr::lng_article_premium_required_link(tr::now))),
-			tr::marked),
-		u"rich_message"_q);
 }
 
 [[nodiscard]] bool IsRichMessageMediaKind(RichPage::BlockKind kind) {
@@ -899,12 +883,7 @@ private:
 		if (!CanUseRichMessages(_session)) {
 			const auto page = _state->richPage();
 			if (!RichPageIsFlattenSafe(page)) {
-				if (const auto window = _session->tryResolveWindow(
-						_peer)) {
-					ShowPremiumPreviewToBuy(
-						window,
-						PremiumFeature::RichFormatting);
-				}
+				ShowRichMessagesPremiumToast(resolveShow());
 				return false;
 			}
 			const auto weak = base::make_weak(this);
@@ -4005,6 +3984,21 @@ bool ArticleSession::RequestCloseOpenEditWindowThen(
 }
 
 } // namespace
+
+void ShowRichMessagesPremiumToast(std::shared_ptr<ChatHelpers::Show> show) {
+	if (!show) {
+		return;
+	}
+	Settings::ShowPremiumPromoToast(
+		std::move(show),
+		tr::lng_article_premium_required(
+			tr::now,
+			lt_link,
+			tr::link(tr::bold(
+				tr::lng_article_premium_required_link(tr::now))),
+			tr::marked),
+		u"rich_message"_q);
+}
 
 void SetupSendLockBadge(
 		not_null<Ui::SendButton*> button,

@@ -49,6 +49,7 @@ using ThreadFieldMigratedAway = Fn<void()>;
 
 [[nodiscard]] bool CheckRichMessagesPremium(
 	not_null<Window::SessionController*> controller);
+void ShowRichMessagesPremiumToast(std::shared_ptr<ChatHelpers::Show> show);
 [[nodiscard]] bool CanAuthorRichMessages(not_null<Main::Session*> session);
 void OfferRichMessagePremiumChoice(
 	std::shared_ptr<ChatHelpers::Show> show,
