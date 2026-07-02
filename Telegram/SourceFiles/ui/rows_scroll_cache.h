@@ -10,9 +10,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer.h"
 #include "base/flat_map.h"
 
-class PeerListRowsScrollCache final {
+namespace Ui {
+
+class RowsScrollCache final {
 public:
-	explicit PeerListRowsScrollCache(Fn<void()> stopped);
+	explicit RowsScrollCache(Fn<void()> stopped);
 
 	void markScrolling();
 	[[nodiscard]] bool scrolling() const {
@@ -48,3 +50,5 @@ private:
 	bool _scrolling = false;
 
 };
+
+} // namespace Ui

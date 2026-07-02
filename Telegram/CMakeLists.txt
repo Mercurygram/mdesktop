@@ -317,8 +317,6 @@ PRIVATE
     boxes/moderate_messages_box.h
     boxes/peer_list_box.cpp
     boxes/peer_list_box.h
-    boxes/peer_list_scroll_cache.cpp
-    boxes/peer_list_scroll_cache.h
     boxes/peer_list_controllers.cpp
     boxes/peer_list_controllers.h
     boxes/peer_list_section_headers.cpp
@@ -1902,6 +1900,8 @@ PRIVATE
     ui/item_text_options.cpp
     ui/item_text_options.h
     ui/resize_area.h
+    ui/rows_scroll_cache.cpp
+    ui/rows_scroll_cache.h
     ui/top_background_gradient.cpp
     ui/top_background_gradient.h
     ui/unread_badge.cpp
