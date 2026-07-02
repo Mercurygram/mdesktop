@@ -2528,10 +2528,17 @@ void ComposeControls::initKeyHandler() {
 				});
 				return Result::Cancel;
 			}
-		} else if (k->key() == Qt::Key_Escape) {
-			return Result::Cancel;
 		}
 		return Result::Continue;
+	});
+
+	base::install_event_filter(_wrap.get(), _field, [=](
+			not_null<QEvent*> e) {
+		using Result = base::EventFilterResult;
+		return (e->type() == QEvent::KeyPress
+			&& static_cast<QKeyEvent*>(e.get())->key() == Qt::Key_Escape)
+			? Result::Cancel
+			: Result::Continue;
 	});
 }
 
