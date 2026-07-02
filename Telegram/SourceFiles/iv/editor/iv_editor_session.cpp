@@ -915,7 +915,10 @@ private:
 				[=] {
 					if (const auto strong = weak.get()) {
 						auto plain = FlattenRichPageToSimpleText(page);
-						(void)strong->submitSimpleText(std::move(plain));
+						if (strong->submitSimpleText(std::move(plain))
+							&& strong->_windowHost) {
+							strong->_windowHost->close();
+						}
 					}
 				});
 			return false;
@@ -4105,6 +4108,7 @@ void OfferRichMessagePremiumChoice(
 
 		Ui::AddSkip(box->verticalLayout());
 		Ui::AddSkip(box->verticalLayout());
+		Ui::AddSkip(box->verticalLayout());
 		const auto subscribe = box->addRow(
 			object_ptr<Ui::RoundButton>(
 				box,
@@ -4113,8 +4117,8 @@ void OfferRichMessagePremiumChoice(
 			st::boxRowPadding,
 			style::al_justify);
 		subscribe->setClickedCallback([=] {
-			Settings::ShowPremium(session, u"rich_message"_q);
 			box->closeBox();
+			Settings::ShowPremium(session, u"rich_message"_q);
 		});
 		Ui::AddSkip(box->verticalLayout());
 		const auto plain = box->addRow(
@@ -4144,7 +4148,9 @@ void OfferRichMessagePremiumChoice(
 		for (const auto &button : { subscribe, plain, cancel }) {
 			button->setFullRadius(true);
 		}
-		Ui::AddSkip(box->verticalLayout());
+		Ui::AddSkip(
+			box->verticalLayout(),
+			st::defaultVerticalListSkip / 2);
 	}));
 }
 

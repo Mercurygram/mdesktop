@@ -1809,10 +1809,12 @@ void ShowPremium(not_null<::Main::Session*> session, const QString &ref) {
 		: nullptr;
 	if (controller && session == &controller->session()) {
 		ShowPremium(controller, ref);
+		active->activate();
 	} else {
 		for (const auto &controller : session->windows()) {
 			if (controller->window().isPrimary()) {
 				ShowPremium(controller, ref);
+				controller->window().activate();
 			}
 		}
 	}
