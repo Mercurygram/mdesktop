@@ -70,6 +70,7 @@ struct ReactionId;
 namespace Dialogs::Ui {
 using namespace ::Ui;
 class VideoUserpic;
+class MessageView;
 struct PaintContext;
 struct TopicJumpCache;
 } // namespace Dialogs::Ui
@@ -297,6 +298,14 @@ private:
 		crl::time animStartTime = 0;
 	};
 
+	struct CachedRow {
+		QRect preview;
+		QRect badge;
+		QImage band;
+		bool bandDirty = true;
+		bool video = false;
+	};
+
 	struct FilterResult {
 		FilterResult(not_null<Row*> row) : row(row) {
 		}
@@ -388,6 +397,19 @@ private:
 
 	void updateRowCornerStatusShown(not_null<History*> history);
 	void repaintDialogRowCornerStatus(not_null<History*> history);
+
+	[[nodiscard]] bool animatedPreviewCached(not_null<Row*> row);
+	void invalidateCachedRow(uint64 rowId);
+	void paintCachedRowOverlays(
+		Painter &p,
+		not_null<Row*> row,
+		uint64 rowId,
+		const Ui::PaintContext &context);
+	void paintAnimatedPreview(
+		Painter &p,
+		not_null<Ui::MessageView*> view,
+		CachedRow &cached,
+		const Ui::PaintContext &context);
 
 	bool addBotAppRipple(QPoint origin, Fn<void()> updateCallback);
 	bool addQuickActionRipple(not_null<Row*> row, Fn<void()> updateCallback);
@@ -582,7 +604,11 @@ private:
 	std::vector<std::unique_ptr<CollapsedRow>> _collapsedRows;
 	not_null<const style::DialogRow*> _st;
 	mutable std::unique_ptr<Ui::TopicJumpCache> _topicJumpCache;
-	Ui::RowsScrollCache _rowsScrollCache{[this] { update(); }};
+	base::flat_map<uint64, CachedRow> _cachedRows;
+	Ui::RowsScrollCache _rowsScrollCache{[this] {
+		_cachedRows.clear();
+		update();
+	}};
 	bool _selectedChatTypeFilter = false;
 	bool _pressedChatTypeFilter = false;
 	bool _selectedMorePosts = false;

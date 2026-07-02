@@ -20,6 +20,10 @@ public:
 	[[nodiscard]] bool scrolling() const {
 		return _scrolling;
 	}
+	[[nodiscard]] bool hasFresh(uint64 rowId, QSize physicalSize) const {
+		const auto i = _images.find(rowId);
+		return (i != end(_images)) && (i->second.size() == physicalSize);
+	}
 
 	template <typename PaintToImage>
 	void paintRow(
