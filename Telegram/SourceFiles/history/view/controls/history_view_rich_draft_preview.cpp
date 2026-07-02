@@ -224,19 +224,27 @@ void RichDraftPreview::paint(QRect clip) {
 		|| _fadePixmap.isNull()) {
 		return;
 	}
+	// The article is clipped at the content rect bottom, so the fade must
+	// reach full opacity exactly there, not at the widget bottom - otherwise
+	// the last padding-covered rows of the gradient never fully hide the
+	// article and its clip line stays visible through the fade.
+	const auto contentBottom = content.y() + content.height();
 	const auto fadeHeight = std::min(
 		PreviewBottomFadeHeight(),
-		height());
+		contentBottom);
 	if (fadeHeight <= 0) {
 		return;
 	}
-	const auto fadeRect = QRect(0, height() - fadeHeight, width(), fadeHeight);
-	const auto fadeSource = QRectF(
+	const auto fadeRect = QRect(
 		0,
-		0,
-		_fadePixmap.width() / _fadePixmap.devicePixelRatio(),
-		_fadePixmap.height() / _fadePixmap.devicePixelRatio());
-	p.drawPixmap(fadeRect, _fadePixmap, fadeSource);
+		contentBottom - fadeHeight,
+		width(),
+		fadeHeight);
+	// No explicit source rect: it would be in device pixels, and passing the
+	// logical size sampled only the top part of the gradient on hidpi, so the
+	// fade ended half-transparent with a visible clipping line. Scaling the
+	// whole pixmap always fades out to fully opaque background at the bottom.
+	p.drawPixmap(fadeRect, _fadePixmap);
 }
 
 void RichDraftPreview::clearPreparedContent() {
