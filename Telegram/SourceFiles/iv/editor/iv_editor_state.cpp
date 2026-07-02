@@ -7429,6 +7429,23 @@ bool State::insertBlockAfterActive(
 			State &candidate) mutable {
 		auto blocks = std::vector<Block>();
 		blocks.push_back(candidate.makeBlock(action));
+		if (action.type == InsertBlockType::Divider) {
+			// A divider has no editable content, so insert a paragraph
+			// together with it: the selected text piece (if any) seeds into
+			// the paragraph and focus lands there, keeping an editable spot
+			// below the divider while the block above stays editable too.
+			blocks.push_back(MakeParagraphBlock());
+			if (context) {
+				// Treat it as a paragraph split with a divider in between:
+				// everything from the cursor on moves into the paragraph
+				// below the divider instead of a separate trailing one.
+				context->selected = JoinText(
+					std::move(context->selected),
+					std::move(context->after),
+					{});
+				context->after = {};
+			}
+		}
 		const auto applied = candidate.insertBlocksAfterActiveUnchecked(
 			std::move(blocks),
 			std::move(context));
