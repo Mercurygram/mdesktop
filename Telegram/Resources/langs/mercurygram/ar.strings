@@ -15,3 +15,4 @@
 "lng_mg_disable_link_previews" = "تعطيل معاينات الروابط";
 "lng_mg_disable_ai_editor" = "تعطيل محرّر النصوص بالذكاء الاصطناعي";
 "lng_mg_disable_ai_summaries" = "تعطيل ملخّصات الذكاء الاصطناعي";
+"lng_mg_open_links_in_browser" = "فتح الروابط في المتصفح";
