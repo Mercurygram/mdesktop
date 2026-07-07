@@ -109,9 +109,26 @@ void BuildMediaSection(SectionBuilder &builder) {
 	builder.addDividerText(tr::lng_mg_large_photos_about());
 }
 
+void BuildPrivacySection(SectionBuilder &builder) {
+	builder.addDivider();
+	builder.addSkip();
+	builder.addSubsectionTitle(tr::lng_mg_privacy());
+
+	AddBoolToggle(
+		builder,
+		u"mercurygram/disable_global_search"_q,
+		tr::lng_mg_disable_global_search(),
+		{ u"search"_q, u"global"_q, u"privacy"_q },
+		MG::DisableGlobalSearch,
+		MG::SetDisableGlobalSearch);
+
+	builder.addDividerText(tr::lng_mg_privacy_about());
+}
+
 void BuildMercurygramSectionContent(SectionBuilder &builder) {
 	BuildGeneralSection(builder);
 	BuildMediaSection(builder);
+	BuildPrivacySection(builder);
 }
 
 class Mercurygram : public Section<Mercurygram> {
