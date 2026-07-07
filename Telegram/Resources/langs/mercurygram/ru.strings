@@ -12,3 +12,4 @@
 "lng_mg_privacy" = "Конфиденциальность";
 "lng_mg_privacy_about" = "Дополнительные меры, которые не отправляют запросы и черновики на серверы Telegram.";
 "lng_mg_disable_global_search" = "Отключить глобальный поиск";
+"lng_mg_disable_link_previews" = "Отключить предпросмотр ссылок";
