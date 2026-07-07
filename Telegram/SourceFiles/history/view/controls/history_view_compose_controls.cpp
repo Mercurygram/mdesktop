@@ -31,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/tabbed_selector.h"
 #include "chat_helpers/field_autocomplete.h"
 #include "core/application.h"
+#include "core/mg_settings.h"
 #include "core/core_settings.h"
 #include "core/shortcuts.h"
 #include "core/ui_integration.h"
@@ -4201,7 +4202,8 @@ void ComposeControls::updateControlsVisibility() {
 }
 
 void ComposeControls::updateAiButtonVisibility() {
-	const auto hidden = !hasEnoughLinesForAi()
+	const auto hidden = MG::DisableAiEditor()
+		|| !hasEnoughLinesForAi()
 		|| !_wrap->isVisible()
 		|| _recording.current()
 		|| !_field->isVisible();
@@ -4343,7 +4345,7 @@ void ComposeControls::showAiComposeBox() {
 }
 
 void ComposeControls::triggerAiApplyInPlace() {
-	if (!_session) {
+	if (!_session || MG::DisableAiEditor()) {
 		return;
 	}
 	const auto field = _field;
