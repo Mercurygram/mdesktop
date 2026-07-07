@@ -12,3 +12,4 @@
 "lng_mg_privacy" = "Конфіденційність";
 "lng_mg_privacy_about" = "Додаткові заходи, які не надсилають запити та чернетки на сервери Telegram.";
 "lng_mg_disable_global_search" = "Вимкнути глобальний пошук";
+"lng_mg_disable_link_previews" = "Вимкнути попередній перегляд посилань";
