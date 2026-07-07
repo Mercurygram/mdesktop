@@ -31,8 +31,11 @@ public:
 		std::unique_ptr<Account> account;
 	};
 
-	static constexpr auto kMaxAccounts = 3;
-	static constexpr auto kPremiumMaxAccounts = 6;
+	// Mercurygram: allow 8 accounts for everyone (upstream gates the extra
+	// slots behind Telegram Premium). Both caps are equal so maxAccounts()
+	// returns 8 regardless of premium status.
+	static constexpr auto kMaxAccounts = 8;
+	static constexpr auto kPremiumMaxAccounts = 8;
 
 	explicit Domain(const QString &dataName);
 	~Domain();
