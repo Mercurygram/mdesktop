@@ -13,3 +13,5 @@
 "lng_mg_privacy_about" = "إجراءات اختيارية تُبقي عمليات البحث والمسودات بعيدة عن خوادم Telegram.";
 "lng_mg_disable_global_search" = "تعطيل البحث الشامل";
 "lng_mg_disable_link_previews" = "تعطيل معاينات الروابط";
+"lng_mg_disable_ai_editor" = "تعطيل محرّر النصوص بالذكاء الاصطناعي";
+"lng_mg_disable_ai_summaries" = "تعطيل ملخّصات الذكاء الاصطناعي";
