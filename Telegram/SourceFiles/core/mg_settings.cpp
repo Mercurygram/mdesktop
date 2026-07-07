@@ -44,6 +44,8 @@ MG_BOOL_SETTING(MessageDetails, "mg-message-details")
 MG_BOOL_SETTING(HideAllChats, "mg-hide-all-chats")
 MG_BOOL_SETTING(DisableGlobalSearch, "mg-disable-global-search")
 MG_BOOL_SETTING(DisableLinkPreviews, "mg-disable-link-previews")
+MG_BOOL_SETTING(DisableAiEditor, "mg-disable-ai-editor")
+MG_BOOL_SETTING(DisableAiSummaries, "mg-disable-ai-summaries")
 
 #undef MG_BOOL_SETTING
 
