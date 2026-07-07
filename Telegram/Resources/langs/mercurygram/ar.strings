@@ -9,3 +9,6 @@
 "lng_mg_message_details" = "قائمة تفاصيل الرسالة";
 "lng_mg_message_details_menu" = "تفاصيل الرسالة";
 "lng_mg_hide_all_chats" = "إخفاء علامة تبويب مجلد \"الكل\"";
+"lng_mg_privacy" = "الخصوصية";
+"lng_mg_privacy_about" = "إجراءات اختيارية تُبقي عمليات البحث والمسودات بعيدة عن خوادم Telegram.";
+"lng_mg_disable_global_search" = "تعطيل البحث الشامل";
