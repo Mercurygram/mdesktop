@@ -128,6 +128,20 @@ void BuildPrivacySection(SectionBuilder &builder) {
 		{ u"link"_q, u"preview"_q, u"webpage"_q, u"privacy"_q },
 		MG::DisableLinkPreviews,
 		MG::SetDisableLinkPreviews);
+	AddBoolToggle(
+		builder,
+		u"mercurygram/disable_ai_editor"_q,
+		tr::lng_mg_disable_ai_editor(),
+		{ u"ai"_q, u"editor"_q, u"rewrite"_q, u"privacy"_q },
+		MG::DisableAiEditor,
+		MG::SetDisableAiEditor);
+	AddBoolToggle(
+		builder,
+		u"mercurygram/disable_ai_summaries"_q,
+		tr::lng_mg_disable_ai_summaries(),
+		{ u"ai"_q, u"summary"_q, u"summaries"_q, u"privacy"_q },
+		MG::DisableAiSummaries,
+		MG::SetDisableAiSummaries);
 
 	builder.addDividerText(tr::lng_mg_privacy_about());
 }
