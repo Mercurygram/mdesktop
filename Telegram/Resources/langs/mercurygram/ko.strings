@@ -8,3 +8,5 @@
 "lng_mg_message_details_menu" = "메시지 세부정보";
 "lng_mg_export_json" = "JSON으로 내보내기";
 "lng_mg_hide_all_chats" = "\"전체\" 폴더 탭 숨기기";
+"lng_mg_privacy" = "개인정보";
+"lng_mg_disable_global_search" = "전체 검색 비활성화";

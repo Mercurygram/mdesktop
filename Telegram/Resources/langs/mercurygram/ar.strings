@@ -8,3 +8,5 @@
 "lng_mg_message_details_menu" = "تفاصيل الرسالة";
 "lng_mg_export_json" = "تصدير كـ JSON";
 "lng_mg_hide_all_chats" = "إخفاء علامة تبويب مجلد \"الكل\"";
+"lng_mg_privacy" = "الخصوصية";
+"lng_mg_disable_global_search" = "تعطيل البحث الشامل";
