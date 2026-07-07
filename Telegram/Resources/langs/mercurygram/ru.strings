@@ -15,3 +15,4 @@
 "lng_mg_disable_link_previews" = "Отключить предпросмотр ссылок";
 "lng_mg_disable_ai_editor" = "Отключить ИИ-редактор текста";
 "lng_mg_disable_ai_summaries" = "Отключить ИИ-резюме";
+"lng_mg_open_links_in_browser" = "Открывать ссылки в браузере";
