@@ -1983,6 +1983,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_message_details_menu" = "Message details";
 "lng_mg_export_json" = "Export as JSON";
 "lng_mg_hide_all_chats" = "Hide \"All\" folder tab";
+"lng_mg_privacy" = "Privacy";
+"lng_mg_disable_global_search" = "Disable global search";
 
 "lng_profile_export_chat" = "Export chat history";
 "lng_profile_export_topic" = "Export topic history";

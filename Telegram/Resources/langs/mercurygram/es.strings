@@ -8,3 +8,5 @@
 "lng_mg_message_details_menu" = "Detalles del mensaje";
 "lng_mg_export_json" = "Exportar como JSON";
 "lng_mg_hide_all_chats" = "Ocultar la pestaña de la carpeta «Todos»";
+"lng_mg_privacy" = "Privacidad";
+"lng_mg_disable_global_search" = "Desactivar la búsqueda global";
