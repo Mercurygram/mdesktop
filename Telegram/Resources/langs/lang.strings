@@ -1915,6 +1915,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_privacy_about" = "Opt-in mitigations that keep queries and drafts off Telegram's servers.";
 "lng_mg_disable_global_search" = "Disable global search";
 "lng_mg_disable_link_previews" = "Disable link previews";
+"lng_mg_disable_ai_editor" = "Disable AI text editor";
+"lng_mg_disable_ai_summaries" = "Disable AI summaries";
 
 "lng_profile_export_chat" = "Export chat history";
 "lng_profile_export_topic" = "Export topic history";

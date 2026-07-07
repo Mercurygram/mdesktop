@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/qt/qt_key_modifiers.h"
 #include "base/unixtime.h"
 #include "core/application.h"
+#include "core/mg_settings.h"
 #include "core/click_handler_types.h" // ClickHandlerContext
 #include "core/ui_integration.h"
 #include "history/view/history_view_cursor_state.h"
@@ -6967,7 +6968,10 @@ const HistoryMessageEdited *Message::displayedEditBadge() const {
 }
 
 void Message::ensureSummarizeButton() const {
-	if (data()->canBeSummarized()
+	// Mercurygram: hide the AI Summary button so the message text is never
+	// sent to Telegram's messages.summarizeText service.
+	if (!MG::DisableAiSummaries()
+		&& data()->canBeSummarized()
 		/*&& item->originalText().text.size() >= kSummarizeThreshold*/) {
 		if (!_summarize) {
 			_summarize

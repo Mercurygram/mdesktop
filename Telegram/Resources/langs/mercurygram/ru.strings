@@ -13,3 +13,5 @@
 "lng_mg_privacy_about" = "Дополнительные меры, которые не отправляют запросы и черновики на серверы Telegram.";
 "lng_mg_disable_global_search" = "Отключить глобальный поиск";
 "lng_mg_disable_link_previews" = "Отключить предпросмотр ссылок";
+"lng_mg_disable_ai_editor" = "Отключить ИИ-редактор текста";
+"lng_mg_disable_ai_summaries" = "Отключить ИИ-резюме";
