@@ -2753,7 +2753,9 @@ bool Widget::search(bool inCache, SearchRequestDelay delay) {
 		_inner->searchRequested(false);
 	}
 	if (peerSearchRequired()) {
-		const auto requestType = inCache
+		// Mercurygram: with global search disabled, never look up public
+		// usernames/channels on the server -- only match already-known peers.
+		const auto requestType = (inCache || MG::DisableGlobalSearch())
 			? Api::PeerSearch::RequestType::CacheOnly
 			: Api::PeerSearch::RequestType::CacheOrRemote;
 		_peerSearch.request(query, [=](Api::PeerSearchResult result) {
@@ -3004,6 +3006,11 @@ void Widget::searchMore() {
 }
 
 void Widget::requestPublicPosts(bool fromStart) {
+	if (MG::DisableGlobalSearch()) {
+		// Mercurygram: public-post (hashtag) search is a global broadcast too.
+		searchApplyEmpty({ .posts = true, .start = fromStart }, &_postsProcess);
+		return;
+	}
 	if (!_postsProcess.lastId || !_postsProcess.lastPeer) {
 		fromStart = true;
 	}
@@ -3035,6 +3042,12 @@ void Widget::requestPublicPosts(bool fromStart) {
 }
 
 void Widget::requestMessages(bool fromStart) {
+	if (MG::DisableGlobalSearch()) {
+		// Mercurygram: never broadcast messages.searchGlobal; resolve the
+		// global message search to empty so only the local chat list filters.
+		searchApplyEmpty({ .start = fromStart }, &_searchProcess);
+		return;
+	}
 	if (!_searchProcess.lastId || !_searchProcess.lastPeer) {
 		fromStart = true;
 	}
