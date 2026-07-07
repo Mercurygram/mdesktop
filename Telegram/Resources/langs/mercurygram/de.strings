@@ -8,3 +8,5 @@
 "lng_mg_message_details_menu" = "Nachrichtendetails";
 "lng_mg_export_json" = "Als JSON exportieren";
 "lng_mg_hide_all_chats" = "Tab „Alle“-Ordner ausblenden";
+"lng_mg_privacy" = "Privatsphäre";
+"lng_mg_disable_global_search" = "Globale Suche deaktivieren";

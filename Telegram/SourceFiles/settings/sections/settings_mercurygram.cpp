@@ -93,8 +93,25 @@ void BuildGeneralSection(SectionBuilder &builder) {
 	builder.addSkip(st::settingsCheckboxesSkip);
 }
 
+void BuildPrivacySection(SectionBuilder &builder) {
+	builder.addDivider();
+	builder.addSkip();
+	builder.addSubsectionTitle(tr::lng_mg_privacy());
+
+	AddBoolToggle(
+		builder,
+		u"mercurygram/disable_global_search"_q,
+		tr::lng_mg_disable_global_search(),
+		{ u"search"_q, u"global"_q, u"privacy"_q },
+		MG::DisableGlobalSearch,
+		MG::SetDisableGlobalSearch);
+
+	builder.addSkip(st::settingsCheckboxesSkip);
+}
+
 void BuildMercurygramSectionContent(SectionBuilder &builder) {
 	BuildGeneralSection(builder);
+	BuildPrivacySection(builder);
 }
 
 class Mercurygram : public Section<Mercurygram> {

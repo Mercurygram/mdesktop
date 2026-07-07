@@ -8,3 +8,5 @@
 "lng_mg_message_details_menu" = "Відомості про повідомлення";
 "lng_mg_export_json" = "Експортувати як JSON";
 "lng_mg_hide_all_chats" = "Сховати вкладку папки «Усі»";
+"lng_mg_privacy" = "Конфіденційність";
+"lng_mg_disable_global_search" = "Вимкнути глобальний пошук";

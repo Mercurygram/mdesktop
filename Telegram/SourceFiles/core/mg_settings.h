@@ -31,4 +31,8 @@ void SetMessageDetails(bool value);
 void SetHideAllChats(bool value);
 [[nodiscard]] rpl::producer<bool> HideAllChatsValue();
 
+[[nodiscard]] bool DisableGlobalSearch();
+void SetDisableGlobalSearch(bool value);
+[[nodiscard]] rpl::producer<bool> DisableGlobalSearchValue();
+
 } // namespace MG
