@@ -5675,6 +5675,9 @@ void HistoryWidget::showAiComposeBox() {
 }
 
 void HistoryWidget::triggerAiApplyInPlace() {
+	if (MG::DisableAiEditor()) {
+		return;
+	}
 	Api::TriggerAiApplyInPlace(
 		&session(),
 		controller()->uiShow(),
