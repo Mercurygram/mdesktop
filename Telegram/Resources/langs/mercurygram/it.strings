@@ -11,3 +11,5 @@
 "lng_mg_privacy" = "Privacy";
 "lng_mg_disable_global_search" = "Disattiva la ricerca globale";
 "lng_mg_disable_link_previews" = "Disattiva le anteprime dei link";
+"lng_mg_disable_ai_editor" = "Disattiva l'editor di testo IA";
+"lng_mg_disable_ai_summaries" = "Disattiva i riepiloghi IA";
