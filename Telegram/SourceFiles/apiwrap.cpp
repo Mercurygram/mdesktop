@@ -68,6 +68,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_history_messages.h"
 #include "core/core_cloud_password.h"
 #include "core/application.h"
+#include "core/mg_settings.h"
 #include "base/unixtime.h"
 #include "base/random.h"
 #include "base/call_delayed.h"
@@ -4677,7 +4678,10 @@ void ApiWrap::sendMessage(
 			mediaFlags |= MTPmessages_SendMedia::Flag::f_reply_to;
 		}
 		const auto ignoreWebPage = message.webPage.removed
-			|| (exactWebPage && !isLast);
+			|| (exactWebPage && !isLast)
+			// Mercurygram: force no_webpage so the server never generates a
+			// preview for links in outgoing messages (unless one was attached).
+			|| (MG::DisableLinkPreviews() && !exactWebPage);
 		const auto manualWebPage = exactWebPage
 			&& !ignoreWebPage
 			&& (message.webPage.manual || (isLast && !isFirst));
