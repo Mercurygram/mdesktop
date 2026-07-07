@@ -9,3 +9,6 @@
 "lng_mg_message_details" = "메시지 세부정보 메뉴";
 "lng_mg_message_details_menu" = "메시지 세부정보";
 "lng_mg_hide_all_chats" = "\"전체\" 폴더 탭 숨기기";
+"lng_mg_privacy" = "개인정보";
+"lng_mg_privacy_about" = "검색어와 초안을 Telegram 서버에 보내지 않는 선택형 보호 기능입니다.";
+"lng_mg_disable_global_search" = "전체 검색 비활성화";
