@@ -8,3 +8,5 @@
 "lng_mg_message_details_menu" = "Berichtdetails";
 "lng_mg_export_json" = "Exporteren als JSON";
 "lng_mg_hide_all_chats" = "Tabblad map \"Alles\" verbergen";
+"lng_mg_privacy" = "Privacy";
+"lng_mg_disable_global_search" = "Globaal zoeken uitschakelen";
