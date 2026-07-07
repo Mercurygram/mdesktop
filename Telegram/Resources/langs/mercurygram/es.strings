@@ -13,3 +13,5 @@
 "lng_mg_privacy_about" = "Medidas opcionales que mantienen las búsquedas y los borradores fuera de los servidores de Telegram.";
 "lng_mg_disable_global_search" = "Desactivar la búsqueda global";
 "lng_mg_disable_link_previews" = "Desactivar las vistas previas de enlaces";
+"lng_mg_disable_ai_editor" = "Desactivar el editor de texto con IA";
+"lng_mg_disable_ai_summaries" = "Desactivar los resúmenes con IA";
