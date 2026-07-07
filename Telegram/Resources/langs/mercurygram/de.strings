@@ -13,3 +13,5 @@
 "lng_mg_privacy_about" = "Optionale Maßnahmen, die Suchanfragen und Entwürfe von Telegrams Servern fernhalten.";
 "lng_mg_disable_global_search" = "Globale Suche deaktivieren";
 "lng_mg_disable_link_previews" = "Linkvorschauen deaktivieren";
+"lng_mg_disable_ai_editor" = "KI-Texteditor deaktivieren";
+"lng_mg_disable_ai_summaries" = "KI-Zusammenfassungen deaktivieren";
