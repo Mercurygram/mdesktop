@@ -47,4 +47,8 @@ void SetDisableAiEditor(bool value);
 void SetDisableAiSummaries(bool value);
 [[nodiscard]] rpl::producer<bool> DisableAiSummariesValue();
 
+[[nodiscard]] bool OpenLinksInBrowser();
+void SetOpenLinksInBrowser(bool value);
+[[nodiscard]] rpl::producer<bool> OpenLinksInBrowserValue();
+
 } // namespace MG
