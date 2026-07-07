@@ -43,4 +43,12 @@ void SetDisableGlobalSearch(bool value);
 void SetDisableLinkPreviews(bool value);
 [[nodiscard]] rpl::producer<bool> DisableLinkPreviewsValue();
 
+[[nodiscard]] bool DisableAiEditor();
+void SetDisableAiEditor(bool value);
+[[nodiscard]] rpl::producer<bool> DisableAiEditorValue();
+
+[[nodiscard]] bool DisableAiSummaries();
+void SetDisableAiSummaries(bool value);
+[[nodiscard]] rpl::producer<bool> DisableAiSummariesValue();
+
 } // namespace MG
