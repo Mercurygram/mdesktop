@@ -15,3 +15,4 @@
 "lng_mg_disable_link_previews" = "링크 미리보기 비활성화";
 "lng_mg_disable_ai_editor" = "AI 텍스트 편집기 비활성화";
 "lng_mg_disable_ai_summaries" = "AI 요약 비활성화";
+"lng_mg_open_links_in_browser" = "링크를 브라우저에서 열기";
