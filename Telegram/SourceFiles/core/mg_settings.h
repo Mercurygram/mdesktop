@@ -39,4 +39,8 @@ void SetHideAllChats(bool value);
 void SetDisableGlobalSearch(bool value);
 [[nodiscard]] rpl::producer<bool> DisableGlobalSearchValue();
 
+[[nodiscard]] bool DisableLinkPreviews();
+void SetDisableLinkPreviews(bool value);
+[[nodiscard]] rpl::producer<bool> DisableLinkPreviewsValue();
+
 } // namespace MG
