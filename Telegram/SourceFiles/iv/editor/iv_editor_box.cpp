@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/create_ai_box.h"
 #include "boxes/premium_preview_box.h"
 #include "chat_helpers/compose/compose_show.h"
+#include "core/mg_settings.h"
 #include "data/data_file_origin.h"
 #include "data/data_msg_id.h"
 #include "data/data_types.h"
@@ -1807,7 +1808,8 @@ void WindowHost::Impl::setupWindow(ShowWindowDescriptor &&descriptor) {
 			}
 		});
 	}
-	if (!base::options::value<bool>(Ui::kOptionHideAiButton)) {
+	if (!base::options::value<bool>(Ui::kOptionHideAiButton)
+		&& !MG::DisableAiEditor()) {
 		const auto session = descriptor.session;
 		_aiPill = object_ptr<ToolbarPill>(
 			_bottom.data(),
