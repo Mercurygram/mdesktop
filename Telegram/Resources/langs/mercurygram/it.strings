@@ -9,3 +9,6 @@
 "lng_mg_message_details" = "Menu dettagli messaggio";
 "lng_mg_message_details_menu" = "Dettagli messaggio";
 "lng_mg_hide_all_chats" = "Nascondi la scheda \"Tutte\"";
+"lng_mg_privacy" = "Privacy";
+"lng_mg_privacy_about" = "Mitigazioni opzionali che tengono ricerche e bozze fuori dai server di Telegram.";
+"lng_mg_disable_global_search" = "Disattiva la ricerca globale";
