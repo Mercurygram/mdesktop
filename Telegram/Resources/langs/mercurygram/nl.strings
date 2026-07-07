@@ -11,3 +11,5 @@
 "lng_mg_privacy" = "Privacy";
 "lng_mg_disable_global_search" = "Globaal zoeken uitschakelen";
 "lng_mg_disable_link_previews" = "Linkvoorbeelden uitschakelen";
+"lng_mg_disable_ai_editor" = "AI-teksteditor uitschakelen";
+"lng_mg_disable_ai_summaries" = "AI-samenvattingen uitschakelen";
