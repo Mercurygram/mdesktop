@@ -1894,6 +1894,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_disable_link_previews" = "Disable link previews";
 "lng_mg_disable_ai_editor" = "Disable AI text editor";
 "lng_mg_disable_ai_summaries" = "Disable AI summaries";
+"lng_mg_open_links_in_browser" = "Open links in browser";
 
 "lng_profile_export_chat" = "Export chat history";
 "lng_profile_export_topic" = "Export topic history";

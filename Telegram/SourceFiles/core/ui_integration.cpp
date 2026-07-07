@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/local_url_handlers.h"
 #include "core/file_utilities.h"
 #include "core/application.h"
+#include "core/mg_settings.h"
 #include "core/bank_card_click_handler.h"
 #include "core/sandbox.h"
 #include "core/click_handler_types.h"
@@ -422,7 +423,11 @@ bool UiIntegration::handleUrlClick(
 		Core::App().openInternalUrl(local, context);
 		return true;
 	} else if (Iv::PreferForUri(url)
-		&& !context.value<ClickHandlerContext>().ignoreIv) {
+		&& !context.value<ClickHandlerContext>().ignoreIv
+		// Mercurygram: open plain link taps in the browser instead of the
+		// server-rendered Instant View. The explicit "Instant View" button on
+		// a preview calls Iv::show() directly and is unaffected.
+		&& !MG::OpenLinksInBrowser()) {
 		const auto my = context.value<ClickHandlerContext>();
 		if (const auto controller = my.sessionWindow.get()) {
 			Core::App().iv().openWithIvPreferred(controller, url, context);
