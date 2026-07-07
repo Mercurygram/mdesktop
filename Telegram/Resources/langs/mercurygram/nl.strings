@@ -9,3 +9,6 @@
 "lng_mg_message_details" = "Menu Berichtdetails";
 "lng_mg_message_details_menu" = "Berichtdetails";
 "lng_mg_hide_all_chats" = "Tabblad map \"Alles\" verbergen";
+"lng_mg_privacy" = "Privacy";
+"lng_mg_privacy_about" = "Optionele maatregelen die zoekopdrachten en concepten buiten de servers van Telegram houden.";
+"lng_mg_disable_global_search" = "Globaal zoeken uitschakelen";
