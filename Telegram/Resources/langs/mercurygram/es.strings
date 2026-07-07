@@ -15,3 +15,4 @@
 "lng_mg_disable_link_previews" = "Desactivar las vistas previas de enlaces";
 "lng_mg_disable_ai_editor" = "Desactivar el editor de texto con IA";
 "lng_mg_disable_ai_summaries" = "Desactivar los resúmenes con IA";
+"lng_mg_open_links_in_browser" = "Abrir enlaces en el navegador";
