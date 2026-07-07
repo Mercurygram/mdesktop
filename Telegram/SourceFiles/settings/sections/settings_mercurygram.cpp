@@ -126,6 +126,13 @@ void BuildPrivacySection(SectionBuilder &builder) {
 		{ u"ai"_q, u"summary"_q, u"summaries"_q, u"privacy"_q },
 		MG::DisableAiSummaries,
 		MG::SetDisableAiSummaries);
+	AddBoolToggle(
+		builder,
+		u"mercurygram/open_links_in_browser"_q,
+		tr::lng_mg_open_links_in_browser(),
+		{ u"link"_q, u"browser"_q, u"instant"_q, u"view"_q, u"privacy"_q },
+		MG::OpenLinksInBrowser,
+		MG::SetOpenLinksInBrowser);
 
 	builder.addSkip(st::settingsCheckboxesSkip);
 }
