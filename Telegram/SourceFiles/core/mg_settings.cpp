@@ -46,6 +46,7 @@ MG_BOOL_SETTING(DisableGlobalSearch, "mg-disable-global-search")
 MG_BOOL_SETTING(DisableLinkPreviews, "mg-disable-link-previews")
 MG_BOOL_SETTING(DisableAiEditor, "mg-disable-ai-editor")
 MG_BOOL_SETTING(DisableAiSummaries, "mg-disable-ai-summaries")
+MG_BOOL_SETTING(OpenLinksInBrowser, "mg-open-links-in-browser")
 
 #undef MG_BOOL_SETTING
 
