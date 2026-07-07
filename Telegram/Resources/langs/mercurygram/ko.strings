@@ -11,3 +11,5 @@
 "lng_mg_privacy" = "개인정보";
 "lng_mg_disable_global_search" = "전체 검색 비활성화";
 "lng_mg_disable_link_previews" = "링크 미리보기 비활성화";
+"lng_mg_disable_ai_editor" = "AI 텍스트 편집기 비활성화";
+"lng_mg_disable_ai_summaries" = "AI 요약 비활성화";

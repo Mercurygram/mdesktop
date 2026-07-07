@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/options.h"
 #include "boxes/compose_ai_box.h"
+#include "core/mg_settings.h"
 #include "core/mime_type.h"
 #include "data/data_ai_compose_tones.h"
 #include "data/data_premium_limits.h"
@@ -37,6 +38,7 @@ bool HasEnoughLinesForAi(
 		not_null<Main::Session*> session,
 		not_null<Ui::InputField*> field) {
 	if (HideAiButtonOption.value()
+		|| MG::DisableAiEditor()
 		|| session->data().aiComposeTones().list().empty()) {
 		return false;
 	}
