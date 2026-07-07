@@ -121,6 +121,13 @@ void BuildPrivacySection(SectionBuilder &builder) {
 		{ u"search"_q, u"global"_q, u"privacy"_q },
 		MG::DisableGlobalSearch,
 		MG::SetDisableGlobalSearch);
+	AddBoolToggle(
+		builder,
+		u"mercurygram/disable_link_previews"_q,
+		tr::lng_mg_disable_link_previews(),
+		{ u"link"_q, u"preview"_q, u"webpage"_q, u"privacy"_q },
+		MG::DisableLinkPreviews,
+		MG::SetDisableLinkPreviews);
 
 	builder.addDividerText(tr::lng_mg_privacy_about());
 }
