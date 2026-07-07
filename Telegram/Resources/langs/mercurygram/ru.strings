@@ -9,3 +9,6 @@
 "lng_mg_message_details" = "Меню сведений о сообщении";
 "lng_mg_message_details_menu" = "Сведения о сообщении";
 "lng_mg_hide_all_chats" = "Скрыть вкладку папки «Все»";
+"lng_mg_privacy" = "Конфиденциальность";
+"lng_mg_privacy_about" = "Дополнительные меры, которые не отправляют запросы и черновики на серверы Telegram.";
+"lng_mg_disable_global_search" = "Отключить глобальный поиск";
