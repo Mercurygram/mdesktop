@@ -42,6 +42,7 @@ MG_BOOL_SETTING(DeleteForAllDefault, "mg-delete-for-all-default")
 MG_BOOL_SETTING(MessageDetails, "mg-message-details")
 MG_BOOL_SETTING(HideAllChats, "mg-hide-all-chats")
 MG_BOOL_SETTING(DisableGlobalSearch, "mg-disable-global-search")
+MG_BOOL_SETTING(DisableLinkPreviews, "mg-disable-link-previews")
 
 #undef MG_BOOL_SETTING
 

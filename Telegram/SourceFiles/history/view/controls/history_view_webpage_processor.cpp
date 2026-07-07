@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/controls/history_view_webpage_processor.h"
 
 #include "base/unixtime.h"
+#include "core/mg_settings.h"
 #include "data/data_chat_participant_status.h"
 #include "data/data_file_origin.h"
 #include "data/data_session.h"
@@ -135,6 +136,14 @@ QString WebpageResolver::find(not_null<WebPageData*> page) const {
 }
 
 void WebpageResolver::request(const QString &link, bool force) {
+	if (MG::DisableLinkPreviews()) {
+		// Mercurygram: never fire messages.getWebPagePreview -- the server
+		// would fetch the link before the message is even sent. Cache the link
+		// as "no preview" so the compose UI simply shows nothing.
+		_cache.emplace(link, nullptr);
+		_resolved.fire_copy(link);
+		return;
+	}
 	if (_requestLink == link && !force) {
 		return;
 	}
