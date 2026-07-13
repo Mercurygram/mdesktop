@@ -52,4 +52,27 @@ MG_BOOL_SETTING(AllRecentStickers, "mg-all-recent-stickers")
 
 #undef MG_BOOL_SETTING
 
+// LaunchFolder holds a FilterId (int), not a bool, so it can't use the macro
+// above. 0 means "open the account's default folder" (upstream behaviour).
+namespace {
+[[nodiscard]] rpl::event_stream<int> &LaunchFolderStream() {
+	static auto result = rpl::event_stream<int>();
+	return result;
+}
+} // namespace
+
+int LaunchFolder() {
+	return Core::App().settings().readPref<int>("mg-launch-folder", 0);
+}
+
+void SetLaunchFolder(int value) {
+	Core::App().settings().writePref<int>("mg-launch-folder", value);
+	Core::App().saveSettingsDelayed();
+	LaunchFolderStream().fire_copy(value);
+}
+
+rpl::producer<int> LaunchFolderValue() {
+	return LaunchFolderStream().events_starting_with(LaunchFolder());
+}
+
 } // namespace MG
