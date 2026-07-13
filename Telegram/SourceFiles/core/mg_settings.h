@@ -51,4 +51,8 @@ void SetDisableAiSummaries(bool value);
 void SetOpenLinksInBrowser(bool value);
 [[nodiscard]] rpl::producer<bool> OpenLinksInBrowserValue();
 
+[[nodiscard]] bool HidePremiumPromo();
+void SetHidePremiumPromo(bool value);
+[[nodiscard]] rpl::producer<bool> HidePremiumPromoValue();
+
 } // namespace MG
