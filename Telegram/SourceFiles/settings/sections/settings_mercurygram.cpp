@@ -10,12 +10,17 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_common_session.h"
 
 #include "core/mg_settings.h"
+#include "data/data_chat_filters.h"
+#include "data/data_session.h"
 #include "lang/lang_keys.h"
+#include "main/main_session.h"
 #include "settings/settings_builder.h"
 #include "settings/sections/settings_main.h"
+#include "ui/text/text_utilities.h"
 #include "ui/ui_utility.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/buttons.h"
+#include "ui/widgets/popup_menu.h"
 #include "ui/wrap/vertical_layout.h"
 #include "window/window_session_controller.h"
 #include "styles/style_menu_icons.h"
@@ -48,6 +53,47 @@ void AddBoolToggle(
 			setter(checked);
 		}, button->lifetime());
 	}
+}
+
+// A row whose label shows the current launch folder and whose click opens a
+// popup listing the account's folders. The stored FilterId is global, not
+// per-account, so an id from another account reads as the default folder.
+void AddLaunchFolderRow(SectionBuilder &builder) {
+	const auto data = &builder.session()->data();
+	const auto nameOf = [=](FilterId id) {
+		const auto &list = data->chatsFilters().list();
+		const auto i = ranges::find(list, id, &Data::ChatFilter::id);
+		return (id && i != end(list))
+			? i->titleText().text
+			: tr::lng_filters_all(tr::now);
+	};
+	const auto button = builder.addButton({
+		.id = u"mercurygram/launch_folder"_q,
+		.title = tr::lng_mg_launch_folder(),
+		.st = &st::settingsButtonNoIcon,
+		.label = MG::LaunchFolderValue(
+		) | rpl::map([=](int id) { return nameOf(FilterId(id)); }),
+		.keywords = { u"launch"_q, u"folder"_q, u"startup"_q },
+	});
+	if (!button) {
+		return;
+	}
+	const auto menu = button->lifetime().make_state<
+		base::unique_qptr<Ui::PopupMenu>>();
+	button->setClickedCallback([=] {
+		*menu = base::make_unique_q<Ui::PopupMenu>(button);
+		(*menu)->addAction(
+			tr::lng_filters_all(tr::now),
+			[] { MG::SetLaunchFolder(0); });
+		for (const auto &filter : data->chatsFilters().list()) {
+			if (const auto id = filter.id()) {
+				(*menu)->addAction(
+					Ui::Text::FixAmpersandInAction(filter.titleText().text),
+					[=] { MG::SetLaunchFolder(id); });
+			}
+		}
+		(*menu)->popup(button->mapToGlobal(QPoint(0, button->height())));
+	});
 }
 
 void BuildGeneralSection(SectionBuilder &builder) {
@@ -96,6 +142,7 @@ void BuildGeneralSection(SectionBuilder &builder) {
 		{ u"premium"_q, u"promo"_q, u"business"_q, u"gift"_q },
 		MG::HidePremiumPromo,
 		MG::SetHidePremiumPromo);
+	AddLaunchFolderRow(builder);
 
 	builder.addSkip(st::settingsCheckboxesSkip);
 }
