@@ -1919,6 +1919,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_disable_ai_summaries" = "Disable AI summaries";
 "lng_mg_open_links_in_browser" = "Open links in browser";
 "lng_mg_hide_premium_promo" = "Hide Premium promo";
+"lng_mg_all_recent_stickers" = "Show all recent stickers";
 
 "lng_profile_export_chat" = "Export chat history";
 "lng_profile_export_topic" = "Export topic history";

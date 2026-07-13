@@ -59,4 +59,8 @@ void SetOpenLinksInBrowser(bool value);
 void SetHidePremiumPromo(bool value);
 [[nodiscard]] rpl::producer<bool> HidePremiumPromoValue();
 
+[[nodiscard]] bool AllRecentStickers();
+void SetAllRecentStickers(bool value);
+[[nodiscard]] rpl::producer<bool> AllRecentStickersValue();
+
 } // namespace MG
