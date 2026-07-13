@@ -63,4 +63,9 @@ void SetHidePremiumPromo(bool value);
 void SetAllRecentStickers(bool value);
 [[nodiscard]] rpl::producer<bool> AllRecentStickersValue();
 
+// FilterId of the folder to open on launch; 0 = the account's default folder.
+[[nodiscard]] int LaunchFolder();
+void SetLaunchFolder(int value);
+[[nodiscard]] rpl::producer<int> LaunchFolderValue();
+
 } // namespace MG

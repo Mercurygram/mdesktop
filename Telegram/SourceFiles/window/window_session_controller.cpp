@@ -73,6 +73,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/emoji_interactions.h"
 #include "core/shortcuts.h"
 #include "core/application.h"
+#include "core/mg_settings.h"
 #include "core/click_handler_types.h"
 #include "core/file_utilities.h"
 #include "core/ui_integration.h"
@@ -2034,7 +2035,12 @@ void SessionController::activateFirstChatsFilter() {
 		return;
 	}
 	_filtersActivated = true;
-	setActiveChatsFilter(session().data().chatsFilters().defaultId());
+	// [MG] Open the user-chosen launch folder; 0 falls back to the default.
+	// A stale id (e.g. set on another account) is reset by checkOpenedFilter.
+	const auto launch = FilterId(MG::LaunchFolder());
+	setActiveChatsFilter(launch
+		? launch
+		: session().data().chatsFilters().defaultId());
 }
 
 bool SessionController::uniqueChatsInSearchResults(
