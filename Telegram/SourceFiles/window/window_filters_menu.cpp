@@ -453,7 +453,10 @@ void FiltersMenu::setupList() {
 }
 
 bool FiltersMenu::premium() const {
-	return _session->session().user()->isPremium();
+	// [MG] Let non-premium users reorder folders freely (incl. moving "All
+	// chats" off the first slot), matching the Android client. Only gates
+	// reorder/pinned-interval math here, not any purchasable premium limit.
+	return true;
 }
 
 base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareAll() {

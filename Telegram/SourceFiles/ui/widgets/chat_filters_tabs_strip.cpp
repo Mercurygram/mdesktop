@@ -93,7 +93,7 @@ struct FilterLockMath {
 [[nodiscard]] FilterLockMath ComputeFilterLockMath(
 		not_null<Main::Session*> session,
 		const std::vector<Data::ChatFilter> &list) {
-	const auto reorderAll = session->user()->isPremium();
+	const auto reorderAll = true; // [MG] non-premium folder reorder
 	const auto hasAllTab = ShownHasAllTab(list);
 	const auto maxLimit = (reorderAll ? 1 : 0)
 		+ Data::PremiumLimits(session).dialogFiltersCurrent();
@@ -306,11 +306,7 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 
 			const auto filters = &session->data().chatsFilters();
 			const auto &list = filters->list();
-			if (!session->user()->isPremium()) {
-				if (list[0].id() != FilterId()) {
-					filters->moveAllToFront();
-				}
-			}
+			// [MG] non-premium folder reorder: no forced "All chats" snap-back.
 
 			auto order = ranges::views::all(
 				list
