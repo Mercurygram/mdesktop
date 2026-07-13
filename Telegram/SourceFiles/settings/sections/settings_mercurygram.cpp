@@ -100,6 +100,22 @@ void BuildGeneralSection(SectionBuilder &builder) {
 	builder.addSkip(st::settingsCheckboxesSkip);
 }
 
+void BuildMediaSection(SectionBuilder &builder) {
+	builder.addDivider();
+	builder.addSkip();
+	builder.addSubsectionTitle(tr::lng_mg_media());
+
+	AddBoolToggle(
+		builder,
+		u"mercurygram/all_recent_stickers"_q,
+		tr::lng_mg_all_recent_stickers(),
+		{ u"stickers"_q, u"recent"_q, u"picker"_q },
+		MG::AllRecentStickers,
+		MG::SetAllRecentStickers);
+
+	builder.addSkip(st::settingsCheckboxesSkip);
+}
+
 void BuildPrivacySection(SectionBuilder &builder) {
 	builder.addDivider();
 	builder.addSkip();
@@ -146,6 +162,7 @@ void BuildPrivacySection(SectionBuilder &builder) {
 
 void BuildMercurygramSectionContent(SectionBuilder &builder) {
 	BuildGeneralSection(builder);
+	BuildMediaSection(builder);
 	BuildPrivacySection(builder);
 }
 
