@@ -107,6 +107,13 @@ void BuildMediaSection(SectionBuilder &builder) {
 
 	AddBoolToggle(
 		builder,
+		u"mercurygram/all_recent_stickers"_q,
+		tr::lng_mg_all_recent_stickers(),
+		{ u"stickers"_q, u"recent"_q, u"picker"_q },
+		MG::AllRecentStickers,
+		MG::SetAllRecentStickers);
+	AddBoolToggle(
+		builder,
 		u"mercurygram/large_photos"_q,
 		tr::lng_mg_large_photos(),
 		{ u"photos"_q, u"quality"_q, u"large"_q },
