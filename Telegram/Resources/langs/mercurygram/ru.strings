@@ -16,3 +16,5 @@
 "lng_mg_disable_ai_editor" = "Отключить ИИ-редактор текста";
 "lng_mg_disable_ai_summaries" = "Отключить ИИ-резюме";
 "lng_mg_open_links_in_browser" = "Открывать ссылки в браузере";
+
+"lng_mg_hide_premium_promo" = "Скрыть рекламу Premium";
