@@ -48,6 +48,7 @@ MG_BOOL_SETTING(DisableAiEditor, "mg-disable-ai-editor")
 MG_BOOL_SETTING(DisableAiSummaries, "mg-disable-ai-summaries")
 MG_BOOL_SETTING(OpenLinksInBrowser, "mg-open-links-in-browser")
 MG_BOOL_SETTING(HidePremiumPromo, "mg-hide-premium-promo")
+MG_BOOL_SETTING(AllRecentStickers, "mg-all-recent-stickers")
 
 #undef MG_BOOL_SETTING
 
