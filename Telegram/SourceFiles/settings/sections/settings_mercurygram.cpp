@@ -89,6 +89,13 @@ void BuildGeneralSection(SectionBuilder &builder) {
 		{ u"all"_q, u"chats"_q, u"folder"_q, u"tab"_q },
 		MG::HideAllChats,
 		MG::SetHideAllChats);
+	AddBoolToggle(
+		builder,
+		u"mercurygram/hide_premium_promo"_q,
+		tr::lng_mg_hide_premium_promo(),
+		{ u"premium"_q, u"promo"_q, u"business"_q, u"gift"_q },
+		MG::HidePremiumPromo,
+		MG::SetHidePremiumPromo);
 
 	builder.addSkip(st::settingsCheckboxesSkip);
 }

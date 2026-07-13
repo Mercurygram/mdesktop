@@ -16,3 +16,5 @@
 "lng_mg_disable_ai_editor" = "تعطيل محرّر النصوص بالذكاء الاصطناعي";
 "lng_mg_disable_ai_summaries" = "تعطيل ملخّصات الذكاء الاصطناعي";
 "lng_mg_open_links_in_browser" = "فتح الروابط في المتصفح";
+
+"lng_mg_hide_premium_promo" = "إخفاء ترويج Premium";
