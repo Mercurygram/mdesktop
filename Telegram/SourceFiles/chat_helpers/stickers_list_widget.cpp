@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/options.h"
 #include "base/timer_rpl.h"
 #include "core/application.h"
+#include "core/mg_settings.h"
 #include "data/data_document.h"
 #include "data/data_document_media.h"
 #include "data/data_session.h"
@@ -3275,7 +3276,8 @@ auto StickersListWidget::collectRecentStickers() -> std::vector<Sticker> {
 
 	auto add = [&](not_null<DocumentData*> document, bool custom) {
 		if (result.size() >= kRecentDisplayLimit
-			&& !OptionUnlimitedRecentStickers.value()) {
+			&& !OptionUnlimitedRecentStickers.value()
+			&& !MG::AllRecentStickers()) {
 			return;
 		}
 		const auto i = ranges::find(result, document, &Sticker::document);
