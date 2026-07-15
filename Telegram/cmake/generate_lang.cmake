@@ -70,5 +70,11 @@ function(generate_lang target_name lang_file src_loc)
     )
     add_custom_target(${target_name}_lang_subsets DEPENDS ${subsets_timestamp})
     init_target_folder(${target_name}_lang_subsets "(gen)")
+    # Subsets consume lang_auto_keys.h produced by ${target_name}_lang. Ninja
+    # orders that via the file-level DEPENDS above, but the Visual Studio
+    # generator ignores cross-project custom-command file deps and schedules the
+    # two .vcxproj arbitrarily, running subsets first (error 831: can not open
+    # the generated keys header). Force the order explicitly.
+    add_dependencies(${target_name}_lang_subsets ${target_name}_lang)
     add_dependencies(${target_name} ${target_name}_lang_subsets)
 endfunction()
