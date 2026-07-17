@@ -10,7 +10,7 @@
   <Identity Name="Mercurygram.MercurygramDesktop"
     ProcessorArchitecture="ARCHITECTURE"
     Publisher="CN=536BC709-8EE1-4478-AF22-F0F0F26FF64A"
-    Version="7.0.1.0" />
+    Version="7.0.1.1" />
   <Properties>
     <DisplayName>Mercurygram Desktop</DisplayName>
     <PublisherDisplayName>Mercurygram</PublisherDisplayName>
