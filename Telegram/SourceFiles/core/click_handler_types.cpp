@@ -213,6 +213,32 @@ void DoneSetReminder(std::shared_ptr<ChatHelpers::Show> show) {
 	});
 };
 
+// Mercurygram: a mentioned user may never have been delivered in a users
+// vector (message restored from the local cache, or a user we have no
+// relation to), and then clicking the mention did nothing at all. Fetch it
+// by id and open the profile once it arrives.
+void ResolveMentionAndShowProfile(
+		not_null<Window::SessionController*> controller,
+		not_null<Main::Session*> session,
+		UserId userId) {
+	const auto failed = [=] {
+		controller->showToast(tr::lng_mg_user_link_unresolved(tr::now));
+	};
+	session->api().request(MTPusers_GetUsers(
+		MTP_vector<MTPInputUser>(1, session->data().user(userId)->inputUser())
+	)).done(crl::guard(controller, [=](const MTPVector<MTPUser> &result) {
+		// An unresolvable id comes back as userEmpty, which still lands in
+		// the session as a loaded "Deleted Account" peer, so check the flag
+		// instead of just re-reading userLoaded().
+		const auto user = session->data().processUsers(result);
+		if (user && !user->isInaccessible()) {
+			controller->showPeerInfo(user);
+		} else {
+			failed();
+		}
+	})).fail(crl::guard(controller, failed)).send();
+}
+
 } // namespace
 
 bool UrlRequiresConfirmation(const QUrl &url) {
@@ -487,6 +513,8 @@ void MentionNameClickHandler::onClick(ClickContext context) const {
 		if (const auto controller = my.sessionWindow.get()) {
 			if (auto user = _session->data().userLoaded(_userId)) {
 				controller->showPeerInfo(user);
+			} else {
+				ResolveMentionAndShowProfile(controller, _session, _userId);
 			}
 		}
 	}
