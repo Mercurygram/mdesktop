@@ -1975,6 +1975,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_open_links_in_browser" = "Open links in browser";
 "lng_mg_hide_premium_promo" = "Hide Premium promo";
 "lng_mg_all_recent_stickers" = "Show all recent stickers";
+"lng_mg_lock_on_hide" = "Lock when window is closed or minimized";
 "lng_mg_launch_folder" = "Launch folder";
 "lng_mg_user_link_unresolved" = "Couldn't open this profile.";
 
