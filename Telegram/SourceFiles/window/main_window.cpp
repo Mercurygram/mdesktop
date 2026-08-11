@@ -23,6 +23,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_account.h" // Account::sessionValue.
 #include "main/main_domain.h"
 #include "core/application.h"
+#include "core/mg_lock_on_hide.h"
 #include "core/sandbox.h"
 #include "core/shortcuts.h"
 #include "core/update_channel.h"
@@ -609,6 +610,9 @@ void MainWindow::handleStateChanged(Qt::WindowState state) {
 		&& (Core::App().settings().workMode() == WorkMode::TrayOnly)) {
 		minimizeToTray();
 	}
+	if (state == Qt::WindowMinimized) {
+		MG::MaybeLockOnHide(this);
+	}
 	savePosition(state);
 }
 
@@ -630,6 +634,7 @@ void MainWindow::handleVisibleChanged(bool visible) {
 		}
 	} else {
 		_maximizedBeforeHide = positionMaximized();
+		MG::MaybeLockOnHide(this);
 	}
 
 	handleVisibleChangedHook(visible);
