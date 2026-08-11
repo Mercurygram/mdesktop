@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/auto_lock_box.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "core/mg_settings.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
 #include "main/session/session_show.h"
@@ -23,6 +24,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "settings/cloud_password/settings_cloud_password_common.h"
 #include "settings/cloud_password/settings_cloud_password_step.h"
+#include "settings/sections/settings_mercurygram.h"
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
 #include "storage/storage_domain.h"
@@ -1554,6 +1556,15 @@ void BuildManageContent(
 				}, box->lifetime());
 			});
 		}
+
+		AddBoolToggle(
+			builder,
+			u"passcode/lock-on-hide"_q,
+			tr::lng_mg_lock_on_hide(),
+			{ u"lock"_q, u"close"_q, u"minimize"_q, u"hide"_q },
+			MG::LockOnHide,
+			MG::SetLockOnHide,
+			{ &st::menuIconLeave });
 
 		builder.addSkip();
 
