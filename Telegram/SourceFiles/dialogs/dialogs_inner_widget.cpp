@@ -3308,7 +3308,9 @@ void InnerWidget::handleChatListEntryRefreshes() {
 			const auto info = history
 				? history->communityListInfo()
 				: nullptr;
-			return !info || !info->collapsedInDialogs();
+			// A collapsed community hides its members from the main chats
+			// list, but a folder can still list them explicitly by id.
+			return !info || _filterId || !info->collapsedInDialogs();
 		}
 	}) | rpl::on_next([=](const Event &event) {
 		const auto offset = dialogsOffset();
@@ -3340,7 +3342,7 @@ void InnerWidget::handleChatListEntryRefreshes() {
 		}
 
 		if (event.existenceChanged) {
-			if (!entry->inChatList()) {
+			if (!entry->inChatList(_filterId)) {
 				if (key == _menuRow.key && _menu) {
 					InvokeQueued(this, [=] { _menu = nullptr; });
 				}
