@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_secret_chat.h"
 #include "data/data_chat.h"
 #include "data/data_channel.h"
+#include "data/data_community.h"
 #include "data/data_session.h"
 #include "data/data_folder.h"
 #include "data/data_histories.h"
@@ -372,9 +373,16 @@ bool ChatFilter::contains(
 		return false;
 	}
 	const auto channel = history->peer->asChannel();
-	if (channel && channel->isCommunity()) {
+	const auto community = history->communityListInfo();
+	if ((channel && channel->isCommunity())
+		|| (community
+			&& community->collapsedInChatLists()
+			&& community->channel() != history->peer)) {
 		// A community never matches a filter by chat type (it is neither a
 		// group nor a channel); it can only be included explicitly by id.
+		// Chats grouped inside a collapsed community follow the same rule:
+		// while the community row hides them in the chats list, they must
+		// not silently reappear in every type-based folder.
 		return _always.contains(history);
 	}
 	const auto state = (_flags & (Flag::NoMuted | Flag::NoRead))
@@ -763,6 +771,9 @@ bool ChatFilters::applyChange(ChatFilter &filter, ChatFilter &&updated) {
 				}
 			}
 		};
+		// Chats grouped inside a collapsed community are not in the main
+		// chats list or in the archive, only in the community's own list.
+		auto communityLists = std::vector<not_null<Dialogs::MainList*>>();
 		const auto feedList = [&](not_null<const Dialogs::MainList*> list) {
 			for (const auto &entry : *list->indexed()) {
 				if (const auto history = entry->history()) {
@@ -771,12 +782,22 @@ bool ChatFilters::applyChange(ChatFilter &filter, ChatFilter &&updated) {
 					if (wasTags != tagsExistence(entry)) {
 						entryToRefreshHeight = entry->entry();
 					}
+					const auto channel = history->peer->asChannel();
+					const auto info = channel
+						? channel->communityInfo()
+						: nullptr;
+					if (info && info->collapsedInChatLists()) {
+						communityLists.push_back(info->chatsList());
+					}
 				}
 			}
 		};
 		feedList(_owner->chatsList());
 		if (const auto folder = _owner->folderLoaded(Data::Folder::kId)) {
 			feedList(folder->chatsList());
+		}
+		for (auto i = 0; i != int(communityLists.size()); ++i) {
+			feedList(communityLists[i]);
 		}
 		if (exceptionsChanged && !filter.always().empty()) {
 			_exceptionsToLoad.push_back(id);
