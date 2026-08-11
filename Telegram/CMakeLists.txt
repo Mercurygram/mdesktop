@@ -577,6 +577,8 @@ PRIVATE
     core/launcher.h
     core/local_url_handlers.cpp
     core/local_url_handlers.h
+    core/mg_lock_on_hide.cpp
+    core/mg_lock_on_hide.h
     core/mg_settings.cpp
     core/mg_settings.h
     core/phone_click_handler.cpp
