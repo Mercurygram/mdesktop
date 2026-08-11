@@ -51,6 +51,7 @@ MG_BOOL_SETTING(DisableAiEditor, "mg-disable-ai-editor")
 MG_BOOL_SETTING(DisableAiSummaries, "mg-disable-ai-summaries")
 MG_BOOL_SETTING(OpenLinksInBrowser, "mg-open-links-in-browser")
 MG_BOOL_SETTING(HidePremiumPromo, "mg-hide-premium-promo")
+MG_BOOL_SETTING(LockOnHide, "mg-lock-on-hide")
 MG_BOOL_SETTING(AllRecentStickers, "mg-all-recent-stickers")
 
 // A FilterId; 0 means "open the account's default folder" (upstream).
