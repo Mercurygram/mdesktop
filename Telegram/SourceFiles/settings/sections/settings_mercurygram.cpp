@@ -31,30 +31,6 @@ namespace {
 
 using namespace Builder;
 
-void AddBoolToggle(
-		SectionBuilder &builder,
-		const QString &id,
-		rpl::producer<QString> title,
-		QStringList keywords,
-		Fn<bool()> getter,
-		Fn<void(bool)> setter) {
-	const auto button = builder.addButton({
-		.id = id,
-		.title = std::move(title),
-		.st = &st::settingsButtonNoIcon,
-		.toggled = rpl::single(getter()),
-		.keywords = std::move(keywords),
-	});
-	if (button) {
-		button->toggledValue(
-		) | rpl::filter([=](bool checked) {
-			return (checked != getter());
-		}) | rpl::on_next([=](bool checked) {
-			setter(checked);
-		}, button->lifetime());
-	}
-}
-
 // A row whose label shows the current launch folder and whose click opens a
 // popup listing the account's folders. The stored FilterId is global, not
 // per-account, so an id from another account reads as the default folder.
@@ -267,6 +243,32 @@ void Mercurygram::setupContent() {
 
 Type MercurygramId() {
 	return Mercurygram::Id();
+}
+
+void AddBoolToggle(
+		Builder::SectionBuilder &builder,
+		const QString &id,
+		rpl::producer<QString> title,
+		QStringList keywords,
+		Fn<bool()> getter,
+		Fn<void(bool)> setter,
+		IconDescriptor icon) {
+	const auto button = builder.addButton({
+		.id = id,
+		.title = std::move(title),
+		.st = icon ? nullptr : &st::settingsButtonNoIcon,
+		.icon = std::move(icon),
+		.toggled = rpl::single(getter()),
+		.keywords = std::move(keywords),
+	});
+	if (button) {
+		button->toggledValue(
+		) | rpl::filter([=](bool checked) {
+			return (checked != getter());
+		}) | rpl::on_next([=](bool checked) {
+			setter(checked);
+		}, button->lifetime());
+	}
 }
 
 } // namespace Settings
