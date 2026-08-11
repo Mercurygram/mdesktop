@@ -11,6 +11,20 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Settings {
 
+namespace Builder {
+class SectionBuilder;
+} // namespace Builder
+
 [[nodiscard]] Type MercurygramId();
+
+// Wires a settings toggle row to an MG::Xxx() / MG::SetXxx() pair.
+void AddBoolToggle(
+	Builder::SectionBuilder &builder,
+	const QString &id,
+	rpl::producer<QString> title,
+	QStringList keywords,
+	Fn<bool()> getter,
+	Fn<void(bool)> setter,
+	IconDescriptor icon = {});
 
 } // namespace Settings
