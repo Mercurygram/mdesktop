@@ -121,7 +121,9 @@ private:
 	void refresh();
 	void refreshDelayed();
 	void refreshAnimations();
+	void refreshLegacy();
 	void applySet(const MTPDmessages_stickerSet &data);
+	void applyLegacySet(const MTPDmessages_stickerSet &data);
 	void applyPack(
 		const MTPDstickerPack &data,
 		const base::flat_map<uint64, not_null<DocumentData*>> &map);
