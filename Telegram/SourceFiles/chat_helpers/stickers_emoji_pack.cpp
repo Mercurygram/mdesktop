@@ -51,6 +51,21 @@ constexpr auto kPremiumCachesCount = 8;
 		: std::nullopt;
 }
 
+// Telegram dropped the animated peach server-side in 2022-2023: its big emoji
+// document stopped arriving in the inputStickerSetAnimatedEmoji set
+// (AnimatedEmojies), so it renders as plain large text. We re-host the original
+// animation in the set below and merge it in only when the server ships nothing
+// for the emoji, so a revived server document always wins. Gated to the peach
+// alone: a short name is freed when its set is deleted, so an unrelated set
+// landing on that name must not take over big emoji rendering wholesale.
+constexpr auto kLegacyEmojiPack = "MercurygramLegacyEmoji";
+
+[[nodiscard]] EmojiPtr LegacyEmoji() {
+	static const auto result = Ui::Emoji::Find(
+		QString::fromUtf8("\xf0\x9f\x8d\x91"));
+	return result;
+}
+
 [[nodiscard]] QSize SingleSize() {
 	const auto single = st::largeEmojiSize;
 	const auto outline = st::largeEmojiOutline;
@@ -339,6 +354,9 @@ void EmojiPack::refresh() {
 		}, [](const MTPDmessages_stickerSetNotModified &) {
 			LOG(("API Error: Unexpected messages.stickerSetNotModified."));
 		});
+		if (!_map.contains(LegacyEmoji())) {
+			refreshLegacy();
+		}
 	}).fail([=](const MTP::Error &error) {
 		_requestId = 0;
 		refreshDelayed();
@@ -363,6 +381,20 @@ void EmojiPack::refreshAnimations() {
 	}).fail([=] {
 		_animationsRequestId = 0;
 		refreshDelayed();
+	}).send();
+}
+
+void EmojiPack::refreshLegacy() {
+	// Fire and forget: a missing set must not push the pack into the retry loop.
+	_session->api().request(MTPmessages_GetStickerSet(
+		MTP_inputStickerSetShortName(MTP_string(kLegacyEmojiPack)),
+		MTP_int(0) // hash
+	)).done([=](const MTPmessages_StickerSet &result) {
+		result.match([&](const MTPDmessages_stickerSet &data) {
+			applyLegacySet(data);
+		}, [](const MTPDmessages_stickerSetNotModified &) {
+			LOG(("API Error: Unexpected messages.stickerSetNotModified."));
+		});
 	}).send();
 }
 
@@ -391,6 +423,24 @@ void EmojiPack::applySet(const MTPDmessages_stickerSet &data) {
 		refreshItems(emoji);
 	}
 	_refreshed.fire({});
+}
+
+void EmojiPack::applyLegacySet(const MTPDmessages_stickerSet &data) {
+	const auto legacy = LegacyEmoji();
+	if (_map.contains(legacy)) {
+		return;
+	}
+	for (const auto &pack : data.vpacks().v) {
+		const auto &fields = pack.c_stickerPack();
+		if (Ui::Emoji::Find(qs(fields.vemoticon())) != legacy) {
+			continue;
+		}
+		applyPack(fields, collectStickers(data.vdocuments().v));
+		if (_map.contains(legacy)) {
+			refreshItems(legacy);
+		}
+		break;
+	}
 }
 
 void EmojiPack::applyAnimationsSet(const MTPDmessages_stickerSet &data) {
