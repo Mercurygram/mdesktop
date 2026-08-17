@@ -38,6 +38,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "mtproto/mtproto_config.h"
 #include "core/application.h"
 #include "core/click_handler_types.h"
+#include "core/mg_unicode_fold.h"
 #include "window/notifications_manager.h"
 #include "window/window_session_controller.h"
 #include "window/main_window.h" // Window::LogoNoMargin.
@@ -1131,6 +1132,7 @@ void PeerData::fillNames() {
 	}
 	auto toIndex = toIndexList.join(' ');
 	toIndex += ' ' + rusKeyboardLayoutSwitch(toIndex);
+	toIndex += ' ' + MG::FoldDecorated(toIndex);
 
 	const auto namesList = TextUtilities::PrepareSearchWords(toIndex);
 	for (const auto &name : namesList) {
