@@ -60,3 +60,29 @@ set_target_properties(
 
 add_dependencies(Telegram test_secret_chat)
 add_dependencies(test_secret_chat td_scheme_scheme td_scheme_secret_scheme)
+
+# Decorated-Unicode name folding. Pure QtCore, no Main::Session and no lib_ui:
+# it builds the folder alongside the test and checks the table it ships with.
+add_executable(test_mg_unicode_fold)
+init_target(test_mg_unicode_fold "(tests)")
+
+target_include_directories(test_mg_unicode_fold PRIVATE ${src_loc})
+
+nice_target_sources(test_mg_unicode_fold ${src_loc}
+PRIVATE
+    tests/test_mg_unicode_fold.cpp
+    core/mg_unicode_fold.cpp
+    core/mg_unicode_fold.h
+)
+
+target_link_libraries(test_mg_unicode_fold
+PRIVATE
+    desktop-app::external_qt
+)
+
+set_target_properties(
+    test_mg_unicode_fold
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+add_dependencies(Telegram test_mg_unicode_fold)
