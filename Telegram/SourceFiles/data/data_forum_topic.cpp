@@ -20,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "dialogs/ui/dialogs_layout.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "core/mg_unicode_fold.h"
 #include "apiwrap.h"
 #include "api/api_unread_things.h"
 #include "history/history.h"
@@ -524,6 +525,7 @@ void ForumTopic::indexTitleParts() {
 	}
 	auto toIndex = toIndexList.join(' ');
 	toIndex += ' ' + rusKeyboardLayoutSwitch(toIndex);
+	toIndex += ' ' + MG::FoldDecorated(toIndex);
 
 	const auto namesList = TextUtilities::PrepareSearchWords(toIndex);
 	for (const auto &name : namesList) {
