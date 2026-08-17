@@ -626,6 +626,8 @@ PRIVATE
     core/mg_lock_on_hide.h
     core/mg_settings.cpp
     core/mg_settings.h
+    core/mg_unicode_fold.cpp
+    core/mg_unicode_fold.h
     core/phone_click_handler.cpp
     core/phone_click_handler.h
     core/private_temp_directory.h
