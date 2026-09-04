@@ -38,6 +38,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtCore/QLockFile>
 #include <QtGui/QSessionManager>
 #include <QtGui/QScreen>
+#include <QtGui/QWindow>
 #include <QtGui/qpa/qplatformscreen.h>
 
 namespace Core {
@@ -659,6 +660,25 @@ bool Sandbox::notify(QObject *receiver, QEvent *e) {
 	}
 
 	const auto wrap = createEventNestingLevel();
+	if constexpr (Platform::IsWindows()) {
+		// Qt 6.10+ re-activates the window holding the mouse capture on a
+		// press when it is a transient ancestor of the focus window
+		// (QWindowsPointerHandler::handleWindowActivation). lib_ui parents
+		// submenu windows to their menu, so a click inside a submenu
+		// re-activates the menu, the submenu loses focus and both close
+		// before the press lands. Give submenus the menu's own transient
+		// parent, like before lib_ui fa453a5.
+		if (e->type() == QEvent::WinIdChange) {
+			const auto widget = qobject_cast<QWidget*>(receiver);
+			const auto handle = (widget && widget->windowType() == Qt::Popup)
+				? widget->windowHandle()
+				: nullptr;
+			const auto parent = handle ? handle->transientParent() : nullptr;
+			if (parent && parent->type() == Qt::Popup) {
+				handle->setTransientParent(parent->transientParent());
+			}
+		}
+	}
 	if (e->type() == QEvent::UpdateRequest) {
 		const auto weak = QPointer<QObject>(receiver);
 		_widgetUpdateRequests.fire({});
