@@ -593,6 +593,10 @@ PRIVATE
     core/launcher.h
     core/local_url_handlers.cpp
     core/local_url_handlers.h
+    core/mg_folder_blob.cpp
+    core/mg_folder_blob.h
+    core/mg_folders.cpp
+    core/mg_folders.h
     core/mg_lock_on_hide.cpp
     core/mg_lock_on_hide.h
     core/mg_settings.cpp

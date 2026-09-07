@@ -22,3 +22,6 @@
 "lng_mg_lock_on_hide" = "Vergrendelen wanneer het venster wordt gesloten of geminimaliseerd";
 "lng_mg_launch_folder" = "Startmap";
 "lng_mg_user_link_unresolved" = "Kan dit profiel niet openen.";
+"lng_mg_folder" = "Mercurygram-map";
+"lng_mg_folder_about" = "Alleen op dit apparaat opgeslagen, nooit bij Telegram. Geen limiet op mappen of chats.";
+"lng_mg_folder_tag" = "Mercurygram";

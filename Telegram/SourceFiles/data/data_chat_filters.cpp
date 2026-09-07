@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_chat_filters.h"
 
 #include "api/api_text_entities.h"
+#include "core/mg_folders.h"
 #include "history/history.h"
 #include "data/data_peer.h"
 #include "data/data_user.h"
@@ -513,6 +514,10 @@ void ChatFilters::requestToggleTags(bool value, Fn<void()> fail) {
 }
 
 void ChatFilters::received(const QVector<MTPDialogFilter> &list) {
+	// [MG] Mercurygram folders are not on the server: taken out of the list
+	// before it is reconciled with the answer, or the trim below would delete
+	// every one.
+	auto mercurygramFilters = MG::TakeMercurygramFilters(_list);
 	auto position = 0;
 	auto changed = false;
 	for (const auto &filter : list) {
@@ -538,9 +543,14 @@ void ChatFilters::received(const QVector<MTPDialogFilter> &list) {
 		applyRemove(position);
 		changed = true;
 	}
+	// [MG] before the Mercurygram folders go back: the slots they remember
+	// were recorded on a list that had All chats in it, and the trim above
+	// usually dropped it, so putting them back first shifts every one of them
+	// a slot down the list on each reconcile.
 	if (!ranges::contains(begin(_list), end(_list), 0, &ChatFilter::id)) {
 		_list.insert(begin(_list), ChatFilter());
 	}
+	MG::PutBackMercurygramFilters(_list, std::move(mercurygramFilters)); // [MG]
 	if (changed || !_loaded || _reloading) {
 		_loaded = true;
 		_reloading = false;
@@ -707,6 +717,24 @@ void ChatFilters::remove(FilterId id) {
 	_listChanged.fire({});
 }
 
+void ChatFilters::applyIdChange(FilterId from, ChatFilter updated) {
+	const auto i = ranges::find(_list, from, &ChatFilter::id);
+	if (i == end(_list)
+		|| from == updated.id()
+		|| ranges::contains(_list, updated.id(), &ChatFilter::id)) {
+		return;
+	}
+	// Both halves keep applyRemove()'s discipline around the pinned lists, and
+	// the edited folder rides along, so one _listChanged covers the whole move.
+	// The chats list, the chatlist links and the "more chats" data kept under
+	// the old id are left alone: Dialogs::InnerWidget still points into that
+	// MainList until the active filter is re-pointed, which happens after this.
+	const auto position = int(i - begin(_list));
+	applyRemove(position);
+	applyInsert(std::move(updated), position);
+	_listChanged.fire({});
+}
+
 void ChatFilters::moveAllToFront() {
 	const auto i = ranges::find(_list, FilterId(), &ChatFilter::id);
 	if (!_list.empty() && i == begin(_list)) {
@@ -834,6 +862,20 @@ bool ChatFilters::applyChange(ChatFilter &filter, ChatFilter &&updated) {
 }
 
 bool ChatFilters::applyOrder(const QVector<MTPint> &order) {
+	// [MG] the order the server sends never mentions a Mercurygram folder:
+	// take them out so each keeps the slot it sat in. Only a reorder made here
+	// moves them, and saveOrder() says so instead of it being guessed from the
+	// ids.
+	auto changed = false;
+	auto mercurygramFilters = base::take(_orderingMercurygram)
+		? MG::TakenFilters()
+		: MG::TakeMercurygramFilters(_list);
+	const auto guard = gsl::finally([&] {
+		MG::PutBackMercurygramFilters(_list, std::move(mercurygramFilters));
+		if (changed) {
+			_listChanged.fire({});
+		}
+	});
 	if (order.size() != _list.size()) {
 		return false;
 	} else if (_list.empty()) {
@@ -854,7 +896,6 @@ bool ChatFilters::applyOrder(const QVector<MTPint> &order) {
 		}
 		++b;
 	}
-	auto changed = false;
 	auto begin = _list.begin(), end = _list.end();
 	for (const auto &id : order) {
 		const auto i = ranges::find(begin, end, id.v, &ChatFilter::id);
@@ -864,9 +905,6 @@ bool ChatFilters::applyOrder(const QVector<MTPint> &order) {
 			std::swap(*i, *begin);
 		}
 		++begin;
-	}
-	if (changed) {
-		_listChanged.fire({});
 	}
 	return true;
 }
@@ -903,6 +941,18 @@ const ChatFilter &ChatFilters::applyUpdatedPinned(
 	return *i;
 }
 
+// [MG] the local half of saveOrder(): applies an order that moves the
+// Mercurygram folders too, without putting one on the wire.
+void ChatFilters::applyMercurygramOrder(const std::vector<FilterId> &order) {
+	auto ids = QVector<MTPint>();
+	ids.reserve(order.size());
+	for (const auto id : order) {
+		ids.push_back(MTP_int(id));
+	}
+	_orderingMercurygram = true;
+	apply(MTP_updateDialogFilterOrder(MTP_vector<MTPint>(ids)));
+}
+
 void ChatFilters::saveOrder(
 		const std::vector<FilterId> &order,
 		mtpRequestId after) {
@@ -912,16 +962,19 @@ void ChatFilters::saveOrder(
 	const auto api = &_owner->session().api();
 	api->request(_saveOrderRequestId).cancel();
 
-	auto ids = QVector<MTPint>();
-	ids.reserve(order.size());
-	for (const auto id : order) {
-		ids.push_back(MTP_int(id));
-	}
-	const auto wrapped = MTP_vector<MTPint>(ids);
+	// [MG] this order moves the Mercurygram folders too.
+	applyMercurygramOrder(order);
 
-	apply(MTP_updateDialogFilterOrder(wrapped));
+	// [MG] Mercurygram folders never reach the server, so the order it is told
+	// about is the one it knows: the same vector without them.
+	auto remoteIds = QVector<MTPint>();
+	for (const auto id : order) {
+		if (!MG::IsMercurygramFolderId(id)) {
+			remoteIds.push_back(MTP_int(id));
+		}
+	}
 	_saveOrderRequestId = api->request(MTPmessages_UpdateDialogFiltersOrder(
-		wrapped
+		MTP_vector<MTPint>(remoteIds)
 	)).afterRequest(_saveOrderAfterId).send();
 }
 
@@ -945,15 +998,13 @@ FilterId ChatFilters::defaultId() const {
 FilterId ChatFilters::lookupId(int index) const {
 	Expects(index >= 0 && index < _list.size());
 
-	if (_owner->session().user()->isPremium() || !_list.front().id()) {
-		return _list[index].id();
-	}
-	const auto i = ranges::find(_list, FilterId(0), &ChatFilter::id);
-	return !index
-		? FilterId()
-		: (index <= int(i - begin(_list)))
-		? _list[index - 1].id()
-		: _list[index].id();
+	// [MG] Upstream remaps index 0 to the "All chats" folder for a non-premium
+	// user, because it forces that folder first in the strip whatever the list
+	// order says. Both strips here render the list order as it is - a
+	// Mercurygram folder can sit first, and MG::HideAllChats() drops the "All
+	// chats" entry from the strip entirely - so the position asked about is
+	// the position in the list.
+	return _list[index].id();
 }
 
 bool ChatFilters::loaded() const {
