@@ -86,6 +86,7 @@ struct ColorIndicesCompressed;
 
 namespace MG {
 class MercurygramFolders;
+class MercurygramFolderSync;
 } // namespace MG
 
 namespace Main {
@@ -359,8 +360,10 @@ private:
 	const std::unique_ptr<Support::Helper> _supportHelper;
 	const std::unique_ptr<Support::FastButtonsBots> _fastButtonsBots;
 
-	// [MG] Mercurygram folders: this device's own set, kept out of Telegram.
+	// [MG] Mercurygram folders: this device's own set, kept out of Telegram,
+	// and its mirror in Saved Messages that the other devices read.
 	const std::unique_ptr<MG::MercurygramFolders> _mercurygramFolders;
+	const std::unique_ptr<MG::MercurygramFolderSync> _mercurygramFolderSync;
 
 	std::shared_ptr<QImage> _selfUserpicView;
 	rpl::variable<bool> _premiumPossible = false;
