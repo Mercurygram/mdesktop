@@ -84,6 +84,10 @@ namespace Ui {
 struct ColorIndicesCompressed;
 } // namespace Ui
 
+namespace MG {
+class MercurygramFolders;
+} // namespace MG
+
 namespace Main {
 
 class Account;
@@ -231,6 +235,9 @@ public:
 	[[nodiscard]] Settings::FaqSuggestions &faqSuggestions() const {
 		return *_faqSuggestions;
 	}
+	[[nodiscard]] MG::MercurygramFolders &mercurygramFolders() const { // [MG]
+		return *_mercurygramFolders;
+	}
 	[[nodiscard]] Settings::RecentSearches &recentSettingsSearches() const {
 		return *_recentSettingsSearches;
 	}
@@ -351,6 +358,9 @@ private:
 
 	const std::unique_ptr<Support::Helper> _supportHelper;
 	const std::unique_ptr<Support::FastButtonsBots> _fastButtonsBots;
+
+	// [MG] Mercurygram folders: this device's own set, kept out of Telegram.
+	const std::unique_ptr<MG::MercurygramFolders> _mercurygramFolders;
 
 	std::shared_ptr<QImage> _selfUserpicView;
 	rpl::variable<bool> _premiumPossible = false;
