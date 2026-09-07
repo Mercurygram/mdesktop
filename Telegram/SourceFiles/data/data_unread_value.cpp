@@ -42,7 +42,9 @@ rpl::producer<Dialogs::UnreadState> MainListUnreadState(
 rpl::producer<Dialogs::UnreadState> UnreadStateValue(
 		not_null<Main::Session*> session,
 		FilterId filterId) {
-	if (filterId > 0) {
+	if (filterId != 0) {
+		// [MG] A Mercurygram folder has a negative id and is an ordinary folder
+		// here: its unread state is the one of its own chats list.
 		const auto filters = &session->data().chatsFilters();
 		return MainListUnreadState(filters->chatsList(filterId));
 	}
