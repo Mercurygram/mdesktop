@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/peers/community_box.h"
 #include "boxes/peers/edit_peer_permissions_box.h"
 #include "core/application.h"
+#include "core/mg_folders.h"
 #include "core/ui_integration.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
@@ -1725,6 +1726,9 @@ void DeleteChatBox(not_null<Ui::GenericBox*> box, not_null<PeerData*> peer) {
 					MTP_flags(MTPDupdateDialogFilter::Flag::f_filter),
 					MTP_int(filter.id()),
 					tl));
+				if (MG::IsMercurygramFolderId(filter.id())) {
+					continue; // [MG] never sent to the server.
+				}
 				peer->session().api().request(MTPmessages_UpdateDialogFilter(
 					MTP_flags(MTPmessages_UpdateDialogFilter::Flag::f_filter),
 					MTP_int(filter.id()),
