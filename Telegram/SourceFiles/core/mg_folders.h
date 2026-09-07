@@ -70,6 +70,12 @@ void PutBackMercurygramFilters(
 	std::vector<Data::ChatFilter> &list,
 	TakenFilters taken);
 
+// A peer the blob can name. The Bot API marked id covers users, basic groups
+// and channels only, so a secret chat -- which exists on this device alone --
+// never goes into the blob, and a pull has to carry it over by hand instead of
+// reading its absence as a removal.
+[[nodiscard]] bool SyncablePeer(PeerId id);
+
 // The blob <-> Data::ChatFilter bridge.
 [[nodiscard]] FolderBlob CollectMercurygramFilters(
 	not_null<Data::Session*> owner,
