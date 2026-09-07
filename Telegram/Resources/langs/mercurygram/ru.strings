@@ -22,3 +22,6 @@
 "lng_mg_lock_on_hide" = "Блокировать при закрытии или сворачивании окна";
 "lng_mg_launch_folder" = "Папка при запуске";
 "lng_mg_user_link_unresolved" = "Не удалось открыть этот профиль.";
+"lng_mg_folder" = "Папка Mercurygram";
+"lng_mg_folder_about" = "Хранится только на этом устройстве, не в Telegram. Без ограничений на число папок и чатов.";
+"lng_mg_folder_tag" = "Mercurygram";

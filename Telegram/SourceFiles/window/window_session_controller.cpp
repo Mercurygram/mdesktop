@@ -74,6 +74,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/shortcuts.h"
 #include "core/application.h"
 #include "core/core_screenshot_protection.h"
+#include "core/mg_folders.h" // [MG]
 #include "core/mg_settings.h"
 #include "core/click_handler_types.h"
 #include "core/file_utilities.h"
@@ -1674,7 +1675,8 @@ SessionController::SessionController(
 	rpl::merge(
 		enoughSpaceForFiltersValue() | rpl::skip(1) | rpl::to_empty,
 		Core::App().settings().chatFiltersHorizontalChanges() | rpl::to_empty,
-		session->data().chatsFilters().changed()
+		session->data().chatsFilters().changed(),
+		session->mercurygramFolders().restoredChanges() // [MG]
 	) | rpl::on_next([=] {
 		if (!_filtersActivated) {
 			processFiltersMenu();
@@ -2057,11 +2059,20 @@ void SessionController::activateFirstChatsFilter() {
 		|| !session().data().chatsFilters().loaded()) {
 		return;
 	}
+	// [MG] The Mercurygram folders are restored one event loop pass after the
+	// server list arrives, and this runs on the arrival itself, so a launch
+	// folder of that kind is not in the list yet. Wait for the restore instead
+	// of latching the fallback; a folder deleted elsewhere still falls back
+	// once it ran.
+	const auto launch = FilterId(MG::LaunchFolder());
+	if (MG::IsMercurygramFolderId(launch)
+		&& !session().mercurygramFolders().restored()) {
+		return;
+	}
 	_filtersActivated = true;
 	// [MG] Open the user-chosen launch folder. The setting is global, so an
 	// id unknown to this account falls back to the account's default folder.
 	const auto &filters = session().data().chatsFilters();
-	const auto launch = FilterId(MG::LaunchFolder());
 	const auto &list = filters.list();
 	setActiveChatsFilter(
 		(launch && ranges::contains(list, launch, &Data::ChatFilter::id))

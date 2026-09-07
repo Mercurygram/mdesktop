@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/premium_limits_box.h"
 #include "boxes/premium_preview_box.h"
 #include "core/application.h"
+#include "core/mg_folders.h"
 #include "core/ui_integration.h"
 #include "data/data_chat_filters.h"
 #include "data/data_folder.h"
@@ -166,10 +167,13 @@ struct FilterRow {
 	const auto result = count
 		? tr::lng_filters_chats_count(tr::now, lt_count_short, count)
 		: tr::lng_filters_no_chats(tr::now);
+	const auto separator = (' ' + Ui::kQBullet + ' ');
+	if (MG::IsMercurygramFolderId(filter.id())) {
+		// [MG] tell apart the folders the other clients will not see.
+		return result + separator + tr::lng_mg_folder_tag(tr::now);
+	}
 	return filter.chatlist()
-		? (result
-			+ (' ' + Ui::kQBullet + ' ')
-			+ tr::lng_filters_shareable_status(tr::now))
+		? (result + separator + tr::lng_filters_shareable_status(tr::now))
 		: result;
 }
 
@@ -374,6 +378,20 @@ not_null<Ui::VerticalLayout*> SetupFoldersList(
 	const auto limit = [=] {
 		return Data::PremiumLimits(session).dialogFiltersCurrent();
 	};
+	// [MG] The rows hold the Mercurygram folders as well, and the limit above
+	// is already raised by the number of them the list holds - but only by the
+	// saved ones, a row added here is not saved yet. Count the folders the
+	// server limit is about against that limit alone, so a Mercurygram folder
+	// neither eats a server slot nor is counted in the box the limit shows.
+	const auto serverLimit = [=] {
+		return limit()
+			- MG::MercurygramFilterCount(session->data().chatsFilters().list());
+	};
+	const auto serverCount = [=] {
+		return int(ranges::count_if(state->rows, [](const FilterRow &row) {
+			return !row.removed && !MG::IsMercurygramFolderId(row.filter.id());
+		}));
+	};
 
 	const auto find = [=](not_null<FilterRowButton*> button) {
 		const auto i = ranges::find(state->rows, button, &FilterRow::button);
@@ -381,11 +399,8 @@ not_null<Ui::VerticalLayout*> SetupFoldersList(
 		return &*i;
 	};
 	const auto showLimitReached = [=] {
-		const auto removed = ranges::count_if(
-			state->rows,
-			&FilterRow::removed);
-		const auto count = int(state->rows.size() - removed);
-		if (count < limit()) {
+		const auto count = serverCount();
+		if (count < serverLimit()) {
 			return false;
 		}
 		controller->show(Box(FiltersLimitBox, session, count));
@@ -571,9 +586,6 @@ not_null<Ui::VerticalLayout*> SetupFoldersList(
 		highlights->push_back({ u"folders/create"_q, { createButton.get() } });
 	}
 	createButton->setClickedCallback([=] {
-		if (showLimitReached()) {
-			return;
-		}
 		const auto created = std::make_shared<FilterRowButton*>(nullptr);
 		const auto doneCallback = [=](const Data::ChatFilter &result) {
 			if (const auto button = *created) {
@@ -592,6 +604,8 @@ not_null<Ui::VerticalLayout*> SetupFoldersList(
 		controller->window().show(Box(
 			EditFilterBox,
 			controller,
+			// [MG] the server limit no longer blocks creating a folder: past
+			// it the box comes up with the Mercurygram switch already on.
 			Data::ChatFilter(),
 			crl::guard(container, doneCallback),
 			crl::guard(container, saveAnd)));
@@ -613,6 +627,9 @@ not_null<Ui::VerticalLayout*> SetupFoldersList(
 			const auto id = row.filter.id();
 			if (row.removed) {
 				continue;
+			} else if (MG::IsMercurygramFolderId(id)) {
+				// [MG] a Mercurygram folder keeps the id it was given.
+				continue;
 			} else if (!id
 				|| !ranges::contains(list, id, &Data::ChatFilter::id)) {
 				result.emplace(row.button, chooseNextId());
@@ -633,6 +650,10 @@ not_null<Ui::VerticalLayout*> SetupFoldersList(
 		auto addRequests = std::vector<MTPmessages_UpdateDialogFilter>();
 		auto removeRequests = std::vector<MTPmessages_UpdateDialogFilter>();
 		auto removeChatlistRequests = std::vector<MTPchatlists_LeaveChatlist>();
+		// [MG] A Mercurygram folder produces no request at all, so the order
+		// has to be applied for it as well or the echo below appends the folder
+		// at the end of the list instead of the row position chosen here.
+		auto mercurygramChanged = false;
 
 		const auto &realFilters = session->data().chatsFilters();
 		const auto &list = realFilters.list();
@@ -664,7 +685,14 @@ not_null<Ui::VerticalLayout*> SetupFoldersList(
 			const auto removeChatlistWithChats = removed
 				&& row.filter.chatlist()
 				&& !row.removePeers.empty();
-			if (removeChatlistWithChats) {
+			if (MG::IsMercurygramFolderId(newId)) {
+				// [MG] Mercurygram folders never reach the server; the echo
+				// below still applies them.
+				mercurygramChanged = true;
+				if (!removed) {
+					order.push_back(newId);
+				}
+			} else if (removeChatlistWithChats) {
 				auto inputs = ranges::views::all(
 					row.removePeers
 				) | ranges::views::transform([](not_null<PeerData*> peer) {
@@ -723,6 +751,7 @@ not_null<Ui::VerticalLayout*> SetupFoldersList(
 			session,
 			next,
 			updated,
+			mercurygramChanged,
 			order = std::move(order),
 			updates = std::move(updates),
 			addRequests = std::move(addRequests),
@@ -763,7 +792,8 @@ not_null<Ui::VerticalLayout*> SetupFoldersList(
 			sendRequests(removeRequests);
 			sendRequests(removeChatlistRequests);
 			sendRequests(addRequests);
-			if (!order.empty() && !addRequests.empty()) {
+			if (!order.empty()
+				&& (!addRequests.empty() || mercurygramChanged)) {
 				filters->saveOrder(order, previousId);
 			}
 			checkFinished();
@@ -783,13 +813,24 @@ void SetupRecommendedSection(
 	const auto limit = [=] {
 		return Data::PremiumLimits(session).dialogFiltersCurrent();
 	};
+	// [MG] The rows hold the Mercurygram folders as well, and the limit above
+	// is already raised by the number of them the list holds - but only by the
+	// saved ones, a row added here is not saved yet. Count the folders the
+	// server limit is about against that limit alone, so a Mercurygram folder
+	// neither eats a server slot nor is counted in the box the limit shows.
+	const auto serverLimit = [=] {
+		return limit()
+			- MG::MercurygramFilterCount(session->data().chatsFilters().list());
+	};
+	const auto serverCount = [=] {
+		return int(ranges::count_if(state->rows, [](const FilterRow &row) {
+			return !row.removed && !MG::IsMercurygramFolderId(row.filter.id());
+		}));
+	};
 
 	const auto showLimitReached = [=] {
-		const auto removed = ranges::count_if(
-			state->rows,
-			&FilterRow::removed);
-		const auto count = int(state->rows.size() - removed);
-		if (count < limit()) {
+		const auto count = serverCount();
+		if (count < serverLimit()) {
 			return false;
 		}
 		controller->show(Box(FiltersLimitBox, session, count));
@@ -922,8 +963,8 @@ void SetupRecommendedSection(
 		state->suggested.value(),
 		state->count.value(),
 		Data::AmPremiumValue(session)
-	) | rpl::map([limit](int suggested, int count, bool) {
-		return suggested > 0 && count < limit();
+	) | rpl::map([=](int suggested, int, bool) {
+		return suggested > 0 && serverCount() < serverLimit();
 	});
 	nonEmptyAbout->toggleOn(std::move(showSuggestions));
 }

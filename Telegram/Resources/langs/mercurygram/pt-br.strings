@@ -22,3 +22,6 @@
 "lng_mg_lock_on_hide" = "Bloquear ao fechar ou minimizar a janela";
 "lng_mg_launch_folder" = "Pasta inicial";
 "lng_mg_user_link_unresolved" = "Não foi possível abrir este perfil.";
+"lng_mg_folder" = "Pasta Mercurygram";
+"lng_mg_folder_about" = "Guardada apenas neste aparelho, nunca no Telegram. Sem limite de pastas ou conversas.";
+"lng_mg_folder_tag" = "Mercurygram";
