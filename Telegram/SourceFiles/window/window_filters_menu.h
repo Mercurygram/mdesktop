@@ -58,7 +58,7 @@ private:
 	[[nodiscard]] const style::SideBarButton &buttonStyle() const;
 	[[nodiscard]] base::unique_qptr<Ui::SideBarButton> prepareButton(
 		not_null<Ui::VerticalLayout*> container,
-		FilterId id,
+		std::optional<FilterId> folderId, // [MG] nullopt: the Edit button.
 		Data::ChatFilterTitle title,
 		Ui::FilterIcon icon,
 		bool locked = false,
@@ -97,7 +97,7 @@ private:
 	base::unique_qptr<Ui::PopupMenu> _popupMenu;
 	struct {
 		base::Timer timer;
-		FilterId filterId = FilterId(-1);
+		std::optional<FilterId> filterId;
 	} _drag;
 
 	Ui::Animations::Simple _scrollToAnimation;

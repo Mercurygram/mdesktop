@@ -445,7 +445,8 @@ int EditFilterChatsListController::selectedTypesCount() const {
 void EditFilterChatsListController::rowClicked(not_null<PeerListRow*> row) {
 	const auto count = delegate()->peerListSelectedRowsCount()
 		- selectedTypesCount();
-	if (count < _limit || row->checked()) {
+	// [MG] a zero limit is a Mercurygram folder: no chats-per-folder cap.
+	if (!_limit || count < _limit || row->checked()) {
 		delegate()->peerListSetRowChecked(row, !row->checked());
 		updateTitle();
 	} else if (const auto copy = _showLimitReached) {
@@ -569,6 +570,8 @@ auto EditFilterChatsListController::createRow(not_null<History*> history)
 void EditFilterChatsListController::updateTitle() {
 	const auto count = delegate()->peerListSelectedRowsCount()
 		- selectedTypesCount();
-	const auto additional = u"%1 / %2"_q.arg(count).arg(_limit);
+	const auto additional = _limit
+		? u"%1 / %2"_q.arg(count).arg(_limit)
+		: QString::number(count); // [MG] no cap on a Mercurygram folder.
 	delegate()->peerListSetAdditionalTitle(rpl::single(additional));
 }

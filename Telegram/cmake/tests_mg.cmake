@@ -86,3 +86,30 @@ set_target_properties(
 )
 
 add_dependencies(Telegram test_mg_unicode_fold)
+
+# Mercurygram folders wire format. Pure QtCore as well: the blob layer holds
+# Bot API marked ids and no application type, so the format the phone and the
+# bots read is checked without a Main::Session.
+add_executable(test_mg_folder_blob)
+init_target(test_mg_folder_blob "(tests)")
+
+target_include_directories(test_mg_folder_blob PRIVATE ${src_loc})
+
+nice_target_sources(test_mg_folder_blob ${src_loc}
+PRIVATE
+    tests/test_mg_folder_blob.cpp
+    core/mg_folder_blob.cpp
+    core/mg_folder_blob.h
+)
+
+target_link_libraries(test_mg_folder_blob
+PRIVATE
+    desktop-app::external_qt
+)
+
+set_target_properties(
+    test_mg_folder_blob
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+add_dependencies(Telegram test_mg_folder_blob)
