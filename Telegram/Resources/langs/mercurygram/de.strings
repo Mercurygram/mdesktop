@@ -22,3 +22,6 @@
 "lng_mg_lock_on_hide" = "Sperren, wenn das Fenster geschlossen oder minimiert wird";
 "lng_mg_launch_folder" = "Startordner";
 "lng_mg_user_link_unresolved" = "Dieses Profil konnte nicht geöffnet werden.";
+"lng_mg_folder" = "Mercurygram-Ordner";
+"lng_mg_folder_about" = "Nur auf diesem Gerät gespeichert, nie bei Telegram. Keine Begrenzung für Ordner oder Chats.";
+"lng_mg_folder_tag" = "Mercurygram";

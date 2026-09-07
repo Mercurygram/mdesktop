@@ -12,9 +12,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/filters/edit_filter_box.h"
 #include "boxes/premium_limits_box.h"
 #include "core/application.h" // primaryWindow
+#include "core/mg_folders.h"
 #include "core/ui_integration.h"
 #include "data/data_chat_filters.h"
-#include "data/data_premium_limits.h"
 #include "data/data_session.h"
 #include "data/data_channel.h"
 #include "data/data_user.h"
@@ -168,6 +168,9 @@ void ChangeFilterById(
 		const auto was = *i;
 		const auto filter = ChangedFilter(was, history, add);
 		history->owner().chatsFilters().set(filter);
+		if (MG::IsMercurygramFolderId(filterId)) {
+			return; // [MG] Mercurygram folders never reach the server.
+		}
 		history->session().api().request(MTPmessages_UpdateDialogFilter(
 			MTP_flags(MTPmessages_UpdateDialogFilter::Flag::f_filter),
 			MTP_int(filter.id()),
@@ -262,7 +265,9 @@ ChooseFilterValidator::LimitData ChooseFilterValidator::limitReached(
 	const auto limit = _history->owner().pinnedChatsLimit(filterId);
 	const auto &chatsList = always ? i->always() : i->never();
 	return {
+		// [MG] no cap on a Mercurygram folder.
 		.reached = (i != end(list))
+			&& !MG::IsMercurygramFolderId(filterId)
 			&& !ranges::contains(chatsList, _history)
 			&& (chatsList.size() >= limit),
 		.count = int(chatsList.size()),
@@ -352,10 +357,11 @@ void FillChooseFilterMenu(
 			: validator.canAdd());
 	}
 
-	const auto limit = [session = &controller->session()] {
-		return Data::PremiumLimits(session).dialogFiltersCurrent();
-	};
-	if ((list.size() - 1) < limit()) {
+	// [MG] The folder count is no longer a reason to hide this entry: only the
+	// folders the server stores count against its limit, and past it the box
+	// below creates a Mercurygram folder instead.
+	const auto offerCreate = true;
+	if (offerCreate) {
 		menu->addAction(tr::lng_filters_create(tr::now), [=] {
 			const auto strong = weak.get();
 			if (!strong) {
@@ -363,9 +369,6 @@ void FillChooseFilterMenu(
 			}
 			const auto session = &strong->session();
 			const auto &list = session->data().chatsFilters().list();
-			if ((list.size() - 1) >= limit()) {
-				return;
-			}
 			const auto chooseNextId = [&] {
 				auto id = 2;
 				while (ranges::contains(list, id, &Data::ChatFilter::id)) {
@@ -376,9 +379,16 @@ void FillChooseFilterMenu(
 			auto filter =
 				Data::ChatFilter({}, {}, {}, {}, {}, { history }, {}, {});
 			const auto send = [=](const Data::ChatFilter &filter) {
+				// [MG] EditFilterBox hands back a Mercurygram id past the
+				// server limit; such a folder is applied here and never sent.
+				const auto id = filter.id() ? filter.id() : chooseNextId();
+				if (MG::IsMercurygramFolderId(id)) {
+					session->data().chatsFilters().set(filter.withId(id));
+					return;
+				}
 				session->api().request(MTPmessages_UpdateDialogFilter(
 					MTP_flags(MTPmessages_UpdateDialogFilter::Flag::f_filter),
-					MTP_int(chooseNextId()),
+					MTP_int(id),
 					filter.tl()
 				)).done([=] {
 					session->data().chatsFilters().reload();
