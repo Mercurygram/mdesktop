@@ -22,3 +22,6 @@
 "lng_mg_lock_on_hide" = "قفل التطبيق عند إغلاق النافذة أو تصغيرها";
 "lng_mg_launch_folder" = "مجلد البدء";
 "lng_mg_user_link_unresolved" = "تعذّر فتح هذا الملف الشخصي.";
+"lng_mg_folder" = "مجلد Mercurygram";
+"lng_mg_folder_about" = "يُحفظ على هذا الجهاز فقط، وليس على تيليجرام. بلا حد لعدد المجلدات أو الدردشات.";
+"lng_mg_folder_tag" = "Mercurygram";

@@ -1996,6 +1996,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_lock_on_hide" = "Lock when window is closed or minimized";
 "lng_mg_launch_folder" = "Launch folder";
 "lng_mg_user_link_unresolved" = "Couldn't open this profile.";
+"lng_mg_folder" = "Mercurygram folder";
+"lng_mg_folder_about" = "Stored on this device only, never on Telegram. No folder or chat limit.";
+"lng_mg_folder_tag" = "Mercurygram";
 
 "lng_profile_export_chat" = "Export chat history";
 "lng_profile_export_topic" = "Export topic history";
