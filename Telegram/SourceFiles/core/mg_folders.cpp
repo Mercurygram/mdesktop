@@ -138,7 +138,11 @@ void SaveMercurygramFolderOrder(not_null<Main::Session*> session) {
 
 [[nodiscard]] PeerId PeerIdFromMarked(qint64 marked) {
 	const auto parsed = FromMarkedPeerId(marked);
-	if (!parsed) {
+	if (!parsed || (BareId(parsed->bare) > PeerId::kChatTypeMask)) {
+		// Anyone can put a file with that name in Saved Messages, and a bare id
+		// wider than the 48 bits a PeerId holds would pass through the type
+		// check with the high bits set and forge a peer of the wrong kind: the
+		// Android client's secret chat dialog ids look exactly like that.
 		return PeerId();
 	}
 	const auto bare = BareId(parsed->bare);
@@ -167,6 +171,10 @@ void SaveMercurygramFolderOrder(not_null<Main::Session*> session) {
 }
 
 } // namespace
+
+bool SyncablePeer(PeerId id) {
+	return peerIsUser(id) || peerIsChat(id) || peerIsChannel(id);
+}
 
 int MercurygramFilterCount(const std::vector<Data::ChatFilter> &list) {
 	return int(ranges::count_if(list, [](const Data::ChatFilter &filter) {
