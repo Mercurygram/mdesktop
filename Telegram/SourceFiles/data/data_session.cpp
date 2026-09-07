@@ -84,6 +84,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_media_rotation.h"
 #include "data/data_histories.h"
 #include "data/data_peer_values.h"
+#include "core/mg_folder_blob.h" // [MG] MG::IsMercurygramFolderId.
 #include "data/data_premium_limits.h"
 #include "data/data_forum.h"
 #include "data/data_forum_topic.h"
@@ -2957,6 +2958,13 @@ int Session::pinnedChatsLimit(Data::Folder *folder) const {
 }
 
 int Session::pinnedChatsLimit(FilterId filterId) const {
+	if (MG::IsMercurygramFolderId(filterId)) {
+		// [MG] A Mercurygram folder is not on the server, so the
+		// chats-per-folder cap does not apply to it - the folder editor already
+		// lets it hold more than the cap, and pinning inside it has to allow
+		// the same.
+		return std::numeric_limits<int>::max();
+	}
 	const auto limits = Data::PremiumLimits(_session);
 	return limits.dialogFiltersChatsCurrent();
 }
@@ -2994,6 +3002,11 @@ rpl::producer<int> Session::maxPinnedChatsLimitValue(
 	// We always use premium limit in the MainList limit producer,
 	// because it slices the list to that limit. We don't want to slice
 	// premium-ly added chats from the pinned list because of sync issues.
+	if (MG::IsMercurygramFolderId(filterId)) {
+		// [MG] Same reason as in pinnedChatsLimit(): slicing a Mercurygram
+		// folder's pinned list to a server cap it never had would drop pins.
+		return rpl::single(std::numeric_limits<int>::max());
+	}
 	return _session->appConfig().value(
 	) | rpl::map([limits = Data::PremiumLimits(_session)] {
 		return limits.dialogFiltersChatsPremium();

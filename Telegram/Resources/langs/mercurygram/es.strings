@@ -22,3 +22,6 @@
 "lng_mg_lock_on_hide" = "Bloquear al cerrar o minimizar la ventana";
 "lng_mg_launch_folder" = "Carpeta de inicio";
 "lng_mg_user_link_unresolved" = "No se pudo abrir este perfil.";
+"lng_mg_folder" = "Carpeta Mercurygram";
+"lng_mg_folder_about" = "Se guarda solo en este dispositivo, nunca en Telegram. Sin límite de carpetas ni de chats.";
+"lng_mg_folder_tag" = "Mercurygram";
