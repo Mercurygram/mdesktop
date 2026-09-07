@@ -23,5 +23,5 @@
 "lng_mg_launch_folder" = "Carpeta de inicio";
 "lng_mg_user_link_unresolved" = "No se pudo abrir este perfil.";
 "lng_mg_folder" = "Carpeta Mercurygram";
-"lng_mg_folder_about" = "Se guarda solo en este dispositivo, nunca en Telegram. Sin límite de carpetas ni de chats.";
+"lng_mg_folder_about" = "Solo se muestra en Mercurygram, nunca se envía a Telegram como carpeta, así que no hay límite de carpetas ni de chats. Se sincroniza entre tus apps Mercurygram mediante un archivo en Mensajes guardados.";
 "lng_mg_folder_tag" = "Mercurygram";
