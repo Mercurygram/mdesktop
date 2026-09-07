@@ -528,6 +528,13 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 				const auto &list = state->shownList;
 				for (auto i = 0; i < list.size(); ++i) {
 					if (list[i].id() == id) {
+						// [MG] Not only setActiveSection(): when the index does
+						// not change nothing fires sectionActivated, and the
+						// next rebuild would look the old id up and fall back
+						// to All chats. A folder moved between the
+						// Mercurygram and the server id ranges keeps its
+						// index and changes id.
+						state->lastFilterId = id;
 						slider->setActiveSection(i);
 						scrollToIndex(i, anim::type::normal);
 						break;

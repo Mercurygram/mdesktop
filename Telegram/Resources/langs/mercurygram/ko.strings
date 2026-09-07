@@ -22,3 +22,6 @@
 "lng_mg_lock_on_hide" = "창을 닫거나 최소화할 때 잠금";
 "lng_mg_launch_folder" = "시작 폴더";
 "lng_mg_user_link_unresolved" = "이 프로필을 열 수 없습니다.";
+"lng_mg_folder" = "Mercurygram 폴더";
+"lng_mg_folder_about" = "이 기기에만 저장되며 텔레그램에는 저장되지 않습니다. 폴더나 채팅 수 제한이 없습니다.";
+"lng_mg_folder_tag" = "Mercurygram";
