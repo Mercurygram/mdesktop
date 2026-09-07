@@ -7,6 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_premium_limits.h"
 
+#include "core/mg_folders.h"
+#include "data/data_chat_filters.h"
+#include "data/data_session.h"
 #include "main/main_app_config.h"
 #include "main/main_session.h"
 
@@ -71,9 +74,12 @@ int PremiumLimits::dialogFiltersPremium() const {
 	return appConfigLimit("dialog_filters_limit_premium", 30);
 }
 int PremiumLimits::dialogFiltersCurrent() const {
-	return isPremium()
-		? dialogFiltersPremium()
-		: dialogFiltersDefault();
+	// [MG] A Mercurygram folder is never sent to Telegram, so it counts
+	// against no limit. Raising the limit by their number, rather than
+	// subtracting them from every count, lets each caller compare plain list
+	// sizes.
+	return (isPremium() ? dialogFiltersPremium() : dialogFiltersDefault())
+		+ MG::MercurygramFilterCount(_session->data().chatsFilters().list());
 }
 
 int PremiumLimits::dialogShareableFiltersDefault() const {

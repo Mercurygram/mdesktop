@@ -22,3 +22,6 @@
 "lng_mg_lock_on_hide" = "Blocca alla chiusura o riduzione a icona della finestra";
 "lng_mg_launch_folder" = "Cartella di avvio";
 "lng_mg_user_link_unresolved" = "Impossibile aprire questo profilo.";
+"lng_mg_folder" = "Cartella Mercurygram";
+"lng_mg_folder_about" = "Salvata solo su questo dispositivo, mai su Telegram. Nessun limite di cartelle o chat.";
+"lng_mg_folder_tag" = "Mercurygram";
