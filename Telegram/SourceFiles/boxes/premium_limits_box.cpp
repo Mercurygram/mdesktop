@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/peer_list_controllers.h"
 #include "boxes/peers/prepare_short_info_box.h" // PrepareShortInfoBox
 #include "window/window_session_controller.h"
+#include "core/mg_folder_blob.h"
 #include "data/data_chat_filters.h"
 #include "data/data_user.h"
 #include "data/data_channel.h"
@@ -794,7 +795,11 @@ void FiltersLimitBox(
 	const auto premiumLimit = float64(limits.dialogFiltersPremium());
 	const auto cloud = int(ranges::count_if(
 		session->data().chatsFilters().list(),
-		[](const Data::ChatFilter &f) { return f.id() != FilterId(); }));
+		[](const Data::ChatFilter &f) {
+			// [MG] a Mercurygram folder is not one of the folders this limit
+			// is about, so it does not count towards the number shown.
+			return (f.id() != FilterId()) && !MG::IsMercurygramFolderId(f.id());
+		}));
 	const auto current = float64(filtersCountOverride.value_or(cloud));
 
 	auto text = rpl::combine(

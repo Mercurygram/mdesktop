@@ -5022,7 +5022,7 @@ bool InnerWidget::needCollapsedRowsRefresh() const {
 }
 
 void InnerWidget::editOpenedFilter() {
-	if (_filterId > 0) {
+	if (_filterId != 0) { // [MG] a Mercurygram folder has a negative id.
 		EditExistingFilter(_controller, _filterId);
 	}
 }
@@ -5136,7 +5136,8 @@ void InnerWidget::refreshEmpty() {
 			: EmptyState::None)
 		: (!_filterId && data->contactsLoaded().current())
 		? EmptyState::NoContacts
-		: (_filterId > 0) && data->chatsList()->loaded()
+		// [MG] a Mercurygram folder has a negative id.
+		: (_filterId != 0) && data->chatsList()->loaded()
 		? EmptyState::EmptyFolder
 		: EmptyState::Loading;
 	if (state == EmptyState::None) {

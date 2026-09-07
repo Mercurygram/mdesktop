@@ -160,6 +160,13 @@ public:
 	void apply(const MTPUpdate &update);
 	void set(ChatFilter filter);
 	void remove(FilterId id);
+
+	// [MG] Re-keys a folder in place: the same folder under a new id, keeping
+	// the slot it sits in, its chats and its pins. Moving a folder between the
+	// Mercurygram and the server id ranges is exactly an id change, and a
+	// remove followed by a set would both drop the folder to the end of the
+	// list and report it as gone in between.
+	void applyIdChange(FilterId from, ChatFilter updated);
 	void moveAllToFront();
 	[[nodiscard]] const std::vector<ChatFilter> &list() const;
 	[[nodiscard]] rpl::producer<> changed() const;
@@ -184,6 +191,10 @@ public:
 	void saveOrder(
 		const std::vector<FilterId> &order,
 		mtpRequestId after = 0);
+
+	// [MG] moves the Mercurygram folders as well, and tells the server
+	// nothing: restoring the slots this device saved is not news to it.
+	void applyMercurygramOrder(const std::vector<FilterId> &order);
 
 	[[nodiscard]] bool archiveNeeded() const;
 
@@ -242,6 +253,10 @@ private:
 	rpl::event_stream<FilterId> _isChatlistChanged;
 	rpl::event_stream<TagColorChanged> _tagColorChanged;
 	mtpRequestId _loadRequestId = 0;
+	// [MG] set by saveOrder(): the next order moves the Mercurygram folders
+	// too.
+	bool _orderingMercurygram = false;
+
 	mtpRequestId _saveOrderRequestId = 0;
 	mtpRequestId _saveOrderAfterId = 0;
 	mtpRequestId _toggleTagsRequestId = 0;

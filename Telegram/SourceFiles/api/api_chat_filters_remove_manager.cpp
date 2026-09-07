@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_chat_filters_remove_manager.h"
 
 #include "api/api_chat_filters.h"
+#include "core/mg_folders.h"
 #include "apiwrap.h"
 #include "data/data_chat_filters.h"
 #include "data/data_peer.h"
@@ -32,7 +33,9 @@ void RemoveChatFilter(
 		MTP_flags(MTPDupdateDialogFilter::Flag(0)),
 		MTP_int(filterId),
 		MTPDialogFilter()));
-	if (leave.empty()) {
+	if (MG::IsMercurygramFolderId(filterId)) {
+		return; // [MG] Mercurygram folders never reach the server.
+	} else if (leave.empty()) {
 		api->request(MTPmessages_UpdateDialogFilter(
 			MTP_flags(MTPmessages_UpdateDialogFilter::Flag(0)),
 			MTP_int(filterId),

@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/filters/edit_filter_links.h" // FilterChatStatusText
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "core/mg_folders.h"
 #include "core/ui_integration.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
@@ -873,6 +874,9 @@ void SaveNewFilterPinned(
 	const auto &order = session->data().pinnedChatsOrder(filterId);
 	auto &filters = session->data().chatsFilters();
 	const auto &filter = filters.applyUpdatedPinned(filterId, order);
+	if (MG::IsMercurygramFolderId(filterId)) {
+		return; // [MG] Mercurygram folders never reach the server.
+	}
 	session->api().request(MTPmessages_UpdateDialogFilter(
 		MTP_flags(MTPmessages_UpdateDialogFilter::Flag::f_filter),
 		MTP_int(filterId),

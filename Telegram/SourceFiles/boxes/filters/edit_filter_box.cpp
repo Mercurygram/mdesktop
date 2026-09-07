@@ -20,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/tabbed_selector.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "core/mg_folders.h"
 #include "core/ui_integration.h"
 #include "data/stickers/data_custom_emoji.h"
 #include "data/stickers/data_stickers.h"
@@ -142,9 +143,11 @@ void EditExceptions(
 	const auto include = (options & Flag::Contacts) != Flags(0);
 	const auto rules = data->current();
 	const auto session = &window->session();
-	const auto limit = Data::PremiumLimits(
-		session
-	).dialogFiltersChatsCurrent();
+	// [MG] a Mercurygram folder is not on the server, so no chats-per-folder
+	// cap applies to it; zero means "no limit" to the picker.
+	const auto limit = MG::IsMercurygramFolderId(rules.id())
+		? 0
+		: Data::PremiumLimits(session).dialogFiltersChatsCurrent();
 	const auto showLimitReached = [=] {
 		window->show(Box(FilterChatsLimitBox, session, limit, include));
 	};
@@ -528,10 +531,39 @@ void EditFilterBox(
 		base::unique_qptr<ChatHelpers::TabbedPanel> emojiPanel;
 	};
 	const auto owner = &window->session().data();
+
+	// [MG] Past the server folder limit a folder can only be a Mercurygram
+	// one: the switch below comes up already on, and turning it back off would
+	// hand the server a folder it refuses with nothing reporting the refusal.
+	const auto serverFull = [=] {
+		const auto &list = owner->chatsFilters().list();
+		const auto limits = Data::PremiumLimits(&window->session());
+		// The limit already allows for the Mercurygram folders in the list,
+		// and the All chats entry sitting in it is not a folder.
+		return (int(list.size()) - 1 >= limits.dialogFiltersCurrent());
+	};
+
+	// [MG] The sign of its id says whether a folder is a Mercurygram one, and
+	// the folder being edited carries it: no second flag to keep in step.
+	// Chosen once, because a new id per switch flip would create a new folder
+	// each time.
+	const auto creating = filter.title().empty();
+	const auto mercurygramId = MG::IsMercurygramFolderId(filter.id())
+		? filter.id()
+		: MG::NewMercurygramFilterId(owner->chatsFilters().list());
+	// The id to go back to when the switch is turned off again: the folder's
+	// own server id if it has one, and zero while creating, which asks for the
+	// next free one at save time.
+	const auto serverId = MG::IsMercurygramFolderId(filter.id())
+		? FilterId(0)
+		: filter.id();
+	const auto startMercurygram = MG::IsMercurygramFolderId(filter.id())
+		|| (creating && serverFull());
+
 	const auto state = box->lifetime().make_state<State>(State{
-		.rules = filter,
+		.rules = (startMercurygram ? filter.withId(mercurygramId) : filter),
 		.chatlist = filter.chatlist(),
-		.creating = filter.title().empty(),
+		.creating = creating,
 		.title = filter.titleText(),
 		.staticTitle = filter.staticTitle(),
 	});
@@ -547,6 +579,14 @@ void EditFilterBox(
 	}, box->lifetime());
 
 	const auto data = &state->rules;
+
+	// [MG] The switch, the sharing block and the chats picker all ask the same
+	// question of the folder being edited: is its id in the Mercurygram range.
+	const auto mercurygramValues = [=] {
+		return data->value() | rpl::map([](const Data::ChatFilter &filter) {
+			return MG::IsMercurygramFolderId(filter.id());
+		});
+	};
 
 	owner->chatsFilters().isChatlistChanged(
 	) | rpl::filter([=](FilterId id) {
@@ -745,6 +785,32 @@ void EditFilterBox(
 
 	Ui::AddSkip(content);
 	Ui::AddDivider(content);
+	// [MG] The switch moves the folder between the two id ranges, in both
+	// directions and at any time. A shared folder is the exception: its links
+	// live on the server, which a Mercurygram folder has no copy on.
+	const auto mercurygramWrap = content->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			content,
+			object_ptr<Ui::VerticalLayout>(content))
+	)->setDuration(0);
+	mercurygramWrap->toggleOn(rpl::combine(
+		state->chatlist.value(),
+		state->hasLinks.value()
+	) | rpl::map(!_1 && !_2));
+	const auto mercurygramInner = mercurygramWrap->entity();
+	Ui::AddSkip(mercurygramInner);
+	AddButtonWithIcon(
+		mercurygramInner,
+		tr::lng_mg_folder(),
+		st::settingsButtonNoIcon
+	)->toggleOn(mercurygramValues())->toggledChanges(
+	) | rpl::on_next([=](bool value) {
+		// Comparison of ChatFilter-s don't take id into account!
+		data->force_assign(
+			data->current().withId(value ? mercurygramId : serverId));
+	}, mercurygramInner->lifetime());
+	Ui::AddSkip(mercurygramInner);
+	Ui::AddDividerText(mercurygramInner, tr::lng_mg_folder_about());
 	Ui::AddSkip(content);
 	Ui::AddSubsectionTitle(content, tr::lng_filters_include());
 
@@ -983,7 +1049,16 @@ void EditFilterBox(
 		const auto staticTitle = !title.entities.isEmpty()
 			&& state->staticTitle.current();
 		const auto rules = data->current();
-		if (Ui::ComputeFieldCharacterCount(name) > kMaxFilterTitleLength
+		// [MG] Refuse a folder the server has no room for only when it does
+		// not already own a server slot: an existing one stays saveable even
+		// if the limit dropped under it.
+		if ((creating || MG::IsMercurygramFolderId(filter.id()))
+			&& !MG::IsMercurygramFolderId(rules.id())
+			&& serverFull()) {
+			window->show(
+				Box(FiltersLimitBox, &window->session(), std::nullopt));
+			return {};
+		} else if (Ui::ComputeFieldCharacterCount(name) > kMaxFilterTitleLength
 			|| title.empty()) {
 			name->showError();
 			box->scrollToY(0);
@@ -997,6 +1072,22 @@ void EditFilterBox(
 			window->window().showToast(tr::lng_filters_default(tr::now));
 			return {};
 		}
+		// [MG] A Mercurygram folder takes as many chats as it likes; on the
+		// way to the server the per-folder cap applies again. Only for a folder
+		// that was a Mercurygram one: for a server one the chats picker caps
+		// itself, and an older folder left over the cap stays editable.
+		if (MG::IsMercurygramFolderId(filter.id())
+			&& !MG::IsMercurygramFolderId(rules.id())) {
+			const auto session = &window->session();
+			const auto limit = Data::PremiumLimits(
+				session).dialogFiltersChatsCurrent();
+			const auto include = (int(rules.always().size()) > limit);
+			if (include || (int(rules.never().size()) > limit)) {
+				window->show(
+					Box(FilterChatsLimitBox, session, limit, include));
+				return {};
+			}
+		}
 		const auto rawColorIndex = state->colorIndex.current();
 		const auto colorIndex = (rawColorIndex >= kNoTag
 			? std::nullopt
@@ -1006,8 +1097,18 @@ void EditFilterBox(
 		).withColorIndex(colorIndex);
 	};
 
+	// [MG] a Mercurygram folder is not on the server, so it has nothing to
+	// share.
+	const auto linksWrap = content->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			content,
+			object_ptr<Ui::VerticalLayout>(content))
+	)->setDuration(0);
+	linksWrap->toggleOn(mercurygramValues() | rpl::map(!_1));
+	const auto linksInner = linksWrap->entity();
+
 	Ui::AddSubsectionTitle(
-		content,
+		linksInner,
 		rpl::conditional(
 			state->hasLinks.value(),
 			tr::lng_filters_link_has(),
@@ -1023,20 +1124,20 @@ void EditFilterBox(
 	}
 
 	const auto createLink = AddToggledButton(
-		content,
+		linksInner,
 		state->hasLinks.value() | rpl::map(!rpl::mappers::_1),
 		tr::lng_filters_link_create(),
 		st::settingsButtonActive,
 		{ &st::settingsFolderShareIcon, IconType::Simple });
 	const auto addLink = AddToggledButton(
-		content,
+		linksInner,
 		state->hasLinks.value(),
 		tr::lng_group_invite_add(),
 		st::settingsButtonActive,
 		{ &st::settingsIconAdd, IconType::Round, &st::windowBgActive });
 
 	SetupFilterLinks(
-		content,
+		linksInner,
 		window,
 		state->links.value(),
 		[=] { return collect().value_or(Data::ChatFilter()); });
@@ -1047,10 +1148,13 @@ void EditFilterBox(
 	) | rpl::filter(
 		(rpl::mappers::_1 == Qt::LeftButton)
 	) | rpl::on_next([=](Qt::MouseButton button) {
-		const auto result = collect();
+		auto result = collect();
 		if (!result || !GoodForExportFilterLink(window, *result)) {
 			return;
 		}
+		// [MG] A folder just flipped to the server range moves there first, or
+		// the link would be exported for a second, freshly created folder.
+		*result = MG::MoveFolder(&window->session(), filter.id(), *result);
 		const auto shared = CollectFilterLinkChats(*result);
 		if (shared.empty()) {
 			window->show(ShowLinkBox(window, *result, {}));
@@ -1086,9 +1190,9 @@ void EditFilterBox(
 			}));
 		}));
 	}, createLink->lifetime());
-	Ui::AddSkip(content);
+	Ui::AddSkip(linksInner);
 	Ui::AddDividerText(
-		content,
+		linksInner,
 		rpl::conditional(
 			state->hasLinks.value(),
 			tr::lng_filters_link_about_many(),
@@ -1125,7 +1229,10 @@ void EditFilterBox(
 	const auto save = [=] {
 		if (const auto result = collect()) {
 			box->closeBox();
-			doneCallback(*result);
+			// [MG] Flipping the switch on an existing folder moves it between
+			// the id ranges; what is saved is the folder under its new id.
+			doneCallback(
+				MG::MoveFolder(&window->session(), filter.id(), *result));
 		}
 	};
 	name->submits() | rpl::on_next(save, name->lifetime());
@@ -1150,16 +1257,21 @@ void EditExistingFilter(
 		return;
 	}
 	const auto doneCallback = [=](const Data::ChatFilter &result) {
-		Expects(id == result.id());
-
+		// [MG] The saved folder may carry a new id: the box moves a folder
+		// between the Mercurygram and the server ranges before it hands it
+		// back.
+		const auto saveId = result.id();
 		const auto tl = result.tl();
 		session->data().chatsFilters().apply(MTP_updateDialogFilter(
 			MTP_flags(MTPDupdateDialogFilter::Flag::f_filter),
-			MTP_int(id),
+			MTP_int(saveId),
 			tl));
+		if (MG::IsMercurygramFolderId(saveId)) {
+			return; // [MG] Mercurygram folders never reach the server.
+		}
 		session->api().request(MTPmessages_UpdateDialogFilter(
 			MTP_flags(MTPmessages_UpdateDialogFilter::Flag::f_filter),
-			MTP_int(id),
+			MTP_int(saveId),
 			tl
 		)).send();
 	};
