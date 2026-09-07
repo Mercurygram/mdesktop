@@ -109,8 +109,8 @@ FiltersMenu::FiltersMenu(
 		object_ptr<Ui::VerticalLayout>(&_scroll))) {
 
 	_drag.timer.setCallback([=] {
-		if (_drag.filterId >= 0) {
-			_session->setActiveChatsFilter(_drag.filterId);
+		if (_drag.filterId) {
+			_session->setActiveChatsFilter(*_drag.filterId);
 		}
 	});
 	setup();
@@ -197,7 +197,7 @@ void FiltersMenu::setup() {
 		}
 		_setup = prepareButton(
 			_container,
-			-1,
+			std::nullopt,
 			{ TextWithEntities{ tr::lng_filters_setup(tr::now) } },
 			Ui::FilterIcon::Edit);
 		if (_favorite) {
@@ -471,7 +471,7 @@ void FiltersMenu::setupList() {
 	_list->setAccessibleName(tr::lng_filters_title(tr::now));
 	_setup = prepareButton(
 		_container,
-		-1,
+		std::nullopt,
 		{ TextWithEntities{ tr::lng_filters_setup(tr::now) } },
 		Ui::FilterIcon::Edit);
 	_reorder = std::make_unique<Ui::VerticalLayoutReorder>(_list, &_scroll);
@@ -589,26 +589,31 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareAll() {
 
 base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 		not_null<Ui::VerticalLayout*> container,
-		FilterId id,
+		std::optional<FilterId> folderId,
 		Data::ChatFilterTitle title,
 		Ui::FilterIcon icon,
 		bool locked,
 		bool toBeginning) {
+	// [MG] No folder id at all marks the "Edit" button: a negative id is a
+	// Mercurygram folder, so the sign can no longer tell the two apart. The id
+	// the button carries is 0 then, the same value the "All chats" folder has,
+	// so every test for that folder asks for a list item as well.
+	const auto listItem = folderId.has_value();
+	const auto id = folderId.value_or(FilterId(0));
+	const auto allTab = listItem && !id;
 	const auto isStatic = title.isStatic;
 	const auto paused = [=] {
 		return On(PowerSaving::kEmojiChat)
 			|| _session->isGifPausedAtLeastFor(Window::GifPauseReason::Any);
 	};
-	// A real folder (id >= 0), locked or not, is a selectable list item; only
-	// the "Edit" button (id < 0) stays a plain button. Establish this before
-	// inserting the widget - insertion shows the child immediately, so
-	// configuring the role up front avoids a transient or separately-announced
-	// role change.
-	const auto listItem = (id >= 0);
+	// A real folder, locked or not, is a selectable list item; only the "Edit"
+	// button stays a plain button. Establish this before inserting the widget -
+	// insertion shows the child immediately, so configuring the role up front
+	// avoids a transient or separately-announced role change.
 	const auto mode = tabsMode();
 	auto prepared = object_ptr<Ui::SideBarButton>(
 		container,
-		id ? title.text : TextWithEntities{ tr::lng_filters_all(tr::now) },
+		allTab ? TextWithEntities{ tr::lng_filters_all(tr::now) } : title.text,
 		buttonStyle(),
 		Core::TextContext({
 			.session = &_session->session(),
@@ -624,14 +629,14 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 		: container->add(std::move(prepared));
 	auto button = base::unique_qptr<Ui::SideBarButton>(std::move(added));
 	const auto raw = button.get();
-	const auto nameText = id
-		? title.text.text
-		: tr::lng_filters_all(tr::now);
-	const auto &icons = Ui::LookupFilterIcon(id
-		? icon
-		: Ui::FilterIcon::All);
+	const auto nameText = allTab
+		? tr::lng_filters_all(tr::now)
+		: title.text.text;
+	const auto &icons = Ui::LookupFilterIcon(allTab
+		? Ui::FilterIcon::All
+		: icon);
 	raw->setIconOverride(icons.normal, icons.active);
-	if (id >= 0) {
+	if (listItem) {
 		if (locked) {
 			// Surface a locked folder's premium-gated status and what pressing
 			// it does, which the visual lock glyph alone can't convey to a
@@ -716,7 +721,7 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 			return base::EventFilterResult::Cancel;
 		});
 	}
-	raw->setActive(_session->activeChatsFilterCurrent() == id);
+	raw->setActive(listItem && (_session->activeChatsFilterCurrent() == id));
 	raw->setClickedCallback([=] {
 		if (_reordering) {
 			return;
@@ -725,17 +730,17 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 				FiltersLimitBox,
 				&_session->session(),
 				std::nullopt));
-		} else if (id >= 0) {
+		} else if (listItem) {
 			_session->setActiveChatsFilter(id);
 		} else {
 			openFiltersSettings();
 		}
 	});
-	if (id >= 0) {
+	if (listItem) {
 		raw->setAcceptDrops(true);
 		raw->events(
 		) | rpl::filter([=](not_null<QEvent*> e) {
-			return ((e->type() == QEvent::ContextMenu) && (id >= 0))
+			return (e->type() == QEvent::ContextMenu)
 				|| e->type() == QEvent::DragEnter
 				|| e->type() == QEvent::DragMove
 				|| e->type() == QEvent::DragLeave;
@@ -758,7 +763,7 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 			} else if (e->type() == QEvent::DragMove) {
 				_drag.timer.callOnce(ChoosePeerByDragTimeout);
 			} else if (e->type() == QEvent::DragLeave) {
-				_drag.filterId = FilterId(-1);
+				_drag.filterId = std::nullopt;
 				_drag.timer.cancel();
 			}
 		}, raw->lifetime());
