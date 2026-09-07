@@ -23,5 +23,5 @@
 "lng_mg_launch_folder" = "Pasta inicial";
 "lng_mg_user_link_unresolved" = "Não foi possível abrir este perfil.";
 "lng_mg_folder" = "Pasta Mercurygram";
-"lng_mg_folder_about" = "Guardada apenas neste aparelho, nunca no Telegram. Sem limite de pastas ou conversas.";
+"lng_mg_folder_about" = "Aparece apenas no Mercurygram, nunca é enviada ao Telegram como pasta, então não há limite de pastas ou conversas. Sincronizada entre seus apps Mercurygram por um arquivo nas Mensagens salvas.";
 "lng_mg_folder_tag" = "Mercurygram";
