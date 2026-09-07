@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/filters/edit_filter_box.h"
 #include "boxes/premium_limits_box.h"
 #include "core/application.h"
+#include "core/mg_folders.h"
 #include "core/mg_settings.h"
 #include "core/shortcuts.h"
 #include "core/ui_integration.h"
@@ -65,8 +66,9 @@ struct State final {
 
 [[nodiscard]] std::vector<Data::ChatFilter> ShownFilters(
 		not_null<Main::Session*> session) {
-	const auto &list = session->data().chatsFilters().list();
-	auto result = ranges::views::all(list) | ranges::to_vector;
+	// [MG] Mercurygram folders count against no limit, so they never sit in
+	// the premium-locked tail.
+	auto result = MG::LockOrderedFilters(session);
 	if (MG::HideAllChats() && result.size() > 1) {
 		result.erase(
 			ranges::remove(result, FilterId(), &Data::ChatFilter::id),
@@ -304,7 +306,9 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 			}
 
 			const auto filters = &session->data().chatsFilters();
-			const auto &list = filters->list();
+			// [MG] In the shown order, where the premium-locked tail
+			// holds server folders only, so a drop lands where it was made.
+			const auto list = MG::LockOrderedFilters(session);
 			// [MG] non-premium folder reorder: no forced "All chats" snap-back.
 
 			auto order = ranges::views::all(
@@ -525,6 +529,13 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 				const auto &list = state->shownList;
 				for (auto i = 0; i < list.size(); ++i) {
 					if (list[i].id() == id) {
+						// [MG] Not only setActiveSection(): when the index does
+						// not change nothing fires sectionActivated, and the
+						// next rebuild would look the old id up and fall back
+						// to All chats. A folder moved between the
+						// Mercurygram and the server id ranges keeps its
+						// index and changes id.
+						state->lastFilterId = id;
 						state->ignoreActivation = true;
 						slider->setActiveSection(i);
 						state->ignoreActivation = false;
