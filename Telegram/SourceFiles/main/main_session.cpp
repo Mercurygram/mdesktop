@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_app_config.h"
 #include "main/session/send_as_peers.h"
 #include "mtproto/mtproto_config.h"
+#include "core/mg_folder_sync.h"
 #include "core/mg_folders.h"
 #include "chat_helpers/stickers_emoji_pack.h"
 #include "chat_helpers/stickers_dice_pack.h"
@@ -181,7 +182,9 @@ Session::Session(
 , _cachedReactionIconFactory(std::make_unique<ReactionIconFactory>())
 , _supportHelper(Support::Helper::Create(this))
 , _fastButtonsBots(std::make_unique<Support::FastButtonsBots>(this))
-, _mercurygramFolders(std::make_unique<MG::MercurygramFolders>(this)) // [MG]
+// [MG] Mercurygram folders and their mirror in Saved Messages.
+, _mercurygramFolders(std::make_unique<MG::MercurygramFolders>(this))
+, _mercurygramFolderSync(std::make_unique<MG::MercurygramFolderSync>(this))
 , _saveSettingsTimer([=] { saveSettings(); }) {
 	Expects(_settings != nullptr);
 
