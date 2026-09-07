@@ -1997,7 +1997,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_launch_folder" = "Launch folder";
 "lng_mg_user_link_unresolved" = "Couldn't open this profile.";
 "lng_mg_folder" = "Mercurygram folder";
-"lng_mg_folder_about" = "Stored on this device only, never on Telegram. No folder or chat limit.";
+"lng_mg_folder_about" = "Shown only in Mercurygram, never sent to Telegram as a folder, so no folder or chat limit. Synced between your Mercurygram apps through one file in Saved Messages.";
 "lng_mg_folder_tag" = "Mercurygram";
 
 "lng_profile_export_chat" = "Export chat history";
