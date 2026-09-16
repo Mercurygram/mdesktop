@@ -24,3 +24,4 @@
 "lng_mg_folder_about" = "Alleen zichtbaar in Mercurygram, wordt nooit als map naar Telegram gestuurd, dus geen limiet op mappen of chats. Gesynchroniseerd tussen je Mercurygram-apps via één bestand in Opgeslagen berichten.";
 "lng_mg_folder_tag" = "Mercurygram";
 "lng_mg_keep_drafts_local" = "Concepten op dit apparaat houden";
+"lng_mg_confirm_internal_links" = "Telegram-links bevestigen";
