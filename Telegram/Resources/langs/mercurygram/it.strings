@@ -26,3 +26,5 @@
 "lng_mg_keep_drafts_local" = "Tieni le bozze su questo dispositivo";
 "lng_mg_confirm_internal_links" = "Conferma i link di Telegram";
 "lng_mg_strip_tracking" = "Rimuovi i parametri di tracciamento";
+"lng_mg_reduce_tracking" = "Riduci tracciamento di rete";
+"lng_mg_reduce_tracking_fallback" = "Il server ha rifiutato una chiave di sessione di un'ora, quindi viene ruotata ogni {hours}.";
