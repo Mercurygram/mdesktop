@@ -99,6 +99,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/file_utilities.h"
 #include "core/click_handler_types.h"
 #include "core/mg_settings.h"
+#include "core/mg_url_cleaner.h"
 #include "base/platform/base_platform_info.h"
 #include "base/call_delayed.h"
 #include "settings/sections/settings_premium.h"
@@ -1438,7 +1439,10 @@ void AddCopyLinkAction(
 	if (action.isEmpty()) {
 		return;
 	}
-	const auto text = link->copyToClipboardText();
+	const auto copied = link->copyToClipboardText();
+	const auto text = MG::StripTracking()
+		? MG::StripTrackingFromUrl(copied)
+		: copied;
 	menu->addAction(
 		action,
 		[=] { QGuiApplication::clipboard()->setText(text); },
