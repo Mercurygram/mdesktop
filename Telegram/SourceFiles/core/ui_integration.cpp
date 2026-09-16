@@ -21,6 +21,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_custom_emoji.h"
 #include "ui/text/text_utilities.h"
 #include "ui/basic_click_handlers.h"
+#include "ui/boxes/confirm_box.h"
+#include "ui/widgets/labels.h"
+#include "base/qt/qt_key_modifiers.h"
 #include "ui/emoji_config.h"
 #include "ui/toast/toast.h"
 #include "lang/lang_keys.h"
@@ -36,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "mainwindow.h"
 #include "base/unixtime.h"
 #include "styles/style_chat_helpers.h"
+#include "styles/style_layers.h"
 
 #include <QtCore/QDateTime>
 #include <QtCore/QLocale>
@@ -51,6 +55,42 @@ const auto kBadPrefix = u"http://"_q;
 		|| url.startsWith(kBadPrefix, Qt::CaseInsensitive))
 		? QUrl(url)
 		: QUrl();
+}
+
+void ConfirmTelegramLink(
+		const QString &display,
+		const QString &local,
+		const QVariant &context) {
+	const auto my = context.value<ClickHandlerContext>();
+	const auto open = [=] { Core::App().openLocalUrl(local, context); };
+	const auto controller = my.sessionWindow.get();
+	const auto use = controller
+		? &controller->window()
+		: Core::App().activeWindow();
+	if (!my.show) {
+		Core::App().hideMediaView();
+	}
+	auto box = Box([=](not_null<Ui::GenericBox*> box) {
+		Ui::ConfirmBox(box, {
+			.text = tr::lng_open_this_link(tr::now),
+			.confirmed = [=](Fn<void()> hide) { hide(); open(); },
+			.confirmText = tr::lng_open_link(),
+		});
+		box->addSkip(
+			st::boxLabel.style.lineHeight - st::boxPadding.bottom());
+		const auto label = box->addRow(object_ptr<Ui::FlatLabel>(
+			box,
+			rpl::single(display),
+			st::boxLabel));
+		label->setSelectable(true);
+		label->setContextCopyText(tr::lng_context_copy_link(tr::now));
+	});
+	if (my.show) {
+		my.show->showBox(std::move(box));
+	} else if (use) {
+		use->show(std::move(box));
+		use->activate();
+	}
 }
 
 [[nodiscard]] QString DomainForAutoLogin(const QUrl &url) {
@@ -423,7 +463,14 @@ bool UiIntegration::handleUrlClick(
 		File::OpenEmailLink(url);
 		return true;
 	} else if (local.startsWith(u"tg://"_q, Qt::CaseInsensitive)) {
-		Core::App().openLocalUrl(local, context);
+		// Mercurygram: a t.me or tg:// link can join a channel or open a bot
+		// with nothing shown first, so offer the address before following it.
+		// Ctrl-click skips the question, as it does for external links.
+		if (MG::ConfirmInternalLinks() && !base::IsCtrlPressed()) {
+			ConfirmTelegramLink(url, local, context);
+		} else {
+			Core::App().openLocalUrl(local, context);
+		}
 		return true;
 	} else if (local.startsWith(u"tonsite://"_q, Qt::CaseInsensitive)) {
 		Core::App().iv().showTonSite(local, context);
