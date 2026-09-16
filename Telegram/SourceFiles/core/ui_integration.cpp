@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/file_utilities.h"
 #include "core/application.h"
 #include "core/mg_settings.h"
+#include "core/mg_url_cleaner.h"
 #include "core/bank_card_click_handler.h"
 #include "core/sandbox.h"
 #include "core/click_handler_types.h"
@@ -458,9 +459,12 @@ bool UiIntegration::handleUrlClick(
 		const QVariant &context) {
 	// Only our own token may be added below, never one that came with it,
 	// unless the url itself was given to us by the server for this login.
-	const auto url = context.value<ClickHandlerContext>().keepWebAuthTokens
+	const auto kept = context.value<ClickHandlerContext>().keepWebAuthTokens
 		? original
 		: UrlWithoutWebAuthTokens(original);
+	const auto url = MG::StripTracking()
+		? MG::StripTrackingFromUrl(kept)
+		: kept;
 	const auto local = Core::TryConvertUrlToLocal(url);
 	if (Core::InternalPassportOrOAuthLink(local)) {
 		return true;
