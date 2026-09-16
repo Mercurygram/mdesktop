@@ -2455,6 +2455,11 @@ mtpRequestId ApiWrap::savePreparedDraftToCloud(
 		// messages.saveDraft would do. The local draft is still written by
 		// Storage::Account::writeDrafts, so nothing typed is lost.
 		return 0;
+	} else if (MG::KeepDraftsLocal() && !Data::DraftIsNull(&draft)) {
+		// Clearing a draft stays unguarded on purpose: a draft that reached
+		// the server before the option was turned on has to stay removable,
+		// and an empty draft carries nothing to keep local anyway.
+		return 0;
 	}
 	const auto topicRootId = thread->topicRootId();
 	const auto monoforumPeerId = thread->monoforumPeerId();

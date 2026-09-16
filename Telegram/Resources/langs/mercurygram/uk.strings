@@ -23,3 +23,4 @@
 "lng_mg_folder" = "Папка Mercurygram";
 "lng_mg_folder_about" = "Показується лише в Mercurygram, не надсилається в Telegram як папка, тому без обмежень на кількість папок і чатів. Синхронізується між вашими застосунками Mercurygram через один файл у Збережених повідомленнях.";
 "lng_mg_folder_tag" = "Mercurygram";
+"lng_mg_keep_drafts_local" = "Зберігати чернетки лише на пристрої";
