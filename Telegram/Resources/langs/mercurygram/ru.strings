@@ -24,3 +24,4 @@
 "lng_mg_folder_about" = "Показывается только в Mercurygram, не отправляется в Telegram как папка, поэтому без ограничений на число папок и чатов. Синхронизируется между вашими приложениями Mercurygram через один файл в Избранном.";
 "lng_mg_folder_tag" = "Mercurygram";
 "lng_mg_keep_drafts_local" = "Хранить черновики только на устройстве";
+"lng_mg_confirm_internal_links" = "Подтверждать ссылки Telegram";
