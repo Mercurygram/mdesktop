@@ -23,3 +23,4 @@
 "lng_mg_folder" = "Carpeta Mercurygram";
 "lng_mg_folder_about" = "Solo se muestra en Mercurygram, nunca se envía a Telegram como carpeta, así que no hay límite de carpetas ni de chats. Se sincroniza entre tus apps Mercurygram mediante un archivo en Mensajes guardados.";
 "lng_mg_folder_tag" = "Mercurygram";
+"lng_mg_keep_drafts_local" = "Mantener los borradores en este dispositivo";
