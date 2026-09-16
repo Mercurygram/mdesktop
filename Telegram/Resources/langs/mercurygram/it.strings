@@ -23,3 +23,4 @@
 "lng_mg_folder" = "Cartella Mercurygram";
 "lng_mg_folder_about" = "Visibile solo in Mercurygram, non viene mai inviata a Telegram come cartella, quindi nessun limite di cartelle o chat. Sincronizzata tra le tue app Mercurygram tramite un file nei Messaggi salvati.";
 "lng_mg_folder_tag" = "Mercurygram";
+"lng_mg_keep_drafts_local" = "Tieni le bozze su questo dispositivo";
