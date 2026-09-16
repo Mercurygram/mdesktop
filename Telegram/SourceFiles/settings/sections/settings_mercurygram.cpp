@@ -188,6 +188,18 @@ void BuildPrivacySection(SectionBuilder &builder) {
 		MG::SetKeepDraftsLocal);
 	AddBoolToggle(
 		builder,
+		u"mercurygram/reduce_tracking"_q,
+		tr::lng_mg_reduce_tracking(),
+		{ u"tracking"_q, u"network"_q, u"key"_q, u"privacy"_q },
+		MG::ReduceTracking,
+		[](bool value) {
+			if (value) {
+				MG::ResetTemporaryKeyLadder();
+			}
+			MG::SetReduceTracking(value);
+		});
+	AddBoolToggle(
+		builder,
 		u"mercurygram/strip_tracking"_q,
 		tr::lng_mg_strip_tracking(),
 		{ u"tracking"_q, u"utm"_q, u"link"_q, u"privacy"_q },
@@ -202,6 +214,20 @@ void BuildPrivacySection(SectionBuilder &builder) {
 		MG::SetConfirmInternalLinks);
 
 	builder.addSkip(st::settingsCheckboxesSkip);
+
+	// Footer only when the server refused one-hour keys.
+	const auto refused = [](TimeId expiresIn) {
+		return MG::ReduceTracking() && (expiresIn > 3600);
+	};
+	builder.scope([&] {
+		builder.addDividerText(MG::TemporaryKeyExpiresInValue(
+		) | rpl::filter(refused) | rpl::map([](TimeId expiresIn) {
+			return tr::lng_mg_reduce_tracking_fallback(
+				tr::now,
+				lt_hours,
+				tr::lng_hours(tr::now, lt_count, expiresIn / 3600));
+		}));
+	}, MG::TemporaryKeyExpiresInValue() | rpl::map(refused));
 }
 
 void BuildMercurygramSectionContent(SectionBuilder &builder) {

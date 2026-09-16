@@ -51,6 +51,27 @@ void SetDisableAiSummaries(bool value);
 void SetOpenLinksInBrowser(bool value);
 [[nodiscard]] rpl::producer<bool> OpenLinksInBrowserValue();
 
+[[nodiscard]] bool ReduceTracking();
+void SetReduceTracking(bool value);
+[[nodiscard]] rpl::producer<bool> ReduceTrackingValue();
+
+// The lifetime to ask for when creating a temporary (perfect forward secrecy)
+// key. One hour while "Reduce network tracking" is on, the upstream 24 hours
+// otherwise, and the steps in between once the server has refused the shorter
+// one.
+[[nodiscard]] TimeId TemporaryKeyExpiresIn();
+[[nodiscard]] rpl::producer<TimeId> TemporaryKeyExpiresInValue();
+
+// Moves one step up the lifetime ladder after the server rejected a bind, and
+// reports whether there was a step left. False means the reduced lifetime is
+// not what the server is objecting to, so the caller must run its own
+// failure handling.
+bool StepUpTemporaryKeyExpiresIn();
+
+// Puts the ladder back on its shortest step, for when the option is switched
+// on again after the server pushed it up.
+void ResetTemporaryKeyLadder();
+
 [[nodiscard]] bool StripTracking();
 void SetStripTracking(bool value);
 [[nodiscard]] rpl::producer<bool> StripTrackingValue();
