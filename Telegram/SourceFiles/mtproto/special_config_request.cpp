@@ -210,8 +210,12 @@ SpecialConfigRequest::SpecialConfigRequest(
 			std::mt19937(rd()));
 	};
 
+	// The Google attempt resolves the config domain over dns.google.com,
+	// which tells Google that this device is about to look for Telegram and
+	// from which address. Cloudflare covers the same job, so only it is kept.
+	// The Firestore attempts stay: they are a document fetch rather than a
+	// DNS query, and they are what still works where Cloudflare is blocked.
 	_attempts = {};
-	_attempts.push_back({ Type::Google, "dns.google.com" });
 	_attempts.push_back({ Type::Mozilla, "mozilla.cloudflare-dns.com" });
 	if (!_timeDoneCallback) {
 		_attempts.push_back({ Type::FireStore, "firestore" });
@@ -220,15 +224,13 @@ SpecialConfigRequest::SpecialConfigRequest(
 		}
 	}
 
-	shuffle(0, 2);
 	if (!_timeDoneCallback) {
 		shuffle(_attempts.size() - (int(DnsDomains().size()) + 1), _attempts.size());
 	}
 	if (isTestMode) {
 		_attempts.erase(ranges::remove_if(_attempts, [](
 				const Attempt &attempt) {
-			return (attempt.type != Type::Google)
-				&& (attempt.type != Type::Mozilla);
+			return (attempt.type != Type::Mozilla);
 		}), _attempts.end());
 	}
 	ranges::reverse(_attempts); // We go from last to first.
