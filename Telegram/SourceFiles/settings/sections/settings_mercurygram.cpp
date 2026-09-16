@@ -179,6 +179,13 @@ void BuildPrivacySection(SectionBuilder &builder) {
 		{ u"link"_q, u"browser"_q, u"instant"_q, u"view"_q, u"privacy"_q },
 		MG::OpenLinksInBrowser,
 		MG::SetOpenLinksInBrowser);
+	AddBoolToggle(
+		builder,
+		u"mercurygram/keep_drafts_local"_q,
+		tr::lng_mg_keep_drafts_local(),
+		{ u"draft"_q, u"drafts"_q, u"sync"_q, u"privacy"_q },
+		MG::KeepDraftsLocal,
+		MG::SetKeepDraftsLocal);
 
 	builder.addSkip(st::settingsCheckboxesSkip);
 }
