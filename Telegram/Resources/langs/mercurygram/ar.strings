@@ -23,3 +23,4 @@
 "lng_mg_folder" = "مجلد Mercurygram";
 "lng_mg_folder_about" = "يظهر في Mercurygram فقط، ولا يُرسل إلى تيليجرام كمجلد، لذا لا حد لعدد المجلدات أو الدردشات. يُزامن بين تطبيقات Mercurygram لديك عبر ملف واحد في الرسائل المحفوظة.";
 "lng_mg_folder_tag" = "Mercurygram";
+"lng_mg_keep_drafts_local" = "إبقاء المسودات على هذا الجهاز";
