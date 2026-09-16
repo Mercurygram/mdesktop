@@ -606,6 +606,8 @@ PRIVATE
     core/mg_settings.h
     core/mg_unicode_fold.cpp
     core/mg_unicode_fold.h
+    core/mg_url_cleaner.cpp
+    core/mg_url_cleaner.h
     core/phone_click_handler.cpp
     core/phone_click_handler.h
     core/sandbox.cpp

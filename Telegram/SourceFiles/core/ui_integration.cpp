@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/file_utilities.h"
 #include "core/application.h"
 #include "core/mg_settings.h"
+#include "core/mg_url_cleaner.h"
 #include "core/bank_card_click_handler.h"
 #include "core/sandbox.h"
 #include "core/click_handler_types.h"
@@ -452,8 +453,11 @@ std::shared_ptr<ClickHandler> UiIntegration::createLinkHandler(
 }
 
 bool UiIntegration::handleUrlClick(
-		const QString &url,
+		const QString &original,
 		const QVariant &context) {
+	const auto url = MG::StripTracking()
+		? MG::StripTrackingFromUrl(original)
+		: original;
 	const auto local = Core::TryConvertUrlToLocal(url);
 	if (Core::InternalPassportOrOAuthLink(local)) {
 		return true;

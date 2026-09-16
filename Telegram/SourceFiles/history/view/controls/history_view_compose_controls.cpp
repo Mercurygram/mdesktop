@@ -36,6 +36,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/application.h"
 #include "core/click_handler_types.h"
 #include "core/mg_settings.h"
+#include "core/mg_url_cleaner.h"
 #include "core/core_settings.h"
 #include "core/shortcuts.h"
 #include "core/ui_integration.h"
@@ -159,6 +160,26 @@ constexpr auto kRefreshSlowmodeLabelTimeout = crl::time(200);
 constexpr auto kMaxStarSendEffects = 4;
 constexpr auto kMaxStarEffects = 4;
 constexpr auto kStarEffectDuration = 2 * crl::time(1000);
+
+// Pastes the clipboard text with the tracking parameters removed, and reports
+// whether it did, so the caller falls through to the stock paste handling when
+// there was nothing to strip. The insert is plain text: a paste that carried
+// tracking loses its formatting, which only happens while the option is on and
+// only for text that was going to leak a campaign id to the recipient.
+[[nodiscard]] bool InsertPasteWithCleanedLinks(
+		not_null<Ui::InputField*> field,
+		not_null<const QMimeData*> data) {
+	if (!MG::StripTracking() || data->hasImage() || !data->hasText()) {
+		return false;
+	}
+	const auto text = data->text();
+	const auto cleaned = MG::StripTrackingInText(text);
+	if (cleaned == text) {
+		return false;
+	}
+	field->insertTag(cleaned);
+	return true;
+}
 constexpr auto kStarEffectRotationMax = 12;
 constexpr auto kStarEffectScaleMin = 0.3;
 constexpr auto kStarEffectScaleMax = 0.7;
@@ -2263,6 +2284,9 @@ void ComposeControls::setMimeDataHook(MimeDataHook hook) {
 				} else if (originalHook && originalHook(data, action)) {
 					return true;
 				} else if (action == Ui::InputField::MimeAction::Insert) {
+					if (InsertPasteWithCleanedLinks(_field, data)) {
+						return true;
+					}
 					offerRichPaste(data);
 				}
 				return false;
