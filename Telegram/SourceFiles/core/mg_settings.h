@@ -51,6 +51,10 @@ void SetDisableAiSummaries(bool value);
 void SetOpenLinksInBrowser(bool value);
 [[nodiscard]] rpl::producer<bool> OpenLinksInBrowserValue();
 
+[[nodiscard]] bool StripTracking();
+void SetStripTracking(bool value);
+[[nodiscard]] rpl::producer<bool> StripTrackingValue();
+
 [[nodiscard]] bool ConfirmInternalLinks();
 void SetConfirmInternalLinks(bool value);
 [[nodiscard]] rpl::producer<bool> ConfirmInternalLinksValue();
