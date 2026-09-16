@@ -113,3 +113,32 @@ set_target_properties(
 )
 
 add_dependencies(Telegram test_mg_folder_blob)
+
+# Tracking-parameter stripping. The rule tables are the part that rots, so they
+# are checked directly; lib_ui comes in for the entity parser that finds the
+# links inside a pasted or copied block of text.
+add_executable(test_mg_url_cleaner)
+init_target(test_mg_url_cleaner "(tests)")
+
+target_include_directories(test_mg_url_cleaner PRIVATE ${src_loc})
+
+nice_target_sources(test_mg_url_cleaner ${src_loc}
+PRIVATE
+    tests/test_mg_url_cleaner.cpp
+    core/mg_url_cleaner.cpp
+    core/mg_url_cleaner.h
+)
+
+target_link_libraries(test_mg_url_cleaner
+PRIVATE
+    desktop-app::lib_ui
+    desktop-app::lib_crl
+    desktop-app::external_qt
+)
+
+set_target_properties(
+    test_mg_url_cleaner
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+add_dependencies(Telegram test_mg_url_cleaner)

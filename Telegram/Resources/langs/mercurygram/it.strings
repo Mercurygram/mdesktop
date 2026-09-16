@@ -25,3 +25,4 @@
 "lng_mg_folder_tag" = "Mercurygram";
 "lng_mg_keep_drafts_local" = "Tieni le bozze su questo dispositivo";
 "lng_mg_confirm_internal_links" = "Conferma i link di Telegram";
+"lng_mg_strip_tracking" = "Rimuovi i parametri di tracciamento";

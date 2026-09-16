@@ -25,3 +25,4 @@
 "lng_mg_folder_tag" = "Mercurygram";
 "lng_mg_keep_drafts_local" = "Concepten op dit apparaat houden";
 "lng_mg_confirm_internal_links" = "Telegram-links bevestigen";
+"lng_mg_strip_tracking" = "Trackingparameters verwijderen";
