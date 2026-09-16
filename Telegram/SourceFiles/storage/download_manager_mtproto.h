@@ -274,6 +274,7 @@ private:
 	base::flat_map<int64, mtpRequestId> _requestByOffset;
 
 	MTP::DcId _cdnDcId = 0;
+	bool _refusedCdnRedirect = false;
 	QByteArray _cdnToken;
 	QByteArray _cdnEncryptionKey;
 	QByteArray _cdnEncryptionIV;
