@@ -26,3 +26,5 @@
 "lng_mg_keep_drafts_local" = "إبقاء المسودات على هذا الجهاز";
 "lng_mg_confirm_internal_links" = "تأكيد روابط تيليجرام";
 "lng_mg_strip_tracking" = "إزالة معاملات التتبع";
+"lng_mg_reduce_tracking" = "تقليل تتبع الشبكة";
+"lng_mg_reduce_tracking_fallback" = "رفض الخادم مفتاح جلسة لمدة ساعة واحدة، لذا يتم تدويره كل {hours} بدلاً من ذلك.";
