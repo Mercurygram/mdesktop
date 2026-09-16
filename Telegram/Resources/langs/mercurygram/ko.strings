@@ -26,3 +26,5 @@
 "lng_mg_keep_drafts_local" = "임시 보관 메시지를 이 기기에만 보관";
 "lng_mg_confirm_internal_links" = "텔레그램 링크 확인";
 "lng_mg_strip_tracking" = "추적 매개변수 제거";
+"lng_mg_reduce_tracking" = "네트워크 추적 줄이기";
+"lng_mg_reduce_tracking_fallback" = "서버가 1시간짜리 세션 키를 거부하여 대신 {hours}마다 교체합니다.";
