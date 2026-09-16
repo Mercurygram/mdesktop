@@ -978,6 +978,17 @@ bool DownloadMtprotoTask::cdnPartFailed(
 void DownloadMtprotoTask::switchToCDN(
 		const RequestData &requestData,
 		const MTPDupload_fileCdnRedirect &redirect) {
+	// A CDN node is a third party and talks to us over the long-lived
+	// permanent key, with no perfect forward secrecy, so following the
+	// redirect hands it the same auth_key_id every session of this account
+	// carries. Refuse the first redirect per file and ask the home
+	// datacenter again. The refusal is capped at one so that a datacenter
+	// that only ever answers with a redirect still serves the download.
+	if (!_refusedCdnRedirect) {
+		_refusedCdnRedirect = true;
+		makeRequest(requestData);
+		return;
+	}
 	changeCDNParams(
 		requestData,
 		redirect.vdc_id().v,
