@@ -186,6 +186,13 @@ void BuildPrivacySection(SectionBuilder &builder) {
 		{ u"draft"_q, u"drafts"_q, u"sync"_q, u"privacy"_q },
 		MG::KeepDraftsLocal,
 		MG::SetKeepDraftsLocal);
+	AddBoolToggle(
+		builder,
+		u"mercurygram/confirm_internal_links"_q,
+		tr::lng_mg_confirm_internal_links(),
+		{ u"link"_q, u"telegram"_q, u"confirm"_q, u"privacy"_q },
+		MG::ConfirmInternalLinks,
+		MG::SetConfirmInternalLinks);
 
 	builder.addSkip(st::settingsCheckboxesSkip);
 }

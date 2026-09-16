@@ -51,6 +51,10 @@ void SetDisableAiSummaries(bool value);
 void SetOpenLinksInBrowser(bool value);
 [[nodiscard]] rpl::producer<bool> OpenLinksInBrowserValue();
 
+[[nodiscard]] bool ConfirmInternalLinks();
+void SetConfirmInternalLinks(bool value);
+[[nodiscard]] rpl::producer<bool> ConfirmInternalLinksValue();
+
 [[nodiscard]] bool KeepDraftsLocal();
 void SetKeepDraftsLocal(bool value);
 [[nodiscard]] rpl::producer<bool> KeepDraftsLocalValue();
