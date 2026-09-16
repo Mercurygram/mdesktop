@@ -188,6 +188,13 @@ void BuildPrivacySection(SectionBuilder &builder) {
 		MG::SetKeepDraftsLocal);
 	AddBoolToggle(
 		builder,
+		u"mercurygram/strip_tracking"_q,
+		tr::lng_mg_strip_tracking(),
+		{ u"tracking"_q, u"utm"_q, u"link"_q, u"privacy"_q },
+		MG::StripTracking,
+		MG::SetStripTracking);
+	AddBoolToggle(
+		builder,
 		u"mercurygram/confirm_internal_links"_q,
 		tr::lng_mg_confirm_internal_links(),
 		{ u"link"_q, u"telegram"_q, u"confirm"_q, u"privacy"_q },
