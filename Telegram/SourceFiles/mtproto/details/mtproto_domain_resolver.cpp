@@ -14,10 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonObject>
-#include <range/v3/algorithm/shuffle.hpp>
-#include <range/v3/algorithm/reverse.hpp>
 #include <range/v3/algorithm/remove.hpp>
-#include <random>
 
 namespace MTP::details {
 namespace {
@@ -204,34 +201,14 @@ void DomainResolver::resolve(const AttemptKey &key) {
 		return;
 	}
 
+	// Every fallback resolver upstream tries besides Cloudflare is Google:
+	// dns.google.com directly, plus the same service fronted behind the
+	// google.com domains of DnsDomains(). This resolver only ever looks up
+	// proxy hostnames, so following those attempts would hand Google the
+	// address the user is about to connect through - exactly the metadata a
+	// proxy is meant to keep from third parties. Only Cloudflare is kept.
 	auto attempts = std::vector<Attempt>();
-	auto domains = DnsDomains();
-	std::random_device rd;
-	ranges::shuffle(domains, std::mt19937(rd()));
-	const auto takeDomain = [&] {
-		const auto result = domains.back();
-		domains.pop_back();
-		return result;
-	};
-	const auto shuffle = [&](int from, int till) {
-		Expects(till > from);
-
-		ranges::shuffle(
-			begin(attempts) + from,
-			begin(attempts) + till,
-			std::mt19937(rd()));
-	};
-
-	attempts.push_back({ Type::Google, "dns.google.com" });
-	attempts.push_back({ Type::Google, takeDomain(), "dns" });
 	attempts.push_back({ Type::Mozilla, "mozilla.cloudflare-dns.com" });
-	while (!domains.empty()) {
-		attempts.push_back({ Type::Google, takeDomain(), "dns" });
-	}
-
-	shuffle(0, 2);
-
-	ranges::reverse(attempts); // We go from last to first.
 
 	_attempts.emplace(key, Attempts{ std::move(attempts) });
 	sendNextRequest(key);
