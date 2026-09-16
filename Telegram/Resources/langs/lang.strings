@@ -1989,6 +1989,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_disable_ai_editor" = "Disable AI text editor";
 "lng_mg_disable_ai_summaries" = "Disable AI summaries";
 "lng_mg_open_links_in_browser" = "Open links in browser";
+"lng_mg_reduce_tracking" = "Reduce network tracking";
+"lng_mg_reduce_tracking_fallback" = "The server refused a one-hour session key, so it is rotated every {hours} instead.";
 "lng_mg_strip_tracking" = "Strip tracking parameters";
 "lng_mg_keep_drafts_local" = "Keep drafts on this device";
 "lng_mg_confirm_internal_links" = "Confirm Telegram links";
