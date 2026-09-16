@@ -26,3 +26,5 @@
 "lng_mg_keep_drafts_local" = "Зберігати чернетки лише на пристрої";
 "lng_mg_confirm_internal_links" = "Підтверджувати посилання Telegram";
 "lng_mg_strip_tracking" = "Видаляти параметри стеження";
+"lng_mg_reduce_tracking" = "Зменшити мережеве відстеження";
+"lng_mg_reduce_tracking_fallback" = "Сервер відхилив ключ сеансу на одну годину, тому він змінюється кожні {hours}.";

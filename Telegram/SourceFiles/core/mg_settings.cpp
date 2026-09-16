@@ -50,6 +50,7 @@ MG_BOOL_SETTING(DisableAiEditor, "mg-disable-ai-editor")
 MG_BOOL_SETTING(DisableAiSummaries, "mg-disable-ai-summaries")
 MG_BOOL_SETTING(OpenLinksInBrowser, "mg-open-links-in-browser")
 MG_BOOL_SETTING(KeepDraftsLocal, "mg-keep-drafts-local")
+MG_BOOL_SETTING(ReduceTracking, "mg-reduce-tracking")
 MG_BOOL_SETTING(StripTracking, "mg-strip-tracking")
 MG_BOOL_SETTING(ConfirmInternalLinks, "mg-confirm-internal-links")
 MG_BOOL_SETTING(HidePremiumPromo, "mg-hide-premium-promo")
@@ -59,7 +60,52 @@ MG_BOOL_SETTING(AllRecentStickers, "mg-all-recent-stickers")
 // A FilterId; 0 means "open the account's default folder" (upstream).
 MG_SETTING(int, LaunchFolder, "mg-launch-folder", 0)
 
+// How far up kTemporaryKeyLadder the server has pushed us; see below.
+MG_SETTING(int, TemporaryKeyStep, "mg-temporary-key-step", 0)
+
 #undef MG_BOOL_SETTING
 #undef MG_SETTING
+
+namespace {
+
+// The lifetimes to try, shortest first. The last one is the upstream default:
+// reaching it means the reduced lifetime is not what the server dislikes, so
+// nothing is left to fall back to. A probe against DC2 in 2026-05 accepted an
+// expires_in as low as 60 seconds, so one hour keeps a wide margin while
+// asking for 24 handshakes a day instead of one.
+constexpr TimeId kTemporaryKeyLadder[] = { 3600, 6 * 3600, 86400 };
+constexpr auto kTemporaryKeyLadderTop = int(std::size(kTemporaryKeyLadder)) - 1;
+
+} // namespace
+
+TimeId TemporaryKeyExpiresIn() {
+	if (!ReduceTracking()) {
+		return kTemporaryKeyLadder[kTemporaryKeyLadderTop];
+	}
+	const auto step = std::clamp(
+		TemporaryKeyStep(),
+		0,
+		kTemporaryKeyLadderTop);
+	return kTemporaryKeyLadder[step];
+}
+
+rpl::producer<TimeId> TemporaryKeyExpiresInValue() {
+	return rpl::combine(
+		ReduceTrackingValue(),
+		TemporaryKeyStepValue()
+	) | rpl::map([](bool, int) { return TemporaryKeyExpiresIn(); });
+}
+
+bool StepUpTemporaryKeyExpiresIn() {
+	if (!ReduceTracking() || TemporaryKeyStep() >= kTemporaryKeyLadderTop) {
+		return false;
+	}
+	SetTemporaryKeyStep(TemporaryKeyStep() + 1);
+	return true;
+}
+
+void ResetTemporaryKeyLadder() {
+	SetTemporaryKeyStep(0);
+}
 
 } // namespace MG

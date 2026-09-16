@@ -26,3 +26,5 @@
 "lng_mg_keep_drafts_local" = "Manter os rascunhos neste dispositivo";
 "lng_mg_confirm_internal_links" = "Confirmar links do Telegram";
 "lng_mg_strip_tracking" = "Remover parâmetros de rastreamento";
+"lng_mg_reduce_tracking" = "Reduzir rastreamento de rede";
+"lng_mg_reduce_tracking_fallback" = "O servidor recusou uma chave de sessão de uma hora, então ela é trocada a cada {hours}.";
