@@ -379,7 +379,12 @@ void LogNativeMessageRejected(
 }
 
 [[nodiscard]] bool UseExternalBotWebApps() {
+#ifdef WEBVIEW_QTWEBENGINE
+	// In process webview, embeds in the panel like on Windows and macOS.
+	return false;
+#else // WEBVIEW_QTWEBENGINE
 	return ::Platform::IsLinux();
+#endif // WEBVIEW_QTWEBENGINE
 }
 
 [[nodiscard]] QColor ResolveExternalShellThemeColor(QColor color) {
