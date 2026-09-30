@@ -24,10 +24,21 @@ dnf -y install cmake autoconf automake libtool pkgconfig make patch git \
 	libmount-devel systemd-devel glib2-devel gobject-introspection-devel \
 	at-spi2-core-devel gtk3-devel
 EOF
+{%- if WEBENGINE %}
+
+# [MG] QtWebEngine (Chromium) build deps: EL8's default Node.js is too old.
+RUN --mount=type=cache,target=/var/cache/dnf <<EOF
+dnf -y module reset nodejs
+dnf -y module enable nodejs:20
+dnf -y install nodejs nss-devel nspr-devel cups-devel dbus-devel \
+	libXcomposite-devel libXdamage-devel libXrandr-devel libXtst-devel \
+	libxkbfile-devel libxshmfence-devel libXi-devel libXcursor-devel
+EOF
+{%- endif %}
 
 RUN <<EOF
 alternatives --set python3 /usr/bin/python3.11
-python3 -m pip install meson ninja
+python3 -m pip install meson ninja{% if WEBENGINE %} html5lib{% endif %}
 EOF
 
 RUN <<EOF
@@ -910,6 +921,67 @@ DESTDIR=/usr/src/qt-cache cmake --install build
 cd ..
 rm -rf qt5
 EOF
+{%- if WEBENGINE %}
+
+# [MG] Shared Qt + QtWebEngine for the AppImage, used instead of `qt` below.
+# WHY: a separate stage keeps `qt` byte-identical to upstream for rebases,
+# and QtWebEngine can only link a shared Qt.
+FROM patches AS qt-webengine
+COPY --link --from=zlib /usr/src/zlib-cache /
+COPY --link --from=lcms2 /usr/src/lcms2-cache /
+COPY --link --from=mozjpeg /usr/src/mozjpeg-cache /
+COPY --link --from=webp /usr/src/webp-cache /
+COPY --link --from=xcb /usr/src/xcb-cache /
+COPY --link --from=xcb-wm /usr/src/xcb-wm-cache /
+COPY --link --from=xcb-util /usr/src/xcb-util-cache /
+COPY --link --from=xcb-image /usr/src/xcb-image-cache /
+COPY --link --from=xcb-keysyms /usr/src/xcb-keysyms-cache /
+COPY --link --from=xcb-render-util /usr/src/xcb-render-util-cache /
+COPY --link --from=xcb-cursor /usr/src/xcb-cursor-cache /
+COPY --link --from=openssl /usr/src/openssl-cache /
+COPY --link --from=xkbcommon /usr/src/xkbcommon-cache /
+
+RUN --mount=type=cache,target=/var/cache/ccache <<EOF
+QT=6.11.2
+git clone -b v$QT --depth=1 https://github.com/qt/qt5.git
+cd qt5
+git submodule update --init --recursive --depth=1 \
+	qtbase qtdeclarative qtwayland qtimageformats qtsvg qtshadertools \
+	qtwebengine qtwebchannel qtpositioning
+find $PWD/../patches/qtbase_$QT -type f -print0 | sort -z | xargs -r0 git -C qtbase apply
+find $PWD/../patches/qtwayland_$QT -type f -print0 | sort -z | xargs -r0 git -C qtwayland apply
+# WHY: Implib.so stubs have no data symbols (wl_*_interface), and shared
+# Qt Wayland plugins must import those from the real libwayland.
+rm /usr/local/lib64/libwayland-*.a
+# WHY: EL8 glibc declares asprintf only under _GNU_SOURCE, and GCC 15
+# rejects the implicit declaration in Chromium's bundled libdrm.
+sed -i '1i #define _GNU_SOURCE' qtwebengine/src/3rdparty/chromium/third_party/libdrm/src/xf86drm.c
+# WHY: the gn sub-build forwards only CMAKE_CXX_COMPILER, which for
+# CXX="ccache g++" is bare ccache; take ccache as a launcher instead.
+CC=gcc CXX=g++ cmake -B build . \
+	-DCMAKE_C_COMPILER_LAUNCHER=ccache \
+	-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+	-DCMAKE_INSTALL_PREFIX=/usr/local \
+	-DPython3_EXECUTABLE=/usr/bin/python3.11 \
+	-DBUILD_SHARED_LIBS=ON \
+	-DBUILD_WITH_PCH=OFF \
+	-DQT_QPA_PLATFORMS="wayland;xcb" \
+	-DINPUT_libpng=qt \
+	-DINPUT_harfbuzz=qt \
+	-DINPUT_pcre=qt \
+	-DFEATURE_icu=OFF \
+	-DFEATURE_xcb_sm=OFF \
+	-DFEATURE_eglfs=OFF \
+	-DINPUT_dbus=runtime \
+	-DINPUT_openssl=linked \
+	-DQT_FEATURE_qtpdf_build=OFF \
+	-DQT_FEATURE_webengine_proprietary_codecs=ON
+cmake --build build
+DESTDIR=/usr/src/qt-cache cmake --install build
+cd ..
+rm -rf qt5
+EOF
+{%- endif %}
 
 FROM builder AS boost
 RUN --mount=type=cache,target=/var/cache/ccache <<EOF
@@ -1069,7 +1141,7 @@ COPY --link --from=ffmpeg /usr/src/ffmpeg-cache /
 COPY --link --from=openal /usr/src/openal-cache /
 COPY --link --from=openssl /usr/src/openssl-cache /
 COPY --link --from=xkbcommon /usr/src/xkbcommon-cache /
-COPY --link --from=qt /usr/src/qt-cache /
+COPY --link --from={{ 'qt-webengine' if WEBENGINE else 'qt' }} /usr/src/qt-cache /
 COPY --link --from=boost /usr/src/boost-cache /
 COPY --link --from=breakpad /usr/src/breakpad-cache /
 COPY --link --from=webrtc /usr/src/webrtc-cache /
