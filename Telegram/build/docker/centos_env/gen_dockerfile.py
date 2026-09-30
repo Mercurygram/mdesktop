@@ -14,6 +14,7 @@ def main():
         MINSIZE=checkEnv("MINSIZE", False),
         LTO=checkEnv("LTO", True),
         ASAN=checkEnv("ASAN", False),
+        WEBENGINE=checkEnv("WEBENGINE", False),
         JOBS=checkEnv("JOBS", ""),
     ))
 

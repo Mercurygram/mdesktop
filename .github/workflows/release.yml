@@ -342,6 +342,179 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh run cancel ${{ github.run_id }} || true
 
+  linux-appimage:
+    name: Linux AppImage (${{ matrix.arch }})
+    needs: meta
+    runs-on: ${{ matrix.runner }}
+    # Second Linux artifact: a relocatable AppImage carrying its own shared Qt +
+    # QtWebEngine, so the webview renders in process with no host WebKitGTK.
+    # Non-blocking: publish does not need it and it has no cancel-on-failure
+    # step, a red AppImage leg only skips publish-appimage. No autoupdate
+    # package; the static tarball keeps the signed update path.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      IMAGE_TAG: tdesktop:centos_env_webengine
+      # AppImage tooling comes from each project's rolling `continuous` release,
+      # verified against these SHA-256s. A rebuild upstream rotates the binary
+      # and fails the check by design: re-pin after reviewing the new build.
+      LINUXDEPLOY_SHA256_x86_64: "36a2d7e274d12e1050d0e9ecfe11d339ed54720b2bec464c286d53f8b07f5c62"
+      LINUXDEPLOY_SHA256_arm64: "556ab80baa98e600aa80f0dcedfb70bca0e1ce7e9f147fb345be3fcc3e91b2b1"
+      LINUXDEPLOY_QT_SHA256_x86_64: "cfc1055b2b9dbc08412b579f20990b7b41a17b61beaa5847dc9477c96c9e9617"
+      LINUXDEPLOY_QT_SHA256_arm64: "d5b5a9020065cefda8c7af7c9500f686b23640eac50c88201a81752c6ee2e49c"
+      APPIMAGETOOL_SHA256_x86_64: "a6d71e2b6cd66f8e8d16c37ad164658985e0cf5fcaa950c90a482890cb9d13e0"
+      APPIMAGETOOL_SHA256_arm64: "1b00524ba8c6b678dc15ef88a5c25ec24def36cdfc7e3abb32ddcd068e8007fe"
+    steps:
+      - name: Clone.
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Set release version.
+        if: github.event_name == 'push'
+        run: python3 Telegram/build/set_release_version.py "${GITHUB_REF_NAME}"
+
+      - name: First set up.
+        run: |
+          sudo apt update
+          curl -sSL https://install.python-poetry.org | python3 -
+          cd Telegram/build/docker/centos_env
+          poetry install
+          # WEBENGINE=1 swaps the static Qt stage for shared Qt + QtWebEngine.
+          DOCKERFILE=$(DEBUG= LTO= WEBENGINE=1 poetry run gen_dockerfile)
+          echo "$DOCKERFILE" > Dockerfile
+          rm -rf __pycache__
+
+      - name: Free up some disk space.
+        # Same prune as the linux job; Chromium needs every spare GB.
+        run: |
+          echo "Before:"; df -h /
+          sudo rm -rf \
+            /opt/hostedtoolcache \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc /usr/local/.ghcup \
+            /usr/share/swift \
+            /usr/local/share/boost \
+            /usr/local/lib/node_modules \
+            /usr/local/share/powershell \
+            /usr/lib/google-cloud-sdk \
+            /usr/local/share/chromium /opt/microsoft || true
+          sudo apt-get clean || true
+          sudo docker image prune --all --force 2>/dev/null || true
+          echo "After:"; df -h /
+
+      - name: Libraries (pull from GHCR, or build + push on miss).
+        # Own tag suffix, so it never collides with the static centos_env image.
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: |
+          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+          owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          ref="ghcr.io/$owner/centos_env:${{ matrix.arch }}-webengine-${{ hashFiles('Telegram/build/docker/centos_env/**') }}"
+          if docker manifest inspect "$ref" >/dev/null 2>&1; then
+            echo "GHCR hit -> pulling $ref"
+            docker pull "$ref"
+          else
+            echo "GHCR miss -> building $ref"
+            docker build -t "$ref" Telegram/build/docker/centos_env
+            docker push "$ref" || echo "::warning::centos_env webengine cache push failed; continuing with the local image"
+          fi
+          docker tag "$ref" "$IMAGE_TAG"
+
+      # Same libheif/FFmpeg link fix as the linux job, see the note there.
+      - name: Link FFmpeg into the kimageformats plugin.
+        run: |
+          set -e
+          f=cmake/external/qt/qt_static_plugins/kimageformats/CMakeLists.txt
+          if ! grep -A1 'TARGET_NAME_IF_EXISTS:heif>$' "$f" | grep -q 'desktop-app::external_ffmpeg'; then
+            sed -i 's/^\(        \$<TARGET_NAME_IF_EXISTS:heif>\)$/\1\n        desktop-app::external_ffmpeg/' "$f"
+          fi
+          if ! grep -A1 'TARGET_NAME_IF_EXISTS:heif>$' "$f" | grep -q 'desktop-app::external_ffmpeg'; then
+            echo "::error::ffmpeg link not injected; the Linux block in $f changed -- update this step."
+            exit 1
+          fi
+
+      # Same LTO link swap as the linux job, see the note there.
+      - name: Add swap for the LTO link.
+        run: |
+          set -e
+          swap=/lto-swapfile
+          df -h /
+          sudo fallocate -l 16G "$swap"
+          sudo chmod 600 "$swap"
+          sudo mkswap "$swap"
+          sudo swapon "$swap"
+          sudo sysctl -w vm.swappiness=10
+          free -h
+
+      - name: Build (Release, QtWebEngine).
+        run: |
+          set -e
+          API="-D TDESKTOP_API_ID=${{ secrets.APP_ID }} -D TDESKTOP_API_HASH=${{ secrets.APP_HASH }}"
+          docker run --rm \
+            -u $(id -u) \
+            -v $PWD:/usr/src/tdesktop \
+            -e CONFIG=Release \
+            -e CMAKE_BUILD_PARALLEL_LEVEL=4 \
+            $IMAGE_TAG \
+            /usr/src/tdesktop/Telegram/build/docker/centos_env/build.sh \
+            -D CMAKE_CONFIGURATION_TYPES=Release \
+            -D CMAKE_COMPILE_WARNING_AS_ERROR=OFF \
+            -D DESKTOP_APP_ENABLE_LTO=ON \
+            $API \
+            -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON \
+            -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF \
+            -D DESKTOP_APP_USE_QTWEBENGINE=ON \
+            -D DESKTOP_APP_SPECIAL_TARGET=linux
+          BIN="$(find out -type f -name Mercurygram | head -n1)"
+          UPD="$(find out -type f -name Updater | head -n1)"
+          test -n "$BIN" || { echo "Mercurygram binary not found under out/"; exit 1; }
+          test -n "$UPD" || { echo "Updater not found under out/"; exit 1; }
+          echo "BIN=$BIN" >> "$GITHUB_ENV"
+          echo "UPD=$UPD" >> "$GITHUB_ENV"
+
+      - name: Fetch AppImage tooling.
+        # All three in one dir, so linuxdeploy finds linuxdeploy-plugin-qt.
+        run: |
+          set -e
+          case "${{ matrix.arch }}" in
+            x86_64) tarch=x86_64;  ld_want="$LINUXDEPLOY_SHA256_x86_64"; qt_want="$LINUXDEPLOY_QT_SHA256_x86_64"; at_want="$APPIMAGETOOL_SHA256_x86_64" ;;
+            arm64)  tarch=aarch64; ld_want="$LINUXDEPLOY_SHA256_arm64";  qt_want="$LINUXDEPLOY_QT_SHA256_arm64";  at_want="$APPIMAGETOOL_SHA256_arm64" ;;
+          esac
+          mkdir -p tools
+          fetch() { curl -fsSL -o "tools/$2" "$1"; echo "$3  tools/$2" | sha256sum -c -; chmod +x "tools/$2"; }
+          fetch "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${tarch}.AppImage" linuxdeploy "$ld_want"
+          fetch "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${tarch}.AppImage" linuxdeploy-plugin-qt "$qt_want"
+          fetch "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${tarch}.AppImage" appimagetool "$at_want"
+
+      - name: Build AppImage (in container).
+        # Same image, so the shared Qt under /usr/local and qmake are there.
+        run: |
+          set -e
+          VER="${{ needs.meta.outputs.version }}"
+          docker run --rm \
+            -u $(id -u) \
+            -v $PWD:/usr/src/tdesktop \
+            -w /usr/src/tdesktop \
+            -e APPIMAGE_EXTRACT_AND_RUN=1 \
+            -e LINUXDEPLOY=/usr/src/tdesktop/tools/linuxdeploy \
+            -e APPIMAGETOOL=/usr/src/tdesktop/tools/appimagetool \
+            $IMAGE_TAG \
+            bash .github/linux-appimage.sh "$BIN" "$UPD" "out_appimage/Mercurygram-${VER}-linux-${{ matrix.arch }}.AppImage"
+          test -f "out_appimage/Mercurygram-${VER}-linux-${{ matrix.arch }}.AppImage"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: appimage-linux-${{ matrix.arch }}
+          path: out_appimage/
+
   windows:
     name: Windows (${{ matrix.arch }})
     needs: meta
@@ -1434,6 +1607,34 @@ jobs:
             # per-version release; a later re-run can populate it.
             echo "No installers produced; skipping per-version release creation."
           fi
+
+  publish-appimage:
+    name: Publish AppImage
+    # Separate from publish, so a red AppImage leg never blocks the release;
+    # runs after it, so the per-version release already exists.
+    needs: [meta, publish, linux-appimage]
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download AppImage artifacts.
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: appimage-*
+          path: appimages
+          merge-multiple: true
+
+      - name: Attach AppImages to the per-version release.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          shopt -s nullglob
+          FILES=(appimages/*)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No AppImage artifacts produced; nothing to attach."
+            exit 0
+          fi
+          gh release upload "${GITHUB_REF_NAME}" "${FILES[@]}" --clobber
 
   # Tell the website (mercurygram.org) to show the just-released
   # version. The site's bump-version workflow updates config.toml and
