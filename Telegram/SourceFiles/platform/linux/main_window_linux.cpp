@@ -505,9 +505,11 @@ void MainWindow::updateGlobalMenuHook() {
 bool MainWindow::eventFilter(QObject *obj, QEvent *evt) {
 	const auto t = evt->type();
 	if (t == QEvent::FocusIn || t == QEvent::FocusOut) {
-		if (qobject_cast<QLineEdit*>(obj)
-			|| qobject_cast<QTextEdit*>(obj)
-			|| dynamic_cast<HistoryInner*>(obj)) {
+		// QtWebEngine QtQuick objects have no RTTI, dynamic_cast crashes on them.
+		if (obj->isWidgetType()
+			&& (qobject_cast<QLineEdit*>(obj)
+				|| qobject_cast<QTextEdit*>(obj)
+				|| dynamic_cast<HistoryInner*>(obj))) {
 			if (QApplication::focusWidget()) {
 				updateGlobalMenu();
 			}
