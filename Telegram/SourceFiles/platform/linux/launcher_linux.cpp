@@ -134,6 +134,11 @@ int Launcher::exec() {
 		}
 	}
 
+#ifdef WEBVIEW_QTWEBENGINE
+	// Must be set before QApplication is constructed (used by QtWebEngine).
+	QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+#endif // WEBVIEW_QTWEBENGINE
+
 	return Core::Launcher::exec();
 }
 
