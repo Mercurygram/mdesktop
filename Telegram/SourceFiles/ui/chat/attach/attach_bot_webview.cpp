@@ -388,7 +388,12 @@ void LogNativeMessageRejected(
 }
 
 [[nodiscard]] bool UseExternalBotWebApps() {
+#ifdef WEBVIEW_QTWEBENGINE
+	// In process webview, embeds in the panel like on Windows and macOS.
+	return false;
+#else // WEBVIEW_QTWEBENGINE
 	return ::Platform::IsWayland();
+#endif // WEBVIEW_QTWEBENGINE
 }
 
 [[nodiscard]] QString MiniAppWindowTitle(const QString &title) {
