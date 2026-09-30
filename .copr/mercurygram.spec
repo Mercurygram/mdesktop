@@ -46,6 +46,8 @@ BuildRequires: cmake(Qt6OpenGL)
 BuildRequires: cmake(Qt6OpenGLWidgets)
 BuildRequires: cmake(Qt6Svg)
 BuildRequires: cmake(Qt6WaylandClient)
+BuildRequires: cmake(Qt6WebChannel)
+BuildRequires: cmake(Qt6WebEngineWidgets)
 BuildRequires: cmake(Qt6Widgets)
 BuildRequires: cmake(fmt)
 BuildRequires: cmake(range-v3)
@@ -78,7 +80,6 @@ BuildRequires: pkgconfig(protobuf-lite)
 BuildRequires: pkgconfig(rnnoise)
 BuildRequires: pkgconfig(vpx)
 BuildRequires: pkgconfig(wayland-client)
-BuildRequires: pkgconfig(webkitgtk-6.0)
 BuildRequires: pkgconfig(xcb)
 BuildRequires: pkgconfig(xcb-keysyms)
 BuildRequires: pkgconfig(xcb-record)
@@ -113,7 +114,8 @@ BuildRequires: cmake(tde2e)
 
 Requires: hicolor-icon-theme
 Requires: qt6-qtimageformats%{?_isa}
-Requires: webkitgtk6.0%{?_isa}
+# QtWebEngineProcess and the Chromium data files are not soname dependencies.
+Requires: qt6-qtwebengine%{?_isa}
 
 # Virtual provides for bundled libraries...
 Provides: bundled(cld3) = 3.0.13~gitb48dc46
@@ -160,7 +162,8 @@ sed -i "/#include <openssl\/engine.h>/d" Telegram/SourceFiles/core/utils.cpp
     -DDESKTOP_APP_DISABLE_WAYLAND_INTEGRATION:BOOL=OFF \
     -DDESKTOP_APP_DISABLE_X11_INTEGRATION:BOOL=OFF \
     -DDESKTOP_APP_DISABLE_CRASH_REPORTS:BOOL=ON \
-    -DDESKTOP_APP_DISABLE_QT_PLUGINS:BOOL=ON
+    -DDESKTOP_APP_DISABLE_QT_PLUGINS:BOOL=ON \
+    -DDESKTOP_APP_USE_QTWEBENGINE:BOOL=ON
 %cmake_build
 
 %install
