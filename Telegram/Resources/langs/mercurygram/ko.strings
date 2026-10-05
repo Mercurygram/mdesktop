@@ -31,3 +31,6 @@
 "lng_mg_go_to_first_message" = "첫 메시지로 이동";
 "lng_mg_show_char_counter" = "글자 수 표시";
 "lng_mg_prefer_secret_chats" = "새 대화를 비밀 대화로 시작";
+"lng_mg_mention" = "멘션";
+"lng_mg_mention_choose" = "연락처 선택";
+"lng_mg_translate_use" = "이 번역 사용";
