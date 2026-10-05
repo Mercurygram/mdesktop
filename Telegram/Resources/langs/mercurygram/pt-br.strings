@@ -31,3 +31,6 @@
 "lng_mg_go_to_first_message" = "Ir para a primeira mensagem";
 "lng_mg_show_char_counter" = "Mostrar contador de caracteres";
 "lng_mg_prefer_secret_chats" = "Iniciar novas conversas como secretas";
+"lng_mg_mention" = "Mencionar";
+"lng_mg_mention_choose" = "Escolher contato";
+"lng_mg_translate_use" = "Usar esta tradução";

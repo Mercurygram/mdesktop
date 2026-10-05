@@ -31,3 +31,6 @@
 "lng_mg_go_to_first_message" = "Ga naar eerste bericht";
 "lng_mg_show_char_counter" = "Tekenteller tonen";
 "lng_mg_prefer_secret_chats" = "Nieuwe chats als geheim starten";
+"lng_mg_mention" = "Vermelden";
+"lng_mg_mention_choose" = "Contact kiezen";
+"lng_mg_translate_use" = "Deze vertaling gebruiken";

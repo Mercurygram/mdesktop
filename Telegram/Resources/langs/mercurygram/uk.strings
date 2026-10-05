@@ -31,3 +31,6 @@
 "lng_mg_go_to_first_message" = "До першого повідомлення";
 "lng_mg_show_char_counter" = "Показувати лічильник символів";
 "lng_mg_prefer_secret_chats" = "Починати нові чати як секретні";
+"lng_mg_mention" = "Згадати";
+"lng_mg_mention_choose" = "Вибрати контакт";
+"lng_mg_translate_use" = "Використати цей переклад";
