@@ -28,3 +28,4 @@
 "lng_mg_strip_tracking" = "추적 매개변수 제거";
 "lng_mg_reduce_tracking" = "네트워크 추적 줄이기";
 "lng_mg_reduce_tracking_fallback" = "서버가 1시간짜리 세션 키를 거부하여 대신 {hours}마다 교체합니다.";
+"lng_mg_go_to_first_message" = "첫 메시지로 이동";

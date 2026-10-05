@@ -28,3 +28,4 @@
 "lng_mg_strip_tracking" = "Remover parâmetros de rastreamento";
 "lng_mg_reduce_tracking" = "Reduzir rastreamento de rede";
 "lng_mg_reduce_tracking_fallback" = "O servidor recusou uma chave de sessão de uma hora, então ela é trocada a cada {hours}.";
+"lng_mg_go_to_first_message" = "Ir para a primeira mensagem";

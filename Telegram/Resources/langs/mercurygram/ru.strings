@@ -28,3 +28,4 @@
 "lng_mg_strip_tracking" = "Удалять параметры отслеживания";
 "lng_mg_reduce_tracking" = "Уменьшить сетевое отслеживание";
 "lng_mg_reduce_tracking_fallback" = "Сервер отклонил ключ сеанса на один час, поэтому он меняется каждые {hours}.";
+"lng_mg_go_to_first_message" = "К первому сообщению";
