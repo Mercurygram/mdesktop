@@ -39,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_changes.h"
 #include "dialogs/ui/dialogs_layout.h"
 #include "apiwrap.h"
+#include "core/mg_settings.h"
 #include "mainwidget.h"
 #include "mainwindow.h"
 #include "lang/lang_keys.h"
@@ -48,6 +49,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "payments/ui/payments_reaction_box.h"
 #include "ui/effects/outline_segments.h"
 #include "ui/wrap/slide_wrap.h"
+#include "window/window_peer_menu_secret.h"
 #include "window/window_separate_id.h"
 #include "window/window_session_controller.h" // showAddContact()
 #include "base/unixtime.h"
@@ -74,6 +76,12 @@ Data::CommunityInfo *JoinedCommunityChats(not_null<PeerData*> peer) {
 
 object_ptr<Ui::BoxContent> PrepareContactsBox(
 		not_null<Window::SessionController*> window) {
+	if (MG::PreferSecretChats()) {
+		// [MG] Every way to start a conversation (main menu, shortcut, the
+		// empty chat list button) opens this box, so swapping it here makes
+		// them all start a secret chat, as the compose button does on Android.
+		return Window::PrepareNewSecretChatBox(window);
+	}
 	using Mode = ContactsBoxController::SortMode;
 	class Controller final : public ContactsBoxController {
 	public:

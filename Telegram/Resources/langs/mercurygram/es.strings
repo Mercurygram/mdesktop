@@ -30,3 +30,4 @@
 "lng_mg_reduce_tracking_fallback" = "El servidor rechazó una clave de sesión de una hora, así que se renueva cada {hours}.";
 "lng_mg_go_to_first_message" = "Ir al primer mensaje";
 "lng_mg_show_char_counter" = "Mostrar contador de caracteres";
+"lng_mg_prefer_secret_chats" = "Iniciar chats nuevos como secretos";
