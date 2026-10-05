@@ -142,3 +142,29 @@ set_target_properties(
 )
 
 add_dependencies(Telegram test_mg_url_cleaner)
+
+# In-chat search operators. Pure QtCore: the parser hands back a filter enum
+# and a username, the MTP request and peer lookup stay at the call sites.
+add_executable(test_mg_search_query)
+init_target(test_mg_search_query "(tests)")
+
+target_include_directories(test_mg_search_query PRIVATE ${src_loc})
+
+nice_target_sources(test_mg_search_query ${src_loc}
+PRIVATE
+    tests/test_mg_search_query.cpp
+    core/mg_search_query.cpp
+    core/mg_search_query.h
+)
+
+target_link_libraries(test_mg_search_query
+PRIVATE
+    desktop-app::external_qt
+)
+
+set_target_properties(
+    test_mg_search_query
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+add_dependencies(Telegram test_mg_search_query)
