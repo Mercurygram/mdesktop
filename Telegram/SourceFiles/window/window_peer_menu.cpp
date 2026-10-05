@@ -346,6 +346,7 @@ private:
 	void addViewAsMessages();
 	void addViewAsTopics();
 	void addSearchTopics();
+	void addGoToFirstMessage();
 	void addDeleteTopic();
 	void addVideoChat();
 	void addViewStatistics();
@@ -1836,6 +1837,33 @@ void Filler::addViewAsTopics() {
 	}, &st::menuIconAsTopics);
 }
 
+void Filler::addGoToFirstMessage() {
+	const auto history = _request.key.history();
+	if (_topic
+		|| _sublist
+		|| !history
+		|| history->peer->isSecretChat()) { // no server history to jump in
+		return;
+	}
+	const auto controller = _controller;
+	const auto weak = base::make_weak(controller);
+	_addAction(tr::lng_mg_go_to_first_message(tr::now), [=] {
+		// A date before Telegram existed: the calendar's jump-to-date path
+		// then opens the oldest message, including in a migrated group.
+		controller->session().api().resolveJumpToDate(
+			Dialogs::Key(history),
+			QDate(2013, 8, 1),
+			[=](not_null<PeerData*> peer, MsgId id) {
+				if (const auto strong = weak.get()) {
+					strong->showPeerHistory(
+						peer,
+						Window::SectionShow::Way::Forward,
+						id);
+				}
+			});
+	}, &st::menuIconOrderDate);
+}
+
 void Filler::addSearchTopics() {
 	const auto forum = _peer ? _peer->forum() : nullptr;
 	if (!forum) {
@@ -1960,6 +1988,7 @@ void Filler::fillHistoryActions() {
 	addToggleNoForwards();
 	addViewDiscussion();
 	addDirectMessages();
+	addGoToFirstMessage();
 	addExportChat();
 	addTranslate();
 	addReport();
