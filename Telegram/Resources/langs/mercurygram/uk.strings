@@ -30,3 +30,4 @@
 "lng_mg_reduce_tracking_fallback" = "Сервер відхилив ключ сеансу на одну годину, тому він змінюється кожні {hours}.";
 "lng_mg_go_to_first_message" = "До першого повідомлення";
 "lng_mg_show_char_counter" = "Показувати лічильник символів";
+"lng_mg_prefer_secret_chats" = "Починати нові чати як секретні";

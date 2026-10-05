@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "base/qt/qt_key_modifiers.h"
 #include "boxes/peer_list_controllers.h"
+#include "core/mg_settings.h"
 #include "data/data_user.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
@@ -19,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/popup_menu.h"
+#include "window/window_peer_menu_secret.h"
 #include "window/window_separate_id.h"
 #include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
@@ -351,6 +353,12 @@ void ContactsListController::removeRows(
 
 object_ptr<Ui::BoxContent> PrepareContactsBox(
 		not_null<Window::SessionController*> window) {
+	if (MG::PreferSecretChats()) {
+		// [MG] Every way to start a conversation (main menu, shortcut, the
+		// empty chat list button) opens this box, so swapping it here makes
+		// them all start a secret chat, as the compose button does on Android.
+		return Window::PrepareNewSecretChatBox(window);
+	}
 	using Mode = ContactsBoxController::SortMode;
 	auto controller = std::make_unique<ContactsListController>(window);
 	controller->setStyleOverrides(&st::contactsWithStories);

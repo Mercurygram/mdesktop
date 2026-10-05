@@ -30,3 +30,4 @@
 "lng_mg_reduce_tracking_fallback" = "رفض الخادم مفتاح جلسة لمدة ساعة واحدة، لذا يتم تدويره كل {hours} بدلاً من ذلك.";
 "lng_mg_go_to_first_message" = "الانتقال إلى أول رسالة";
 "lng_mg_show_char_counter" = "إظهار عدّاد الأحرف";
+"lng_mg_prefer_secret_chats" = "بدء المحادثات الجديدة كمحادثات سرية";
