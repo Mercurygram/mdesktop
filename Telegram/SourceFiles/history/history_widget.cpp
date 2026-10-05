@@ -157,6 +157,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/tabbed_section.h"
 #include "chat_helpers/bot_keyboard.h"
 #include "chat_helpers/message_field.h"
+#include "chat_helpers/mg_field_actions.h"
 #include "chat_helpers/rich_paste_toast.h"
 #include "menu/menu_send.h"
 #include "menu/menu_timecode_action.h"
@@ -569,6 +570,9 @@ HistoryWidget::HistoryWidget(
 		return false;
 	});
 	InitMessageFieldFade(_field, st::historyComposeField.textBg);
+	MG::AddFieldSelectionActions(controller->uiShow(), _field, [=] {
+		return _peer;
+	});
 
 	setupFastButtonMode();
 	initAiButton();
