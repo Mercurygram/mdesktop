@@ -2003,6 +2003,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_folder_about" = "Shown only in Mercurygram, never sent to Telegram as a folder, so no folder or chat limit. Synced between your Mercurygram apps through one file in Saved Messages.";
 "lng_mg_folder_tag" = "Mercurygram";
 "lng_mg_go_to_first_message" = "Go to first message";
+"lng_mg_show_char_counter" = "Show character counter";
 
 "lng_profile_export_chat" = "Export chat history";
 "lng_profile_export_topic" = "Export topic history";

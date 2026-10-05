@@ -27,6 +27,10 @@ void SetDeleteForAllDefault(bool value);
 void SetMessageDetails(bool value);
 [[nodiscard]] rpl::producer<bool> MessageDetailsValue();
 
+[[nodiscard]] bool ShowCharCounter();
+void SetShowCharCounter(bool value);
+[[nodiscard]] rpl::producer<bool> ShowCharCounterValue();
+
 [[nodiscard]] bool HideAllChats();
 void SetHideAllChats(bool value);
 [[nodiscard]] rpl::producer<bool> HideAllChatsValue();
