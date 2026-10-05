@@ -3227,7 +3227,13 @@ bool Widget::search(bool inCache, SearchRequestDelay delay) {
 			const auto sublist = _openedForum
 				? nullptr
 				: _searchState.inChat.sublist();
-			const auto fromPeer = sublist ? nullptr : _searchQueryFrom;
+			const auto mg = Api::ParseMgSearch(history, _searchQuery);
+			// A sender picked in the UI wins over a typed from: operator.
+			const auto fromPeer = sublist
+				? nullptr
+				: _searchQueryFrom
+				? _searchQueryFrom
+				: mg.from;
 			const auto savedPeer = sublist
 				? sublist->sublistPeer().get()
 				: nullptr;
@@ -3247,7 +3253,7 @@ bool Widget::search(bool inCache, SearchRequestDelay delay) {
 								? Flag()
 								: Flag::f_saved_reaction)),
 						inPeer->input(),
-						MTP_string(_searchQuery),
+						MTP_string(mg.text),
 						(fromPeer ? fromPeer->input() : MTP_inputPeerEmpty()),
 						(savedPeer ? savedPeer->input() : MTP_inputPeerEmpty()),
 						MTP_vector_from_range(
@@ -3255,9 +3261,9 @@ bool Widget::search(bool inCache, SearchRequestDelay delay) {
 								Data::ReactionToMTP
 							)),
 						MTP_int(topic ? topic->rootId() : 0),
-						MTP_inputMessagesFilterEmpty(),
-						MTP_int(0), // min_date
-						MTP_int(0), // max_date
+						mg.filter,
+						MTP_int(mg.minDate),
+						MTP_int(mg.maxDate),
 						MTP_int(0), // offset_id
 						MTP_int(0), // add_offset
 						MTP_int(kSearchPerPage),
@@ -3441,7 +3447,13 @@ void Widget::searchMore() {
 			const auto sublist = _openedForum
 				? nullptr
 				: _searchState.inChat.sublist();
-			const auto fromPeer = sublist ? nullptr : _searchQueryFrom;
+			const auto mg = Api::ParseMgSearch(history, _searchQuery);
+			// A sender picked in the UI wins over a typed from: operator.
+			const auto fromPeer = sublist
+				? nullptr
+				: _searchQueryFrom
+				? _searchQueryFrom
+				: mg.from;
 			const auto savedPeer = sublist
 				? sublist->sublistPeer().get()
 				: nullptr;
@@ -3461,7 +3473,7 @@ void Widget::searchMore() {
 								? Flag()
 								: Flag::f_saved_reaction)),
 						peer->input(),
-						MTP_string(_searchQuery),
+						MTP_string(mg.text),
 						(fromPeer ? fromPeer->input() : MTP_inputPeerEmpty()),
 						(savedPeer
 							? savedPeer->input()
@@ -3471,9 +3483,9 @@ void Widget::searchMore() {
 								Data::ReactionToMTP
 							)),
 						MTP_int(topic ? topic->rootId() : 0),
-						MTP_inputMessagesFilterEmpty(),
-						MTP_int(0), // min_date
-						MTP_int(0), // max_date
+						mg.filter,
+						MTP_int(mg.minDate),
+						MTP_int(mg.maxDate),
 						MTP_int(process->lastId),
 						MTP_int(0), // add_offset
 						MTP_int(kSearchPerPage),
@@ -3511,23 +3523,25 @@ void Widget::searchMore() {
 				.migrated = true,
 				.start = !_migratedProcess.lastId,
 			};
-			const auto flags = _searchQueryFrom
+			const auto mg = Api::ParseMgSearch(history, _searchQuery);
+			const auto from = _searchQueryFrom
+				? _searchQueryFrom
+				: mg.from;
+			const auto flags = from
 				? MTP_flags(MTPmessages_Search::Flag::f_from_id)
 				: MTP_flags(0);
 			_migratedProcess.requestId = session().api().request(
 				MTPmessages_Search(
 					flags,
 					_searchInMigrated->peer->input(),
-					MTP_string(_searchQuery),
-					(_searchQueryFrom
-						? _searchQueryFrom->input()
-						: MTP_inputPeerEmpty()),
+					MTP_string(mg.text),
+					(from ? from->input() : MTP_inputPeerEmpty()),
 					MTPInputPeer(), // saved_peer_id
 					MTPVector<MTPReaction>(), // saved_reaction
 					MTPint(), // top_msg_id
-					MTP_inputMessagesFilterEmpty(),
-					MTP_int(0), // min_date
-					MTP_int(0), // max_date
+					mg.filter,
+					MTP_int(mg.minDate),
+					MTP_int(mg.maxDate),
 					MTP_int(_migratedProcess.lastId),
 					MTP_int(0), // add_offset
 					MTP_int(kSearchPerPage),
