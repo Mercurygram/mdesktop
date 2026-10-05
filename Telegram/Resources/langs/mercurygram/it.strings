@@ -28,3 +28,4 @@
 "lng_mg_strip_tracking" = "Rimuovi i parametri di tracciamento";
 "lng_mg_reduce_tracking" = "Riduci tracciamento di rete";
 "lng_mg_reduce_tracking_fallback" = "Il server ha rifiutato una chiave di sessione di un'ora, quindi viene ruotata ogni {hours}.";
+"lng_mg_go_to_first_message" = "Vai al primo messaggio";
