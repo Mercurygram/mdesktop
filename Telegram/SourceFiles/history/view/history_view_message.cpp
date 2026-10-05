@@ -20,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/history_view_cursor_state.h"
 #include "history/history_item_components.h"
 #include "history/history_item_helpers.h"
+#include "history/mg_message_history.h"
 #include "history/view/media/history_view_media_generic.h"
 #include "history/view/media/history_view_web_page.h"
 #include "history/view/media/history_view_suggest_decision.h"
@@ -1721,6 +1722,19 @@ void Message::draw(Painter &p, const PaintContext &context) const {
 
 	const auto item = data();
 	const auto media = this->media();
+
+	// [MG] A message the server deleted, kept here, is drawn faded.
+	const auto mgDeletedOpacity = MG::IsDeletedMessage(item)
+		? p.opacity()
+		: 0.;
+	if (mgDeletedOpacity > 0.) {
+		p.setOpacity(mgDeletedOpacity * 0.6);
+	}
+	const auto mgRestoreOpacity = gsl::finally([&] {
+		if (mgDeletedOpacity > 0.) {
+			p.setOpacity(mgDeletedOpacity);
+		}
+	});
 
 	const auto gestureShift = context.gestureHorizontal.visualTranslationFor(
 		item->id.bare);
