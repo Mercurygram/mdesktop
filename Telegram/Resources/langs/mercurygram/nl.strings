@@ -28,3 +28,4 @@
 "lng_mg_strip_tracking" = "Trackingparameters verwijderen";
 "lng_mg_reduce_tracking" = "Netwerktracking verminderen";
 "lng_mg_reduce_tracking_fallback" = "De server weigerde een sessiesleutel van één uur, dus wordt deze in plaats daarvan elke {hours} vernieuwd.";
+"lng_mg_go_to_first_message" = "Ga naar eerste bericht";
