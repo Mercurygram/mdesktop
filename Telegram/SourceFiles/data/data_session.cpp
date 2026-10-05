@@ -87,6 +87,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_histories.h"
 #include "data/data_peer_values.h"
 #include "core/mg_folder_blob.h" // [MG] MG::IsMercurygramFolderId.
+#include "core/mg_pins.h"
 #include "data/data_premium_limits.h"
 #include "data/data_forum.h"
 #include "data/data_forum_topic.h"
@@ -2819,6 +2820,9 @@ void Session::applyPinnedChats(
 		});
 	}
 	chatsList(folder)->pinned()->applyList(this, list);
+	if (!folder) {
+		MG::ApplyMainPins(this);
+	}
 	notifyPinnedDialogsOrderUpdated();
 }
 
@@ -2842,6 +2846,11 @@ void Session::applyDialogs(
 	}
 	if (requestFolder && count) {
 		requestFolder->chatsList()->setCloudListSize(*count);
+	}
+	if (!requestFolder) {
+		// [MG] A dialog marked unpinned by the server may be one of the
+		// pins kept on this device, or a stored pin just got loaded.
+		MG::ApplyMainPins(this);
 	}
 }
 
@@ -2936,9 +2945,8 @@ bool Session::pinnedCanPin(
 
 int Session::pinnedChatsLimit(Data::Folder *folder) const {
 	const auto limits = Data::PremiumLimits(_session);
-	return folder
-		? limits.dialogsFolderPinnedCurrent()
-		: limits.dialogsPinnedCurrent();
+	// [MG] "All chats" pins as many as the archive; see core/mg_pins.h.
+	return limits.dialogsFolderPinnedCurrent();
 }
 
 int Session::pinnedChatsLimit(FilterId filterId) const {
@@ -2973,10 +2981,8 @@ rpl::producer<int> Session::maxPinnedChatsLimitValue(
 	// because it slices the list to that limit. We don't want to slice
 	// premium-ly added chats from the pinned list because of sync issues.
 	return _session->appConfig().value(
-	) | rpl::map([folder, limits = Data::PremiumLimits(_session)] {
-		return folder
-			? limits.dialogsFolderPinnedPremium()
-			: limits.dialogsPinnedPremium();
+	) | rpl::map([limits = Data::PremiumLimits(_session)] {
+		return limits.dialogsFolderPinnedPremium(); // [MG] Main list too.
 	});
 }
 
