@@ -37,6 +37,19 @@ struct FoundMessages {
 	not_null<History*> history,
 	const QString &query);
 
+// The in-chat search operators (core/mg_search_query.h) resolved for one chat
+// and mapped onto messages.search fields.
+struct MgSearch {
+	QString text;
+	PeerData *from = nullptr;
+	MTPMessagesFilter filter = MTP_inputMessagesFilterEmpty();
+	int minDate = 0;
+	int maxDate = 0;
+};
+[[nodiscard]] MgSearch ParseMgSearch(
+	not_null<History*> history,
+	const QString &query);
+
 class MessagesSearch final {
 public:
 	struct Request {
