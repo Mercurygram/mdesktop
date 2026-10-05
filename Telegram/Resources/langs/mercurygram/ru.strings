@@ -34,3 +34,8 @@
 "lng_mg_mention" = "Упомянуть";
 "lng_mg_mention_choose" = "Выбрать контакт";
 "lng_mg_translate_use" = "Использовать этот перевод";
+"lng_mg_keep_deleted_messages" = "Сохранять удалённые и изменённые сообщения";
+"lng_mg_deleted" = "удалено";
+"lng_mg_edit_history" = "История изменений";
+"lng_mg_edit_history_current" = "Текущая версия";
+"lng_mg_edit_history_revision" = "Версия {current} из {total}";

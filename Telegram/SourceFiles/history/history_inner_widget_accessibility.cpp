@@ -23,6 +23,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 #include "history/history_item.h"
 #include "history/history_item_components.h"
+#include "history/mg_message_history.h"
 #include "lang/lang_keys.h"
 #include "ui/text/format_values.h"
 
@@ -286,6 +287,9 @@ QString MessageAccessibilityName(
 	}
 	if (item->Has<HistoryMessageEdited>()) {
 		statusParts.push_back(tr::lng_edited(tr::now));
+	}
+	if (MG::IsDeletedMessage(item)) {
+		statusParts.push_back(tr::lng_mg_deleted(tr::now));
 	}
 	const auto dateTime = view->dateTime();
 	statusParts.push_back(
@@ -697,7 +701,9 @@ QString MessageSubItemValue(
 		}
 		return tr::lng_sr_chat_received(tr::now);
 	case MessageSubItem::Edited:
-		if (data->Has<HistoryMessageEdited>()) {
+		if (MG::IsDeletedMessage(data)) {
+			return tr::lng_mg_deleted(tr::now);
+		} else if (data->Has<HistoryMessageEdited>()) {
 			return tr::lng_edited(tr::now);
 		}
 		return {};

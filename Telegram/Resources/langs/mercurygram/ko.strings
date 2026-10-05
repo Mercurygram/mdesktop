@@ -34,3 +34,8 @@
 "lng_mg_mention" = "멘션";
 "lng_mg_mention_choose" = "연락처 선택";
 "lng_mg_translate_use" = "이 번역 사용";
+"lng_mg_keep_deleted_messages" = "삭제 및 수정된 메시지 저장";
+"lng_mg_deleted" = "삭제됨";
+"lng_mg_edit_history" = "편집 기록";
+"lng_mg_edit_history_current" = "현재 버전";
+"lng_mg_edit_history_revision" = "리비전 {current} / {total}";

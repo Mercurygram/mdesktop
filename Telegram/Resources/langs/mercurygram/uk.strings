@@ -34,3 +34,8 @@
 "lng_mg_mention" = "Згадати";
 "lng_mg_mention_choose" = "Вибрати контакт";
 "lng_mg_translate_use" = "Використати цей переклад";
+"lng_mg_keep_deleted_messages" = "Зберігати видалені та змінені повідомлення";
+"lng_mg_deleted" = "видалено";
+"lng_mg_edit_history" = "Історія змін";
+"lng_mg_edit_history_current" = "Поточна версія";
+"lng_mg_edit_history_revision" = "Версія {current} з {total}";
