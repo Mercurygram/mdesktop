@@ -57,6 +57,7 @@ MG_BOOL_SETTING(HidePremiumPromo, "mg-hide-premium-promo")
 MG_BOOL_SETTING(LockOnHide, "mg-lock-on-hide")
 MG_BOOL_SETTING(AllRecentStickers, "mg-all-recent-stickers")
 MG_BOOL_SETTING(ShowCharCounter, "mg-show-char-counter")
+MG_BOOL_SETTING(PreferSecretChats, "mg-prefer-secret-chats")
 
 // A FilterId; 0 means "open the account's default folder" (upstream).
 MG_SETTING(int, LaunchFolder, "mg-launch-folder", 0)

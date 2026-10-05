@@ -2004,6 +2004,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_folder_tag" = "Mercurygram";
 "lng_mg_go_to_first_message" = "Go to first message";
 "lng_mg_show_char_counter" = "Show character counter";
+"lng_mg_prefer_secret_chats" = "Start new chats as secret";
 
 "lng_profile_export_chat" = "Export chat history";
 "lng_profile_export_topic" = "Export topic history";
