@@ -219,6 +219,13 @@ void BuildPrivacySection(SectionBuilder &builder) {
 		{ u"link"_q, u"telegram"_q, u"confirm"_q, u"privacy"_q },
 		MG::ConfirmInternalLinks,
 		MG::SetConfirmInternalLinks);
+	AddBoolToggle(
+		builder,
+		u"mercurygram/prefer_secret_chats"_q,
+		tr::lng_mg_prefer_secret_chats(),
+		{ u"secret"_q, u"chat"_q, u"encrypted"_q, u"privacy"_q },
+		MG::PreferSecretChats,
+		MG::SetPreferSecretChats);
 
 	builder.addSkip(st::settingsCheckboxesSkip);
 
