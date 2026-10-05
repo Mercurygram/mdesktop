@@ -28,3 +28,4 @@
 "lng_mg_strip_tracking" = "Видаляти параметри стеження";
 "lng_mg_reduce_tracking" = "Зменшити мережеве відстеження";
 "lng_mg_reduce_tracking_fallback" = "Сервер відхилив ключ сеансу на одну годину, тому він змінюється кожні {hours}.";
+"lng_mg_go_to_first_message" = "До першого повідомлення";

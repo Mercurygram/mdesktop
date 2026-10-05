@@ -28,3 +28,4 @@
 "lng_mg_strip_tracking" = "Tracking-Parameter entfernen";
 "lng_mg_reduce_tracking" = "Netzwerk-Tracking reduzieren";
 "lng_mg_reduce_tracking_fallback" = "Der Server hat einen einstündigen Sitzungsschlüssel abgelehnt, daher wird er stattdessen alle {hours} gewechselt.";
+"lng_mg_go_to_first_message" = "Zur ersten Nachricht";
