@@ -30,6 +30,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_item_components.h"
 #include "history/history_item_helpers.h"
 #include "history/history_item_text.h"
+#include "history/mg_message_history.h"
 #include "history/view/history_view_schedule_box.h"
 #include "history/view/media/history_view_media.h"
 #include "history/view/media/menu/history_view_poll_menu.h"
@@ -849,7 +850,8 @@ bool AddReplyToMessageAction(
 	const auto canSendReply = topic
 		? Data::CanSendAnything(topic)
 		: Data::CanSendAnything(peer);
-	const auto canReply = canSendReply || item->allowsForward();
+	const auto canReply = (canSendReply || item->allowsForward())
+		&& !MG::IsDeletedMessage(item); // [MG] Gone from the server.
 	if (!canReply) {
 		return false;
 	}
@@ -1762,6 +1764,9 @@ void AddMessageDetailsAction(
 		not_null<Ui::PopupMenu*> menu,
 		HistoryItem *item,
 		not_null<Window::SessionController*> controller) {
+	if (item) {
+		MG::AddEditHistoryAction(menu, item, controller);
+	}
 	if (!item || !MG::MessageDetails()) {
 		return;
 	}
