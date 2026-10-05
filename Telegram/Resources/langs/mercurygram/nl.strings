@@ -34,3 +34,8 @@
 "lng_mg_mention" = "Vermelden";
 "lng_mg_mention_choose" = "Contact kiezen";
 "lng_mg_translate_use" = "Deze vertaling gebruiken";
+"lng_mg_keep_deleted_messages" = "Verwijderde & bewerkte berichten opslaan";
+"lng_mg_deleted" = "verwijderd";
+"lng_mg_edit_history" = "Bewerkgeschiedenis";
+"lng_mg_edit_history_current" = "Huidige versie";
+"lng_mg_edit_history_revision" = "Revisie {current} van {total}";
