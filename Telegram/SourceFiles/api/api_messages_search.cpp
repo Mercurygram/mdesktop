@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_messages_search.h"
 
 #include "apiwrap.h"
+#include "core/mg_search_query.h"
 #include "data/data_channel.h"
 #include "data/data_histories.h"
 #include "data/data_message_reaction_id.h"
@@ -94,6 +95,52 @@ std::vector<not_null<HistoryItem*>> SearchSecretChatMessages(
 	return result;
 }
 
+MgSearch ParseMgSearch(
+		not_null<History*> history,
+		const QString &query) {
+	const auto owner = &history->owner();
+	const auto parsed = MG::ParseSearchQuery(query, [&](
+			const QString &username) {
+		return owner->peerByUsername(username) != nullptr;
+	});
+	auto result = MgSearch{
+		.text = parsed.text,
+		.from = (parsed.from.isEmpty()
+			? nullptr
+			: owner->peerByUsername(parsed.from)),
+		.minDate = parsed.minDate,
+		.maxDate = parsed.maxDate,
+	};
+	using Type = MG::SearchType;
+	switch (parsed.type) {
+	case Type::None: break;
+	case Type::Photo: result.filter = MTP_inputMessagesFilterPhotos(); break;
+	case Type::Video: result.filter = MTP_inputMessagesFilterVideo(); break;
+	case Type::Voice: result.filter = MTP_inputMessagesFilterVoice(); break;
+	case Type::Round:
+		result.filter = MTP_inputMessagesFilterRoundVideo();
+		break;
+	case Type::Music: result.filter = MTP_inputMessagesFilterMusic(); break;
+	case Type::Gif: result.filter = MTP_inputMessagesFilterGif(); break;
+	case Type::Document:
+		result.filter = MTP_inputMessagesFilterDocument();
+		break;
+	case Type::Link: result.filter = MTP_inputMessagesFilterUrl(); break;
+	case Type::Contact:
+		result.filter = MTP_inputMessagesFilterContacts();
+		break;
+	case Type::Geo: result.filter = MTP_inputMessagesFilterGeo(); break;
+	case Type::Poll: result.filter = MTP_inputMessagesFilterPoll(); break;
+	case Type::Mention:
+		result.filter = MTP_inputMessagesFilterMyMentions();
+		break;
+	case Type::Pinned:
+		result.filter = MTP_inputMessagesFilterPinned();
+		break;
+	}
+	return result;
+}
+
 MessagesSearch::MessagesSearch(not_null<History*> history)
 : _history(history) {
 }
@@ -143,7 +190,9 @@ void MessagesSearch::searchRequest() {
 	}
 	auto callback = [=](Fn<void()> finish) {
 		using Flag = MTPmessages_Search::Flag;
-		const auto from = _request.from;
+		const auto mg = ParseMgSearch(_history, _request.query);
+		// A sender picked in the UI wins over a typed from: operator.
+		const auto from = _request.from ? _request.from : mg.from;
 		const auto fromPeer = _history->peer->isUser() ? nullptr : from;
 		const auto savedPeer = _history->peer->isSelf() ? from : nullptr;
 		_requestId = _history->session().api().request(MTPmessages_Search(
@@ -152,16 +201,18 @@ void MessagesSearch::searchRequest() {
 				| (_request.topMsgId ? Flag::f_top_msg_id : Flag())
 				| (_request.tags.empty() ? Flag() : Flag::f_saved_reaction)),
 			_history->peer->input(),
-			MTP_string(_request.query),
+			MTP_string(mg.text),
 			(fromPeer ? fromPeer->input() : MTP_inputPeerEmpty()),
 			(savedPeer ? savedPeer->input() : MTP_inputPeerEmpty()),
 			MTP_vector_from_range(_request.tags | ranges::views::transform(
 				Data::ReactionToMTP
 			)),
 			MTP_int(_request.topMsgId), // top_msg_id
-			PrepareFilter(_request.filter),
-			MTP_int(0), // min_date
-			MTP_int(0), // max_date
+			(_request.filter == SearchFilter::NoFilter
+				? mg.filter
+				: PrepareFilter(_request.filter)),
+			MTP_int(mg.minDate),
+			MTP_int(mg.maxDate),
 			MTP_int(_offsetId), // offset_id
 			MTP_int(0), // add_offset
 			MTP_int(kSearchPerPage),
