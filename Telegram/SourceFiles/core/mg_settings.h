@@ -88,6 +88,10 @@ void SetConfirmInternalLinks(bool value);
 void SetKeepDraftsLocal(bool value);
 [[nodiscard]] rpl::producer<bool> KeepDraftsLocalValue();
 
+[[nodiscard]] bool PreferSecretChats();
+void SetPreferSecretChats(bool value);
+[[nodiscard]] rpl::producer<bool> PreferSecretChatsValue();
+
 [[nodiscard]] bool HidePremiumPromo();
 void SetHidePremiumPromo(bool value);
 [[nodiscard]] rpl::producer<bool> HidePremiumPromoValue();
