@@ -34,6 +34,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/core_settings.h"
 #include "core/file_utilities.h"
 #include "core/mime_type.h"
+#include "core/mg_settings.h"
 #include "history/view/history_view_draw_to_reply.h"
 #include "history/view/controls/history_view_rich_draft_preview.h"
 #include "ui/emoji_config.h"
@@ -10223,23 +10224,25 @@ void HistoryWidget::checkCharsCount() {
 }
 
 void HistoryWidget::checkCharsLimitation() {
-	if (!_history || !_editMsgId) {
-		_charsLimitation = nullptr;
-		return;
+	const auto item = (_history && _editMsgId)
+		? session().data().message(_history->peer, _editMsgId)
+		: nullptr;
+	const auto count = _fieldCharsCountManager.count();
+	auto remove = 0;
+	if (item) {
+		const auto hasMediaWithCaption = item->media()
+			&& item->media()->allowsEditCaption();
+		const auto limits = Data::PremiumLimits(&session());
+		const auto maxTextSize = hasMediaWithCaption
+			? limits.captionLengthCurrent()
+			: limits.messageLengthCurrent();
+		remove = std::max(count - maxTextSize, 0);
 	}
-	const auto item = session().data().message(_history->peer, _editMsgId);
-	if (!item) {
-		_charsLimitation = nullptr;
-		return;
+	if (!remove && _history && MG::ShowCharCounter()) {
+		// A non-positive value is shown as the plain character count.
+		remove = -count;
 	}
-	const auto hasMediaWithCaption = item->media()
-		&& item->media()->allowsEditCaption();
-	const auto limits = Data::PremiumLimits(&session());
-	const auto maxTextSize = hasMediaWithCaption
-		? limits.captionLengthCurrent()
-		: limits.messageLengthCurrent();
-	const auto remove = _fieldCharsCountManager.count() - maxTextSize;
-	if (remove > 0) {
+	if (remove) {
 		if (!_charsLimitation) {
 			_charsLimitation = base::make_unique_q<CharactersLimitLabel>(
 				this,

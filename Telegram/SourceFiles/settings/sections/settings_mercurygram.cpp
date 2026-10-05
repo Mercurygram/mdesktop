@@ -106,6 +106,13 @@ void BuildGeneralSection(SectionBuilder &builder) {
 		MG::SetMessageDetails);
 	AddBoolToggle(
 		builder,
+		u"mercurygram/show_char_counter"_q,
+		tr::lng_mg_show_char_counter(),
+		{ u"characters"_q, u"counter"_q, u"length"_q },
+		MG::ShowCharCounter,
+		MG::SetShowCharCounter);
+	AddBoolToggle(
+		builder,
 		u"mercurygram/hide_all_chats"_q,
 		tr::lng_mg_hide_all_chats(),
 		{ u"all"_q, u"chats"_q, u"folder"_q, u"tab"_q },

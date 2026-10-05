@@ -6496,24 +6496,25 @@ TextWithEntities ComposeControls::prepareTextForEditMsg() const {
 }
 
 void ComposeControls::checkCharsLimitation() {
-	if (!_history || !isEditingMessage()) {
-		_charsLimitation = nullptr;
-		return;
+	const auto item = (_history && isEditingMessage())
+		? _history->owner().message(_header->editMsgId())
+		: nullptr;
+	const auto count = Ui::ComputeFieldCharacterCount(_field);
+	auto remove = 0;
+	if (item) {
+		const auto hasMediaWithCaption = item->media()
+			&& item->media()->allowsEditCaption();
+		const auto limits = Data::PremiumLimits(&session());
+		const auto maxTextSize = hasMediaWithCaption
+			? limits.captionLengthCurrent()
+			: limits.messageLengthCurrent();
+		remove = std::max(count - maxTextSize, 0);
 	}
-	const auto item = _history->owner().message(_header->editMsgId());
-	if (!item) {
-		_charsLimitation = nullptr;
-		return;
+	if (!remove && _history && MG::ShowCharCounter()) {
+		// A non-positive value is shown as the plain character count.
+		remove = -count;
 	}
-	const auto hasMediaWithCaption = item->media()
-		&& item->media()->allowsEditCaption();
-	const auto limits = Data::PremiumLimits(&session());
-	const auto maxTextSize = hasMediaWithCaption
-		? limits.captionLengthCurrent()
-		: limits.messageLengthCurrent();
-	const auto remove = Ui::ComputeFieldCharacterCount(_field)
-		- maxTextSize;
-	if (remove > 0) {
+	if (remove) {
 		if (!_charsLimitation) {
 			using namespace Controls;
 			_charsLimitation = base::make_unique_q<CharactersLimitLabel>(
