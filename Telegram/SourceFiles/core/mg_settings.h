@@ -92,6 +92,10 @@ void SetKeepDraftsLocal(bool value);
 void SetPreferSecretChats(bool value);
 [[nodiscard]] rpl::producer<bool> PreferSecretChatsValue();
 
+[[nodiscard]] bool KeepDeletedMessages();
+void SetKeepDeletedMessages(bool value);
+[[nodiscard]] rpl::producer<bool> KeepDeletedMessagesValue();
+
 [[nodiscard]] bool HidePremiumPromo();
 void SetHidePremiumPromo(bool value);
 [[nodiscard]] rpl::producer<bool> HidePremiumPromoValue();

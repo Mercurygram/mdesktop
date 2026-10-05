@@ -226,6 +226,13 @@ void BuildPrivacySection(SectionBuilder &builder) {
 		{ u"secret"_q, u"chat"_q, u"encrypted"_q, u"privacy"_q },
 		MG::PreferSecretChats,
 		MG::SetPreferSecretChats);
+	AddBoolToggle(
+		builder,
+		u"mercurygram/keep_deleted_messages"_q,
+		tr::lng_mg_keep_deleted_messages(),
+		{ u"deleted"_q, u"edited"_q, u"history"_q, u"anti"_q },
+		MG::KeepDeletedMessages,
+		MG::SetKeepDeletedMessages);
 
 	builder.addSkip(st::settingsCheckboxesSkip);
 
