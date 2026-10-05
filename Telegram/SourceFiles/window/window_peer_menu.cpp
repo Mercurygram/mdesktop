@@ -458,6 +458,20 @@ void TogglePinnedThread(
 			controller->content()->dialogsToUp();
 		}
 		return;
+	} else if (const auto history = entry->asHistory()
+		; history && !history->folder()) {
+		// [MG] "All chats" may hold more pins than the server takes, so
+		// a per-chat pin can be refused. Send the order instead: it is
+		// stored here in full and cut to the server limit on the way out.
+		owner->session().api().savePinnedOrder(nullptr);
+		owner->notifyPinnedDialogsOrderUpdated();
+		if (onToggled) {
+			onToggled();
+		}
+		if (isPinned) {
+			controller->content()->dialogsToUp();
+		}
+		return;
 	} else if (const auto history = entry->asHistory()) {
 		const auto flags = isPinned
 			? MTPmessages_ToggleDialogPin::Flag::f_pinned
