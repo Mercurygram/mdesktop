@@ -30,3 +30,4 @@
 "lng_mg_reduce_tracking_fallback" = "De server weigerde een sessiesleutel van één uur, dus wordt deze in plaats daarvan elke {hours} vernieuwd.";
 "lng_mg_go_to_first_message" = "Ga naar eerste bericht";
 "lng_mg_show_char_counter" = "Tekenteller tonen";
+"lng_mg_prefer_secret_chats" = "Nieuwe chats als geheim starten";

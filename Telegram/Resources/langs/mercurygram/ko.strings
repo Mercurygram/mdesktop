@@ -30,3 +30,4 @@
 "lng_mg_reduce_tracking_fallback" = "서버가 1시간짜리 세션 키를 거부하여 대신 {hours}마다 교체합니다.";
 "lng_mg_go_to_first_message" = "첫 메시지로 이동";
 "lng_mg_show_char_counter" = "글자 수 표시";
+"lng_mg_prefer_secret_chats" = "새 대화를 비밀 대화로 시작";
