@@ -86,6 +86,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_peer_values.h"
 #include "core/mg_folder_blob.h" // [MG] MG::IsMercurygramFolderId.
 #include "core/mg_pins.h"
+#include "history/mg_message_history.h"
 #include "data/data_premium_limits.h"
 #include "data/data_forum.h"
 #include "data/data_forum_topic.h"
@@ -3121,6 +3122,7 @@ void Session::updateEditedMessage(const MTPMessage &data) {
 	if (existing->isLocalUpdateMedia() && data.type() == mtpc_message) {
 		updateExistingMessage(data.c_message());
 	}
+	MG::RememberEditedText(existing);
 	data.match([](const MTPDmessageEmpty &) {
 	}, [&](const MTPDmessageService &data) {
 		existing->applyEdition(data);
@@ -3426,6 +3428,9 @@ void Session::processMessagesDeleted(
 	for (const auto &messageId : data) {
 		const auto i = list ? list->find(messageId.v) : Messages::iterator();
 		if (list && i != list->end()) {
+			if (MG::KeepDeletedMessage(i->second)) {
+				continue;
+			}
 			const auto history = i->second->history();
 			toDestroy.push_back(i->second);
 			historiesToCheck.emplace(history);
@@ -3451,6 +3456,9 @@ void Session::processNonChannelMessagesDeleted(const QVector<MTPint> &data) {
 	auto historiesToCheck = base::flat_set<not_null<History*>>();
 	for (const auto &messageId : data) {
 		if (const auto item = nonChannelMessage(messageId.v)) {
+			if (MG::KeepDeletedMessage(item)) {
+				continue;
+			}
 			const auto history = item->history();
 			toDestroy.push_back(item);
 			historiesToCheck.emplace(history);

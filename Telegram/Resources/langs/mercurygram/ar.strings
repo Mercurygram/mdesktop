@@ -34,3 +34,8 @@
 "lng_mg_mention" = "إشارة";
 "lng_mg_mention_choose" = "اختيار جهة اتصال";
 "lng_mg_translate_use" = "استخدام هذه الترجمة";
+"lng_mg_keep_deleted_messages" = "حفظ الرسائل المحذوفة والمعدّلة";
+"lng_mg_deleted" = "محذوفة";
+"lng_mg_edit_history" = "سجل التعديلات";
+"lng_mg_edit_history_current" = "الإصدار الحالي";
+"lng_mg_edit_history_revision" = "المراجعة {current} من {total}";

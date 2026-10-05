@@ -2008,6 +2008,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_mention" = "Mention";
 "lng_mg_mention_choose" = "Choose contact";
 "lng_mg_translate_use" = "Use This Translation";
+"lng_mg_keep_deleted_messages" = "Save deleted & edited messages";
+"lng_mg_deleted" = "deleted";
+"lng_mg_edit_history" = "Edit history";
+"lng_mg_edit_history_current" = "Current version";
+"lng_mg_edit_history_revision" = "Revision {current} of {total}";
 
 "lng_profile_export_chat" = "Export chat history";
 "lng_profile_export_topic" = "Export topic history";

@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/phone_click_handler.h"
 #include "data/data_chat_participant_status.h"
 #include "history/history_item_helpers.h"
+#include "history/mg_message_history.h"
 #include "history/view/controls/history_view_forward_panel.h"
 #include "history/view/controls/history_view_draft_options.h"
 #include "history/view/controls/history_view_suggest_options.h"
@@ -6556,6 +6557,8 @@ auto HistoryInner::DelegateMixin()
 bool CanSendReply(not_null<const HistoryItem*> item) {
 	if (item->isEphemeral() && !CanReplyToEphemeral(item)) {
 		return false;
+	} else if (MG::IsDeletedMessage(item)) {
+		return false; // The server no longer has it.
 	}
 	const auto peer = item->history()->peer;
 	if (const auto topic = item->topic()) {

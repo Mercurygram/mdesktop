@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_item_helpers.h"
 #include "history/history_item.h"
 #include "history/history.h"
+#include "history/mg_message_history.h"
 #include "history/view/media/history_view_media.h"
 #include "history/view/history_view_message.h"
 #include "history/view/history_view_cursor_state.h"
@@ -487,7 +488,9 @@ void BottomInfo::layoutDateText() {
 	const auto editedPrimary = !updated
 		&& (_data.flags & Data::Flag::EditedPrimary)
 		&& !(_data.flags & Data::Flag::ForwardedDate);
-	const auto edited = editedPrimary
+	const auto edited = (_data.flags & Data::Flag::MgDeleted)
+		? (tr::lng_mg_deleted(tr::now) + ' ')
+		: editedPrimary
 		? QString()
 		: updated
 		? (tr::lng_ephemeral_updated(tr::now) + ' ')
@@ -702,6 +705,9 @@ BottomInfo::Data BottomInfoDataFromMessage(not_null<Message*> message) {
 	}
 	if (IsAnchoredEphemeral(item)) {
 		result.flags |= Flag::Updated;
+	}
+	if (MG::IsDeletedMessage(item)) {
+		result.flags |= Flag::MgDeleted;
 	}
 	if (const auto views = item->Get<HistoryMessageViews>()) {
 		if (views->views.count >= 0) {

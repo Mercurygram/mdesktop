@@ -1211,6 +1211,8 @@ PRIVATE
     history/history_view_swipe_back_session.h
     history/history_widget.cpp
     history/history_widget.h
+    history/mg_message_history.cpp
+    history/mg_message_history.h
     info/bot/earn/info_bot_earn_list.cpp
     info/bot/earn/info_bot_earn_list.h
     info/bot/earn/info_bot_earn_widget.cpp
