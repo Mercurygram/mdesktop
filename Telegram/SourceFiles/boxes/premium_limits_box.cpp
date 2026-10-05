@@ -908,8 +908,9 @@ void PinsLimitBox(
 		box,
 		session,
 		"dialog_pinned",
-		limits.dialogsPinnedDefault(),
-		limits.dialogsPinnedPremium(),
+		// [MG] "All chats" pins as many as the archive.
+		limits.dialogsFolderPinnedDefault(),
+		limits.dialogsFolderPinnedPremium(),
 		PinsCount(session->data().chatsList()));
 }
 

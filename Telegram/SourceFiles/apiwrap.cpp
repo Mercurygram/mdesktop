@@ -72,6 +72,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_history_messages.h"
 #include "core/core_cloud_password.h"
 #include "core/application.h"
+#include "core/mg_pins.h"
 #include "core/mg_settings.h"
 #include "base/unixtime.h"
 #include "base/random.h"
@@ -410,6 +411,9 @@ void ApiWrap::checkFilterInvite(
 }
 
 void ApiWrap::savePinnedOrder(Data::Folder *folder) {
+	if (!folder) {
+		MG::SaveMainPins(&_session->data());
+	}
 	const auto &order = _session->data().pinnedChatsOrder(folder);
 	const auto input = [](Dialogs::Key key) {
 		if (const auto history = key.history()) {
@@ -436,6 +440,14 @@ void ApiWrap::savePinnedOrder(Data::Folder *folder) {
 		}),
 		ranges::back_inserter(peers),
 		input);
+	if (!folder) {
+		// [MG] A list over the server limit is refused whole. With force
+		// set the server unpins what is cut, the rest stays on this device.
+		const auto limit = MG::ServerMainPinsLimit(&_session->data());
+		if (peers.size() > limit) {
+			peers.resize(limit);
+		}
+	}
 	request(MTPmessages_ReorderPinnedDialogs(
 		MTP_flags(MTPmessages_ReorderPinnedDialogs::Flag::f_force),
 		MTP_int(folder ? folder->id() : 0),
