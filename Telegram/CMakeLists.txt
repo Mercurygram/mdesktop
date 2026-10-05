@@ -522,6 +522,8 @@ PRIVATE
     chat_helpers/gifs_list_widget.h
     chat_helpers/message_field.cpp
     chat_helpers/message_field.h
+    chat_helpers/mg_field_actions.cpp
+    chat_helpers/mg_field_actions.h
     chat_helpers/rich_paste_toast.cpp
     chat_helpers/rich_paste_toast.h
     chat_helpers/share_message_phrase_factory.cpp
