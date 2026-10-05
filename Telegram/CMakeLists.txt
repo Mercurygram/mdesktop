@@ -602,6 +602,8 @@ PRIVATE
     core/mg_folders.h
     core/mg_lock_on_hide.cpp
     core/mg_lock_on_hide.h
+    core/mg_search_query.cpp
+    core/mg_search_query.h
     core/mg_settings.cpp
     core/mg_settings.h
     core/mg_unicode_fold.cpp
