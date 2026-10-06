@@ -39,3 +39,9 @@
 "lng_mg_edit_history" = "История изменений";
 "lng_mg_edit_history_current" = "Текущая версия";
 "lng_mg_edit_history_revision" = "Версия {current} из {total}";
+"lng_mg_translation" = "Перевод";
+"lng_mg_translate_mozhi" = "Альтернативный HTTP (Mozhi)";
+"lng_mg_translate_engine" = "Движок";
+"lng_mg_translate_instance" = "Экземпляр";
+"lng_mg_translate_instance_auto" = "Авто (ротация по стандартным)";
+"lng_mg_translate_mozhi_about" = "Переводы обрабатываются выбранным экземпляром Mozhi. Оператор может их журналировать.";

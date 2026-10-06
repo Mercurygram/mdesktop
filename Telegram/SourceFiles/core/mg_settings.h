@@ -108,6 +108,20 @@ void SetLockOnHide(bool value);
 void SetAllRecentStickers(bool value);
 [[nodiscard]] rpl::producer<bool> AllRecentStickersValue();
 
+[[nodiscard]] bool MozhiTranslation();
+void SetMozhiTranslation(bool value);
+[[nodiscard]] rpl::producer<bool> MozhiTranslationValue();
+
+// Index into MG::MozhiEngineNames().
+[[nodiscard]] int MozhiEngine();
+void SetMozhiEngine(int value);
+[[nodiscard]] rpl::producer<int> MozhiEngineValue();
+
+// Custom Mozhi base URL; empty = rotate across the built-in instances.
+[[nodiscard]] QString MozhiInstance();
+void SetMozhiInstance(const QString &value);
+[[nodiscard]] rpl::producer<QString> MozhiInstanceValue();
+
 // FilterId of the folder to open on launch; 0 = the account's default folder.
 [[nodiscard]] int LaunchFolder();
 void SetLaunchFolder(int value);
