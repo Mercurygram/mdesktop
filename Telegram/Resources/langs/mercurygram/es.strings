@@ -39,3 +39,9 @@
 "lng_mg_edit_history" = "Historial de ediciones";
 "lng_mg_edit_history_current" = "Versión actual";
 "lng_mg_edit_history_revision" = "Revisión {current} de {total}";
+"lng_mg_translation" = "Traducción";
+"lng_mg_translate_mozhi" = "HTTP alternativo (Mozhi)";
+"lng_mg_translate_engine" = "Motor";
+"lng_mg_translate_instance" = "Instancia";
+"lng_mg_translate_instance_auto" = "Automática (rotación entre predeterminadas)";
+"lng_mg_translate_mozhi_about" = "Las traducciones las procesa la instancia Mozhi seleccionada. El operador puede registrarlas.";
