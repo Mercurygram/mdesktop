@@ -59,6 +59,16 @@ MG_BOOL_SETTING(AllRecentStickers, "mg-all-recent-stickers")
 MG_BOOL_SETTING(ShowCharCounter, "mg-show-char-counter")
 MG_BOOL_SETTING(PreferSecretChats, "mg-prefer-secret-chats")
 MG_BOOL_SETTING(KeepDeletedMessages, "mg-keep-deleted-messages")
+MG_BOOL_SETTING(MozhiTranslation, "mg-translate-mozhi")
+
+MG_SETTING(int, MozhiEngine, "mg-translate-mozhi-engine", 0)
+
+// The pref store has no QString specialization; keep the URL as UTF-8.
+MG_SETTING(
+	QByteArray,
+	MozhiInstanceUtf8,
+	"mg-translate-mozhi-instance",
+	QByteArray())
 
 // A FilterId; 0 means "open the account's default folder" (upstream).
 MG_SETTING(int, LaunchFolder, "mg-launch-folder", 0)
@@ -97,6 +107,21 @@ rpl::producer<TimeId> TemporaryKeyExpiresInValue() {
 		ReduceTrackingValue(),
 		TemporaryKeyStepValue()
 	) | rpl::map([](bool, int) { return TemporaryKeyExpiresIn(); });
+}
+
+QString MozhiInstance() {
+	return QString::fromUtf8(MozhiInstanceUtf8());
+}
+
+void SetMozhiInstance(const QString &value) {
+	SetMozhiInstanceUtf8(value.toUtf8());
+}
+
+rpl::producer<QString> MozhiInstanceValue() {
+	return MozhiInstanceUtf8Value(
+	) | rpl::map([](const QByteArray &value) {
+		return QString::fromUtf8(value);
+	});
 }
 
 bool StepUpTemporaryKeyExpiresIn() {
