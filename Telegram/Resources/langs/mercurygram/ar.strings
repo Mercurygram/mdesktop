@@ -39,3 +39,9 @@
 "lng_mg_edit_history" = "سجل التعديلات";
 "lng_mg_edit_history_current" = "الإصدار الحالي";
 "lng_mg_edit_history_revision" = "المراجعة {current} من {total}";
+"lng_mg_translation" = "الترجمة";
+"lng_mg_translate_mozhi" = "HTTP بديل (Mozhi)";
+"lng_mg_translate_engine" = "المحرك";
+"lng_mg_translate_instance" = "النسخة";
+"lng_mg_translate_instance_auto" = "تلقائي (التناوب بين الافتراضية)";
+"lng_mg_translate_mozhi_about" = "تتم معالجة الترجمات بواسطة نسخة Mozhi المحددة. قد يقوم المشغل بتسجيلها.";

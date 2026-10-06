@@ -39,3 +39,9 @@
 "lng_mg_edit_history" = "편집 기록";
 "lng_mg_edit_history_current" = "현재 버전";
 "lng_mg_edit_history_revision" = "리비전 {current} / {total}";
+"lng_mg_translation" = "번역";
+"lng_mg_translate_mozhi" = "대체 HTTP (Mozhi)";
+"lng_mg_translate_engine" = "엔진";
+"lng_mg_translate_instance" = "인스턴스";
+"lng_mg_translate_instance_auto" = "자동 (기본 인스턴스 순환)";
+"lng_mg_translate_mozhi_about" = "번역은 선택한 Mozhi 인스턴스가 처리합니다. 운영자가 기록할 수 있습니다.";

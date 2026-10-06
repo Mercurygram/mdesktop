@@ -39,3 +39,9 @@
 "lng_mg_edit_history" = "Bewerkgeschiedenis";
 "lng_mg_edit_history_current" = "Huidige versie";
 "lng_mg_edit_history_revision" = "Revisie {current} van {total}";
+"lng_mg_translation" = "Vertaling";
+"lng_mg_translate_mozhi" = "Alternatieve HTTP (Mozhi)";
+"lng_mg_translate_engine" = "Engine";
+"lng_mg_translate_instance" = "Instantie";
+"lng_mg_translate_instance_auto" = "Automatisch (rotatie tussen standaard)";
+"lng_mg_translate_mozhi_about" = "Vertalingen worden verwerkt door de geselecteerde Mozhi-instantie. De beheerder kan ze loggen.";
