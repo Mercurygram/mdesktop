@@ -2013,6 +2013,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_edit_history" = "Edit history";
 "lng_mg_edit_history_current" = "Current version";
 "lng_mg_edit_history_revision" = "Revision {current} of {total}";
+"lng_mg_translation" = "Translation";
+"lng_mg_translate_mozhi" = "Alternative HTTP (Mozhi)";
+"lng_mg_translate_engine" = "Engine";
+"lng_mg_translate_instance" = "Instance";
+"lng_mg_translate_instance_auto" = "Auto (rotate across defaults)";
+"lng_mg_translate_mozhi_about" = "Translations are processed by the selected Mozhi instance. The operator may log them.";
 
 "lng_profile_export_chat" = "Export chat history";
 "lng_profile_export_topic" = "Export topic history";
