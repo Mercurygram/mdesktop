@@ -13,13 +13,16 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_chat_filters.h"
 #include "data/data_session.h"
 #include "lang/lang_keys.h"
+#include "lang/mg_mozhi_provider.h"
 #include "main/main_session.h"
 #include "settings/settings_builder.h"
 #include "settings/sections/settings_main.h"
+#include "ui/layers/generic_box.h"
 #include "ui/text/text_utilities.h"
 #include "ui/ui_utility.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/buttons.h"
+#include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/wrap/vertical_layout.h"
 #include "window/window_session_controller.h"
@@ -69,6 +72,86 @@ void AddLaunchFolderRow(SectionBuilder &builder) {
 			}
 		}
 		(*menu)->popup(button->mapToGlobal(QPoint(0, button->height())));
+	});
+}
+
+void MozhiInstanceBox(not_null<Ui::GenericBox*> box) {
+	box->setTitle(tr::lng_mg_translate_instance());
+	const auto field = box->addRow(object_ptr<Ui::InputField>(
+		box,
+		st::defaultInputField,
+		rpl::single(u"https://your-mozhi-instance.example"_q),
+		MG::MozhiInstance()));
+	box->setFocusCallback([=] {
+		field->setFocusFast();
+	});
+	const auto submit = [=] {
+		auto value = field->getLastText().trimmed();
+		while (value.endsWith('/')) {
+			value.chop(1);
+		}
+		const auto url = QUrl(value);
+		const auto scheme = url.scheme();
+		if (!value.isEmpty()
+			&& (!url.isValid()
+				|| url.host().isEmpty()
+				|| (scheme != u"https"_q && scheme != u"http"_q))) {
+			field->showError();
+			return;
+		}
+		MG::SetMozhiInstance(value);
+		box->closeBox();
+	};
+	field->submits() | rpl::on_next(submit, field->lifetime());
+	box->addButton(tr::lng_settings_save(), submit);
+	box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
+}
+
+void AddMozhiEngineRow(SectionBuilder &builder) {
+	const auto button = builder.addButton({
+		.id = u"mercurygram/translate_engine"_q,
+		.title = tr::lng_mg_translate_engine(),
+		.st = &st::settingsButtonNoIcon,
+		.label = MG::MozhiEngineValue() | rpl::map([](int index) {
+			const auto names = MG::MozhiEngineNames();
+			return names.value(index, names.front());
+		}),
+		.keywords = { u"translate"_q, u"engine"_q, u"mozhi"_q },
+	});
+	if (!button) {
+		return;
+	}
+	const auto menu = button->lifetime().make_state<
+		base::unique_qptr<Ui::PopupMenu>>();
+	button->setClickedCallback([=] {
+		*menu = base::make_unique_q<Ui::PopupMenu>(button);
+		const auto names = MG::MozhiEngineNames();
+		for (auto i = 0; i != names.size(); ++i) {
+			(*menu)->addAction(names[i], [=] { MG::SetMozhiEngine(i); });
+		}
+		(*menu)->popup(button->mapToGlobal(QPoint(0, button->height())));
+	});
+}
+
+void AddMozhiInstanceRow(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	const auto button = builder.addButton({
+		.id = u"mercurygram/translate_instance"_q,
+		.title = tr::lng_mg_translate_instance(),
+		.st = &st::settingsButtonNoIcon,
+		.label = rpl::combine(
+			MG::MozhiInstanceValue(),
+			tr::lng_mg_translate_instance_auto()
+		) | rpl::map([](const QString &url, const QString &automatic) {
+			return url.isEmpty() ? automatic : QUrl(url).host();
+		}),
+		.keywords = { u"translate"_q, u"instance"_q, u"mozhi"_q },
+	});
+	if (!button || !controller) {
+		return;
+	}
+	button->setClickedCallback([=] {
+		controller->show(Box(MozhiInstanceBox));
 	});
 }
 
@@ -251,10 +334,32 @@ void BuildPrivacySection(SectionBuilder &builder) {
 	}, MG::TemporaryKeyExpiresInValue() | rpl::map(refused));
 }
 
+void BuildTranslationSection(SectionBuilder &builder) {
+	builder.addDivider();
+	builder.addSkip();
+	builder.addSubsectionTitle(tr::lng_mg_translation());
+
+	AddBoolToggle(
+		builder,
+		u"mercurygram/translate_mozhi"_q,
+		tr::lng_mg_translate_mozhi(),
+		{ u"translate"_q, u"translation"_q, u"mozhi"_q, u"privacy"_q },
+		MG::MozhiTranslation,
+		MG::SetMozhiTranslation);
+	builder.scope([&] {
+		AddMozhiEngineRow(builder);
+		AddMozhiInstanceRow(builder);
+	}, MG::MozhiTranslationValue());
+
+	builder.addSkip(st::settingsCheckboxesSkip);
+	builder.addDividerText(tr::lng_mg_translate_mozhi_about());
+}
+
 void BuildMercurygramSectionContent(SectionBuilder &builder) {
 	BuildGeneralSection(builder);
 	BuildMediaSection(builder);
 	BuildPrivacySection(builder);
+	BuildTranslationSection(builder);
 }
 
 class Mercurygram : public Section<Mercurygram> {

@@ -168,3 +168,28 @@ set_target_properties(
 )
 
 add_dependencies(Telegram test_mg_search_query)
+
+# Mozhi translation helpers: chunk splitting and reply parsing. Pure Qt.
+add_executable(test_mg_mozhi)
+init_target(test_mg_mozhi "(tests)")
+
+target_include_directories(test_mg_mozhi PRIVATE ${src_loc})
+
+nice_target_sources(test_mg_mozhi ${src_loc}
+PRIVATE
+    tests/test_mg_mozhi.cpp
+    lang/mg_mozhi_text.cpp
+    lang/mg_mozhi_text.h
+)
+
+target_link_libraries(test_mg_mozhi
+PRIVATE
+    desktop-app::external_qt
+)
+
+set_target_properties(
+    test_mg_mozhi
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+add_dependencies(Telegram test_mg_mozhi)
