@@ -10,10 +10,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/options.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "core/mg_settings.h"
 #include "data/data_msg_id.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
 #include "history/history_item.h"
+#include "lang/mg_mozhi_provider.h"
 #include "lang/translate_mtproto_provider.h"
 #include "lang/translate_url_provider.h"
 #include "platform/platform_translate_provider.h"
@@ -37,6 +39,9 @@ std::unique_ptr<TranslateProvider> CreateTranslateProvider(
 	if (!urlTemplate.isEmpty()
 		&& urlTemplate.contains(u"%q"_q)) {
 		return CreateUrlTranslateProvider(urlTemplate);
+	}
+	if (MG::MozhiTranslation()) {
+		return MG::CreateMozhiProvider();
 	}
 	if (Core::App().settings().usePlatformTranslation()
 		&& Platform::IsTranslateProviderAvailable()) {

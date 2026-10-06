@@ -1,0 +1,21 @@
+/*
+This file is part of Telegram Desktop,
+the official desktop application for the Telegram messaging service.
+
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
+*/
+#pragma once
+
+#include "translate_provider.h"
+
+namespace MG {
+
+// Engines offered by Mozhi that still work; index is the stored setting.
+[[nodiscard]] QStringList MozhiEngineNames();
+
+// Translates through a Mozhi frontend over HTTPS, so the text never reaches
+// Telegram. Entities survive as markers, see MG::ProtectMozhiSpans.
+[[nodiscard]] std::unique_ptr<Ui::TranslateProvider> CreateMozhiProvider();
+
+} // namespace MG

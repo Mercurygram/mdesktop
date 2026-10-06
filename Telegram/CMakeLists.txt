@@ -1472,6 +1472,10 @@ PRIVATE
     lang/lang_numbers_animation.h
     lang/lang_translator.cpp
     lang/lang_translator.h
+    lang/mg_mozhi_provider.cpp
+    lang/mg_mozhi_provider.h
+    lang/mg_mozhi_text.cpp
+    lang/mg_mozhi_text.h
     lang/translate_mtproto_provider.cpp
     lang/translate_mtproto_provider.h
     lang/translate_provider.cpp
@@ -2502,6 +2506,7 @@ if (MSVC)
     target_link_libraries(Telegram
     PRIVATE
         delayimp
+        dnsapi # [MG] static Qt6Network DNS lookup.
     )
     target_link_options(Telegram
     PRIVATE
