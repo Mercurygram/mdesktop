@@ -208,6 +208,13 @@ void BuildGeneralSection(SectionBuilder &builder) {
 		{ u"premium"_q, u"promo"_q, u"business"_q, u"gift"_q },
 		MG::HidePremiumPromo,
 		MG::SetHidePremiumPromo);
+	AddBoolToggle(
+		builder,
+		u"mercurygram/hide_wallet"_q,
+		tr::lng_mg_hide_wallet(),
+		{ u"wallet"_q, u"ton"_q, u"crypto"_q },
+		MG::HideWallet,
+		MG::SetHideWallet);
 	AddLaunchFolderRow(builder);
 
 	builder.addSkip(st::settingsCheckboxesSkip);

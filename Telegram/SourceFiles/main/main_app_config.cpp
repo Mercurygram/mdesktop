@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "base/call_delayed.h"
 #include "calls/group/ui/calls_group_stars_coloring.h"
+#include "core/mg_settings.h"
 #include "data/data_session.h"
 #include "main/main_account.h"
 #include "main/main_session.h"
@@ -283,7 +284,7 @@ QString AppConfig::oldWalletBotUsername() const {
 }
 
 bool AppConfig::walletAvailable() const {
-	return get<bool>(u"wallet_available"_q, true);
+	return !MG::HideWallet() && get<bool>(u"wallet_available"_q, true);
 }
 
 int AppConfig::storiesAlbumsLimit() const {
