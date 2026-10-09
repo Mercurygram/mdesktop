@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "calls/calls_instance.h"
 #include "core/application.h"
 #include "core/click_handler_types.h"
+#include "core/mg_settings.h"
 #include "data/data_changes.h"
 #include "data/data_document_media.h"
 #include "data/data_folder.h"
@@ -741,7 +742,9 @@ void MainMenu::setupMenu() {
 			wallet->entity(),
 			tr::lng_wallet_menu(),
 			st::mainMenuButton);
-		wallet->toggleOn(session->appConfig().value(
+		wallet->toggleOn(rpl::combine(
+			session->appConfig().value(),
+			MG::HideWalletValue()
 		) | rpl::map([=] {
 			return session->appConfig().walletAvailable();
 		}) | rpl::distinct_until_changed());

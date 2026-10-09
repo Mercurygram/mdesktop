@@ -54,6 +54,9 @@ MG_BOOL_SETTING(ReduceTracking, "mg-reduce-tracking")
 MG_BOOL_SETTING(StripTracking, "mg-strip-tracking")
 MG_BOOL_SETTING(ConfirmInternalLinks, "mg-confirm-internal-links")
 MG_BOOL_SETTING(HidePremiumPromo, "mg-hide-premium-promo")
+// On by default: Mercurygram does not promote the TON wallet; users can turn
+// it back on.
+MG_SETTING(bool, HideWallet, "mg-hide-wallet", true)
 MG_BOOL_SETTING(LockOnHide, "mg-lock-on-hide")
 MG_BOOL_SETTING(AllRecentStickers, "mg-all-recent-stickers")
 MG_BOOL_SETTING(ShowCharCounter, "mg-show-char-counter")
