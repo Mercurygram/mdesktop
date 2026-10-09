@@ -100,6 +100,10 @@ void SetKeepDeletedMessages(bool value);
 void SetHidePremiumPromo(bool value);
 [[nodiscard]] rpl::producer<bool> HidePremiumPromoValue();
 
+[[nodiscard]] bool HideWallet();
+void SetHideWallet(bool value);
+[[nodiscard]] rpl::producer<bool> HideWalletValue();
+
 [[nodiscard]] bool LockOnHide();
 void SetLockOnHide(bool value);
 [[nodiscard]] rpl::producer<bool> LockOnHideValue();
