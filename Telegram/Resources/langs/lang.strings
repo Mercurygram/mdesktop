@@ -2011,6 +2011,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_mg_keep_drafts_local" = "Keep drafts on this device";
 "lng_mg_confirm_internal_links" = "Confirm Telegram links";
 "lng_mg_hide_premium_promo" = "Hide Premium promo";
+"lng_mg_hide_wallet" = "Hide TON wallet";
 "lng_mg_all_recent_stickers" = "Show all recent stickers";
 "lng_mg_lock_on_hide" = "Lock when window is closed or minimized";
 "lng_mg_launch_folder" = "Launch folder";
