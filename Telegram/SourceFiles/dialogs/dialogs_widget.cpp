@@ -2543,6 +2543,7 @@ void Widget::switchToChatsFilter(FilterId id) {
 	const auto was = _inner->filterId();
 	const auto animated = (was != id)
 		&& !isHidden()
+		&& !_scroll->rect().isEmpty()
 		&& !_showAnimation
 		&& (_chatsFilterSwipeSwitch
 			|| (_chatFilters && !_chatFilters->isHidden()));
@@ -2565,9 +2566,13 @@ void Widget::switchToChatsFilter(FilterId id) {
 	if (_inner->filterId() == was) {
 		return;
 	}
+	auto nowCache = grabForChatsFilterSlide();
+	if (wasCache.isNull() || nowCache.isNull()) {
+		return;
+	}
 	startChatsFilterSlide(
 		std::move(wasCache),
-		grabForChatsFilterSlide(),
+		std::move(nowCache),
 		slideLeft,
 		duration);
 }
