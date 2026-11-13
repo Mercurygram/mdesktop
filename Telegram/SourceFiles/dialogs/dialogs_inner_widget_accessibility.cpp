@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "dialogs/dialogs_inner_widget_accessibility.h"
 
+#include "core/mg_settings.h"
 #include "data/notify/data_notify_settings.h"
 #include "data/data_channel.h"
 #include "data/data_chat_filters.h"
@@ -36,7 +37,7 @@ namespace {
 // Secret chat text stays out of the accessibility tree, like the message
 // list of the chat itself (see HistoryInner::accessibleElements).
 [[nodiscard]] bool HidesMessageText(not_null<PeerData*> peer) {
-	return peer->isSecretChat();
+	return peer->isSecretChat() && !MG::SecretChatAccessibility();
 }
 
 // What the row paints for a secret chat that has no messages yet.

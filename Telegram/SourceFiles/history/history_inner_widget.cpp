@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/stickers_emoji_pack.h"
 #include "core/application.h"
 #include "core/file_utilities.h"
+#include "core/mg_settings.h"
 #include "core/click_handler_types.h"
 #include "core/phone_click_handler.h"
 #include "data/data_chat_participant_status.h"
@@ -6674,10 +6675,11 @@ bool CanSendReply(not_null<const HistoryItem*> item) {
 
 auto HistoryInner::accessibleElements() const
 -> const std::vector<HistoryView::Element*> & {
-	if (_peer->isSecretChat()) {
+	if (_peer->isSecretChat() && !MG::SecretChatAccessibility()) {
 		// Keep secret chat content out of the accessibility tree, so screen
 		// readers and other assistive tools never see the decrypted text
-		// (the mobile clients hide the message list the same way).
+		// (the mobile clients hide the message list the same way), unless
+		// the user asked for it in the Mercurygram settings.
 		static const auto kEmpty = std::vector<Element*>();
 		return kEmpty;
 	}

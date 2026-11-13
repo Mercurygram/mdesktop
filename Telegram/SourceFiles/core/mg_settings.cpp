@@ -61,6 +61,7 @@ MG_BOOL_SETTING(LockOnHide, "mg-lock-on-hide")
 MG_BOOL_SETTING(AllRecentStickers, "mg-all-recent-stickers")
 MG_BOOL_SETTING(ShowCharCounter, "mg-show-char-counter")
 MG_BOOL_SETTING(PreferSecretChats, "mg-prefer-secret-chats")
+MG_BOOL_SETTING(SecretChatAccessibility, "mg-secret-chat-accessibility")
 MG_BOOL_SETTING(KeepDeletedMessages, "mg-keep-deleted-messages")
 MG_BOOL_SETTING(MozhiTranslation, "mg-translate-mozhi")
 

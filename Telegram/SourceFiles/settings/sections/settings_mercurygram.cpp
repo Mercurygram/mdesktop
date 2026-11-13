@@ -351,6 +351,13 @@ void BuildPrivacySection(SectionBuilder &builder) {
 		MG::SetPreferSecretChats);
 	AddBoolToggle(
 		builder,
+		u"mercurygram/secret_chat_accessibility"_q,
+		tr::lng_mg_secret_chat_accessibility(),
+		{ u"secret"_q, u"screen"_q, u"reader"_q, u"accessibility"_q },
+		MG::SecretChatAccessibility,
+		MG::SetSecretChatAccessibility);
+	AddBoolToggle(
+		builder,
 		u"mercurygram/keep_deleted_messages"_q,
 		tr::lng_mg_keep_deleted_messages(),
 		{ u"deleted"_q, u"edited"_q, u"history"_q, u"anti"_q },

@@ -92,6 +92,12 @@ void SetKeepDraftsLocal(bool value);
 void SetPreferSecretChats(bool value);
 [[nodiscard]] rpl::producer<bool> PreferSecretChatsValue();
 
+// Secret chat messages are kept away from screen readers and other
+// assistive tools unless this is on.
+[[nodiscard]] bool SecretChatAccessibility();
+void SetSecretChatAccessibility(bool value);
+[[nodiscard]] rpl::producer<bool> SecretChatAccessibilityValue();
+
 [[nodiscard]] bool KeepDeletedMessages();
 void SetKeepDeletedMessages(bool value);
 [[nodiscard]] rpl::producer<bool> KeepDeletedMessagesValue();
